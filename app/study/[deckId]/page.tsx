@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
-import { ArrowLeft, Check, X, RotateCcw, Info } from "lucide-react"
+import { ArrowLeft, Check, X, RotateCcw, Info, ThumbsUp, ThumbsDown } from "lucide-react"
 import Link from "next/link"
 import { useDecks } from "@/hooks/use-decks"
 import type { Deck, FlashCard } from "@/types/deck"
@@ -47,6 +47,7 @@ export default function StudyDeckPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [languageSet, setLanguageSet] = useState(false)
+  const [isTransitioning, setIsTransitioning] = useState(false)
 
   // useRef for retry count so that re-renders do not reset it
   const retryCountRef = useRef(0)
@@ -511,24 +512,26 @@ export default function StudyDeckPage() {
                 <CardFooter className="justify-center space-x-4">
                   <Button
                     variant="outline"
-                    className="border-red-500 hover:bg-red-500/10"
+                    className="flex-1 border-red-500 hover:bg-red-500/10 hover:border-red-600 active:scale-95 transition-all duration-150"
                     onClick={(e) => {
                       e.stopPropagation()
                       handleAnswer(false)
                     }}
+                    disabled={isTransitioning}
                   >
-                    <X className="mr-2 h-4 w-4" />
+                    <ThumbsDown className="mr-2 h-4 w-4" />
                     Incorrect
                   </Button>
                   <Button
                     variant="outline"
-                    className="border-green-500 hover:bg-green-500/10"
+                    className="flex-1 border-green-500 hover:bg-green-500/10 hover:border-green-600 active:scale-95 transition-all duration-150"
                     onClick={(e) => {
                       e.stopPropagation()
                       handleAnswer(true)
                     }}
+                    disabled={isTransitioning}
                   >
-                    <Check className="mr-2 h-4 w-4" />
+                    <ThumbsUp className="mr-2 h-4 w-4" />
                     Correct
                   </Button>
                 </CardFooter>
