@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
 
 export default function EditDeckPage() {
   const params = useParams<{ deckId: string }>()
@@ -40,27 +41,34 @@ export default function EditDeckPage() {
 
         console.log("Loading deck with ID:", deckId)
         setLoading(true)
+        setError(null)
 
         // Try to get the deck with retries
         let loadedDeck = null
         let attempts = 0
         const maxAttempts = 3
+        let lastError = null
 
         while (!loadedDeck && attempts < maxAttempts) {
-          loadedDeck = await getDeck(deckId)
-          if (!loadedDeck) {
-            attempts++
-            console.log(`Attempt ${attempts} failed, retrying...`)
-            if (attempts < maxAttempts) {
-              await new Promise(resolve => setTimeout(resolve, 1000))
+          try {
+            loadedDeck = await getDeck(deckId)
+            if (loadedDeck) {
+              break
             }
+          } catch (error) {
+            console.log(`Attempt ${attempts + 1} failed:`, error)
+            lastError = error
+          }
+          attempts++
+          if (attempts < maxAttempts) {
+            await new Promise(resolve => setTimeout(resolve, 1000))
           }
         }
 
         if (!loadedDeck) {
-          console.error("Deck not found after all retries:", deckId)
-          setError(`Deck not found: ${deckId}`)
-          setTimeout(() => router.push("/"), 2000)
+          const errorMessage = lastError instanceof Error ? lastError.message : 'Unknown error'
+          console.error("Deck not found after all retries:", errorMessage)
+          setError(`Error loading deck: ${errorMessage}`)
           return
         }
 
@@ -207,7 +215,11 @@ export default function EditDeckPage() {
               <ArrowLeft className="h-5 w-5" />
             </Button>
           </Link>
-          <h1 className="text-2xl font-bold">{deck.name}</h1>
+          <Input
+            value={deck.name}
+            onChange={(e) => setDeck(prev => prev ? { ...prev, name: e.target.value } : null)}
+            className="text-2xl font-bold h-auto py-1 px-2 w-[300px]"
+          />
         </div>
         <div className="flex space-x-2">
           <Button variant="outline" onClick={handleDelete}>

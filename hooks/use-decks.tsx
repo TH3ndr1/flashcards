@@ -355,7 +355,7 @@ export function useDecks() {
 
         if (error) {
           console.error("Error fetching deck from Supabase:", error)
-          return null
+          throw error
         }
 
         if (!data) {
@@ -396,7 +396,7 @@ export function useDecks() {
         return fetchedDeck
       } catch (error) {
         console.error("Error in getDeck:", error)
-        return null
+        throw error
       }
     },
     [user, supabase]

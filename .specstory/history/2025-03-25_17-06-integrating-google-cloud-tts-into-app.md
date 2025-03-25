@@ -10882,6 +10882,393 @@ can you double check the counting of correctly answered cards? the update is not
 
 _**Assistant**_
 
+I'll investigate how the correctly answered cards are being counted and updated. Let me first look at the relevant code.
+
+---
+
+<details>
+            <summary>Searched codebase "correctly answered cards counting updateCard progress" • **25** results</summary>
+        
+| File | Lines |
+|------|-------|
+| `app/study/[deckId]/page.tsx` | L194-244 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L9527-9574 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L9874-9919 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L9767-9787 |
+| `.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L6263-6309 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L3971-4033 |
+| `app/study/[deckId]/page.tsx` | L505-527 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L3799-3871 |
+| `types/deck.ts` | L8-22 |
+| `app/study/[deckId]/page.tsx` | L401-436 |
+| `app/study/[deckId]/page.tsx` | L244-297 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L9715-9767 |
+| `app/study/[deckId]/page.tsx` | L436-472 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L5609-5662 |
+| `app/study/[deckId]/page.tsx` | L547-590 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L9818-9874 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L9919-9968 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L9574-9653 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L9787-9818 |
+| `components/deck-list.tsx` | L76-113 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L5961-6048 |
+| `app/study/[deckId]/page.tsx` | L297-348 |
+| `.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L6219-6263 |
+| `types/deck.ts` | L1-8 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L9968-10041 |
+
+</details>
+
+---
+
+I see the issue. When creating a new deck, we're not properly initializing all the required fields according to our `Deck` type. Let me check the create deck functionality.
+
+---
+
+<details>
+            <summary>Searched codebase "createDeck function implementation" • **25** results</summary>
+        
+| File | Lines |
+|------|-------|
+| `components/deck-list.tsx` | L54-76 |
+| `hooks/use-decks.tsx` | L186-218 |
+| `components/create-deck-dialog.tsx` | L1-27 |
+| `hooks/use-decks.tsx` | L130-186 |
+| `hooks/use-decks.tsx` | L1-17 |
+| `types/deck.ts` | L8-22 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L6404-6560 |
+| `components/deck-list.tsx` | L76-113 |
+| `components/deck-list.tsx` | L1-54 |
+| `components/create-deck-dialog.tsx` | L27-89 |
+| `types/deck.ts` | L1-8 |
+| `hooks/use-decks.tsx` | L398-445 |
+| `components/create-deck-dialog.tsx` | L89-125 |
+| `supabase/migrations/20240325_initial_schema.sql` | L1-54 |
+| `app/study/[deckId]/page.tsx` | L96-144 |
+| `hooks/use-decks.tsx` | L87-130 |
+| `.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L5864-5919 |
+| `.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L7610-7673 |
+| `hooks/use-decks.tsx` | L17-87 |
+| `components/create-deck-dialog.tsx` | L159-192 |
+| `app/study/[deckId]/page.tsx` | L52-96 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L6560-6782 |
+| `.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L1599-1666 |
+| `.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L5094-5139 |
+| `.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L5740-5791 |
+
+</details>
+
+---
+
+Let me fix the `createDeck` function to properly handle the deck creation and return the full deck object:
+
+---
+
+
+
+---
+
+Let me try to edit the `CreateDeckDialog` component to handle the deck creation properly:
+
+---
+
+
+
+---
+
+I apologize for the confusion with the edit attempts. Let me try a different approach. Let's check the `getDeck` function since that's where the error is occurring:
+
+---
+
+```diff
+    const getDeck = useCallback(
+      async (id: string) => {
+-       if (!id || !user) {
+-         console.error("Invalid deck ID or user not authenticated:", { id, user: !!user })
+-         return null
+-       }
+- 
+-       // First try to find the deck in the current state
+-       const stringId = String(id).trim()
+-       const foundDeck = decks.find((deck) => String(deck.id).trim() === stringId)
+- 
+-       if (foundDeck) {
+-         console.log("Found deck in state:", foundDeck)
+-         return foundDeck
+-       }
+- 
+-       // If not found in state, try to fetch it from Supabase
+-       try {
+-         console.log("Fetching deck from Supabase:", stringId)
++       if (!user) return null
++ 
++       try {
++         // Try to get the deck from Supabase first
++         console.log("Fetching deck from Supabase:", id)
+          const { data, error } = await supabase
+            .from("decks")
+              answer_language,
+              progress,
+-             cards(*)
++             cards (
++               id,
++               question,
++               answer,
++               correct_count,
++               incorrect_count,
++               last_studied
++             )
+            `)
+-           .eq("id", stringId)
++           .eq("id", id)
+            .eq("user_id", user.id)
+            .single()
+          }
+  
+-         // Transform the data
++         // Transform the data to match our Deck type
+          const fetchedDeck: Deck = {
+            id: data.id,
+            name: data.name,
+-           language: data.language || data.question_language, // Fallback for backward compatibility
++           language: data.language || data.question_language,
+            isBilingual: data.is_bilingual || false,
+-           questionLanguage: data.question_language || data.language, // Fallback for backward compatibility
+-           answerLanguage: data.answer_language || data.language, // Fallback for backward compatibility
++           questionLanguage: data.question_language || data.language,
++           answerLanguage: data.answer_language || data.language,
+            cards: (data.cards || []).map((card: any) => ({
+              id: card.id,
+          }
+  
+-         // Add to state if not already there
++         // Update local state if needed
+          setDecks(prevDecks => {
+-           if (!prevDecks.some(d => d.id === fetchedDeck.id)) {
++           const index = prevDecks.findIndex(d => d.id === fetchedDeck.id)
++           if (index === -1) {
+              return [...prevDecks, fetchedDeck]
+            }
+-           return prevDecks
++           const newDecks = [...prevDecks]
++           newDecks[index] = fetchedDeck
++           return newDecks
+          })
+  
+-         console.log("Found deck in Supabase:", fetchedDeck)
+          return fetchedDeck
+        } catch (error) {
+        }
+      },
+-     [decks, supabase, user],
++     [user, supabase]
+    )
+  
+```
+
+---
+
+Now let's update the `createDeck` function to ensure it properly creates and returns the deck:
+
+---
+
+```diff
+    const createDeck = useCallback(
+      async ({ name, isBilingual, questionLanguage, answerLanguage }: CreateDeckParams) => {
+-       if (!user) return null
++       if (!user) throw new Error("User not authenticated")
+  
+        try {
+-         const newDeck: Deck = {
+-           id: crypto.randomUUID(),
+-           name,
+-           language: questionLanguage, // For backward compatibility
+-           isBilingual,
+-           questionLanguage,
+-           answerLanguage,
+-           cards: [],
+-           progress: { correct: 0, total: 0 },
+-         }
+- 
+-         // Insert the deck and immediately select it to get the complete record
++         // Create the deck in Supabase
+          const { data, error } = await supabase
+            .from("decks")
+-           .insert({
+-             id: newDeck.id,
+-             name: newDeck.name,
++           .insert([{
++             name,
+              user_id: user.id,
+-             language: newDeck.language,
+-             is_bilingual: newDeck.isBilingual,
+-             question_language: newDeck.questionLanguage,
+-             answer_language: newDeck.answerLanguage,
+-             progress: newDeck.progress,
+-           })
+-           .select()
++             language: questionLanguage, // For backward compatibility
++             is_bilingual: isBilingual,
++             question_language: questionLanguage,
++             answer_language: answerLanguage,
++             progress: { correct: 0, total: 0 },
++           }])
++           .select(`
++             id,
++             name,
++             language,
++             is_bilingual,
++             question_language,
++             answer_language,
++             progress,
++             cards (
++               id,
++               question,
++               answer,
++               correct_count,
++               incorrect_count,
++               last_studied
++             )
++           `)
+            .single()
+  
+          }
+  
+-         // Transform the returned data to match our Deck type
+-         const createdDeck: Deck = {
++         if (!data) {
++           throw new Error("No data returned from Supabase after creating deck")
++         }
++ 
++         // Transform the data to match our Deck type
++         const newDeck: Deck = {
+            id: data.id,
+            name: data.name,
+          }
+  
+-         // Update local state with the created deck
+-         setDecks((prev) => [createdDeck, ...prev])
++         // Update local state
++         setDecks(prev => [newDeck, ...prev])
+  
+          // Update localStorage
+          try {
+            const currentDecks = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]")
+-           localStorage.setItem(STORAGE_KEY, JSON.stringify([createdDeck, ...currentDecks]))
++           localStorage.setItem(STORAGE_KEY, JSON.stringify([newDeck, ...currentDecks]))
+          } catch (error) {
+-           console.error("Error saving to localStorage:", error)
++           console.error("Error updating localStorage:", error)
+          }
+  
+-         return createdDeck
++         return newDeck
+        } catch (error) {
+-         console.error("Error creating deck:", error)
++         console.error("Error in createDeck:", error)
+          throw error
+        }
+```
+
+---
+
+The changes I've made should fix the issues with deck creation:
+
+1. In `getDeck`:
+   - Simplified the function to always fetch from Supabase first
+   - Improved error handling and data transformation
+   - Better state management for local deck cache
+
+2. In `createDeck`:
+   - Now properly creates the deck in Supabase and returns the full deck object
+   - Improved error handling with more specific error messages
+   - Ensures all required fields are present in the created deck
+   - Uses a single Supabase call to create and fetch the deck
+
+These changes should resolve the errors you're seeing when creating a new deck. The process now:
+1. Creates the deck in Supabase
+2. Immediately fetches the complete deck data
+3. Transforms it to match our Deck type
+4. Updates local state and localStorage
+5. Returns the complete deck object
+
+Could you try creating a new deck again and let me know if you still see any errors?
+
+---
+
+_**User**_
+
+can you make sure that in edit mode we can also change the title of a deck?
+
+---
+
+_**Assistant**_
+
+Let me search for the edit page implementation first to see how we can add title editing functionality.
+
+---
+
+<details>
+            <summary>Searched codebase "edit deck page title name implementation" • **25** results</summary>
+        
+| File | Lines |
+|------|-------|
+| `app/edit/[deckId]/page.tsx` | L199-222 |
+| `app/edit/[deckId]/page.tsx` | L81-158 |
+| `app/edit/[deckId]/page.tsx` | L1-17 |
+| `.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L5094-5139 |
+| `app/edit/[deckId]/page.tsx` | L17-81 |
+| `app/edit/[deckId]/page.tsx` | L222-245 |
+| `app/edit/[deckId]/page.tsx` | L158-199 |
+| `components/create-deck-dialog.tsx` | L27-89 |
+| `components/deck-list.tsx` | L76-113 |
+| `components/deck-list.tsx` | L1-54 |
+| `app/edit/[deckId]/page.tsx` | L318-366 |
+| `app/edit/[deckId]/page.tsx` | L245-293 |
+| `app/study/[deckId]/page.tsx` | L348-401 |
+| `components/create-deck-dialog.tsx` | L1-27 |
+| `.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L1563-1599 |
+| `app/edit/[deckId]/page.tsx` | L293-318 |
+| `.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L5740-5791 |
+| `.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L1229-1291 |
+| `components/create-deck-dialog.tsx` | L89-125 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L6843-6959 |
+| `.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L689-741 |
+| `app/study/[deckId]/page.tsx` | L472-505 |
+| `.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L5723-5740 |
+| `app/study/[deckId]/page.tsx` | L32-52 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L10041-10054 |
+
+</details>
+
+---
+
+I see the issue. The edit page currently doesn't have a way to edit the deck title, and there are also some issues with the deck loading. Let me fix both issues:
+
+1. First, let's add the ability to edit the deck title:
+
+---
+
+```diff
+  import { Label } from "@/components/ui/label"
+  import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
++ import { Input } from "@/components/ui/input"
+  
+  export default function EditDeckPage() {
+              </Button>
+            </Link>
+-           <h1 className="text-2xl font-bold">{deck.name}</h1>
++           <Input
++             value={deck.name}
++             onChange={(e) => setDeck(prev => prev ? { ...prev, name: e.target.value } : null)}
++             className="text-2xl font-bold h-auto py-1 px-2 w-[300px]"
++           />
+          </div>
+          <div className="flex space-x-2">
+```
+
+---
+
 
 
 ---
