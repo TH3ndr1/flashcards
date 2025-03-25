@@ -58,12 +58,16 @@ export function CreateDeckDialog({ open, onOpenChange }: CreateDeckDialogProps) 
 
     try {
       setLoading(true)
-      const newDeckId = await createDeck({
+      const newDeck = await createDeck({
         name,
         isBilingual,
         questionLanguage,
         answerLanguage,
       })
+
+      if (!newDeck) {
+        throw new Error("Failed to create deck")
+      }
 
       toast({
         title: "Deck created",
@@ -71,7 +75,7 @@ export function CreateDeckDialog({ open, onOpenChange }: CreateDeckDialogProps) 
       })
 
       onOpenChange(false)
-      router.push(`/edit/${newDeckId}`)
+      router.push(`/edit/${newDeck.id}`)
     } catch (error) {
       console.error("Error creating deck:", error)
       toast({
@@ -130,9 +134,9 @@ export function CreateDeckDialog({ open, onOpenChange }: CreateDeckDialogProps) 
                       <SelectValue placeholder="Select language" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="english">English</SelectItem>
-                      <SelectItem value="dutch">Dutch</SelectItem>
-                      <SelectItem value="french">French</SelectItem>
+                      <SelectItem value="en">English</SelectItem>
+                      <SelectItem value="nl">Dutch</SelectItem>
+                      <SelectItem value="fr">French</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -145,9 +149,9 @@ export function CreateDeckDialog({ open, onOpenChange }: CreateDeckDialogProps) 
                       <SelectValue placeholder="Select language" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="english">English</SelectItem>
-                      <SelectItem value="dutch">Dutch</SelectItem>
-                      <SelectItem value="french">French</SelectItem>
+                      <SelectItem value="en">English</SelectItem>
+                      <SelectItem value="nl">Dutch</SelectItem>
+                      <SelectItem value="fr">French</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -168,9 +172,9 @@ export function CreateDeckDialog({ open, onOpenChange }: CreateDeckDialogProps) 
                     <SelectValue placeholder="Select language" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="english">English</SelectItem>
-                    <SelectItem value="dutch">Dutch</SelectItem>
-                    <SelectItem value="french">French</SelectItem>
+                    <SelectItem value="en">English</SelectItem>
+                    <SelectItem value="nl">Dutch</SelectItem>
+                    <SelectItem value="fr">French</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

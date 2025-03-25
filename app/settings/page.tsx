@@ -20,12 +20,12 @@ export default function SettingsPage() {
   const { voices, loading: voicesLoading } = useTTS()
   const { toast } = useToast()
 
-  const [appLanguage, setAppLanguage] = useState<string>("english")
+  const [appLanguage, setAppLanguage] = useState<string>("en")
 
   // Load settings
   useEffect(() => {
     if (!settingsLoading && settings) {
-      setAppLanguage(settings.appLanguage || "english")
+      setAppLanguage(settings.appLanguage || "en")
     }
   }, [settings, settingsLoading])
 
@@ -105,9 +105,9 @@ export default function SettingsPage() {
                     <SelectValue placeholder="Select language" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="english">English</SelectItem>
-                    <SelectItem value="dutch">Dutch</SelectItem>
-                    <SelectItem value="french">French</SelectItem>
+                    <SelectItem value="en">English</SelectItem>
+                    <SelectItem value="nl">Dutch</SelectItem>
+                    <SelectItem value="fr">French</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

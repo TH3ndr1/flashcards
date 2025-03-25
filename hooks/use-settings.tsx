@@ -19,13 +19,13 @@ export interface Settings {
 
 // Detect system language
 const detectSystemLanguage = (): string => {
-  if (typeof window === "undefined") return "english"
+  if (typeof window === "undefined") return "en"
 
   const browserLang = navigator.language.toLowerCase()
 
-  if (browserLang.startsWith("nl")) return "dutch"
-  if (browserLang.startsWith("fr")) return "french"
-  return "english"
+  if (browserLang.startsWith("nl")) return "nl"
+  if (browserLang.startsWith("fr")) return "fr"
+  return "en"
 }
 
 export function useSettings() {

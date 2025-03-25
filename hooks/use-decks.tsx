@@ -164,35 +164,57 @@ export function useDecks() {
           progress: { correct: 0, total: 0 },
         }
 
-        const { error } = await supabase.from("decks").insert({
-          id: newDeck.id,
-          name: newDeck.name,
-          user_id: user.id,
-          language: newDeck.language,
-          is_bilingual: newDeck.isBilingual,
-          question_language: newDeck.questionLanguage,
-          answer_language: newDeck.answerLanguage,
-          progress: newDeck.progress,
-        })
+        // Insert the deck and immediately select it to get the complete record
+        const { data, error } = await supabase
+          .from("decks")
+          .insert({
+            id: newDeck.id,
+            name: newDeck.name,
+            user_id: user.id,
+            language: newDeck.language,
+            is_bilingual: newDeck.isBilingual,
+            question_language: newDeck.questionLanguage,
+            answer_language: newDeck.answerLanguage,
+            progress: newDeck.progress,
+          })
+          .select()
+          .single()
 
-        if (error) throw error
+        if (error) {
+          console.error("Error creating deck:", error)
+          throw error
+        }
 
-        setDecks((prev) => [newDeck, ...prev])
+        // Transform the returned data to match our Deck type
+        const createdDeck: Deck = {
+          id: data.id,
+          name: data.name,
+          language: data.language || data.question_language,
+          isBilingual: data.is_bilingual || false,
+          questionLanguage: data.question_language || data.language,
+          answerLanguage: data.answer_language || data.language,
+          cards: [],
+          progress: data.progress || { correct: 0, total: 0 },
+        }
+
+        // Update local state with the created deck
+        setDecks((prev) => [createdDeck, ...prev])
 
         // Update localStorage
         try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify([newDeck, ...decks]))
+          const currentDecks = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]")
+          localStorage.setItem(STORAGE_KEY, JSON.stringify([createdDeck, ...currentDecks]))
         } catch (error) {
           console.error("Error saving to localStorage:", error)
         }
 
-        return newDeck
+        return createdDeck
       } catch (error) {
         console.error("Error creating deck:", error)
-        return null
+        throw error
       }
     },
-    [user, supabase, decks]
+    [user, supabase]
   )
 
   // Update an existing deck
