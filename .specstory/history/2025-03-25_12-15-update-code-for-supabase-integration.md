@@ -2952,6 +2952,161 @@ Also, can you confirm that the settings page is updated to reflect the proposed 
 
 _**Assistant**_
 
+I'll help you verify the settings page changes and then do a full upload of the project.
+
+First, let me check if the settings page has been updated with our changes:
+
+---
+
+Read file: app/settings/page.tsx
+
+---
+
+I see that the settings page hasn't been fully updated with our changes. Let me update it first:
+
+---
+
+```diff
+    })
+  
+-   // Memoize filtered voices to prevent unnecessary recalculations
+-   const filteredVoices = useMemo(() => ({
+-     english: voices.filter((voice) => voice.lang.toLowerCase().startsWith("en")),
+-     dutch: voices.filter((voice) => voice.lang.toLowerCase().startsWith("nl")),
+-     french: voices.filter((voice) => voice.lang.toLowerCase().startsWith("fr")),
+-   }), [voices])
++   // Memoize filtered voices to prevent unnecessary recalculations and remove duplicates
++   const filteredVoices = useMemo(() => {
++     const uniqueVoices = (voices: SpeechSynthesisVoice[]) => {
++       const seen = new Set<string>()
++       return voices.filter(voice => {
++         const key = `${voice.name}-${voice.lang}`
++         if (seen.has(key)) return false
++         seen.add(key)
++         return true
++       })
++     }
++ 
++     return {
++       english: uniqueVoices(voices.filter((voice) => voice.lang.toLowerCase().startsWith("en"))),
++       dutch: uniqueVoices(voices.filter((voice) => voice.lang.toLowerCase().startsWith("nl"))),
++       french: uniqueVoices(voices.filter((voice) => voice.lang.toLowerCase().startsWith("fr"))),
++     }
++   }, [voices])
+  
+    // Load settings
+```
+
+---
+
+Now let's do a full upload of the project to GitHub. First, I'll check what files we have:
+
+---
+
+<details>
+            <summary>Listed current directory • **22** results</summary>
+        
+| Name |
+|-------|
+| 📁 `.next` |
+| 📄 `next-env.d.ts` |
+| 📁 `node_modules` |
+| 📄 `pnpm-lock.yaml` |
+| 📄 `.DS_Store` |
+| 📁 `app` |
+| 📁 `components` |
+| 📁 `hooks` |
+| 📁 `public` |
+| 📄 `components.json` |
+| 📁 `lib` |
+| 📄 `next.config.mjs` |
+| 📄 `package.json` |
+| 📄 `postcss.config.mjs` |
+| 📁 `styles` |
+| 📁 `supabase` |
+| 📄 `tailwind.config.ts` |
+| 📄 `tsconfig.json` |
+| 📁 `types` |
+| 📄 `.env.local` |
+| 📁 `.specstory` |
+| 📄 `.gitignore` |
+
+</details>
+
+---
+
+Let's prepare the files for upload. We'll need to exclude certain directories and files that shouldn't be in version control. I'll create a list of files to upload and then use the GitHub API to push them all at once.
+
+---
+
+
+
+---
+
+I apologize for the error. Let me try a different approach. Let's first create a new branch for our changes:
+
+---
+
+
+
+---
+
+
+
+---
+
+_**User**_
+
+can you do a full commit again please to main?
+
+---
+
+_**Assistant**_
+
+I'll help you commit the updated project to the main branch. Let me first check what files we have and then commit them:
+
+---
+
+
+
+---
+
+Now let me also update the study page to remove the voice selection:
+
+---
+
+_**User**_
+
+can you please do a full push of the project using commandline?
+
+---
+
+_**Assistant**_
+
+I'll help you push the entire project using the command line. First, let's initialize git and set up the repository:
+
+---
+
+```bash
+git init
+```
+
+```
+tom@MacBook-Pro-van-Tom flashcards % git init
+Reinitialized existing Git repository in /Users/tom/dev/flashcards/.git/
+tom@MacBook-Pro-van-Tom flashcards %
+```
+
+---
+
+Now let's add the remote repository:
+
+---
+
+Cancelled
+
+---
+
 
 
 ---
