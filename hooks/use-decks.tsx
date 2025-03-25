@@ -150,34 +150,38 @@ export function useDecks() {
   // Create a new deck
   const createDeck = useCallback(
     async ({ name, isBilingual, questionLanguage, answerLanguage }: CreateDeckParams) => {
-      if (!user) return null
+      if (!user) throw new Error("User not authenticated")
 
       try {
-        const newDeck: Deck = {
-          id: crypto.randomUUID(),
-          name,
-          language: questionLanguage, // For backward compatibility
-          isBilingual,
-          questionLanguage,
-          answerLanguage,
-          cards: [],
-          progress: { correct: 0, total: 0 },
-        }
-
-        // Insert the deck and immediately select it to get the complete record
+        // Create the deck in Supabase
         const { data, error } = await supabase
           .from("decks")
-          .insert({
-            id: newDeck.id,
-            name: newDeck.name,
+          .insert([{
+            name,
             user_id: user.id,
-            language: newDeck.language,
-            is_bilingual: newDeck.isBilingual,
-            question_language: newDeck.questionLanguage,
-            answer_language: newDeck.answerLanguage,
-            progress: newDeck.progress,
-          })
-          .select()
+            language: questionLanguage, // For backward compatibility
+            is_bilingual: isBilingual,
+            question_language: questionLanguage,
+            answer_language: answerLanguage,
+            progress: { correct: 0, total: 0 },
+          }])
+          .select(`
+            id,
+            name,
+            language,
+            is_bilingual,
+            question_language,
+            answer_language,
+            progress,
+            cards (
+              id,
+              question,
+              answer,
+              correct_count,
+              incorrect_count,
+              last_studied
+            )
+          `)
           .single()
 
         if (error) {
@@ -185,8 +189,12 @@ export function useDecks() {
           throw error
         }
 
-        // Transform the returned data to match our Deck type
-        const createdDeck: Deck = {
+        if (!data) {
+          throw new Error("No data returned from Supabase after creating deck")
+        }
+
+        // Transform the data to match our Deck type
+        const newDeck: Deck = {
           id: data.id,
           name: data.name,
           language: data.language || data.question_language,
@@ -197,20 +205,20 @@ export function useDecks() {
           progress: data.progress || { correct: 0, total: 0 },
         }
 
-        // Update local state with the created deck
-        setDecks((prev) => [createdDeck, ...prev])
+        // Update local state
+        setDecks(prev => [newDeck, ...prev])
 
         // Update localStorage
         try {
           const currentDecks = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]")
-          localStorage.setItem(STORAGE_KEY, JSON.stringify([createdDeck, ...currentDecks]))
+          localStorage.setItem(STORAGE_KEY, JSON.stringify([newDeck, ...currentDecks]))
         } catch (error) {
-          console.error("Error saving to localStorage:", error)
+          console.error("Error updating localStorage:", error)
         }
 
-        return createdDeck
+        return newDeck
       } catch (error) {
-        console.error("Error creating deck:", error)
+        console.error("Error in createDeck:", error)
         throw error
       }
     },
@@ -317,23 +325,11 @@ export function useDecks() {
   // Get a specific deck by ID
   const getDeck = useCallback(
     async (id: string) => {
-      if (!id || !user) {
-        console.error("Invalid deck ID or user not authenticated:", { id, user: !!user })
-        return null
-      }
+      if (!user) return null
 
-      // First try to find the deck in the current state
-      const stringId = String(id).trim()
-      const foundDeck = decks.find((deck) => String(deck.id).trim() === stringId)
-
-      if (foundDeck) {
-        console.log("Found deck in state:", foundDeck)
-        return foundDeck
-      }
-
-      // If not found in state, try to fetch it from Supabase
       try {
-        console.log("Fetching deck from Supabase:", stringId)
+        // Try to get the deck from Supabase first
+        console.log("Fetching deck from Supabase:", id)
         const { data, error } = await supabase
           .from("decks")
           .select(`
@@ -344,9 +340,16 @@ export function useDecks() {
             question_language,
             answer_language,
             progress,
-            cards(*)
+            cards (
+              id,
+              question,
+              answer,
+              correct_count,
+              incorrect_count,
+              last_studied
+            )
           `)
-          .eq("id", stringId)
+          .eq("id", id)
           .eq("user_id", user.id)
           .single()
 
@@ -360,14 +363,14 @@ export function useDecks() {
           return null
         }
 
-        // Transform the data
+        // Transform the data to match our Deck type
         const fetchedDeck: Deck = {
           id: data.id,
           name: data.name,
-          language: data.language || data.question_language, // Fallback for backward compatibility
+          language: data.language || data.question_language,
           isBilingual: data.is_bilingual || false,
-          questionLanguage: data.question_language || data.language, // Fallback for backward compatibility
-          answerLanguage: data.answer_language || data.language, // Fallback for backward compatibility
+          questionLanguage: data.question_language || data.language,
+          answerLanguage: data.answer_language || data.language,
           cards: (data.cards || []).map((card: any) => ({
             id: card.id,
             question: card.question,
@@ -379,22 +382,24 @@ export function useDecks() {
           progress: data.progress || { correct: 0, total: 0 },
         }
 
-        // Add to state if not already there
+        // Update local state if needed
         setDecks(prevDecks => {
-          if (!prevDecks.some(d => d.id === fetchedDeck.id)) {
+          const index = prevDecks.findIndex(d => d.id === fetchedDeck.id)
+          if (index === -1) {
             return [...prevDecks, fetchedDeck]
           }
-          return prevDecks
+          const newDecks = [...prevDecks]
+          newDecks[index] = fetchedDeck
+          return newDecks
         })
 
-        console.log("Found deck in Supabase:", fetchedDeck)
         return fetchedDeck
       } catch (error) {
         console.error("Error in getDeck:", error)
         return null
       }
     },
-    [decks, supabase, user],
+    [user, supabase]
   )
 
   // Delete a deck

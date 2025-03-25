@@ -10852,9 +10852,35 @@ I understand you want to roll back the changes since they've made things worse. 
 
 ---
 
-Cancelled
+```bash
+git checkout hooks/use-tts.tsx
+```
+
+```
+tom@MacBook-Pro-van-Tom flashcards % git checkout hooks/use-tts.tsx
+Updated 1 path from the index
+tom@MacBook-Pro-van-Tom flashcards %
+```
 
 ---
+
+I've rolled back the changes to the last committed version of `use-tts.tsx`. Let's take a step back and look at the original error more carefully before making any changes. Could you please:
+
+1. Try using the TTS again with the reverted version
+2. Let me know if you're still seeing the same error
+3. Share what specific action (like flipping a card or clicking a button) triggers the error
+
+This way we can make more targeted, minimal changes instead of a complete rewrite.
+
+---
+
+_**User**_
+
+can you double check the counting of correctly answered cards? the update is not taking place correctly
+
+---
+
+_**Assistant**_
 
 
 
