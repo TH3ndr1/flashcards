@@ -9791,6 +9791,172 @@ Looking at the code, I can see that we need to access the current card's propert
 
 ---
 
+Let me optimize this code to be more efficient and fix the linter errors. Instead of finding the card multiple times, we'll get it once and use it:
+
+---
+
+```diff
+    const currentCard = studyCards[currentCardIndex]
+    const progress = deck.cards.length > 0 ? (masteredCount / deck.cards.length) * 100 : 0
++   const currentDeckCard = deck.cards.find(card => card.id === currentCard?.id)
++   const correctCount = currentDeckCard?.correctCount || 0
++   const remainingCount = MASTERY_THRESHOLD - correctCount
++   const progressText = `${correctCount} of ${MASTERY_THRESHOLD} correct answers${
++     correctCount > 0 && correctCount < MASTERY_THRESHOLD ? ` • ${remainingCount} to go` : ''
++   }`
+  
+    return (
+                  <CardHeader className="text-center text-sm text-muted-foreground">
+                    <div>Card {currentCardIndex + 1} of {studyCards.length}</div>
+-                   <div className="text-xs">
+-                     {deck.cards.find(card => card.id === studyCards[currentCardIndex]?.id)?.correctCount || 0} of {MASTERY_THRESHOLD} correct answers
+-                     {deck.cards.find(card => card.id === studyCards[currentCardIndex]?.id)?.correctCount > 0 && 
+-                      deck.cards.find(card => card.id === studyCards[currentCardIndex]?.id)?.correctCount < MASTERY_THRESHOLD
+-                       ? ` • ${MASTERY_THRESHOLD - (deck.cards.find(card => card.id === studyCards[currentCardIndex]?.id)?.correctCount || 0)} to go`
+-                       : ""}
+-                   </div>
++                   <div className="text-xs">{progressText}</div>
+                  </CardHeader>
+                  <CardContent className="flex-grow flex items-center justify-center p-6">
+                  <CardHeader className="text-center text-sm text-muted-foreground">
+                    <div>Answer</div>
+-                   <div className="text-xs">
+-                     {deck.cards.find(card => card.id === studyCards[currentCardIndex]?.id)?.correctCount || 0} of {MASTERY_THRESHOLD} correct answers
+-                     {deck.cards.find(card => card.id === studyCards[currentCardIndex]?.id)?.correctCount > 0 && 
+-                      deck.cards.find(card => card.id === studyCards[currentCardIndex]?.id)?.correctCount < MASTERY_THRESHOLD
+-                       ? ` • ${MASTERY_THRESHOLD - (deck.cards.find(card => card.id === studyCards[currentCardIndex]?.id)?.correctCount || 0)} to go`
+-                       : ""}
+-                   </div>
++                   <div className="text-xs">{progressText}</div>
+                  </CardHeader>
+                  <CardContent className="flex-grow flex items-center justify-center p-6">
+```
+
+---
+
+I've made several improvements:
+
+1. Instead of looking up the card multiple times, we now:
+   - Find the current card in the deck's cards array once
+   - Calculate the correct count and remaining count once
+   - Create a single progress text string that we can reuse
+
+2. The code is now more efficient because:
+   - We only do one `find` operation instead of multiple
+   - We compute the values once and store them in variables
+   - We reuse the same text on both sides of the card
+
+3. The progress display should now:
+   - Show the correct number of correct answers (0-3)
+   - Update properly when you mark an answer as correct
+   - Show the remaining number of correct answers needed
+   - Be consistent between the front and back of the card
+
+Could you try it again and see if the progress counter updates correctly now?
+
+---
+
+_**User**_
+
+Great, now it's working. Now I would like to change the logic of the overall progress bar and percentage. Currently, progress is been calculated based on the cards that have been masterd. I would like to see the progress calculated based on the total amount of correct attempts versus the total required attemps.
+
+---
+
+_**Assistant**_
+
+I'll modify the progress calculation to show the total correct attempts across all cards relative to what's needed for full mastery. Here's how we'll calculate it:
+
+1. Total required attempts = number of cards × MASTERY_THRESHOLD (3 correct answers per card)
+2. Total correct attempts = sum of all cards' correctCount
+
+---
+
+```diff
+          <div className="max-w-2xl mx-auto mb-8">
+            <div className="flex justify-between items-center mb-2">
+-             <span className="text-sm text-muted-foreground">Progress</span>
++             <span className="text-sm text-muted-foreground">
++               Progress: {deck.cards.reduce((sum, card) => sum + (card.correctCount || 0), 0)} of {deck.cards.length * MASTERY_THRESHOLD} correct answers
++             </span>
+              <span className="text-sm font-medium">100%</span>
+            </div>
+  
+    const currentCard = studyCards[currentCardIndex]
+-   const progress = deck.cards.length > 0 ? (masteredCount / deck.cards.length) * 100 : 0
++   // Calculate total required attempts and current correct attempts
++   const totalRequiredAttempts = deck.cards.length * MASTERY_THRESHOLD
++   const totalCorrectAttempts = deck.cards.reduce((sum, card) => sum + (card.correctCount || 0), 0)
++   const progress = totalRequiredAttempts > 0 
++     ? (totalCorrectAttempts / totalRequiredAttempts) * 100 
++     : 0
++ 
+    const currentDeckCard = deck.cards.find(card => card.id === currentCard?.id)
+    const correctCount = currentDeckCard?.correctCount || 0
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-sm text-muted-foreground">
+-             Progress: {masteredCount} of {deck.cards.length} cards mastered
++             Progress: {totalCorrectAttempts} of {totalRequiredAttempts} correct answers
+            </span>
+            <span className="text-sm font-medium">{Math.round(progress)}%</span>
+```
+
+---
+
+I've updated the progress calculation to:
+
+1. Calculate total required attempts:
+```typescript
+const totalRequiredAttempts = deck.cards.length * MASTERY_THRESHOLD
+```
+
+2. Calculate total correct attempts across all cards:
+```typescript
+const totalCorrectAttempts = deck.cards.reduce((sum, card) => sum + (card.correctCount || 0), 0)
+```
+
+3. Calculate progress percentage:
+```typescript
+const progress = totalRequiredAttempts > 0 
+  ? (totalCorrectAttempts / totalRequiredAttempts) * 100 
+  : 0
+```
+
+4. Updated the progress display text to show:
+```typescript
+Progress: {totalCorrectAttempts} of {totalRequiredAttempts} correct answers
+```
+
+The changes mean:
+- If a deck has 10 cards, the total required attempts would be 30 (10 cards × 3 correct answers needed)
+- The progress bar and percentage will increase with each correct answer
+- The display shows the total number of correct answers given versus the total needed
+- Progress is more granular now, showing incremental improvements rather than just fully mastered cards
+
+For example:
+- With 10 cards, you need 30 correct answers total
+- If you've answered 15 cards correctly across all cards, it will show "15 of 30 correct answers (50%)"
+- Each correct answer will increase the progress, giving a more detailed view of your learning progress
+
+Would you like to test it and see if this gives you a better sense of your overall progress?
+
+---
+
+_**User**_
+
+Let's add also a second progress bar undeneat the other progress bar that shows the amount of cards mastered versus the total amount of cards
+
+---
+
+_**Assistant**_
+
+I'll add a second progress bar to show the mastered cards progress alongside the total correct answers progress:
+
+---
+
+Cancelled
+
+---
+
 
 
 ---

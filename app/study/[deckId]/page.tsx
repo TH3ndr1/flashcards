@@ -419,7 +419,17 @@ export default function StudyDeckPage() {
         </div>
         <div className="max-w-2xl mx-auto mb-8">
           <div className="flex justify-between items-center mb-2">
-            <span className="text-sm text-muted-foreground">Progress</span>
+            <span className="text-sm text-muted-foreground">
+              Total Progress: {deck.cards.reduce((sum, card) => sum + (card.correctCount || 0), 0)} of {deck.cards.length * MASTERY_THRESHOLD} correct answers
+            </span>
+            <span className="text-sm font-medium">100%</span>
+          </div>
+          <Progress value={100} className="h-2 mb-4" />
+          
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-sm text-muted-foreground">
+              Cards Mastered: {deck.cards.length} of {deck.cards.length} cards
+            </span>
             <span className="text-sm font-medium">100%</span>
           </div>
           <Progress value={100} className="h-2" />
@@ -447,7 +457,13 @@ export default function StudyDeckPage() {
   }
 
   const currentCard = studyCards[currentCardIndex]
-  const progress = deck.cards.length > 0 ? (masteredCount / deck.cards.length) * 100 : 0
+  // Calculate total required attempts and current correct attempts
+  const totalRequiredAttempts = deck.cards.length * MASTERY_THRESHOLD
+  const totalCorrectAttempts = deck.cards.reduce((sum, card) => sum + (card.correctCount || 0), 0)
+  const progress = totalRequiredAttempts > 0 
+    ? (totalCorrectAttempts / totalRequiredAttempts) * 100 
+    : 0
+
   const currentDeckCard = deck.cards.find(card => card.id === currentCard?.id)
   const correctCount = currentDeckCard?.correctCount || 0
   const remainingCount = MASTERY_THRESHOLD - correctCount
@@ -490,11 +506,24 @@ export default function StudyDeckPage() {
       <div className="max-w-2xl mx-auto mb-8">
         <div className="flex justify-between items-center mb-2">
           <span className="text-sm text-muted-foreground">
-            Progress: {masteredCount} of {deck.cards.length} cards mastered
+            Total Progress: {totalCorrectAttempts} of {totalRequiredAttempts} correct answers
           </span>
           <span className="text-sm font-medium">{Math.round(progress)}%</span>
         </div>
-        <Progress value={progress} className="h-2" />
+        <Progress value={progress} className="h-2 mb-4" />
+        
+        <div className="flex justify-between items-center mb-2">
+          <span className="text-sm text-muted-foreground">
+            Cards Mastered: {masteredCount} of {deck.cards.length} cards
+          </span>
+          <span className="text-sm font-medium">
+            {Math.round((masteredCount / deck.cards.length) * 100)}%
+          </span>
+        </div>
+        <Progress 
+          value={(masteredCount / deck.cards.length) * 100} 
+          className="h-2" 
+        />
       </div>
       <div className="max-w-2xl mx-auto">
         <div
