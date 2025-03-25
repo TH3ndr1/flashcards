@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
 import { useDecks } from "@/hooks/use-decks"
 import { useRouter } from "next/navigation"
 import { useSettings } from "@/hooks/use-settings"
@@ -27,17 +28,20 @@ interface CreateDeckDialogProps {
 
 export function CreateDeckDialog({ open, onOpenChange }: CreateDeckDialogProps) {
   const [name, setName] = useState("")
-  const [language, setLanguage] = useState("")
+  const [isBilingual, setIsBilingual] = useState(false)
+  const [questionLanguage, setQuestionLanguage] = useState("")
+  const [answerLanguage, setAnswerLanguage] = useState("")
   const [loading, setLoading] = useState(false)
   const { createDeck } = useDecks()
   const { settings } = useSettings()
   const { toast } = useToast()
   const router = useRouter()
 
-  // Set default language from settings
+  // Set default languages from settings
   useEffect(() => {
     if (settings?.appLanguage) {
-      setLanguage(settings.appLanguage)
+      setQuestionLanguage(settings.appLanguage)
+      setAnswerLanguage(settings.appLanguage)
     }
   }, [settings])
 
@@ -54,7 +58,12 @@ export function CreateDeckDialog({ open, onOpenChange }: CreateDeckDialogProps) 
 
     try {
       setLoading(true)
-      const newDeckId = await createDeck(name, language)
+      const newDeckId = await createDeck({
+        name,
+        isBilingual,
+        questionLanguage,
+        answerLanguage,
+      })
 
       toast({
         title: "Deck created",
@@ -62,8 +71,6 @@ export function CreateDeckDialog({ open, onOpenChange }: CreateDeckDialogProps) 
       })
 
       onOpenChange(false)
-
-      // Navigate to edit page
       router.push(`/edit/${newDeckId}`)
     } catch (error) {
       console.error("Error creating deck:", error)
@@ -100,20 +107,74 @@ export function CreateDeckDialog({ open, onOpenChange }: CreateDeckDialogProps) 
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="language" className="text-right">
-                Language
+              <Label htmlFor="bilingual" className="text-right">
+                Bilingual Mode
               </Label>
-              <Select value={language} onValueChange={setLanguage}>
-                <SelectTrigger id="language" className="col-span-3">
-                  <SelectValue placeholder="Select language" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="english">English</SelectItem>
-                  <SelectItem value="dutch">Dutch</SelectItem>
-                  <SelectItem value="french">French</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex items-center space-x-2 col-span-3">
+                <Switch
+                  id="bilingual"
+                  checked={isBilingual}
+                  onCheckedChange={setIsBilingual}
+                />
+                <Label htmlFor="bilingual">Enable separate languages for questions and answers</Label>
+              </div>
             </div>
+            {isBilingual ? (
+              <>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="questionLanguage" className="text-right">
+                    Question Language
+                  </Label>
+                  <Select value={questionLanguage} onValueChange={setQuestionLanguage}>
+                    <SelectTrigger id="questionLanguage" className="col-span-3">
+                      <SelectValue placeholder="Select language" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="english">English</SelectItem>
+                      <SelectItem value="dutch">Dutch</SelectItem>
+                      <SelectItem value="french">French</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="answerLanguage" className="text-right">
+                    Answer Language
+                  </Label>
+                  <Select value={answerLanguage} onValueChange={setAnswerLanguage}>
+                    <SelectTrigger id="answerLanguage" className="col-span-3">
+                      <SelectValue placeholder="Select language" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="english">English</SelectItem>
+                      <SelectItem value="dutch">Dutch</SelectItem>
+                      <SelectItem value="french">French</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            ) : (
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="language" className="text-right">
+                  Language
+                </Label>
+                <Select 
+                  value={questionLanguage} 
+                  onValueChange={(value) => {
+                    setQuestionLanguage(value)
+                    setAnswerLanguage(value)
+                  }}
+                >
+                  <SelectTrigger id="language" className="col-span-3">
+                    <SelectValue placeholder="Select language" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="english">English</SelectItem>
+                    <SelectItem value="dutch">Dutch</SelectItem>
+                    <SelectItem value="french">French</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button type="submit" disabled={loading}>

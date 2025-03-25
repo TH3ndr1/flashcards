@@ -12,6 +12,9 @@ import { TableEditor } from "@/components/table-editor"
 import { useDecks } from "@/hooks/use-decks"
 import type { Deck } from "@/types/deck"
 import { useToast } from "@/hooks/use-toast"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 export default function EditDeckPage() {
   const params = useParams<{ deckId: string }>()
@@ -216,6 +219,102 @@ export default function EditDeckPage() {
             {saving ? "Saving..." : "Save Changes"}
           </Button>
         </div>
+      </div>
+
+      <div className="mb-6 space-y-4">
+        <div className="flex items-center justify-between p-4 border rounded-lg">
+          <div>
+            <h3 className="font-medium">Bilingual Mode</h3>
+            <p className="text-sm text-muted-foreground">
+              Enable to use different languages for questions and answers
+            </p>
+          </div>
+          <Switch
+            checked={deck.isBilingual}
+            onCheckedChange={(checked) =>
+              setDeck((prev) => prev ? {
+                ...prev,
+                isBilingual: checked,
+                // When switching to monolingual, use question language for both
+                language: checked ? prev.questionLanguage : prev.questionLanguage,
+                questionLanguage: prev.questionLanguage,
+                answerLanguage: checked ? prev.answerLanguage : prev.questionLanguage,
+              } : null)
+            }
+          />
+        </div>
+
+        {deck.isBilingual ? (
+          <div className="grid gap-4 p-4 border rounded-lg">
+            <div>
+              <Label htmlFor="questionLanguage">Question Language</Label>
+              <Select
+                value={deck.questionLanguage}
+                onValueChange={(value) =>
+                  setDeck((prev) => prev ? {
+                    ...prev,
+                    questionLanguage: value,
+                    language: value, // Update legacy language field
+                  } : null)
+                }
+              >
+                <SelectTrigger id="questionLanguage">
+                  <SelectValue placeholder="Select language" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="en">English</SelectItem>
+                  <SelectItem value="nl">Dutch</SelectItem>
+                  <SelectItem value="fr">French</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="answerLanguage">Answer Language</Label>
+              <Select
+                value={deck.answerLanguage}
+                onValueChange={(value) =>
+                  setDeck((prev) => prev ? {
+                    ...prev,
+                    answerLanguage: value,
+                  } : null)
+                }
+              >
+                <SelectTrigger id="answerLanguage">
+                  <SelectValue placeholder="Select language" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="en">English</SelectItem>
+                  <SelectItem value="nl">Dutch</SelectItem>
+                  <SelectItem value="fr">French</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        ) : (
+          <div className="p-4 border rounded-lg">
+            <Label htmlFor="language">Language</Label>
+            <Select
+              value={deck.questionLanguage}
+              onValueChange={(value) =>
+                setDeck((prev) => prev ? {
+                  ...prev,
+                  language: value,
+                  questionLanguage: value,
+                  answerLanguage: value,
+                } : null)
+              }
+            >
+              <SelectTrigger id="language">
+                <SelectValue placeholder="Select language" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="en">English</SelectItem>
+                <SelectItem value="nl">Dutch</SelectItem>
+                <SelectItem value="fr">French</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">

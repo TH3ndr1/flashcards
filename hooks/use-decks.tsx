@@ -9,6 +9,13 @@ import { useSettings } from "@/hooks/use-settings"
 // Create a key for localStorage fallback
 const STORAGE_KEY = "studyCards-decks"
 
+interface CreateDeckParams {
+  name: string
+  isBilingual: boolean
+  questionLanguage: string
+  answerLanguage: string
+}
+
 export function useDecks() {
   const [decks, setDecks] = useState<Deck[]>([])
   const [loading, setLoading] = useState(true)
@@ -25,11 +32,13 @@ export function useDecks() {
         return
       }
 
+      // Initialize localDecks in the outer scope
+      let localDecks: Deck[] = []
+
       try {
         setLoading(true)
 
         // Try to get decks from localStorage first during initial load
-        let localDecks: Deck[] = []
         try {
           const savedDecks = localStorage.getItem(STORAGE_KEY)
           if (savedDecks) {
@@ -43,86 +52,245 @@ export function useDecks() {
           console.error("Error accessing localStorage:", error)
         }
 
-        // Then fetch from Supabase
+        // Then fetch from Supabase with proper error handling
+        console.log("Fetching decks for user:", user.id)
         const { data, error } = await supabase
           .from("decks")
           .select(`
             id,
             name,
             language,
+            is_bilingual,
+            question_language,
+            answer_language,
             progress,
-            created_at,
-            updated_at,
-            cards(*)
+            cards (
+              id,
+              question,
+              answer,
+              correct_count,
+              incorrect_count,
+              last_studied
+            )
           `)
           .eq("user_id", user.id)
           .order("created_at", { ascending: false })
 
         if (error) {
-          console.error("Error fetching decks:", error)
-          // If we have local decks, keep using them
-          if (localDecks.length > 0) {
-            return
-          }
-          throw error
+          console.error("Supabase error details:", {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code
+          })
+          throw new Error(`Error fetching decks: ${JSON.stringify(error)}`)
         }
 
-        if (data) {
-          // Transform data from snake_case to camelCase
-          const transformedDecks: Deck[] = data.map((deck) => ({
+        if (!data) {
+          console.error("No data returned from Supabase")
+          throw new Error("No data returned from Supabase")
+        }
+
+        // Log the raw data for debugging
+        console.log("Raw Supabase response:", data)
+
+        // Transform the data to match our Deck type
+        const transformedDecks: Deck[] = data.map((deck) => {
+          // Log each deck transformation for debugging
+          console.log("Processing deck:", deck)
+          
+          return {
             id: deck.id,
             name: deck.name,
-            language: deck.language,
-            progress: deck.progress,
+            language: deck.language || deck.question_language, // Fallback for backward compatibility
+            isBilingual: deck.is_bilingual || false,
+            questionLanguage: deck.question_language || deck.language, // Fallback for backward compatibility
+            answerLanguage: deck.answer_language || deck.language, // Fallback for backward compatibility
             cards: (deck.cards || []).map((card: any) => ({
               id: card.id,
               question: card.question,
               answer: card.answer,
-              correctCount: card.correct_count,
-              incorrectCount: card.incorrect_count,
+              correctCount: card.correct_count || 0,
+              incorrectCount: card.incorrect_count || 0,
               lastStudied: card.last_studied,
             })),
-            createdAt: deck.created_at,
-            updatedAt: deck.updated_at,
-          }))
-
-          setDecks(transformedDecks)
-
-          // Update localStorage with latest data
-          try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(transformedDecks))
-          } catch (error) {
-            console.error("Error saving to localStorage:", error)
+            progress: deck.progress || { correct: 0, total: 0 },
           }
+        })
+
+        console.log("Successfully transformed decks:", transformedDecks)
+        setDecks(transformedDecks)
+
+        // Update localStorage
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(transformedDecks))
+        } catch (error) {
+          console.error("Error saving to localStorage:", error)
         }
       } catch (error) {
-        console.error("Error loading decks:", error)
+        console.error("Detailed error in loadDecks:", {
+          error,
+          errorMessage: error instanceof Error ? error.message : 'Unknown error',
+          errorStack: error instanceof Error ? error.stack : undefined
+        })
+        // Keep using local decks if available
+        if (localDecks.length > 0) {
+          console.log("Using local decks as fallback")
+          setDecks(localDecks)
+        }
+        throw error // Re-throw to ensure error is properly handled by React
       } finally {
         setLoading(false)
       }
     }
 
-    // Only load decks if we haven't loaded them before
-    if (!mounted.current) {
-      loadDecks()
-      mounted.current = true
-    }
+    loadDecks()
+  }, [user, supabase])
 
-    return () => {
-      mounted.current = false
-    }
-  }, [supabase, user])
+  // Create a new deck
+  const createDeck = useCallback(
+    async ({ name, isBilingual, questionLanguage, answerLanguage }: CreateDeckParams) => {
+      if (!user) return null
 
-  // Save decks to localStorage as a fallback
-  useEffect(() => {
-    if (!loading && decks.length > 0) {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(decks))
+        const newDeck: Deck = {
+          id: crypto.randomUUID(),
+          name,
+          language: questionLanguage, // For backward compatibility
+          isBilingual,
+          questionLanguage,
+          answerLanguage,
+          cards: [],
+          progress: { correct: 0, total: 0 },
+        }
+
+        const { error } = await supabase.from("decks").insert({
+          id: newDeck.id,
+          name: newDeck.name,
+          user_id: user.id,
+          language: newDeck.language,
+          is_bilingual: newDeck.isBilingual,
+          question_language: newDeck.questionLanguage,
+          answer_language: newDeck.answerLanguage,
+          progress: newDeck.progress,
+        })
+
+        if (error) throw error
+
+        setDecks((prev) => [newDeck, ...prev])
+
+        // Update localStorage
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify([newDeck, ...decks]))
+        } catch (error) {
+          console.error("Error saving to localStorage:", error)
+        }
+
+        return newDeck
       } catch (error) {
-        console.error("Error saving to localStorage:", error)
+        console.error("Error creating deck:", error)
+        return null
       }
-    }
-  }, [decks, loading])
+    },
+    [user, supabase, decks]
+  )
+
+  // Update an existing deck
+  const updateDeck = useCallback(
+    async (updatedDeck: Deck) => {
+      if (!user) {
+        throw new Error("User not authenticated")
+      }
+
+      try {
+        console.log("Starting deck update for:", updatedDeck.id)
+        
+        // Update the deck record in Supabase
+        const { error: deckError } = await supabase
+          .from("decks")
+          .update({
+            name: updatedDeck.name,
+            language: updatedDeck.questionLanguage, // Keep for backward compatibility
+            is_bilingual: updatedDeck.isBilingual,
+            question_language: updatedDeck.questionLanguage,
+            answer_language: updatedDeck.answerLanguage,
+            progress: updatedDeck.progress,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", updatedDeck.id)
+          .eq("user_id", user.id)
+
+        if (deckError) {
+          console.error("Supabase deck update error details:", {
+            message: deckError.message,
+            details: deckError.details,
+            hint: deckError.hint,
+            code: deckError.code
+          })
+          throw new Error(`Error updating deck: ${JSON.stringify(deckError)}`)
+        }
+
+        console.log("Deck updated successfully, now updating cards...")
+
+        // Log the cards being updated
+        console.log("Cards to update:", updatedDeck.cards)
+
+        // Update cards
+        const { error: cardsError } = await supabase
+          .from("cards")
+          .upsert(
+            updatedDeck.cards.map((card) => ({
+              id: card.id,
+              deck_id: updatedDeck.id,
+              question: card.question,
+              answer: card.answer,
+              correct_count: card.correctCount,
+              incorrect_count: card.incorrectCount,
+              last_studied: card.lastStudied,
+              updated_at: new Date().toISOString(),
+            })),
+            { onConflict: 'id' }
+          )
+
+        if (cardsError) {
+          console.error("Supabase cards update error details:", {
+            message: cardsError.message,
+            details: cardsError.details,
+            hint: cardsError.hint,
+            code: cardsError.code
+          })
+          throw new Error(`Error updating cards: ${JSON.stringify(cardsError)}`)
+        }
+
+        console.log("Cards updated successfully")
+
+        // Update local state
+        setDecks((prev) =>
+          prev.map((deck) => (deck.id === updatedDeck.id ? updatedDeck : deck))
+        )
+
+        // Update localStorage
+        try {
+          const currentDecks = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]")
+          const updatedDecks = currentDecks.map((deck: Deck) =>
+            deck.id === updatedDeck.id ? updatedDeck : deck
+          )
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedDecks))
+          console.log("LocalStorage updated successfully")
+        } catch (error) {
+          console.error("Error updating localStorage:", error)
+        }
+      } catch (error) {
+        console.error("Detailed error in updateDeck:", {
+          error,
+          errorMessage: error instanceof Error ? error.message : 'Unknown error',
+          errorStack: error instanceof Error ? error.stack : undefined
+        })
+        throw error
+      }
+    },
+    [user, supabase]
+  )
 
   // Get a specific deck by ID
   const getDeck = useCallback(
@@ -150,9 +318,10 @@ export function useDecks() {
             id,
             name,
             language,
+            is_bilingual,
+            question_language,
+            answer_language,
             progress,
-            created_at,
-            updated_at,
             cards(*)
           `)
           .eq("id", stringId)
@@ -173,18 +342,19 @@ export function useDecks() {
         const fetchedDeck: Deck = {
           id: data.id,
           name: data.name,
-          language: data.language,
+          language: data.language || data.question_language, // Fallback for backward compatibility
+          isBilingual: data.is_bilingual || false,
+          questionLanguage: data.question_language || data.language, // Fallback for backward compatibility
+          answerLanguage: data.answer_language || data.language, // Fallback for backward compatibility
           cards: (data.cards || []).map((card: any) => ({
             id: card.id,
             question: card.question,
             answer: card.answer,
-            correctCount: card.correct_count,
-            incorrectCount: card.incorrect_count,
+            correctCount: card.correct_count || 0,
+            incorrectCount: card.incorrect_count || 0,
             lastStudied: card.last_studied,
           })),
-          progress: data.progress,
-          createdAt: data.created_at,
-          updatedAt: data.updated_at,
+          progress: data.progress || { correct: 0, total: 0 },
         }
 
         // Add to state if not already there
@@ -203,214 +373,6 @@ export function useDecks() {
       }
     },
     [decks, supabase, user],
-  )
-
-  // Create a new deck
-  const createDeck = useCallback(
-    async (name: string, language: string) => {
-      if (!user) {
-        throw new Error("User not authenticated")
-      }
-
-      // Use app language from settings as default if not specified
-      const deckLanguage = language || settings?.appLanguage || "english"
-
-      try {
-        // Generate a UUID for the new deck
-        const newDeckId = crypto.randomUUID()
-
-        // Create the deck in Supabase first
-        const { data, error } = await supabase
-          .from("decks")
-          .insert([
-            {
-              id: newDeckId,
-              name,
-              language: deckLanguage,
-              user_id: user.id,
-              progress: { correct: 0, total: 0 },
-            },
-          ])
-          .select(`
-            id,
-            name,
-            language,
-            progress,
-            created_at,
-            updated_at,
-            cards(*)
-          `)
-          .single()
-
-        if (error) {
-          console.error("Supabase error creating deck:", error)
-          throw new Error(`Failed to create deck: ${error.message}`)
-        }
-
-        if (!data) {
-          throw new Error("No data returned from Supabase after creating deck")
-        }
-
-        // Transform the data to match our Deck type
-        const newDeck: Deck = {
-          id: data.id,
-          name: data.name,
-          language: data.language,
-          cards: (data.cards || []).map((card: any) => ({
-            id: card.id,
-            question: card.question,
-            answer: card.answer,
-            correctCount: card.correct_count,
-            incorrectCount: card.incorrect_count,
-            lastStudied: card.last_studied,
-          })),
-          progress: data.progress,
-          createdAt: data.created_at,
-          updatedAt: data.updated_at,
-        }
-
-        // Add the new deck to state
-        setDecks((prevDecks) => [newDeck, ...prevDecks])
-
-        // Wait for state to update
-        await new Promise((resolve) => setTimeout(resolve, 100))
-
-        return newDeck.id
-      } catch (error) {
-        console.error("Error in createDeck:", error instanceof Error ? error.message : error)
-        throw error instanceof Error ? error : new Error("Failed to create deck")
-      }
-    },
-    [supabase, user, settings],
-  )
-
-  // Update an existing deck
-  const updateDeck = useCallback(
-    async (updatedDeck: Deck) => {
-      if (!user) {
-        throw new Error("User not authenticated")
-      }
-  
-      try {
-        // Update the deck record in Supabase
-        const { error: deckError } = await supabase
-          .from("decks")
-          .update({
-            name: updatedDeck.name,
-            language: updatedDeck.language,
-            progress: updatedDeck.progress,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", updatedDeck.id)
-          .eq("user_id", user.id)
-  
-        if (deckError) {
-          console.error("Error updating deck:", deckError)
-          // Continue with local updates even if Supabase fails
-        }
-  
-        // Handle cards in Supabase
-        try {
-          // Get existing cards from Supabase
-          const { data: existingCards, error: cardsError } = await supabase
-            .from("cards")
-            .select("id")
-            .eq("deck_id", updatedDeck.id)
-  
-          if (!cardsError && existingCards) {
-            const existingCardIds = existingCards.map((c) => c.id)
-            const updatedCardIds = updatedDeck.cards.map((c) => c.id)
-  
-            // Identify cards to create, update, or delete
-            const cardsToCreate = updatedDeck.cards.filter(
-              (card) => !existingCardIds.includes(card.id)
-            )
-            const cardsToUpdate = updatedDeck.cards.filter((card) =>
-              existingCardIds.includes(card.id)
-            )
-            const cardsToDelete = existingCardIds.filter(
-              (id) => !updatedCardIds.includes(id)
-            )
-  
-            // Create new cards in one call if needed
-            if (cardsToCreate.length > 0) {
-              const { error: createError } = await supabase.from("cards").insert(
-                cardsToCreate.map((card) => ({
-                  id: card.id,
-                  deck_id: updatedDeck.id,
-                  question: card.question,
-                  answer: card.answer,
-                  correct_count: card.correctCount,
-                  incorrect_count: card.incorrectCount,
-                  last_studied: card.lastStudied,
-                }))
-              )
-              if (createError) {
-                console.error("Error creating cards:", createError)
-              }
-            }
-  
-            // Update existing cards concurrently
-            if (cardsToUpdate.length > 0) {
-              await Promise.all(
-                cardsToUpdate.map((card) =>
-                  supabase
-                    .from("cards")
-                    .update({
-                      question: card.question,
-                      answer: card.answer,
-                      correct_count: card.correctCount,
-                      incorrect_count: card.incorrectCount,
-                      last_studied: card.lastStudied,
-                    })
-                    .eq("id", card.id)
-                    .eq("deck_id", updatedDeck.id)
-                )
-              )
-            }
-  
-            // Delete removed cards
-            if (cardsToDelete.length > 0) {
-              const { error: deleteError } = await supabase
-                .from("cards")
-                .delete()
-                .in("id", cardsToDelete)
-                .eq("deck_id", updatedDeck.id)
-              if (deleteError) {
-                console.error("Error deleting cards:", deleteError)
-              }
-            }
-          }
-        } catch (cardsHandlingError) {
-          console.error("Error handling cards in Supabase:", cardsHandlingError)
-          // Continue with local updates even if Supabase fails for cards
-        }
-  
-        // Update local state
-        setDecks((prevDecks) =>
-          prevDecks.map((deck) =>
-            deck.id === updatedDeck.id ? updatedDeck : deck
-          )
-        )
-  
-        // Update localStorage as fallback
-        try {
-          const savedDecks = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]")
-          const updatedDecks = savedDecks.map((deck: Deck) =>
-            deck.id === updatedDeck.id ? updatedDeck : deck
-          )
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedDecks))
-        } catch (lsError) {
-          console.error("Error updating localStorage:", lsError)
-        }
-  
-        return true
-      } catch (error) {
-        console.error("Error in updateDeck:", error)
-        throw error
-      }
-    },
-    [supabase, user]
   )
 
   // Delete a deck

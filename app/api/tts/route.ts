@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { TextToSpeechClient } from '@google-cloud/text-to-speech';
 
-const LANGUAGE_CODES = {
-  english: "en-US",
-  dutch: "nl-NL",
-  french: "fr-FR",
+const LANGUAGE_CODES: Record<string, string> = {
+  en: "en-US",
+  nl: "nl-NL",
+  fr: "fr-FR",
 };
 
 // Initialize Google Cloud TTS client
@@ -18,18 +18,18 @@ const client = new TextToSpeechClient({
 
 export async function POST(request: Request) {
   try {
-    const { text, language = 'english' } = await request.json();
+    const { text, language = 'en-US' } = await request.json();
 
     if (!text) {
       return NextResponse.json({ error: 'Text is required' }, { status: 400 });
     }
 
-    const languageCode = LANGUAGE_CODES[language as keyof typeof LANGUAGE_CODES] || LANGUAGE_CODES.english;
+    console.log('TTS API using language:', language);
 
     // Call Google Cloud TTS API
     const [response] = await client.synthesizeSpeech({
       input: { text },
-      voice: { languageCode, ssmlGender: 'NEUTRAL' },
+      voice: { languageCode: language, ssmlGender: 'NEUTRAL' },
       audioConfig: { audioEncoding: 'MP3' },
     });
 

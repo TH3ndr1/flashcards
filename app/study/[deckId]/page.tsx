@@ -46,60 +46,18 @@ export default function StudyDeckPage() {
   const [masteredCount, setMasteredCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [languageSet, setLanguageSet] = useState(false)
   const [isTransitioning, setIsTransitioning] = useState(false)
 
-  // useRef for retry count so that re-renders do not reset it
   const retryCountRef = useRef(0)
-
-  // Set language when deck loads; use a delay to ensure proper TTS initialization
-  useEffect(() => {
-    if (!deck) return
-    setLanguageSet(false)
-    setLanguage(deck.language)
-    const timeoutId = setTimeout(() => setLanguageSet(true), TTS_DELAY)
-    return () => clearTimeout(timeoutId)
-  }, [deck, setLanguage])
-
-  // Speak question after language is set, card is loaded, and card is not flipped
-  useEffect(() => {
-    if (!languageSet || !deck || !studyCards.length || isFlipped || loading)
-      return
-
-    const currentCard = studyCards[currentCardIndex]
-    if (currentCard?.question) {
-      const timeoutId = setTimeout(() => {
-        // Double-check state to avoid race conditions
-        if (
-          currentCard === studyCards[currentCardIndex] &&
-          !isFlipped &&
-          languageSet
-        ) {
-          console.log("Speaking question in", deck.language, ":", currentCard.question)
-          speak(currentCard.question)
-        }
-      }, TTS_DELAY)
-      return () => clearTimeout(timeoutId)
-    }
-  }, [currentCardIndex, languageSet, studyCards, deck, isFlipped, loading, speak])
-
-  // Reset language flag when deck changes
-  useEffect(() => {
-    if (deck?.id) {
-      setLanguageSet(false)
-    }
-  }, [deck?.id])
+  const hasLoadedRef = useRef(false)
 
   // Load deck and set up study cards with weighted randomization.
   useEffect(() => {
     let mounted = true
 
     const loadDeck = async () => {
-      if (!deckId) {
-        setError("No deck ID provided")
-        setLoading(false)
-        return
-      }
+      if (!deckId || hasLoadedRef.current) return
+      setLoading(true)
 
       console.log("Loading deck with ID:", deckId)
       try {
@@ -125,18 +83,17 @@ export default function StudyDeckPage() {
           return
         }
 
-        setDeck(loadedDeck)
-
         // Count mastered cards
         const mastered = loadedDeck.cards.filter(
           (card) => card && card.correctCount >= MASTERY_THRESHOLD
         ).length
-        setMasteredCount(mastered)
 
         // Prepare cards for study (exclude mastered cards)
         const availableCards = loadedDeck.cards.filter(
           (card) => card && card.correctCount < MASTERY_THRESHOLD
         )
+
+        let studyDeck = availableCards
         if (availableCards.length > 0) {
           // Weight cards so that those with more errors have a higher chance
           const weightedCards = availableCards.map((card) => {
@@ -156,12 +113,19 @@ export default function StudyDeckPage() {
             }
             return weightDiff
           })
-          setStudyCards(weightedCards.map((wc) => wc.card))
-        } else {
-          setStudyCards([])
+          studyDeck = weightedCards.map((wc) => wc.card)
         }
 
-        setLoading(false)
+        // Set all state updates together to minimize re-renders
+        if (mounted) {
+          hasLoadedRef.current = true
+          setDeck(loadedDeck)
+          setMasteredCount(mastered)
+          setStudyCards(studyDeck)
+          setCurrentCardIndex(0)
+          setIsFlipped(false)
+          setLoading(false)
+        }
       } catch (error) {
         console.error("Error loading deck:", error)
         if (mounted) {
@@ -179,21 +143,55 @@ export default function StudyDeckPage() {
     }
   }, [deckId, getDeck])
 
+  // Combined effect for language setup and speaking
+  useEffect(() => {
+    if (!deck || !studyCards.length || loading || isFlipped) return
+
+    const currentCard = studyCards[currentCardIndex]
+    if (!currentCard?.question) return
+
+    // Set language for the current state
+    const language = deck.isBilingual ? deck.questionLanguage : deck.language
+    console.log('Setting language to:', language)
+    setLanguage(language)
+    
+    // Add a small delay before speaking to ensure everything is ready
+    const timeoutId = setTimeout(() => {
+      console.log("Speaking question in", language, ":", currentCard.question)
+      speak(currentCard.question, language)
+    }, TTS_DELAY)
+    
+    return () => clearTimeout(timeoutId)
+  }, [deck, studyCards, currentCardIndex, isFlipped, loading, setLanguage, speak])
+
   // Memoized handler for flipping the card.
   const handleFlip = useCallback(() => {
+    if (!deck || !studyCards.length) return
+
+    const currentCard = studyCards[currentCardIndex]
+    if (!currentCard?.answer) return
+
     setIsFlipped((prev) => !prev)
-    if (!isFlipped && studyCards.length > 0 && languageSet) {
-      const currentCard = studyCards[currentCardIndex]
-      if (currentCard?.answer) {
+
+    if (!isFlipped) {
+      // For bilingual decks, switch to answer language before speaking
+      if (deck.isBilingual) {
+        console.log("Switching to answer language:", deck.answerLanguage)
+        setLanguage(deck.answerLanguage)
+        // Use a ref to track the current card to avoid stale closures
+        const cardRef = { current: currentCard }
+        // Wait for state update before speaking
         setTimeout(() => {
-          if (currentCard === studyCards[currentCardIndex] && languageSet) {
-            console.log("Speaking answer in", deck?.language, ":", currentCard.answer)
-            speak(currentCard.answer)
-          }
+          console.log("Speaking answer in", deck.answerLanguage, ":", cardRef.current.answer)
+          speak(cardRef.current.answer, deck.answerLanguage)
         }, TTS_DELAY)
+      } else {
+        // For monolingual decks, speak immediately
+        console.log("Speaking answer in", deck.language, ":", currentCard.answer)
+        speak(currentCard.answer, deck.language)
       }
     }
-  }, [isFlipped, studyCards, currentCardIndex, languageSet, speak, deck])
+  }, [isFlipped, studyCards, currentCardIndex, speak, deck, setLanguage])
 
   // Memoized handler for answering a card.
   const handleAnswer = useCallback(
@@ -206,10 +204,13 @@ export default function StudyDeckPage() {
   
       const cardIndex = updatedCards.findIndex((c) => c.id === currentCard.id)
       if (cardIndex !== -1) {
-        const newCorrectCount = correct
-          ? (updatedCards[cardIndex].correctCount || 0) + 1
-          : updatedCards[cardIndex].correctCount || 0
-  
+        // Store the current correctCount before updating
+        const currentCorrectCount = updatedCards[cardIndex].correctCount || 0
+        const wasNotMastered = currentCorrectCount < MASTERY_THRESHOLD
+
+        // Update the card's counts
+        const newCorrectCount = correct ? currentCorrectCount + 1 : currentCorrectCount
+        
         updatedCards[cardIndex] = {
           ...updatedCards[cardIndex],
           correctCount: newCorrectCount,
@@ -219,9 +220,9 @@ export default function StudyDeckPage() {
           lastStudied: new Date().toISOString(),
         }
   
-        const previouslyNotMastered =
-          (updatedCards[cardIndex].correctCount || 0) < MASTERY_THRESHOLD
-        if (newCorrectCount >= MASTERY_THRESHOLD && previouslyNotMastered) {
+        // Check if the card just became mastered
+        if (newCorrectCount >= MASTERY_THRESHOLD && wasNotMastered) {
+          console.log(`Card ${currentCard.id} mastered! Correct count: ${newCorrectCount}`)
           setMasteredCount((prev) => prev + 1)
         }
       }
@@ -242,14 +243,8 @@ export default function StudyDeckPage() {
   
       setDeck(updatedDeck)
   
-      // Measure the duration of the asynchronous update
-      const asyncStartTime = Date.now()
       try {
         await updateDeck(updatedDeck)
-        const asyncEndTime = Date.now()
-        console.log(
-          `handleAnswer: updateDeck took ${(asyncEndTime - asyncStartTime) / 1000} seconds`
-        )
       } catch (error) {
         console.error("Error updating deck:", error)
         toast({
@@ -259,18 +254,21 @@ export default function StudyDeckPage() {
         })
       }
   
-      // Update study cards based on mastery
+      // Update study cards if the card is now mastered
       if (
         cardIndex !== -1 &&
         updatedCards[cardIndex].correctCount >= MASTERY_THRESHOLD
       ) {
-        const updatedStudyCards = [...studyCards]
-        updatedStudyCards.splice(currentCardIndex, 1)
+        console.log("Removing mastered card from study deck")
+        const updatedStudyCards = studyCards.filter(card => card.id !== currentCard.id)
         setStudyCards(updatedStudyCards)
+        
         if (updatedStudyCards.length === 0) {
           setIsFlipped(false)
           return
         }
+        
+        // Adjust currentCardIndex if needed
         if (currentCardIndex >= updatedStudyCards.length) {
           setCurrentCardIndex(0)
         }
@@ -450,6 +448,12 @@ export default function StudyDeckPage() {
 
   const currentCard = studyCards[currentCardIndex]
   const progress = deck.cards.length > 0 ? (masteredCount / deck.cards.length) * 100 : 0
+  const currentDeckCard = deck.cards.find(card => card.id === currentCard?.id)
+  const correctCount = currentDeckCard?.correctCount || 0
+  const remainingCount = MASTERY_THRESHOLD - correctCount
+  const progressText = `${correctCount} of ${MASTERY_THRESHOLD} correct answers${
+    correctCount > 0 && correctCount < MASTERY_THRESHOLD ? ` • ${remainingCount} to go` : ''
+  }`
 
   return (
     <main className="container mx-auto px-4 py-8">
@@ -501,8 +505,8 @@ export default function StudyDeckPage() {
             <div className="flip-card-front absolute w-full h-full">
               <Card className="w-full h-full flex flex-col">
                 <CardHeader className="text-center text-sm text-muted-foreground">
-                  Card {currentCardIndex + 1} of {studyCards.length} •{" "}
-                  {studyCards.length} remaining to master
+                  <div>Card {currentCardIndex + 1} of {studyCards.length}</div>
+                  <div className="text-xs">{progressText}</div>
                 </CardHeader>
                 <CardContent className="flex-grow flex items-center justify-center p-6">
                   <p className="text-xl text-center">{currentCard.question}</p>
@@ -515,7 +519,8 @@ export default function StudyDeckPage() {
             <div className="flip-card-back absolute w-full h-full">
               <Card className="w-full h-full flex flex-col">
                 <CardHeader className="text-center text-sm text-muted-foreground">
-                  Answer
+                  <div>Answer</div>
+                  <div className="text-xs">{progressText}</div>
                 </CardHeader>
                 <CardContent className="flex-grow flex items-center justify-center p-6">
                   <p className="text-xl text-center">{currentCard.answer}</p>

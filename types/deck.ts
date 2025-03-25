@@ -10,7 +10,10 @@ export interface FlashCard {
 export interface Deck {
   id: string
   name: string
-  language: string
+  language: string // Kept for backward compatibility
+  isBilingual: boolean
+  questionLanguage: string
+  answerLanguage: string
   cards: FlashCard[]
   progress: {
     correct: number

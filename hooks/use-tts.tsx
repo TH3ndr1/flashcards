@@ -4,7 +4,12 @@ import { useState, useCallback } from "react"
 import { useSettings } from "@/hooks/use-settings"
 
 // Language code mapping for Google Cloud TTS
-const LANGUAGE_CODES = {
+const LANGUAGE_CODES: Record<string, string> = {
+  // ISO codes
+  en: "en-US",
+  nl: "nl-NL",
+  fr: "fr-FR",
+  // Full names
   english: "en-US",
   dutch: "nl-NL",
   french: "fr-FR",
@@ -12,15 +17,19 @@ const LANGUAGE_CODES = {
 
 export function useTTS() {
   const [loading, setLoading] = useState(false)
-  const [language, setLanguage] = useState<string>("english")
+  const [currentLanguage, setCurrentLanguage] = useState<string>("en")
   const { settings } = useSettings()
 
   // Speak text using Google Cloud TTS
-  const speak = useCallback(async (text: string) => {
+  const speak = useCallback(async (text: string, language?: string) => {
     if (!text.trim()) return
 
     try {
       setLoading(true)
+      // Use provided language or fall back to current language
+      const langToUse = language?.toLowerCase() || currentLanguage
+      const mappedLanguage = LANGUAGE_CODES[langToUse] || "en-US"
+      console.log('TTS speaking in language:', langToUse, '(mapped to:', mappedLanguage, ')')
 
       const response = await fetch('/api/tts', {
         method: 'POST',
@@ -29,7 +38,7 @@ export function useTTS() {
         },
         body: JSON.stringify({
           text,
-          language,
+          language: mappedLanguage,
         }),
       })
 
@@ -59,7 +68,12 @@ export function useTTS() {
       console.error('TTS Error:', error)
       setLoading(false)
     }
-  }, [language])
+  }, [])
+
+  const setLanguage = useCallback((lang: string) => {
+    console.log('Setting TTS language to:', lang)
+    setCurrentLanguage(lang.toLowerCase())
+  }, [])
 
   return {
     speak,
