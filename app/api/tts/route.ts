@@ -9,6 +9,7 @@ const LANGUAGE_CODES: Record<string, string> = {
 
 // Initialize Google Cloud TTS client
 const client = new TextToSpeechClient({
+  fallback: true,
   projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
   credentials: {
     client_email: process.env.GOOGLE_CLOUD_CLIENT_EMAIL,
