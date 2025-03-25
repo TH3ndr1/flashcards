@@ -3484,6 +3484,171 @@ Read file: app/profile/page.tsx
 
 ---
 
+Let me check the auth hook since that's where the issue might be originating:
+
+---
+
+Read file: hooks/use-auth.tsx
+
+---
+
+I found the issue. In the `resetPassword` function in `use-auth.tsx`, we're using `window.location.origin` directly, which isn't available during server-side rendering. Let me fix this:
+
+---
+
+```diff
+        try {
+          const { error } = await supabase.auth.resetPasswordForEmail(email, {
+-           redirectTo: `${window.location.origin}/reset-password`,
++           redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/reset-password` : '',
+          })
+          return { error }
+```
+
+---
+
+I've updated the `resetPassword` function to safely handle the `window.location.origin` access. The changes include:
+
+1. Added a check for `typeof window !== 'undefined'` to ensure we only access `window.location.origin` in the browser environment
+2. Provided a fallback empty string when running server-side
+
+This change should resolve the `ReferenceError: location is not defined` error during deployment. The hook is already marked with `"use client"` at the top, but we still need to handle the window object access safely because Next.js may still try to parse the code during the build process.
+
+Let me also check if there are any other instances of browser API usage that might need similar treatment:
+
+---
+
+<details>
+            <summary>Grep search for "window\.|location\.|document\." • **8** files</summary>
+        
+| File | Line | Match |
+|------|------|-------|
+| `file:///Users/tom/dev/flashcards/hooks/use-tts.tsx` | L22 | `if (typeof window === "undefined" || !window.speechSynthesis) {` |
+| `file:///Users/tom/dev/flashcards/hooks/use-tts.tsx` | L27 | `const availableVoices = window.speechSynthesis.getVoices()` |
+| `file:///Users/tom/dev/flashcards/hooks/use-tts.tsx` | L39 | `if (typeof window !== "undefined" && window.speechSynthesis) {` |
+| `file:///Users/tom/dev/flashcards/hooks/use-tts.tsx` | L41 | `window.speechSynthesis.onvoiceschanged = loadVoices` |
+| `file:///Users/tom/dev/flashcards/hooks/use-tts.tsx` | L45 | `if (typeof window !== "undefined" && window.speechSynthesis) {` |
+| `file:///Users/tom/dev/flashcards/hooks/use-tts.tsx` | L46 | `window.speechSynthesis.onvoiceschanged = null` |
+| `file:///Users/tom/dev/flashcards/hooks/use-tts.tsx` | L101 | `if (typeof window === "undefined" || !window.speechSynthesis || !text.trim()) return` |
+| `file:///Users/tom/dev/flashcards/hooks/use-tts.tsx` | L104 | `window.speechSynthesis.cancel()` |
+| `file:///Users/tom/dev/flashcards/hooks/use-tts.tsx` | L124 | `window.speechSynthesis.speak(utterance)` |
+| `file:///Users/tom/dev/flashcards/hooks/use-mobile.tsx` | L8 | `const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)` |
+| `file:///Users/tom/dev/flashcards/hooks/use-mobile.tsx` | L10 | `setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)` |
+| `file:///Users/tom/dev/flashcards/hooks/use-mobile.tsx` | L13 | `setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)` |
+| `file:///Users/tom/dev/flashcards/hooks/use-auth.tsx` | L118 | `redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/reset-password` : '',` |
+| `file:///Users/tom/dev/flashcards/components/ui/sidebar.tsx` | L86 | `document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`` |
+| `file:///Users/tom/dev/flashcards/components/ui/sidebar.tsx` | L110 | `window.addEventListener("keydown", handleKeyDown)` |
+| `file:///Users/tom/dev/flashcards/components/ui/sidebar.tsx` | L111 | `return () => window.removeEventListener("keydown", handleKeyDown)` |
+| `file:///Users/tom/dev/flashcards/components/ui/use-mobile.tsx` | L8 | `const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)` |
+| `file:///Users/tom/dev/flashcards/components/ui/use-mobile.tsx` | L10 | `setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)` |
+| `file:///Users/tom/dev/flashcards/components/ui/use-mobile.tsx` | L13 | `setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)` |
+| `file:///Users/tom/dev/flashcards/app/layout-script.tsx` | L11 | `window.location.hostname.includes("vusercontent.net") ||` |
+| `file:///Users/tom/dev/flashcards/app/layout-script.tsx` | L12 | `window.location.hostname.includes("vercel.app") ||` |
+| `file:///Users/tom/dev/flashcards/app/layout-script.tsx` | L13 | `window.location.hostname === "localhost" ||` |
+| `file:///Users/tom/dev/flashcards/app/layout-script.tsx` | L14 | `window.location.hostname === "127.0.0.1"` |
+| `file:///Users/tom/dev/flashcards/app/layout-script.tsx` | L22 | `window.addEventListener("load", () => {` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L3476 | `This error occurs because the `location` object (from `window.location`) is being accessed during server-side rendering, where it's not available. In Next.js, when using the `app` directory, pages are React Server Components by default, and they don't hav` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L3334 | `+     window.addEventListener('load', function() {` |
+
+</details>
+
+---
+
+Let me check the `use-mobile.tsx` hook as it's using browser APIs without proper checks:
+
+---
+
+Read file: hooks/use-mobile.tsx
+
+---
+
+Let me update the `use-mobile.tsx` hook to handle browser APIs safely:
+
+---
+
+```diff
++ "use client"
++ 
+  import * as React from "react"
+  
+  
+    React.useEffect(() => {
++     if (typeof window === 'undefined') return
++ 
+      const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
+      const onChange = () => {
+```
+
+---
+
+Now let me check the sidebar component since it's using document and window APIs:
+
+---
+
+Read file: components/ui/sidebar.tsx
+
+---
+
+Let me update the sidebar component to handle browser APIs safely:
+
+---
+
+```diff
+  
+          // This sets the cookie to keep the sidebar state.
+-         document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
++         if (typeof document !== 'undefined') {
++           document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
++         }
+        },
+        [setOpenProp, open]
+      // Adds a keyboard shortcut to toggle the sidebar.
+      React.useEffect(() => {
++       if (typeof window === 'undefined') return
++ 
+        const handleKeyDown = (event: KeyboardEvent) => {
+          if (
+```
+
+---
+
+Finally, let me check the `layout-script.tsx` file since it's using window APIs:
+
+---
+
+Read file: app/layout-script.tsx
+
+---
+
+The `layout-script.tsx` file already has proper checks for browser APIs with `typeof window !== "undefined"` and `"serviceWorker" in navigator`, so it doesn't need any changes.
+
+I've made several updates to handle browser APIs safely across the codebase:
+
+1. In `hooks/use-auth.tsx`:
+   - Added a check for `typeof window !== 'undefined'` before accessing `window.location.origin` in the `resetPassword` function
+
+2. In `hooks/use-mobile.tsx`:
+   - Added the `"use client"` directive
+   - Added a check for `typeof window === 'undefined'` in the `useEffect` hook before accessing browser APIs
+
+3. In `components/ui/sidebar.tsx`:
+   - Added a check for `typeof document !== 'undefined'` before accessing `document.cookie`
+   - Added a check for `typeof window === 'undefined'` before adding window event listeners
+
+These changes should resolve the deployment issues by ensuring that browser APIs are only accessed in the client environment. The app should now deploy successfully to Vercel without the `ReferenceError: location is not defined` error.
+
+Let me know if you'd like me to make any additional changes or if you encounter any other issues during deployment.
+
+---
+
+_**User**_
+
+I also noticed that the main page is not loading on vercel. A spinning wheel is shown and does not disappear. The settings page is working fine.
+
+---
+
+_**Assistant**_
+
 
 
 ---

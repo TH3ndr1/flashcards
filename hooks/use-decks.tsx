@@ -19,11 +19,6 @@ export function useDecks() {
 
   // Load decks from Supabase or localStorage
   useEffect(() => {
-    if (!mounted.current) {
-      mounted.current = true
-      return
-    }
-
     const loadDecks = async () => {
       if (!user) {
         setLoading(false)
@@ -107,7 +102,15 @@ export function useDecks() {
       }
     }
 
-    loadDecks()
+    // Only load decks if we haven't loaded them before
+    if (!mounted.current) {
+      loadDecks()
+      mounted.current = true
+    }
+
+    return () => {
+      mounted.current = false
+    }
   }, [supabase, user])
 
   // Save decks to localStorage as a fallback
