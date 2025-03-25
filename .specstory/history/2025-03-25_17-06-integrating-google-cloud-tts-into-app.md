@@ -2374,11 +2374,1369 @@ Let's commit these changes:
 
 ---
 
-Cancelled
+```bash
+git add hooks/use-tts.tsx app/settings/page.tsx "app/study/[deckId]/page.tsx"
+```
+
+```
+tom@MacBook-Pro-van-Tom flashcards % 
+
+```
 
 ---
 
+Command contains newline characters.
 
+---
+
+I apologize for the newlines. Let me fix that:
+
+---
+
+```bash
+git commit -m "feat: integrate Google Cloud Text-to-Speech" -m "- Update TTS hook to use Google Cloud TTS API" -m "- Update settings page to show Google Cloud TTS information" -m "- Simplify study page TTS integration" -m "- Remove Web Speech API implementation"
+```
+
+```
+tom@MacBook-Pro-van-Tom flashcards % git commit -m "feat: integrate Google Cloud Text-to-Speech"
+[main 03e28fa] feat: integrate Google Cloud Text-to-Speech
+ 10 files changed, 8435 insertions(+), 372 deletions(-)
+ create mode 100644 .env
+ create mode 100644 .specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md
+ create mode 100644 app/api/tts/route.ts
+ create mode 100644 docker-compose.yml
+tom@MacBook-Pro-van-Tom flashcards %
+```
+
+---
+
+The changes have been successfully committed to Git. The commit includes:
+1. The updated TTS implementation using Google Cloud TTS
+2. Changes to the settings page UI
+3. Simplified study page integration
+4. New API route for TTS
+5. Environment configuration files
+
+The commit message follows the conventional commit format with the "feat" type since this is a new feature implementation.
+
+Would you like me to help you with anything else regarding the Google Cloud TTS integration?
+
+---
+
+_**User**_
+
+now let's push this to the main repository
+
+---
+
+_**Assistant**_
+
+I'll help you push the changes to the main repository:
+
+---
+
+```bash
+git push origin main
+```
+
+```
+tom@MacBook-Pro-van-Tom flashcards % git push origin main
+Enumerating objects: 35, done.
+Counting objects: 100% (35/35), done.
+Delta compression using up to 8 threads
+Compressing objects: 100% (16/16), done.
+Writing objects: 100% (21/21), 64.68 KiB | 7.19 MiB/s, done.
+Total 21 (delta 8), reused 0 (delta 0), pack-reused 0
+remote: Resolving deltas: 100% (8/8), completed with 8 local objects.
+To https://github.com/TH3ndr1/flashcards.git
+   917ea29..03e28fa  main -> main
+tom@MacBook-Pro-van-Tom flashcards %
+```
+
+---
+
+Great! The changes have been successfully pushed to the main repository. Here's what happened:
+1. Git pushed 21 objects to the remote repository
+2. The changes were compressed and delta-compressed for efficient transfer
+3. The push updated the main branch from commit `917ea29` to `03e28fa`
+
+The Google Cloud TTS integration is now available in the main repository. Is there anything else you'd like me to help you with?
+
+---
+
+_**User**_
+
+Ok. Now let's do some bugfixes: I notice that the text to speech for the first card is using both the english tts and the proper langugage text at the same time. This is only for the first card, and then only for the question. The answer and all proceeding cards, are spoken out correctly only in the intended language
+
+---
+
+_**Assistant**_
+
+Let me help you fix this issue. First, let's look at the study page code to see how the TTS is being triggered:
+
+---
+
+<details>
+            <summary>Searched codebase "study page speak text to speech first card" • **25** results</summary>
+        
+| File | Lines |
+|------|-------|
+| `app/study/[deckId]/page.tsx` | L19-40 |
+| `app/study/[deckId]/page.tsx` | L89-153 |
+| `.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L6219-6263 |
+| `.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L6263-6309 |
+| `app/study/[deckId]/page.tsx` | L1-19 |
+| `app/study/[deckId]/page.tsx` | L337-387 |
+| `app/study/[deckId]/page.tsx` | L430-445 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L1547-1613 |
+| `app/settings/page.tsx` | L116-141 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L2300-2389 |
+| `app/study/[deckId]/page.tsx` | L387-430 |
+| `app/study/[deckId]/page.tsx` | L206-235 |
+| `app/study/[deckId]/page.tsx` | L235-301 |
+| `app/study/[deckId]/page.tsx` | L301-337 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L817-904 |
+| `app/study/[deckId]/page.tsx` | L445-483 |
+| `.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L1989-2048 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L611-727 |
+| `.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L8501-8597 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L1317-1410 |
+| `app/study/[deckId]/page.tsx` | L153-206 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L1944-1993 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L2228-2300 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L1878-1944 |
+| `.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L5094-5139 |
+
+</details>
+
+---
+
+Let me check the TTS API route:
+
+---
+
+<details>
+            <summary>Searched codebase "api route tts text to speech" • **25** results</summary>
+        
+| File | Lines |
+|------|-------|
+| `app/api/tts/route.ts` | L1-54 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L2166-2228 |
+| `hooks/use-tts.tsx` | L1-73 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L1878-1944 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L181-378 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L817-904 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L1252-1317 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L981-1057 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L1731-1797 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L2072-2166 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L1173-1252 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L1-181 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L1485-1547 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L1317-1410 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L727-817 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L1057-1106 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L904-981 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L1547-1613 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L2228-2300 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L1993-2072 |
+| `.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L8715-8826 |
+| `docker-compose.yml` | L1-10 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L1106-1173 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L1797-1878 |
+| `app/settings/page.tsx` | L1-63 |
+
+</details>
+
+---
+
+Let me check the current TTS implementation:
+
+---
+
+<details>
+            <summary>Searched codebase "text to speech implementation tts route" • **25** results</summary>
+        
+| File | Lines |
+|------|-------|
+| `app/api/tts/route.ts` | L1-54 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L2166-2228 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L181-378 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L1878-1944 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L817-904 |
+| `hooks/use-tts.tsx` | L1-73 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L1252-1317 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L981-1057 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L1731-1797 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L1173-1252 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L2072-2166 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L1547-1613 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L1-181 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L1317-1410 |
+| `docker-compose.yml` | L1-10 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L727-817 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L2228-2300 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L1797-1878 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L1485-1547 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L1993-2072 |
+| `app/study/[deckId]/page.tsx` | L19-40 |
+| `app/settings/page.tsx` | L1-63 |
+| `.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L8715-8826 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L1057-1106 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L1410-1485 |
+
+</details>
+
+---
+
+Let me check the current implementation of the TTS hook and API route:
+
+---
+
+Read file: hooks/use-tts.tsx
+
+---
+
+Read file: app/api/tts/route.ts
+
+---
+
+I see that both files are already set up to use Google Cloud TTS. Let me check the study page where the TTS is being used:
+
+---
+
+Read file: app/study/[deckId]/page.tsx
+
+---
+
+Let me check the TTS hook implementation:
+
+---
+
+Read file: hooks/use-tts.tsx
+
+---
+
+I see the issue. The problem is in the study page's `useEffect` hooks. There are two effects that could potentially trigger the TTS at the same time for the first card:
+
+1. The first effect sets the language when the deck loads:
+```typescript
+useEffect(() => {
+  if (!deck) return
+  setLanguage(deck.language)
+}, [deck, setLanguage])
+```
+
+2. The second effect speaks the question when a new card is shown:
+```typescript
+useEffect(() => {
+  if (deck && studyCards?.length > 0 && !isFlipped && !loading) {
+    const currentCard = studyCards[currentCardIndex]
+    if (currentCard?.question) {
+      speak(currentCard.question)
+    }
+  }
+}, [currentCardIndex, isFlipped, studyCards, deck, speak, loading])
+```
+
+Let me fix this by ensuring the language is set before speaking the first card. I'll modify the code:
+
+---
+
+```diff
+    const [error, setError] = useState<string | null>(null)
+    const { speak, setLanguage } = useTTS()
++   const [languageSet, setLanguageSet] = useState(false)
+  
+    // Set language for TTS when deck loads
+    useEffect(() => {
+      if (!deck) return
+      setLanguage(deck.language)
++     setLanguageSet(true)
+    }, [deck, setLanguage])
+  
+    useEffect(() => {
+      // Speak the question when a new card is shown
+-     if (deck && studyCards?.length > 0 && !isFlipped && !loading) {
++     if (deck && studyCards?.length > 0 && !isFlipped && !loading && languageSet) {
+        const currentCard = studyCards[currentCardIndex]
+        if (currentCard?.question) {
+          speak(currentCard.question)
+        }
+      }
+-   }, [currentCardIndex, isFlipped, studyCards, deck, speak, loading])
++   }, [currentCardIndex, isFlipped, studyCards, deck, speak, loading, languageSet])
+  
+    const handleFlip = () => {
+```
+
+---
+
+I've made the following changes to fix the issue:
+
+1. Added a new state variable `languageSet` to track when the language has been properly set
+2. Updated the first `useEffect` to set `languageSet` to true after setting the language
+3. Modified the second `useEffect` to only speak the question when `languageSet` is true
+
+This ensures that:
+1. The language is set first when the deck loads
+2. Only after the language is set will the question be spoken
+3. This prevents the race condition where the question might be spoken before the language is properly set
+
+The changes maintain all the existing functionality while fixing the issue of the first card being spoken in both languages. Now the TTS will only speak after the correct language has been set.
+
+Would you like me to commit these changes to Git?
+
+---
+
+_**User**_
+
+Ok now the language is correct, but the question on the first card is still spoken out twice. This does not happen with the answer, neither with all following cards
+
+---
+
+_**Assistant**_
+
+Let me analyze the issue. Looking at the code, I can see that there are multiple ways the first card's question might be spoken twice:
+
+1. The `useEffect` for speaking the question is triggered multiple times due to its dependencies
+2. The `loadDeck` function in another `useEffect` might be causing a re-render that triggers the speech effect
+
+Let me modify the code to prevent this double-speaking:
+
+---
+
+```diff
+    const { speak, setLanguage } = useTTS()
+    const [languageSet, setLanguageSet] = useState(false)
++   const [hasSpokenInitialQuestion, setHasSpokenInitialQuestion] = useState(false)
+  
+    // Set language for TTS when deck loads
+        const currentCard = studyCards[currentCardIndex]
+        if (currentCard?.question) {
++         // For the first card (index 0), only speak once
++         if (currentCardIndex === 0) {
++           if (!hasSpokenInitialQuestion) {
++             speak(currentCard.question)
++             setHasSpokenInitialQuestion(true)
++           }
++         } else {
++           // For other cards, speak normally
+            speak(currentCard.question)
+          }
++       }
+      }
+-   }, [currentCardIndex, isFlipped, studyCards, deck, speak, loading, languageSet])
++   }, [currentCardIndex, isFlipped, studyCards, deck, speak, loading, languageSet, hasSpokenInitialQuestion])
++ 
++   // Reset the hasSpokenInitialQuestion flag when deck changes or progress is reset
++   useEffect(() => {
++     setHasSpokenInitialQuestion(false)
++   }, [deck?.id])
+  
+    const handleFlip = () => {
+  
+      if (confirm("Are you sure you want to reset your progress for this deck?")) {
++       setHasSpokenInitialQuestion(false)  // Reset the flag when progress is reset
+        const updatedCards = deck.cards.map((card) => ({
+          ...card,
+```
+
+---
+
+I've made the following changes to fix the double-speaking issue:
+
+1. Added a new state variable `hasSpokenInitialQuestion` to track whether we've already spoken the first card's question
+2. Modified the question-speaking `useEffect` to:
+   - For the first card (index 0), only speak if we haven't spoken it yet
+   - For all other cards, speak normally
+3. Added a new `useEffect` to reset the `hasSpokenInitialQuestion` flag when:
+   - The deck changes (different deck ID)
+4. Also reset the flag in `handleResetProgress` when the user resets their progress
+
+This solution ensures that:
+1. The first card's question is only spoken once
+2. Subsequent cards work normally (speaking both question and answer)
+3. The flag is properly reset when changing decks or resetting progress
+
+Would you like me to commit these changes to Git?
+
+---
+
+_**User**_
+
+Now the text is indeed called out once for the first question, but no text is called out  for the next card
+
+---
+
+_**Assistant**_
+
+Ah, I see the issue. The problem is that we're only resetting the `hasSpokenInitialQuestion` flag when the deck changes or when progress is reset, but we need to reset it when moving to a new card as well. Let me fix this:
+
+---
+
+```diff
+  
+      setIsFlipped(false)
++     setHasSpokenInitialQuestion(false)  // Reset the flag when moving to a new card
+    }
+  
+```
+
+---
+
+I've made a simpler fix. Let me remove the complexity around the first card and just simplify the speaking logic entirely:
+
+---
+
+```diff
+    const { speak, setLanguage } = useTTS()
+    const [languageSet, setLanguageSet] = useState(false)
+-   const [hasSpokenInitialQuestion, setHasSpokenInitialQuestion] = useState(false)
+  
+    // Set language for TTS when deck loads
+        const currentCard = studyCards[currentCardIndex]
+        if (currentCard?.question) {
+-         // For the first card (index 0), only speak once
+-         if (currentCardIndex === 0) {
+-           if (!hasSpokenInitialQuestion) {
+-             speak(currentCard.question)
+-             setHasSpokenInitialQuestion(true)
+-           }
+-         } else {
+-           // For other cards, speak normally
+          speak(currentCard.question)
+        }
+-       }
+      }
+-   }, [currentCardIndex, isFlipped, studyCards, deck, speak, loading, languageSet, hasSpokenInitialQuestion])
+- 
+-   // Reset the hasSpokenInitialQuestion flag when deck changes or progress is reset
+-   useEffect(() => {
+-     setHasSpokenInitialQuestion(false)
+-   }, [deck?.id])
++   }, [currentCardIndex, isFlipped, studyCards, deck, speak, loading, languageSet])
+  
+    const handleFlip = () => {
+  
+      setIsFlipped(false)
+-     setHasSpokenInitialQuestion(false)  // Reset the flag when moving to a new card
+    }
+  
+  
+      if (confirm("Are you sure you want to reset your progress for this deck?")) {
+-       setHasSpokenInitialQuestion(false)  // Reset the flag when progress is reset
+        const updatedCards = deck.cards.map((card) => ({
+          ...card,
+```
+
+---
+
+I've simplified the code by:
+
+1. Removing the `hasSpokenInitialQuestion` state and all related logic
+2. Keeping the core speaking logic simple and consistent for all cards
+3. Maintaining the `languageSet` check to ensure the language is properly set before speaking
+
+The issue was that we were overcomplicating the solution by trying to handle the first card specially. Now the code will:
+1. Wait for the language to be set
+2. Speak the question whenever a new card is shown (whether it's the first card or subsequent cards)
+3. Speak the answer when the card is flipped
+
+This should resolve both issues:
+1. The first card's question will only be spoken once
+2. All subsequent cards will have their questions spoken as well
+
+Would you like me to commit these changes to Git?
+
+---
+
+_**User**_
+
+Hmm. now I got it.. for some reason, when asking the question, two questions are asked shortly after eachother. Sometimes it is the correct question, sometimes it is a different question. How can this be?
+
+---
+
+_**Assistant**_
+
+Ah, now I understand the issue better. The problem is likely due to multiple state updates triggering the `useEffect` hook that speaks the question. Let me analyze the dependencies of this effect:
+
+```typescript
+useEffect(() => {
+  // Speak the question when a new card is shown
+  if (deck && studyCards?.length > 0 && !isFlipped && !loading && languageSet) {
+    const currentCard = studyCards[currentCardIndex]
+    if (currentCard?.question) {
+      speak(currentCard.question)
+    }
+  }
+}, [currentCardIndex, isFlipped, studyCards, deck, speak, loading, languageSet])
+```
+
+The issue is that this effect has many dependencies that might change in quick succession, particularly during the initial load:
+1. `deck` is set when loading completes
+2. `studyCards` is set right after the deck is loaded
+3. `loading` changes from true to false
+4. `languageSet` changes when the language is set
+
+Let's modify the code to be more precise about when we want to speak:
+
+---
+
+```diff
+    const { speak, setLanguage } = useTTS()
+    const [languageSet, setLanguageSet] = useState(false)
++   const [shouldSpeak, setShouldSpeak] = useState(false)
+  
+    // Set language for TTS when deck loads
+      setLanguageSet(true)
+    }, [deck, setLanguage])
++ 
++   // Trigger speech only when everything is ready
++   useEffect(() => {
++     if (deck && studyCards?.length > 0 && !isFlipped && !loading && languageSet) {
++       setShouldSpeak(true)
++     }
++   }, [deck, studyCards, isFlipped, loading, languageSet])
++ 
++   // Handle the actual speaking
++   useEffect(() => {
++     if (shouldSpeak) {
++       const currentCard = studyCards[currentCardIndex]
++       if (currentCard?.question) {
++         speak(currentCard.question)
++       }
++       setShouldSpeak(false)
++     }
++   }, [shouldSpeak, currentCardIndex, studyCards, speak])
+  
+    useEffect(() => {
+      }
+    }, [deckId, getDeck, setLanguage])
+- 
+-   useEffect(() => {
+-     // Speak the question when a new card is shown
+-     if (deck && studyCards?.length > 0 && !isFlipped && !loading && languageSet) {
+-       const currentCard = studyCards[currentCardIndex]
+-       if (currentCard?.question) {
+-         speak(currentCard.question)
+-       }
+-     }
+-   }, [currentCardIndex, isFlipped, studyCards, deck, speak, loading, languageSet])
+  
+    const handleFlip = () => {
+```
+
+---
+
+I've split the speaking logic into two separate effects to have better control over when speech is triggered:
+
+1. First effect: Sets up the language when the deck loads (unchanged)
+2. Second effect: Monitors all the conditions that need to be met before we should speak (deck loaded, cards available, not flipped, not loading, language set)
+3. Third effect: Actually performs the speaking, but only when explicitly triggered by setting `shouldSpeak` to true
+
+This change should prevent the double-speaking issue because:
+1. We now have a dedicated state variable `shouldSpeak` that explicitly controls when we want to speak
+2. The speaking effect only depends on this state and the minimal necessary dependencies
+3. We immediately set `shouldSpeak` back to false after speaking to prevent any duplicate triggers
+4. The conditions for speaking are now evaluated in a separate effect, preventing race conditions
+
+Additionally, we need to make sure `shouldSpeak` is set to true when moving to a new card. Let me update the `handleAnswer` function:
+
+---
+
+```diff
+  
+      setIsFlipped(false)
++     setShouldSpeak(true)  // Trigger speech for the new card
+    }
+  
+```
+
+---
+
+These changes should fix the double-speaking issue by:
+1. Using a dedicated state variable to control when speech should happen
+2. Separating the conditions for speaking from the actual speaking action
+3. Ensuring speech is triggered exactly once when moving to a new card
+4. Preventing race conditions between state updates
+
+Would you like me to commit these changes to Git?
+
+---
+
+_**User**_
+
+It dit not work...still two questions are being spoken out... two different ones the same time
+
+---
+
+_**Assistant**_
+
+Looking at the code more carefully, I can see that we have multiple triggers for speaking. Let me analyze the exact flow:
+
+1. When the deck loads, we have a chain of state updates:
+   ```typescript
+   setDeck(loadedDeck)
+   setStudyCards(weightedCards.map((wc) => wc.card))
+   setLoading(false)
+   ```
+
+2. We have two effects that can trigger speech:
+   ```typescript
+   // First effect - triggers setShouldSpeak
+   useEffect(() => {
+     if (deck && studyCards?.length > 0 && !isFlipped && !loading && languageSet) {
+       setShouldSpeak(true)
+     }
+   }, [deck, studyCards, isFlipped, loading, languageSet])
+
+   // Second effect - does the speaking
+   useEffect(() => {
+     if (shouldSpeak) {
+       const currentCard = studyCards[currentCardIndex]
+       if (currentCard?.question) {
+         speak(currentCard.question)
+       }
+       setShouldSpeak(false)
+     }
+   }, [shouldSpeak, currentCardIndex, studyCards, speak])
+   ```
+
+Let's simplify this by having a single effect that handles speaking, and make sure we're not reacting to too many state changes:
+
+---
+
+```diff
+    const { speak, setLanguage } = useTTS()
+    const [languageSet, setLanguageSet] = useState(false)
+-   const [shouldSpeak, setShouldSpeak] = useState(false)
+  
+    // Set language for TTS when deck loads
+    }, [deck, setLanguage])
+  
+-   // Trigger speech only when everything is ready
++   // Handle speaking the current card's question
+    useEffect(() => {
++     // Only speak if everything is ready and we're showing a question
+      if (deck && studyCards?.length > 0 && !isFlipped && !loading && languageSet) {
+-       setShouldSpeak(true)
+-     }
+-   }, [deck, studyCards, isFlipped, loading, languageSet])
+- 
+-   // Handle the actual speaking
+-   useEffect(() => {
+-     if (shouldSpeak) {
+        const currentCard = studyCards[currentCardIndex]
+        if (currentCard?.question) {
++         // Add a small delay to prevent multiple triggers
++         const timeoutId = setTimeout(() => {
+            speak(currentCard.question)
++         }, 100)
++         return () => clearTimeout(timeoutId)
+        }
+-       setShouldSpeak(false)
+      }
+-   }, [shouldSpeak, currentCardIndex, studyCards, speak])
++   }, [currentCardIndex, deck?.id, languageSet])
+  
+    useEffect(() => {
+  
+      setIsFlipped(false)
+-     setShouldSpeak(true)  // Trigger speech for the new card
+    }
+  
+```
+
+---
+
+I've made several important changes:
+
+1. Removed the `shouldSpeak` state and its related logic to simplify the flow
+2. Combined the speaking logic into a single effect
+3. Changed the dependencies to only include:
+   - `currentCardIndex` - to speak when we move to a new card
+   - `deck?.id` - to ensure we have the right deck loaded
+   - `languageSet` - to ensure the language is properly set
+4. Added a small delay with `setTimeout` to prevent multiple triggers
+5. Added cleanup with `clearTimeout` to prevent stale callbacks
+6. Removed the `setShouldSpeak` call from `handleAnswer` since it's no longer needed
+
+This should fix the issue because:
+1. We're now only reacting to essential state changes
+2. The small delay helps coalesce multiple state updates
+3. We have proper cleanup to prevent stale callbacks
+4. The effect is more focused and has fewer dependencies that could trigger it
+
+Let me also update the `handleFlip` function to use the same pattern for speaking answers:
+
+---
+
+```diff
+        const currentCard = studyCards[currentCardIndex]
+        if (currentCard?.answer) {
++         // Add a small delay to prevent multiple triggers
++         setTimeout(() => {
+            speak(currentCard.answer)
++         }, 100)
+        }
+      }
+```
+
+---
+
+These changes should resolve the issue of multiple questions being spoken at the same time. The key improvements are:
+
+1. Single source of truth for when to speak questions (one effect)
+2. Minimal dependencies to prevent unnecessary triggers
+3. Small delay to handle state batching
+4. Proper cleanup to prevent stale callbacks
+5. Consistent pattern for both questions and answers
+
+Would you like me to commit these changes to Git?
+
+---
+
+_**User**_
+
+Ok, the double text is gone, but I notice that somehow, sometimesthe wrong text is spoken out with the question. In that case, the text of another card is spoken.
+
+---
+
+_**Assistant**_
+
+Ah, now I understand the issue. Looking at the code, I can see that the problem is likely due to the dependencies in our speaking effect. Currently, we have:
+
+```typescript
+}, [currentCardIndex, deck?.id, languageSet])
+```
+
+This means we're not including `studyCards` in our dependencies, which could lead to the effect running with stale `studyCards` data. Also, we're using `deck?.id` which might not be enough to ensure we have the full deck data.
+
+Let me fix this:
+
+---
+
+```diff
+          // Add a small delay to prevent multiple triggers
+          const timeoutId = setTimeout(() => {
++           // Double check that the card hasn't changed during the timeout
++           if (currentCard === studyCards[currentCardIndex]) {
+              speak(currentCard.question)
++           }
+          }, 100)
+          return () => clearTimeout(timeoutId)
+        }
+      }
+-   }, [currentCardIndex, deck?.id, languageSet])
++   }, [currentCardIndex, studyCards, isFlipped, loading, languageSet, speak])
+  
+    useEffect(() => {
+```
+
+---
+
+I've made several important changes to fix the issue of wrong text being spoken:
+
+1. Updated the effect dependencies to include all relevant state:
+   - `studyCards` - so we react to changes in the card list
+   - `isFlipped` - to ensure we only speak when showing questions
+   - `loading` - to prevent speaking during loading states
+   - `languageSet` - to ensure language is set
+   - `speak` - to ensure we have the latest speak function
+
+2. Added a safety check inside the timeout to ensure the card hasn't changed between when the timeout was set and when it executes:
+   ```typescript
+   if (currentCard === studyCards[currentCardIndex]) {
+     speak(currentCard.question)
+   }
+   ```
+
+3. Removed `deck?.id` from dependencies since we already have the necessary data in `studyCards`
+
+This should fix the issue because:
+1. We're now properly tracking all state changes that could affect which card should be spoken
+2. We're double-checking that the card hasn't changed during the timeout
+3. We have proper cleanup with `clearTimeout`
+4. We're using the actual card data rather than just indices
+
+Let me also update the `handleFlip` function to use the same safety checks:
+
+---
+
+```diff
+        if (currentCard?.answer) {
+          // Add a small delay to prevent multiple triggers
+-         setTimeout(() => {
++         const timeoutId = setTimeout(() => {
++           // Double check that the card hasn't changed
++           if (currentCard === studyCards[currentCardIndex]) {
+              speak(currentCard.answer)
++           }
+          }, 100)
+        }
+```
+
+---
+
+These changes ensure that:
+1. We only speak the correct card's text, both for questions and answers
+2. We handle any race conditions that might occur during state updates
+3. We prevent speaking stale or incorrect card data
+4. We maintain proper synchronization between the visual state and the audio state
+
+Would you like me to commit these changes to Git?
+
+---
+
+_**User**_
+
+It has improved, but we are not there yet. I still have text spoken out twice for the first question. One of these texts is correct, the other one is someties incorrect. The app is functioning properly for all answers and following questions. It' s only for the first question that the bug arrises
+
+---
+
+_**Assistant**_
+
+Looking at the code more carefully, I notice that the issue might be related to how the deck and study cards are loaded. The problem is likely in this sequence:
+
+1. The deck loading effect runs and sets up the study cards
+2. This triggers multiple state updates:
+   ```typescript
+   setDeck(loadedDeck)
+   setMasteredCount(mastered)
+   setStudyCards(weightedCards.map((wc) => wc.card))
+   setLoading(false)
+   ```
+
+Let me modify the code to ensure we only speak after everything is fully loaded and stable:
+
+---
+
+```diff
+    const { speak, setLanguage } = useTTS()
+    const [languageSet, setLanguageSet] = useState(false)
++   const [isInitialLoad, setIsInitialLoad] = useState(true)
+  
+    // Set language for TTS when deck loads
+    // Handle speaking the current card's question
+    useEffect(() => {
++     // Skip speaking during the initial load
++     if (isInitialLoad) {
++       setIsInitialLoad(false)
++       return
++     }
++ 
+      // Only speak if everything is ready and we're showing a question
+      if (deck && studyCards?.length > 0 && !isFlipped && !loading && languageSet) {
+        }
+      }
+-   }, [currentCardIndex, studyCards, isFlipped, loading, languageSet, speak])
++   }, [currentCardIndex, studyCards, isFlipped, loading, languageSet, speak, isInitialLoad])
++ 
++   // Speak the first card's question after everything is loaded
++   useEffect(() => {
++     if (!isInitialLoad && deck && studyCards?.length > 0 && !loading && languageSet) {
++       const currentCard = studyCards[currentCardIndex]
++       if (currentCard?.question) {
++         const timeoutId = setTimeout(() => {
++           speak(currentCard.question)
++         }, 200)
++         return () => clearTimeout(timeoutId)
++       }
++     }
++   }, [isInitialLoad, deck, studyCards, loading, languageSet, currentCardIndex, speak])
+  
+    useEffect(() => {
+```
+
+---
+
+I've made several important changes to fix the issue with the first card's question being spoken twice:
+
+1. Added an `isInitialLoad` state to track the initial loading state
+2. Modified the main speaking effect to skip during the initial load
+3. Added a separate effect specifically for speaking the first card's question after everything is loaded
+
+The sequence now works like this:
+1. During initial load (`isInitialLoad` is true):
+   - The main speaking effect is skipped
+   - All state updates (deck, study cards, language) happen
+   - `isInitialLoad` is set to false
+
+2. After initial load (`isInitialLoad` is false):
+   - The second effect runs once to speak the first card's question
+   - The main speaking effect takes over for subsequent cards
+
+3. For all subsequent cards:
+   - Only the main speaking effect runs
+   - The initial load effect is ignored since `isInitialLoad` is false
+
+This should fix the issue because:
+1. We prevent any speaking during the initial state setup
+2. We have a dedicated effect for speaking the first card's question
+3. We maintain proper cleanup with `clearTimeout`
+4. We have proper sequencing of when things should happen
+
+Would you like me to commit these changes to Git?
+
+---
+
+_**User**_
+
+Still the same issue as above
+
+---
+
+_**Assistant**_
+
+Looking at the code again, I notice that we have multiple effects that could trigger during the initial load. Let's try a different approach by combining the language setting and initial speaking into a single effect, and having a separate effect for subsequent cards:
+
+---
+
+```diff
+    const [error, setError] = useState<string | null>(null)
+    const { speak, setLanguage } = useTTS()
+-   const [languageSet, setLanguageSet] = useState(false)
+-   const [isInitialLoad, setIsInitialLoad] = useState(true)
++   const [isReady, setIsReady] = useState(false)
+  
+-   // Set language for TTS when deck loads
++   // Combined effect for initial setup and first card
+    useEffect(() => {
+-     if (!deck) return
++     if (!deck || loading) return
++ 
++     // Set language first
+      setLanguage(deck.language)
+-     setLanguageSet(true)
+-   }, [deck, setLanguage])
+- 
+-   // Handle speaking the current card's question
+-   useEffect(() => {
+-     // Skip speaking during the initial load
+-     if (isInitialLoad) {
+-       setIsInitialLoad(false)
+-       return
+-     }
+- 
+-     // Only speak if everything is ready and we're showing a question
+-     if (deck && studyCards?.length > 0 && !isFlipped && !loading && languageSet) {
++ 
++     // Wait a bit for everything to be ready
++     const timeoutId = setTimeout(() => {
++       setIsReady(true)
++       // Speak first card
++       if (studyCards?.length > 0 && !isFlipped) {
+          const currentCard = studyCards[currentCardIndex]
+          if (currentCard?.question) {
+-         // Add a small delay to prevent multiple triggers
+-         const timeoutId = setTimeout(() => {
+-           // Double check that the card hasn't changed during the timeout
+-           if (currentCard === studyCards[currentCardIndex]) {
+            speak(currentCard.question)
+          }
+-         }, 100)
++       }
++     }, 300)
++ 
+      return () => clearTimeout(timeoutId)
+-       }
+-     }
+-   }, [currentCardIndex, studyCards, isFlipped, loading, languageSet, speak, isInitialLoad])
++   }, [deck, loading])
+  
+-   // Speak the first card's question after everything is loaded
++   // Handle speaking for subsequent card changes
+    useEffect(() => {
+-     if (!isInitialLoad && deck && studyCards?.length > 0 && !loading && languageSet) {
++     if (!isReady || !deck || loading) return
++ 
++     if (studyCards?.length > 0 && !isFlipped) {
+        const currentCard = studyCards[currentCardIndex]
+        if (currentCard?.question) {
+          const timeoutId = setTimeout(() => {
+            speak(currentCard.question)
+-         }, 200)
++         }, 100)
+          return () => clearTimeout(timeoutId)
+        }
+      }
+-   }, [isInitialLoad, deck, studyCards, loading, languageSet, currentCardIndex, speak])
++   }, [currentCardIndex, isFlipped, isReady])
+  
+    useEffect(() => {
+```
+
+---
+
+I've made several significant changes to fix the issue:
+
+1. Simplified the state management:
+   - Removed `languageSet` and `isInitialLoad` states
+   - Added a single `isReady` state to track when the component is fully initialized
+
+2. Created two distinct effects with clear responsibilities:
+
+   a. First effect handles initial setup:
+   ```typescript
+   useEffect(() => {
+     if (!deck || loading) return
+     setLanguage(deck.language)
+     const timeoutId = setTimeout(() => {
+       setIsReady(true)
+       // Speak first card
+       if (studyCards?.length > 0 && !isFlipped) {
+         const currentCard = studyCards[currentCardIndex]
+         if (currentCard?.question) {
+           speak(currentCard.question)
+         }
+       }
+     }, 300)
+     return () => clearTimeout(timeoutId)
+   }, [deck, loading])
+   ```
+   - Only runs when deck is loaded
+   - Sets the language
+   - Waits for everything to settle (300ms)
+   - Speaks the first card once
+   - Marks the component as ready
+
+   b. Second effect handles subsequent card changes:
+   ```typescript
+   useEffect(() => {
+     if (!isReady || !deck || loading) return
+     if (studyCards?.length > 0 && !isFlipped) {
+       const currentCard = studyCards[currentCardIndex]
+       if (currentCard?.question) {
+         const timeoutId = setTimeout(() => {
+           speak(currentCard.question)
+         }, 100)
+         return () => clearTimeout(timeoutId)
+       }
+     }
+   }, [currentCardIndex, isFlipped, isReady])
+   ```
+   - Only runs after initial setup is complete
+   - Has minimal dependencies
+   - Handles speaking for card changes
+
+This new approach should fix the issue because:
+1. The initial setup is handled in isolation
+2. We wait for everything to be ready before speaking the first card
+3. Subsequent card changes are handled by a separate effect
+4. We have proper cleanup for all timeouts
+5. The dependencies are minimal and focused
+
+Would you like me to commit these changes to Git?
+
+---
+
+_**User**_
+
+This has not improved. Now the wrong question is often spoken out compared to the question that should have been spoken out
+
+---
+
+_**Assistant**_
+
+Looking at the code more carefully, I notice that the issue might be related to the timing of state updates. The `studyCards` state is set after the deck is loaded, but our effect might be running before `studyCards` is fully updated. Let's modify the code to ensure we only speak when we have both the deck and study cards ready:
+
+---
+
+```diff
+    const [isReady, setIsReady] = useState(false)
+  
+-   // Combined effect for initial setup and first card
++   // Set language when deck loads
+    useEffect(() => {
+-     if (!deck || loading) return
+- 
+-     // Set language first
++     if (!deck) return
+      setLanguage(deck.language)
+- 
+-     // Wait a bit for everything to be ready
++   }, [deck, setLanguage])
++ 
++   // Handle speaking questions
++   useEffect(() => {
++     // Only speak if we have everything we need and we're showing a question
++     if (!loading && deck && studyCards?.length > 0 && !isFlipped) {
++       // Add a small delay to ensure all state updates are complete
+        const timeoutId = setTimeout(() => {
+-       setIsReady(true)
+-       // Speak first card
+-       if (studyCards?.length > 0 && !isFlipped) {
+          const currentCard = studyCards[currentCardIndex]
+          if (currentCard?.question) {
++           console.log('Speaking question:', currentCard.question) // Debug log
+            speak(currentCard.question)
+          }
+-       }
+-     }, 300)
+- 
+-     return () => clearTimeout(timeoutId)
+-   }, [deck, loading])
+- 
+-   // Handle speaking for subsequent card changes
+-   useEffect(() => {
+-     if (!isReady || !deck || loading) return
+- 
+-     if (studyCards?.length > 0 && !isFlipped) {
+-       const currentCard = studyCards[currentCardIndex]
+-       if (currentCard?.question) {
+-         const timeoutId = setTimeout(() => {
+-           speak(currentCard.question)
+        }, 100)
+        return () => clearTimeout(timeoutId)
+      }
+-     }
+-   }, [currentCardIndex, isFlipped, isReady])
++   }, [loading, deck, studyCards, currentCardIndex, isFlipped])
+  
+    useEffect(() => {
+```
+
+---
+
+I've simplified the code significantly:
+
+1. Removed the `isReady` state and the concept of "initial" vs "subsequent" cards
+2. Separated the language setting into its own simple effect
+3. Created a single effect to handle all question speaking with proper dependencies:
+   - `loading` - to ensure the deck is fully loaded
+   - `deck` - to ensure we have the deck
+   - `studyCards` - to ensure we have the study cards
+   - `currentCardIndex` - to react to card changes
+   - `isFlipped` - to only speak when showing questions
+
+4. Added a debug log to help track when and what is being spoken
+
+The key improvements are:
+1. We now wait for both `deck` and `studyCards` to be available before speaking
+2. We have a single source of truth for when to speak
+3. We have proper cleanup of timeouts
+4. We have simpler, more focused effects
+
+Let me also update the `handleFlip` function to use the same pattern:
+
+---
+
+```diff
+          // Add a small delay to prevent multiple triggers
+          const timeoutId = setTimeout(() => {
+-           // Double check that the card hasn't changed
+-           if (currentCard === studyCards[currentCardIndex]) {
++           console.log('Speaking answer:', currentCard.answer) // Debug log
+            speak(currentCard.answer)
+-           }
+          }, 100)
+        }
+```
+
+---
+
+The changes should now:
+1. Only speak questions when all required data is available
+2. Properly handle the timing of state updates
+3. Log what is being spoken to help with debugging
+4. Use consistent patterns for both questions and answers
+
+Can you try it now and let me know if you see the debug logs in the browser console? This will help us understand exactly what's being spoken and when.
+
+Would you like me to commit these changes to Git?
+
+---
+
+_**User**_
+
+Now a text is spoken in both english and the correct language. The english text is often wrong (i.e. belonging to a different card)
+
+---
+
+_**Assistant**_
+
+Ah, now I understand the issue better. Looking at the code, I can see that the problem is likely in the deck loading effect. When we load the deck, we're setting multiple states in sequence, and the language setting might not be synchronized properly with the speaking effect.
+
+Let's modify the code to ensure proper sequencing:
+
+---
+
+```diff
+    const [error, setError] = useState<string | null>(null)
+    const { speak, setLanguage } = useTTS()
+-   const [isReady, setIsReady] = useState(false)
++   const [languageSet, setLanguageSet] = useState(false)
+  
+-   // Set language when deck loads
++   // Set language when deck loads and track when it's set
+    useEffect(() => {
+      if (!deck) return
+      setLanguage(deck.language)
++     // Give a small delay to ensure language is properly set
++     const timeoutId = setTimeout(() => {
++       setLanguageSet(true)
++     }, 100)
++     return () => clearTimeout(timeoutId)
+    }, [deck, setLanguage])
+  
+-   // Handle speaking questions
++   // Handle speaking questions - only after language is set
+    useEffect(() => {
+-     // Only speak if we have everything we need and we're showing a question
+-     if (!loading && deck && studyCards?.length > 0 && !isFlipped) {
+-       // Add a small delay to ensure all state updates are complete
+-       const timeoutId = setTimeout(() => {
++     if (!languageSet || !deck || !studyCards?.length || isFlipped || loading) return
++ 
+      const currentCard = studyCards[currentCardIndex]
+      if (currentCard?.question) {
+-           console.log('Speaking question:', currentCard.question) // Debug log
++       console.log('Speaking question in', deck.language, ':', currentCard.question)
+        speak(currentCard.question)
+      }
+-       }, 100)
+-       return () => clearTimeout(timeoutId)
+-     }
+-   }, [loading, deck, studyCards, currentCardIndex, isFlipped])
++   }, [currentCardIndex, languageSet])
++ 
++   // Reset language flag when deck changes
++   useEffect(() => {
++     setLanguageSet(false)
++   }, [deck?.id])
+  
+    useEffect(() => {
+```
+
+---
+
+Let me also update the `handleFlip` function to respect the language setting:
+
+---
+
+```diff
+  
+      // Speak the answer when card is flipped
+-     if (!isFlipped && studyCards?.length > 0) {
++     if (!isFlipped && studyCards?.length > 0 && languageSet) {
+        const currentCard = studyCards[currentCardIndex]
+        if (currentCard?.answer) {
+-         // Add a small delay to prevent multiple triggers
+-         const timeoutId = setTimeout(() => {
+-           console.log('Speaking answer:', currentCard.answer) // Debug log
++         console.log('Speaking answer in', deck?.language, ':', currentCard.answer)
+          speak(currentCard.answer)
+-         }, 100)
+        }
+      }
+```
+
+---
+
+I've made several important changes to fix the language synchronization issue:
+
+1. Added a `languageSet` state to track when the language has been properly set
+2. Modified the language setting effect to:
+   - Set the language when the deck loads
+   - Wait a small delay to ensure the language is properly set
+   - Set the `languageSet` flag to true
+   - Clean up properly if the component unmounts
+
+3. Simplified the speaking effect to:
+   - Only run when `languageSet` is true
+   - Have minimal dependencies (`currentCardIndex` and `languageSet`)
+   - Early return if any conditions aren't met
+   - Log the language being used for debugging
+
+4. Added a reset effect to:
+   - Reset `languageSet` to false when the deck changes
+   - Ensure we wait for the new language to be set before speaking
+
+5. Updated `handleFlip` to:
+   - Only speak when `languageSet` is true
+   - Log the language being used for debugging
+   - Remove unnecessary timeout
+
+The key improvements are:
+1. We now ensure the language is properly set before any speaking occurs
+2. We track language changes explicitly with the `languageSet` flag
+3. We reset the language state when changing decks
+4. We have better logging to track what's happening
+5. We've simplified the timing of state updates
+
+This should fix the issue because:
+1. No speaking will occur until the language is properly set
+2. The language setting is properly synchronized with deck changes
+3. We're not relying on timeouts for speaking anymore
+4. We have explicit state tracking for language readiness
+
+Would you like me to commit these changes to Git?
+
+---
+
+_**User**_
+
+Ok, the double voice seem to be gone, but sometimes the wrong question is still spoken out
+
+---
+
+_**Assistant**_
+
+Looking at the code again, I notice that the issue might be related to how we're handling the dependencies in our speaking effect. Currently, we're not including `studyCards` or `deck` in our dependencies, which could lead to stale data. Also, we should be more careful about when we speak after state changes.
+
+Let me modify the code:
+
+---
+
+```diff
+    useEffect(() => {
+      if (!deck) return
++     setLanguageSet(false) // Reset language flag first
+      setLanguage(deck.language)
+      // Give a small delay to ensure language is properly set
+      const currentCard = studyCards[currentCardIndex]
+      if (currentCard?.question) {
++       // Add a small delay to ensure we have the latest state
++       const timeoutId = setTimeout(() => {
++         // Double check that nothing has changed
++         if (currentCard === studyCards[currentCardIndex] && !isFlipped && languageSet) {
+            console.log('Speaking question in', deck.language, ':', currentCard.question)
+            speak(currentCard.question)
+          }
+-   }, [currentCardIndex, languageSet])
++       }, 100)
++       return () => clearTimeout(timeoutId)
++     }
++   }, [currentCardIndex, languageSet, studyCards, deck, isFlipped, loading, speak])
+  
+    // Reset language flag when deck changes
+    useEffect(() => {
++     if (deck?.id) {
+        setLanguageSet(false)
++     }
+    }, [deck?.id])
+  
+        const currentCard = studyCards[currentCardIndex]
+        if (currentCard?.answer) {
++         // Add a small delay to ensure we have the latest state
++         setTimeout(() => {
++           // Double check that nothing has changed
++           if (currentCard === studyCards[currentCardIndex] && languageSet) {
+              console.log('Speaking answer in', deck?.language, ':', currentCard.answer)
+              speak(currentCard.answer)
++           }
++         }, 100)
+        }
+      }
+```
+
+---
+
+I've made several important changes to ensure we always speak the correct card:
+
+1. In the language setting effect:
+   - Reset `languageSet` to false before setting the
 
 ---
 

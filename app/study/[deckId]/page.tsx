@@ -32,12 +32,44 @@ export default function StudyDeckPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const { speak, setLanguage } = useTTS()
+  const [languageSet, setLanguageSet] = useState(false)
 
-  // Set language for TTS when deck loads
+  // Set language when deck loads and track when it's set
   useEffect(() => {
     if (!deck) return
+    setLanguageSet(false) // Reset language flag first
     setLanguage(deck.language)
+    // Give a small delay to ensure language is properly set
+    const timeoutId = setTimeout(() => {
+      setLanguageSet(true)
+    }, 100)
+    return () => clearTimeout(timeoutId)
   }, [deck, setLanguage])
+
+  // Handle speaking questions - only after language is set
+  useEffect(() => {
+    if (!languageSet || !deck || !studyCards?.length || isFlipped || loading) return
+
+    const currentCard = studyCards[currentCardIndex]
+    if (currentCard?.question) {
+      // Add a small delay to ensure we have the latest state
+      const timeoutId = setTimeout(() => {
+        // Double check that nothing has changed
+        if (currentCard === studyCards[currentCardIndex] && !isFlipped && languageSet) {
+          console.log('Speaking question in', deck.language, ':', currentCard.question)
+          speak(currentCard.question)
+        }
+      }, 100)
+      return () => clearTimeout(timeoutId)
+    }
+  }, [currentCardIndex, languageSet, studyCards, deck, isFlipped, loading, speak])
+
+  // Reset language flag when deck changes
+  useEffect(() => {
+    if (deck?.id) {
+      setLanguageSet(false)
+    }
+  }, [deck?.id])
 
   useEffect(() => {
     let mounted = true
@@ -130,24 +162,21 @@ export default function StudyDeckPage() {
     }
   }, [deckId, getDeck, setLanguage])
 
-  useEffect(() => {
-    // Speak the question when a new card is shown
-    if (deck && studyCards?.length > 0 && !isFlipped && !loading) {
-      const currentCard = studyCards[currentCardIndex]
-      if (currentCard?.question) {
-        speak(currentCard.question)
-      }
-    }
-  }, [currentCardIndex, isFlipped, studyCards, deck, speak, loading])
-
   const handleFlip = () => {
     setIsFlipped(!isFlipped)
 
     // Speak the answer when card is flipped
-    if (!isFlipped && studyCards?.length > 0) {
+    if (!isFlipped && studyCards?.length > 0 && languageSet) {
       const currentCard = studyCards[currentCardIndex]
       if (currentCard?.answer) {
-        speak(currentCard.answer)
+        // Add a small delay to ensure we have the latest state
+        setTimeout(() => {
+          // Double check that nothing has changed
+          if (currentCard === studyCards[currentCardIndex] && languageSet) {
+            console.log('Speaking answer in', deck?.language, ':', currentCard.answer)
+            speak(currentCard.answer)
+          }
+        }, 100)
       }
     }
   }
