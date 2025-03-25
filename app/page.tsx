@@ -12,10 +12,27 @@ export default function Home() {
   const router = useRouter()
   const [isClient, setIsClient] = useState(false)
   const [redirected, setRedirected] = useState(false)
+  const [isVisible, setIsVisible] = useState(true)
 
   // Set isClient to true when component mounts
   useEffect(() => {
     setIsClient(true)
+
+    // Handle visibility changes
+    const handleVisibilityChange = () => {
+      setIsVisible(!document.hidden)
+    }
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange)
+      setIsVisible(!document.hidden)
+    }
+
+    return () => {
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange)
+      }
+    }
   }, [])
 
   // Redirect to login if not authenticated
@@ -29,7 +46,13 @@ export default function Home() {
   if (!isClient || loading) {
     return (
       <div className="flex justify-center items-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <div 
+          className={`h-12 w-12 rounded-full border-2 border-primary ${isVisible ? 'animate-spin border-b-transparent' : ''}`}
+          style={{ 
+            animation: isVisible ? 'spin 1s linear infinite' : 'none',
+            borderBottomColor: 'transparent' 
+          }}
+        />
       </div>
     )
   }
@@ -37,7 +60,13 @@ export default function Home() {
   if (!user) {
     return (
       <div className="flex justify-center items-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <div 
+          className={`h-12 w-12 rounded-full border-2 border-primary ${isVisible ? 'animate-spin border-b-transparent' : ''}`}
+          style={{ 
+            animation: isVisible ? 'spin 1s linear infinite' : 'none',
+            borderBottomColor: 'transparent' 
+          }}
+        />
       </div>
     )
   }

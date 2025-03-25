@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { PlusCircle } from "lucide-react"
@@ -11,7 +11,25 @@ import { useRouter } from "next/navigation"
 export function DeckList() {
   const { decks, loading } = useDecks()
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [isVisible, setIsVisible] = useState(true)
   const router = useRouter()
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      setIsVisible(!document.hidden)
+    }
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange)
+      setIsVisible(!document.hidden)
+    }
+
+    return () => {
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange)
+      }
+    }
+  }, [])
 
   const handleEditDeck = (deckId: string) => {
     router.push(`/edit/${deckId}`)
@@ -24,7 +42,13 @@ export function DeckList() {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <div 
+          className={`h-12 w-12 rounded-full border-2 border-primary ${isVisible ? 'animate-spin border-b-transparent' : ''}`}
+          style={{ 
+            animation: isVisible ? 'spin 1s linear infinite' : 'none',
+            borderBottomColor: 'transparent' 
+          }}
+        />
       </div>
     )
   }

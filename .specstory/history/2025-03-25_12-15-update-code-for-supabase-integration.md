@@ -3649,6 +3649,106 @@ I also noticed that the main page is not loading on vercel. A spinning wheel is 
 
 _**Assistant**_
 
+Let me check the main page code to identify why it's stuck in a loading state:
+
+---
+
+Read file: app/page.tsx
+
+---
+
+Let me check the `DeckList` component since it's being rendered on the main page:
+
+---
+
+Read file: components/deck-list.tsx
+
+---
+
+Let me check the `useDecks` hook since it's responsible for loading the decks:
+
+---
+
+Read file: hooks/use-decks.tsx
+
+---
+
+I found the issue. In the `useDecks` hook, there's a problem with the mounting logic that's causing the infinite loading state. The current code prevents loading from happening when the component mounts:
+
+```typescript
+useEffect(() => {
+  if (!mounted.current) {
+    mounted.current = true
+    return
+  }
+  // ... rest of the code
+}, [supabase, user])
+```
+
+This is backwards - it should load on mount and then prevent subsequent loads. Let me fix this:
+
+---
+
+```diff
+    // Load decks from Supabase or localStorage
+    useEffect(() => {
+-     if (!mounted.current) {
+-       mounted.current = true
+-       return
+-     }
+- 
+      const loadDecks = async () => {
+        if (!user) {
+      }
+  
++     // Only load decks if we haven't loaded them before
++     if (!mounted.current) {
+        loadDecks()
++       mounted.current = true
++     }
++ 
++     return () => {
++       mounted.current = false
++     }
+    }, [supabase, user])
+  
+```
+
+---
+
+I've fixed the issue in the `useDecks` hook. Here are the changes I made:
+
+1. Removed the early return that was preventing the initial load
+2. Moved the mounting check to after the `loadDecks` function definition
+3. Added proper cleanup in the effect's return function
+4. Maintained the mounting state to prevent duplicate loads
+
+The changes ensure that:
+1. Decks are loaded immediately when the component mounts
+2. The loading state is properly managed
+3. Local storage is checked first for faster initial render
+4. Supabase data is fetched and synchronized with local storage
+5. The loading state is properly cleared in all cases
+
+This should resolve the infinite loading issue on the main page. The page should now:
+1. Show the loading spinner initially
+2. Load decks from local storage if available (for instant display)
+3. Fetch the latest data from Supabase
+4. Update the UI with the fetched data
+5. Clear the loading state
+
+Let me know if you still experience any issues with the main page loading.
+
+---
+
+_**User**_
+
+It is strange behaviour, at least in safari. The spinning wheel keeps turning, until you switch to a tab and then come back..then it the page is displayed fine
+
+---
+
+_**Assistant**_
+
 
 
 ---
