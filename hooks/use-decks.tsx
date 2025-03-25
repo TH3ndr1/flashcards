@@ -290,9 +290,9 @@ export function useDecks() {
       if (!user) {
         throw new Error("User not authenticated")
       }
-
+  
       try {
-        // Update the deck in Supabase
+        // Update the deck record in Supabase
         const { error: deckError } = await supabase
           .from("decks")
           .update({
@@ -303,37 +303,38 @@ export function useDecks() {
           })
           .eq("id", updatedDeck.id)
           .eq("user_id", user.id)
-
+  
         if (deckError) {
           console.error("Error updating deck:", deckError)
           // Continue with local updates even if Supabase fails
         }
-
+  
         // Handle cards in Supabase
         try {
-          // Get existing cards
+          // Get existing cards from Supabase
           const { data: existingCards, error: cardsError } = await supabase
             .from("cards")
             .select("id")
             .eq("deck_id", updatedDeck.id)
-
+  
           if (!cardsError && existingCards) {
-            // Identify cards to create, update, or delete
             const existingCardIds = existingCards.map((c) => c.id)
             const updatedCardIds = updatedDeck.cards.map((c) => c.id)
-
-            // Cards to create (not in existingCardIds)
-            const cardsToCreate = updatedDeck.cards.filter((card) => !existingCardIds.includes(card.id))
-
-            // Cards to update (in both arrays)
-            const cardsToUpdate = updatedDeck.cards.filter((card) => existingCardIds.includes(card.id))
-
-            // Cards to delete (in existingCardIds but not in updatedCardIds)
-            const cardsToDelete = existingCardIds.filter((id) => !updatedCardIds.includes(id))
-
-            // Create new cards
+  
+            // Identify cards to create, update, or delete
+            const cardsToCreate = updatedDeck.cards.filter(
+              (card) => !existingCardIds.includes(card.id)
+            )
+            const cardsToUpdate = updatedDeck.cards.filter((card) =>
+              existingCardIds.includes(card.id)
+            )
+            const cardsToDelete = existingCardIds.filter(
+              (id) => !updatedCardIds.includes(id)
+            )
+  
+            // Create new cards in one call if needed
             if (cardsToCreate.length > 0) {
-              await supabase.from("cards").insert(
+              const { error: createError } = await supabase.from("cards").insert(
                 cardsToCreate.map((card) => ({
                   id: card.id,
                   deck_id: updatedDeck.id,
@@ -342,54 +343,74 @@ export function useDecks() {
                   correct_count: card.correctCount,
                   incorrect_count: card.incorrectCount,
                   last_studied: card.lastStudied,
-                })),
+                }))
+              )
+              if (createError) {
+                console.error("Error creating cards:", createError)
+              }
+            }
+  
+            // Update existing cards concurrently
+            if (cardsToUpdate.length > 0) {
+              await Promise.all(
+                cardsToUpdate.map((card) =>
+                  supabase
+                    .from("cards")
+                    .update({
+                      question: card.question,
+                      answer: card.answer,
+                      correct_count: card.correctCount,
+                      incorrect_count: card.incorrectCount,
+                      last_studied: card.lastStudied,
+                    })
+                    .eq("id", card.id)
+                    .eq("deck_id", updatedDeck.id)
+                )
               )
             }
-
-            // Update existing cards
-            for (const card of cardsToUpdate) {
-              await supabase
-                .from("cards")
-                .update({
-                  question: card.question,
-                  answer: card.answer,
-                  correct_count: card.correctCount,
-                  incorrect_count: card.incorrectCount,
-                  last_studied: card.lastStudied,
-                })
-                .eq("id", card.id)
-                .eq("deck_id", updatedDeck.id)
-            }
-
+  
             // Delete removed cards
             if (cardsToDelete.length > 0) {
-              await supabase.from("cards").delete().in("id", cardsToDelete).eq("deck_id", updatedDeck.id)
+              const { error: deleteError } = await supabase
+                .from("cards")
+                .delete()
+                .in("id", cardsToDelete)
+                .eq("deck_id", updatedDeck.id)
+              if (deleteError) {
+                console.error("Error deleting cards:", deleteError)
+              }
             }
           }
-        } catch (error) {
-          console.error("Error handling cards in Supabase:", error)
-          // Continue with local updates even if Supabase fails
+        } catch (cardsHandlingError) {
+          console.error("Error handling cards in Supabase:", cardsHandlingError)
+          // Continue with local updates even if Supabase fails for cards
         }
-
+  
         // Update local state
-        setDecks((prevDecks) => prevDecks.map((deck) => (deck.id === updatedDeck.id ? updatedDeck : deck)))
-
+        setDecks((prevDecks) =>
+          prevDecks.map((deck) =>
+            deck.id === updatedDeck.id ? updatedDeck : deck
+          )
+        )
+  
         // Update localStorage as fallback
         try {
           const savedDecks = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]")
-          const updatedDecks = savedDecks.map((deck: Deck) => (deck.id === updatedDeck.id ? updatedDeck : deck))
+          const updatedDecks = savedDecks.map((deck: Deck) =>
+            deck.id === updatedDeck.id ? updatedDeck : deck
+          )
           localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedDecks))
-        } catch (error) {
-          console.error("Error updating localStorage:", error)
+        } catch (lsError) {
+          console.error("Error updating localStorage:", lsError)
         }
-
+  
         return true
       } catch (error) {
         console.error("Error in updateDeck:", error)
         throw error
       }
     },
-    [supabase, user],
+    [supabase, user]
   )
 
   // Delete a deck
