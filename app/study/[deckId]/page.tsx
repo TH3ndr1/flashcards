@@ -275,17 +275,28 @@ export default function StudyDeckPage() {
           setCurrentCardIndex(0)
         }
       } else {
-        setCurrentCardIndex((prev) =>
-          prev < studyCards.length - 1 ? prev + 1 : 0
-        )
+        // Create array of available indices excluding the current card
+        const availableIndices = studyCards
+          .map((_, index) => index)
+          .filter(index => index !== currentCardIndex)
+
+        // If we have other cards available and the answer was correct
+        if (correct && availableIndices.length > 0) {
+          // Pick a random index from the available indices
+          const randomIndex = Math.floor(Math.random() * availableIndices.length)
+          setCurrentCardIndex(availableIndices[randomIndex])
+        } else {
+          // For incorrect answers or when no other cards are available
+          setCurrentCardIndex(prev => 
+            prev < studyCards.length - 1 ? prev + 1 : 0
+          )
+        }
       }
   
       setIsFlipped(false)
     },
     [deck, studyCards, currentCardIndex, updateDeck, toast]
   )
-
-
 
   // Memoized handler for resetting progress.
   const handleResetProgress = useCallback(async () => {
