@@ -1,0 +1,20 @@
+export interface FlashCard {
+  id: string
+  question: string
+  answer: string
+  correctCount: number
+  incorrectCount: number
+  lastStudied: string | null
+}
+
+export interface Deck {
+  id: string
+  name: string
+  language: string
+  cards: FlashCard[]
+  progress: {
+    correct: number
+    total: number
+  }
+}
+
