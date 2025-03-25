@@ -1,0 +1,10 @@
+version: '3'
+services:
+  tts:
+    image: coqui/tts-cpu:latest
+    ports:
+      - "5002:5002"
+    environment:
+      - MODEL_NAME=tts_models/multilingual/multi-dataset/your_tts
+      - USE_CUDA=false
+    restart: unless-stopped 

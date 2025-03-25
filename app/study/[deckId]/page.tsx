@@ -31,35 +31,13 @@ export default function StudyDeckPage() {
   const [masteredCount, setMasteredCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { speak, voices, selectedVoice, setSelectedVoice, setLanguage } = useTTS()
+  const { speak, setLanguage } = useTTS()
 
-  // Get appropriate voices for the deck language
-  const languageVoices = voices.filter((voice) => {
-    if (!deck?.language) return false
-
-    const langCode =
-      deck.language === "english" ? "en" : deck.language === "dutch" ? "nl" : deck.language === "french" ? "fr" : ""
-
-    return voice.lang.toLowerCase().startsWith(langCode.toLowerCase())
-  })
-
-  // Set preferred voice based on settings
+  // Set language for TTS when deck loads
   useEffect(() => {
-    if (!deck || !settings || voices.length === 0) return
-
-    // Get preferred voice for this language
-    const preferredVoiceUri = settings.preferredVoices?.[deck.language as keyof typeof settings.preferredVoices]
-
-    if (preferredVoiceUri) {
-      const voice = voices.find((v) => v.voiceURI === preferredVoiceUri)
-      if (voice) {
-        setSelectedVoice(voice)
-      }
-    }
-
-    // Set the language for TTS
+    if (!deck) return
     setLanguage(deck.language)
-  }, [deck, settings, voices, setSelectedVoice, setLanguage])
+  }, [deck, setLanguage])
 
   useEffect(() => {
     let mounted = true
@@ -101,7 +79,6 @@ export default function StudyDeckPage() {
         }
 
         setDeck(loadedDeck)
-        setLanguage(loadedDeck.language)
 
         // Count mastered cards
         const mastered = loadedDeck.cards.filter((card) => card && card.correctCount >= MASTERY_THRESHOLD).length
@@ -300,13 +277,6 @@ export default function StudyDeckPage() {
           variant: "destructive",
         })
       }
-    }
-  }
-
-  const handleVoiceChange = (voiceUri: string) => {
-    const voice = voices.find((v) => v.voiceURI === voiceUri)
-    if (voice) {
-      setSelectedVoice(voice)
     }
   }
 
