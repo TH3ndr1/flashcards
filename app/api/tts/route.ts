@@ -1,3 +1,4 @@
+
 import { NextResponse } from 'next/server';
 import { TextToSpeechClient } from '@google-cloud/text-to-speech';
 
@@ -7,14 +8,23 @@ const LANGUAGE_CODES: Record<string, string> = {
   fr: "fr-FR",
 };
 
+
+export const getGCPCredentials = () => {
+  // for Vercel, use environment variables
+  return process.env.GCP_PRIVATE_KEY
+    ? {
+        credentials: {
+          client_email: process.env.GCP_SERVICE_ACCOUNT_EMAIL,
+          private_key: process.env.GCP_PRIVATE_KEY,
+        },
+        projectId: process.env.GCP_PROJECT_ID,
+      }
+      // for local development, use gcloud CLI
+    : {};
+};
+
 // Initialize Google Cloud TTS client
-const client = new TextToSpeechClient({
-  projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
-  credentials: {
-    client_email: process.env.GOOGLE_CLOUD_CLIENT_EMAIL,
-    private_key: process.env.GOOGLE_CLOUD_PRIVATE_KEY,
-  },
-});
+const client = new TextToSpeechClient(getGCPCredentials());
 
 export async function POST(request: Request) {
   try {
