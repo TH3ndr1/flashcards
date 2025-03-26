@@ -28,6 +28,7 @@ export default function EditDeckPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [retryCount, setRetryCount] = useState(0)
 
   useEffect(() => {
     const loadDeck = async () => {
@@ -43,36 +44,14 @@ export default function EditDeckPage() {
         setLoading(true)
         setError(null)
 
-        // Try to get the deck with retries
-        let loadedDeck = null
-        let attempts = 0
-        const maxAttempts = 3
-        let lastError = null
-
-        while (!loadedDeck && attempts < maxAttempts) {
-          try {
-            loadedDeck = await getDeck(deckId)
-            if (loadedDeck) {
-              break
-            }
-          } catch (error) {
-            console.log(`Attempt ${attempts + 1} failed:`, error)
-            lastError = error
-          }
-          attempts++
-          if (attempts < maxAttempts) {
-            await new Promise(resolve => setTimeout(resolve, 1000))
-          }
-        }
+        const loadedDeck = await getDeck(deckId)
 
         if (!loadedDeck) {
-          const errorMessage = lastError instanceof Error ? lastError.message : 'Unknown error'
-          console.error("Deck not found after all retries:", errorMessage)
-          setError(`Error loading deck: ${errorMessage}`)
+          console.error("Deck not found:", deckId)
+          setError("Deck not found")
           return
         }
 
-        console.log("Deck loaded successfully:", loadedDeck)
         setDeck(loadedDeck)
         setError(null)
       } catch (error) {
@@ -83,10 +62,16 @@ export default function EditDeckPage() {
       }
     }
 
-    if (deckId && !deck) {
-      loadDeck()
-    }
-  }, [deckId, getDeck, router, deck])
+    loadDeck()
+  }, [deckId, getDeck, router])
+
+  const handleNameChange = (newName: string) => {
+    if (!deck) return
+    setDeck({
+      ...deck,
+      name: newName
+    })
+  }
 
   const handleSave = async () => {
     if (!deck) return
@@ -217,8 +202,9 @@ export default function EditDeckPage() {
           </Link>
           <Input
             value={deck.name}
-            onChange={(e) => setDeck(prev => prev ? { ...prev, name: e.target.value } : null)}
+            onChange={(e) => handleNameChange(e.target.value)}
             className="text-2xl font-bold h-auto py-1 px-2 w-[300px]"
+            placeholder="Deck name"
           />
         </div>
         <div className="flex space-x-2">

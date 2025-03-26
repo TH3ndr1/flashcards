@@ -153,10 +153,14 @@ export function useDecks() {
       if (!user) throw new Error("User not authenticated")
 
       try {
+        // Generate a UUID for the new deck
+        const newDeckId = crypto.randomUUID()
+
         // Create the deck in Supabase
         const { data, error } = await supabase
           .from("decks")
           .insert([{
+            id: newDeckId,
             name,
             user_id: user.id,
             language: questionLanguage, // For backward compatibility
@@ -219,103 +223,6 @@ export function useDecks() {
         return newDeck
       } catch (error) {
         console.error("Error in createDeck:", error)
-        throw error
-      }
-    },
-    [user, supabase]
-  )
-
-  // Update an existing deck
-  const updateDeck = useCallback(
-    async (updatedDeck: Deck) => {
-      if (!user) {
-        throw new Error("User not authenticated")
-      }
-
-      try {
-        console.log("Starting deck update for:", updatedDeck.id)
-        
-        // Update the deck record in Supabase
-        const { error: deckError } = await supabase
-          .from("decks")
-          .update({
-            name: updatedDeck.name,
-            language: updatedDeck.questionLanguage, // Keep for backward compatibility
-            is_bilingual: updatedDeck.isBilingual,
-            question_language: updatedDeck.questionLanguage,
-            answer_language: updatedDeck.answerLanguage,
-            progress: updatedDeck.progress,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", updatedDeck.id)
-          .eq("user_id", user.id)
-
-        if (deckError) {
-          console.error("Supabase deck update error details:", {
-            message: deckError.message,
-            details: deckError.details,
-            hint: deckError.hint,
-            code: deckError.code
-          })
-          throw new Error(`Error updating deck: ${JSON.stringify(deckError)}`)
-        }
-
-        console.log("Deck updated successfully, now updating cards...")
-
-        // Log the cards being updated
-        console.log("Cards to update:", updatedDeck.cards)
-
-        // Update cards
-        const { error: cardsError } = await supabase
-          .from("cards")
-          .upsert(
-            updatedDeck.cards.map((card) => ({
-              id: card.id,
-              deck_id: updatedDeck.id,
-              question: card.question,
-              answer: card.answer,
-              correct_count: card.correctCount,
-              incorrect_count: card.incorrectCount,
-              last_studied: card.lastStudied,
-              updated_at: new Date().toISOString(),
-            })),
-            { onConflict: 'id' }
-          )
-
-        if (cardsError) {
-          console.error("Supabase cards update error details:", {
-            message: cardsError.message,
-            details: cardsError.details,
-            hint: cardsError.hint,
-            code: cardsError.code
-          })
-          throw new Error(`Error updating cards: ${JSON.stringify(cardsError)}`)
-        }
-
-        console.log("Cards updated successfully")
-
-        // Update local state
-        setDecks((prev) =>
-          prev.map((deck) => (deck.id === updatedDeck.id ? updatedDeck : deck))
-        )
-
-        // Update localStorage
-        try {
-          const currentDecks = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]")
-          const updatedDecks = currentDecks.map((deck: Deck) =>
-            deck.id === updatedDeck.id ? updatedDeck : deck
-          )
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedDecks))
-          console.log("LocalStorage updated successfully")
-        } catch (error) {
-          console.error("Error updating localStorage:", error)
-        }
-      } catch (error) {
-        console.error("Detailed error in updateDeck:", {
-          error,
-          errorMessage: error instanceof Error ? error.message : 'Unknown error',
-          errorStack: error instanceof Error ? error.stack : undefined
-        })
         throw error
       }
     },
@@ -396,6 +303,94 @@ export function useDecks() {
         return fetchedDeck
       } catch (error) {
         console.error("Error in getDeck:", error)
+        throw error
+      }
+    },
+    [user, supabase]
+  )
+
+  // Update an existing deck
+  const updateDeck = useCallback(
+    async (updatedDeck: Deck) => {
+      if (!user) {
+        throw new Error("User not authenticated")
+      }
+
+      try {
+        console.log("Starting deck update for:", updatedDeck.id)
+        
+        // Update the deck record in Supabase
+        const { error: deckError } = await supabase
+          .from("decks")
+          .update({
+            name: updatedDeck.name,
+            language: updatedDeck.questionLanguage, // Keep for backward compatibility
+            is_bilingual: updatedDeck.isBilingual,
+            question_language: updatedDeck.questionLanguage,
+            answer_language: updatedDeck.answerLanguage,
+            progress: updatedDeck.progress,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", updatedDeck.id)
+          .eq("user_id", user.id)
+
+        if (deckError) {
+          console.error("Supabase deck update error details:", {
+            message: deckError.message,
+            details: deckError.details,
+            hint: deckError.hint,
+            code: deckError.code
+          })
+          throw new Error(`Error updating deck: ${JSON.stringify(deckError)}`)
+        }
+
+        console.log("Deck updated successfully, now updating cards...")
+
+        // Log the cards being updated
+        console.log("Cards to update:", updatedDeck.cards)
+
+        // Update cards
+        const { error: cardsError } = await supabase
+          .from("cards")
+          .upsert(
+            updatedDeck.cards.map((card) => ({
+              id: card.id,
+              deck_id: updatedDeck.id,
+              question: card.question,
+              answer: card.answer,
+              correct_count: card.correctCount,
+              incorrect_count: card.incorrectCount,
+              last_studied: card.lastStudied,
+              updated_at: new Date().toISOString(),
+            })),
+            { onConflict: 'id' }
+          )
+
+        if (cardsError) {
+          console.error("Supabase cards update error details:", {
+            message: cardsError.message,
+            details: cardsError.details,
+            hint: cardsError.hint,
+            code: cardsError.code
+          })
+          throw new Error(`Error updating cards: ${JSON.stringify(cardsError)}`)
+        }
+
+        // Update local state
+        setDecks(prev => prev.map(deck => deck.id === updatedDeck.id ? updatedDeck : deck))
+
+        // Update localStorage
+        try {
+          const currentDecks = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]")
+          const updatedDecks = currentDecks.map((deck: Deck) =>
+            deck.id === updatedDeck.id ? updatedDeck : deck
+          )
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedDecks))
+        } catch (error) {
+          console.error("Error updating localStorage:", error)
+        }
+      } catch (error) {
+        console.error("Error in updateDeck:", error)
         throw error
       }
     },
