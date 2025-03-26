@@ -1,21 +1,42 @@
 "use client"
 
 import { useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useSupabase } from "@/hooks/use-supabase"
 
 export default function AuthCallback() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { supabase, initialized } = useSupabase()
 
   useEffect(() => {
     if (!initialized) return
 
-    // Handle the OAuth callback
     const handleAuthCallback = async () => {
       try {
-        const { error } = await supabase.auth.getSession()
-        if (error) throw error
+        // Get the auth code from the URL
+        const code = searchParams.get("code")
+        
+        if (!code) {
+          console.error("No code found in URL")
+          throw new Error("No code found in URL")
+        }
+
+        // Exchange the code for a session
+        const { error } = await supabase.auth.exchangeCodeForSession(code)
+        
+        if (error) {
+          console.error("Error exchanging code for session:", error)
+          throw error
+        }
+
+        // Get the session to ensure everything worked
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        
+        if (sessionError || !session) {
+          console.error("Error getting session:", sessionError)
+          throw sessionError || new Error("No session found")
+        }
 
         // Redirect to the home page
         router.push("/")
@@ -26,7 +47,7 @@ export default function AuthCallback() {
     }
 
     handleAuthCallback()
-  }, [supabase, router, initialized])
+  }, [supabase, router, searchParams, initialized])
 
   return (
     <div className="flex min-h-screen items-center justify-center">

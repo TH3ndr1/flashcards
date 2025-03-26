@@ -1,25 +1,48 @@
 "use client"
+
 import { createClient } from "@supabase/supabase-js"
 import { useEffect, useState, useRef } from "react"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-// Create the Supabase client outside of the component to avoid recreation on each render
-const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-  },
-})
+// Create a single instance for the entire application
+let clientInstance: ReturnType<typeof createClient> | null = null
+
+const getSupabaseClient = () => {
+  if (clientInstance) return clientInstance
+
+  clientInstance = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      flowType: "pkce",
+      debug: process.env.NODE_ENV === "development",
+      storage: {
+        getItem: (key) => {
+          if (typeof window === "undefined") return null
+          return window.localStorage.getItem(key)
+        },
+        setItem: (key, value) => {
+          if (typeof window === "undefined") return
+          window.localStorage.setItem(key, value)
+        },
+        removeItem: (key) => {
+          if (typeof window === "undefined") return
+          window.localStorage.removeItem(key)
+        },
+      },
+    },
+  })
+
+  return clientInstance
+}
 
 export function useSupabase() {
-  // Use a ref to store the client to prevent recreation on each render
-  const supabaseRef = useRef(supabaseClient)
   const [initialized, setInitialized] = useState(false)
+  const supabaseRef = useRef(getSupabaseClient())
 
-  // Only run once on mount
   useEffect(() => {
     setInitialized(true)
   }, [])
