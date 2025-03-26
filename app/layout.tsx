@@ -7,11 +7,9 @@ import { Toaster } from "@/components/ui/toaster"
 import { AuthProvider } from "@/hooks/use-auth"
 import LayoutScript from "./layout-script"
 
-
 export const metadata: Metadata = {
   title: "StudyCards - Interactive Flashcard App",
   description: "Study effectively with interactive question-and-answer cards",
-  manifest: "/manifest.json",
   icons: {
     icon: [
       { url: '/favicon-96x96.png', sizes: '96x96', type: 'image/png' },
@@ -48,7 +46,3 @@ export default function RootLayout({
     </html>
   )
 }
-
-
-
-import './globals.css'
