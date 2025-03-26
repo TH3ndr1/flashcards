@@ -1,6 +1,6 @@
 {
     "functions": {
-      "api/**/*.js": { // Or your api folder structure
+      "app/api/**/*.js": { // Or your api folder structure
         "runtime": "nodejs20.x"
       }
     }
