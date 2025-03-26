@@ -11,6 +11,17 @@ import type { Deck, FlashCard } from "@/types/deck"
 import { useTTS } from "@/hooks/use-tts"
 import { Progress } from "@/components/ui/progress"
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -299,42 +310,40 @@ export default function StudyDeckPage() {
   // Memoized handler for resetting progress.
   const handleResetProgress = useCallback(async () => {
     if (!deck) return
-    // Consider replacing confirm() with a custom modal for improved UX.
-    if (confirm("Are you sure you want to reset your progress for this deck?")) {
-      const updatedCards = deck.cards.map((card) => ({
-        ...card,
-        correctCount: 0,
-        incorrectCount: 0,
-        lastStudied: null,
-      }))
-      const updatedDeck = {
-        ...deck,
-        cards: updatedCards,
-        progress: {
-          ...deck.progress,
-          correct: 0,
-        },
-      }
-      try {
-        await updateDeck(updatedDeck)
-        setDeck(updatedDeck)
-        setCurrentCardIndex(0)
-        setIsFlipped(false)
-        setMasteredCount(0)
-        // All cards are now available for study.
-        setStudyCards(updatedCards)
-        toast({
-          title: "Progress reset",
-          description: "Your progress has been reset successfully.",
-        })
-      } catch (error) {
-        console.error("Error resetting progress:", error)
-        toast({
-          title: "Error resetting progress",
-          description: "There was a problem resetting your progress.",
-          variant: "destructive",
-        })
-      }
+    
+    const updatedCards = deck.cards.map((card) => ({
+      ...card,
+      correctCount: 0,
+      incorrectCount: 0,
+      lastStudied: null,
+    }))
+    const updatedDeck = {
+      ...deck,
+      cards: updatedCards,
+      progress: {
+        ...deck.progress,
+        correct: 0,
+      },
+    }
+    try {
+      await updateDeck(updatedDeck)
+      setDeck(updatedDeck)
+      setCurrentCardIndex(0)
+      setIsFlipped(false)
+      setMasteredCount(0)
+      // All cards are now available for study.
+      setStudyCards(updatedCards)
+      toast({
+        title: "Progress reset",
+        description: "Your progress has been reset successfully.",
+      })
+    } catch (error) {
+      console.error("Error resetting progress:", error)
+      toast({
+        title: "Error resetting progress",
+        description: "There was a problem resetting your progress.",
+        variant: "destructive",
+      })
     }
   }, [deck, updateDeck, toast])
 
@@ -497,10 +506,32 @@ export default function StudyDeckPage() {
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-          <Button variant="outline" size="sm" onClick={handleResetProgress}>
-            <RotateCcw className="mr-2 h-4 w-4" />
-            Reset Progress
-          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Reset Progress
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Reset Progress</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will reset all progress for this deck. All cards will return to their initial state,
+                  and you'll need to study them again from the beginning. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleResetProgress}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Reset Progress
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
       <div className="max-w-2xl mx-auto mb-8">
