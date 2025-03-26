@@ -1,3 +1,7 @@
 {
-  "runtime": "nodejs21.x"
-}
+    "functions": {
+      "api/**/*.js": { // Or your api folder structure
+        "runtime": "nodejs20.x"
+      }
+    }
+  }
