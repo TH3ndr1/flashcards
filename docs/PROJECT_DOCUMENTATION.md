@@ -145,43 +145,51 @@ graph TD
     B --> B3[Hooks]
     B --> B4[Styles]
 
-    B1 --> B1_1[/app/page.tsx<br>Homepage]
-    B1 --> B1_2[/app/study/*<br>Study Interface]
-    B1 --> B1_3[/app/edit/*<br>Deck Management]
-    B1 --> B1_4[/app/auth/*<br>Authentication]
-    B1 --> B1_5[/app/settings/*<br>User Settings]
+    B1 --> B1_1["Homepage (page.tsx)"]
+    B1 --> B1_2["Study Interface (study/*)"]
+    B1 --> B1_3["Deck Management (edit/*)"]
+    B1 --> B1_4["Authentication (auth/*)"]
+    B1 --> B1_5["Settings (settings/*)"]
 
-    B2 --> B2_1[UI Components]
-    B2 --> B2_2[Layout Components]
-    B2 --> B2_3[Feature Components]
+    B2 --> B2_1["UI Components"]
+    B2 --> B2_2["Layout Components"]
+    B2 --> B2_3["Feature Components"]
 
-    B3 --> B3_1[useAuth]
-    B3 --> B3_2[useDecks]
-    B3 --> B3_3[useStudy]
-    B3 --> B3_4[useTTS]
+    B3 --> B3_1["useAuth Hook"]
+    B3 --> B3_2["useDecks Hook"]
+    B3 --> B3_3["useStudy Hook"]
+    B3 --> B3_4["useTTS Hook"]
 
     %% Backend Structure
-    C --> C1[API Routes]
-    C --> C2[Services]
-    C --> C3[Utilities]
+    C --> C1["API Routes"]
+    C --> C2["Services"]
+    C --> C3["Utilities"]
 
-    C1 --> C1_1[/api/tts/*<br>Text-to-Speech]
-    C1 --> C1_2[/api/decks/*<br>Deck Management]
-    C1 --> C1_3[/api/auth/*<br>Authentication]
+    C1 --> C1_1["Text-to-Speech API"]
+    C1 --> C1_2["Deck Management API"]
+    C1 --> C1_3["Authentication API"]
 
-    C2 --> C2_1[Supabase Client]
-    C2 --> C2_2[Google TTS Client]
-    C2 --> C2_3[Auth Service]
+    C2 --> C2_1["Supabase Client"]
+    C2 --> C2_2["Google TTS Client"]
+    C2 --> C2_3["Auth Service"]
 
     %% Database Structure
-    D --> D1[Supabase Tables]
-    D --> D2[RLS Policies]
-    D --> D3[Functions]
+    D --> D1["Tables"]
+    D --> D2["RLS Policies"]
+    D --> D3["Functions"]
 
-    D1 --> D1_1[users]
-    D1 --> D1_2[decks]
-    D1 --> D1_3[cards]
-    D1 --> D1_4[study_progress]
+    D1 --> D1_1["Users Table"]
+    D1 --> D1_2["Decks Table"]
+    D1 --> D1_3["Cards Table"]
+    D1 --> D1_4["Study Progress Table"]
+
+    %% Styling
+    classDef default fill:#f9f9f9,stroke:#333,stroke-width:2px;
+    classDef highlight fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
+    classDef component fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
+    
+    class A highlight;
+    class B,C,D component;
 ```
 
 ### Key Components and Their Functions

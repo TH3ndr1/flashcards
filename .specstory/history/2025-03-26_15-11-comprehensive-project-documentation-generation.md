@@ -564,6 +564,331 @@ Let me check some key components and API routes.
 
 ---
 
+<details>
+            <summary>Listed directory lib • **1** results</summary>
+        
+| Name |
+|-------|
+| 📄 `utils.ts` |
+
+</details>
+
+---
+
+Let me add a detailed code structure section to the documentation with a Mermaid diagram and component explanations.
+
+---
+
+```diff
+     - Spaced repetition data
+  
++ ## 4.1 Code Structure and Organization
++ 
++ ### Codebase Overview
++ ```mermaid
++ graph TD
++     A[Flashcards App] --> B[Frontend]
++     A --> C[Backend]
++     A --> D[Database]
++ 
++     %% Frontend Structure
++     B --> B1[Pages]
++     B --> B2[Components]
++     B --> B3[Hooks]
++     B --> B4[Styles]
++ 
++     B1 --> B1_1[/app/page.tsx<br>Homepage]
++     B1 --> B1_2[/app/study/*<br>Study Interface]
++     B1 --> B1_3[/app/edit/*<br>Deck Management]
++     B1 --> B1_4[/app/auth/*<br>Authentication]
++     B1 --> B1_5[/app/settings/*<br>User Settings]
++ 
++     B2 --> B2_1[UI Components]
++     B2 --> B2_2[Layout Components]
++     B2 --> B2_3[Feature Components]
++ 
++     B3 --> B3_1[useAuth]
++     B3 --> B3_2[useDecks]
++     B3 --> B3_3[useStudy]
++     B3 --> B3_4[useTTS]
++ 
++     %% Backend Structure
++     C --> C1[API Routes]
++     C --> C2[Services]
++     C --> C3[Utilities]
++ 
++     C1 --> C1_1[/api/tts/*<br>Text-to-Speech]
++     C1 --> C1_2[/api/decks/*<br>Deck Management]
++     C1 --> C1_3[/api/auth/*<br>Authentication]
++ 
++     C2 --> C2_1[Supabase Client]
++     C2 --> C2_2[Google TTS Client]
++     C2 --> C2_3[Auth Service]
++ 
++     %% Database Structure
++     D --> D1[Supabase Tables]
++     D --> D2[RLS Policies]
++     D --> D3[Functions]
++ 
++     D1 --> D1_1[users]
++     D1 --> D1_2[decks]
++     D1 --> D1_3[cards]
++     D1 --> D1_4[study_progress]
++ ```
++ 
++ ### Key Components and Their Functions
++ 
++ #### 1. Frontend Components (`/app/*`)
++ 
++ ##### Page Components
++ 1. **Homepage (`/app/page.tsx`)**
++    ```typescript
++    // Main landing page component
++    // - Displays user's decks
++    // - Shows study progress
++    // - Quick actions for deck creation and study
++    export default function HomePage() {
++      // User authentication state
++      // Deck fetching logic
++      // Progress statistics
++    }
++    ```
++ 
++ 2. **Study Interface (`/app/study/*`)**
++    ```typescript
++    // Interactive study component
++    // - Card display and interaction
++    // - Progress tracking
++    // - Audio playback
++    export function StudyPage() {
++      // Study session management
++      // Card navigation
++      // Progress updates
++    }
++    ```
++ 
++ 3. **Deck Management (`/app/edit/*`)**
++    ```typescript
++    // Deck editing interface
++    // - CRUD operations for decks and cards
++    // - Batch operations
++    // - Audio generation
++    export function DeckEditor() {
++      // Deck modification logic
++      // Card management
++      // TTS integration
++    }
++    ```
++ 
++ #### 2. Custom Hooks (`/hooks/*`)
++ 
++ 1. **useAuth**
++    ```typescript
++    // Authentication hook
++    export function useAuth() {
++      // User session management
++      // Login/logout functions
++      // Authentication state
++    }
++    ```
++ 
++ 2. **useDecks**
++    ```typescript
++    // Deck management hook
++    export function useDecks() {
++      // Deck CRUD operations
++      // Card management
++      // Deck statistics
++    }
++    ```
++ 
++ 3. **useStudy**
++    ```typescript
++    // Study session hook
++    export function useStudy() {
++      // Study progress tracking
++      // Spaced repetition logic
++      // Performance metrics
++    }
++    ```
++ 
++ #### 3. API Routes (`/app/api/*`)
++ 
++ 1. **Text-to-Speech API (`/app/api/tts/*`)**
++    ```typescript
++    // TTS endpoint handler
++    export async function POST(req: Request) {
++      // Google Cloud TTS integration
++      // Audio file generation and caching
++      // Language support
++    }
++    ```
++ 
++ 2. **Deck Management API (`/app/api/decks/*`)**
++    ```typescript
++    // Deck operations endpoints
++    export async function handler(req: Request) {
++      // Deck CRUD operations
++      // Card management
++      // Progress tracking
++    }
++    ```
++ 
++ #### 4. Database Models (`/supabase/migrations/*`)
++ 
++ 1. **User Management**
++    ```sql
++    -- User profile and preferences
++    CREATE TABLE users (
++      id UUID PRIMARY KEY REFERENCES auth.users,
++      preferences JSONB,
++      created_at TIMESTAMP WITH TIME ZONE
++    );
++    ```
++ 
++ 2. **Deck Structure**
++    ```sql
++    -- Deck and card organization
++    CREATE TABLE decks (
++      id UUID PRIMARY KEY,
++      user_id UUID REFERENCES users,
++      -- Additional fields as shown in schema
++    );
++    ```
++ 
++ ### Key Features Implementation
++ 
++ 1. **Spaced Repetition System**
++    ```typescript
++    // Implementation of the SuperMemo 2 algorithm
++    export function calculateNextReview(
++      difficulty: number,
++      previousInterval: number
++    ): number {
++      // Spaced repetition calculation
++      // Difficulty adjustment
++      // Interval computation
++    }
++    ```
++ 
++ 2. **Audio Generation Pipeline**
++    ```typescript
++    // Text-to-speech processing
++    export async function generateAudio(
++      text: string,
++      language: string
++    ): Promise<string> {
++      // Google Cloud TTS API integration
++      // Audio file handling
++      // Caching mechanism
++    }
++    ```
++ 
++ 3. **Progress Tracking**
++    ```typescript
++    // Study progress monitoring
++    export function trackProgress(
++      userId: string,
++      cardId: string,
++      performance: StudyMetrics
++    ): Promise<void> {
++      // Performance recording
++      // Statistics update
++      // Learning curve analysis
++    }
++    ```
++ 
++ ### State Management and Data Flow
++ 
++ 1. **Authentication Flow**
++    ```mermaid
++    sequenceDiagram
++        User->>+Frontend: Login Request
++        Frontend->>+Supabase: Authenticate
++        Supabase-->>-Frontend: Session Token
++        Frontend->>+API: Fetch User Data
++        API-->>-Frontend: User Profile
++        Frontend-->>-User: Logged In State
++    ```
++ 
++ 2. **Study Session Flow**
++    ```mermaid
++    sequenceDiagram
++        User->>+Study Component: Start Session
++        Study Component->>+API: Fetch Cards
++        API-->>-Study Component: Card Data
++        Study Component->>+TTS Service: Generate Audio
++        TTS Service-->>-Study Component: Audio URLs
++        Study Component->>+API: Update Progress
++        API-->>-Study Component: Updated Stats
++        Study Component-->>-User: Next Card
++    ```
++ 
+  ## 5. Component Breakdown
+  
+```
+
+---
+
+I've added a comprehensive code structure section to the documentation that includes:
+
+1. **Mermaid Diagrams**:
+   - Overall codebase structure showing the relationships between frontend, backend, and database components
+   - Authentication flow sequence diagram
+   - Study session flow sequence diagram
+
+2. **Key Components and Their Functions**:
+   - Detailed breakdown of frontend components
+   - Custom hooks implementation
+   - API routes structure
+   - Database models
+
+3. **Implementation Details**:
+   - Spaced repetition system
+   - Audio generation pipeline
+   - Progress tracking system
+
+The documentation now provides a clear understanding of:
+- How different components interact with each other
+- The flow of data through the application
+- Key implementation details of major features
+- The structure and organization of the codebase
+
+Each component is documented with its:
+- Purpose and responsibilities
+- Key functions and methods
+- Data flow and interactions
+- Implementation details
+
+Would you like me to:
+1. Expand on any particular component or feature?
+2. Add more sequence diagrams for other flows?
+3. Provide more detailed code examples for specific features?
+
+---
+
+_**User**_
+
+Unable to render rich display
+
+Lexical error on line 10. Unrecognized text.
+...page.tsx<br>Homepage] B1 --> B1_2[/a
+-----------------------^
+
+For more information, see https://docs.github.com/get-started/writing-on-github/working-with-advanced-formatting/creating-diagrams#creating-mermaid-diagrams
+
+---
+
+_**Assistant**_
+
+I understand there's an issue with the Mermaid diagram syntax. Let me fix the diagram and provide a clearer version that will render correctly. I'll update the documentation with a corrected version.
+
+---
+
+Cancelled
+
+---
+
 
 
 ---
