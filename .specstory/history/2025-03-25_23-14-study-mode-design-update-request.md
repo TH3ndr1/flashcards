@@ -511,6 +511,169 @@ The changes have been rolled back to the latest commit. You should now be back a
 
 ---
 
+_**User**_
+
+I notice that we use both .env and .env.local. Why is this? Can't we just use one?
+
+---
+
+_**Assistant**_
+
+Let me check the current environment file setup.
+
+---
+
+<details>
+            <summary>Listed current directory • **26** results</summary>
+        
+| Name |
+|-------|
+| 📁 `docs` |
+| 📁 `.git` |
+| 📁 `.next` |
+| 📄 `.env.local` |
+| 📁 `node_modules` |
+| 📄 `package.json` |
+| 📄 `pnpm-lock.yaml` |
+| 📁 `hooks` |
+| 📁 `.specstory` |
+| 📁 `supabase` |
+| 📄 `docker-compose.yml` |
+| 📁 `app` |
+| 📄 `next-env.d.ts` |
+| 📄 `.env` |
+| 📁 `public` |
+| 📁 `styles` |
+| 📄 `tailwind.config.ts` |
+| 📄 `tsconfig.json` |
+| 📁 `types` |
+| 📁 `lib` |
+| 📄 `next.config.mjs` |
+| 📄 `postcss.config.mjs` |
+| 📁 `components` |
+| 📄 `components.json` |
+| 📄 `.DS_Store` |
+| 📄 `.gitignore` |
+
+</details>
+
+---
+
+Let me check the contents of both files to understand their purpose:
+
+---
+
+Read file: .env
+
+---
+
+Read file: .env.local
+
+---
+
+Let me check if `.env` is in `.gitignore`:
+
+---
+
+Read file: .gitignore
+
+---
+
+I see the issue now. Here's what's happening:
+
+1. `.env` contains:
+   - Public Supabase URL and anon key
+   - These values are committed to Git
+
+2. `.env.local` contains:
+   - The same Supabase credentials
+   - Private Google Cloud credentials
+   - This file is correctly ignored by Git (`.env*.local` in `.gitignore`)
+
+This is not an ideal setup for several reasons:
+
+1. **Duplication**: The Supabase credentials are duplicated in both files
+2. **Security Risk**: The `.env` file is committed to Git with sensitive credentials
+3. **Confusion**: Having two files with overlapping content can lead to maintenance issues
+
+Here's what we should do:
+
+1. Move all environment variables to `.env.local`
+2. Create a `.env.example` file with placeholder values
+3. Remove the `.env` file from Git
+
+Would you like me to make these changes? Here's the detailed plan:
+
+1. First, create `.env.example` with placeholder values
+2. Remove `.env` from Git and add it to `.gitignore`
+3. Update documentation to explain the environment setup
+4. Ensure `.env.local` has all necessary variables
+
+This follows Next.js best practices where:
+- `.env.local` is for local secrets (not committed)
+- `.env.example` shows what variables are needed (committed)
+- No sensitive data in Git history
+
+Would you like me to proceed with these changes?
+
+---
+
+_**User**_
+
+yes please proceed with that
+
+---
+
+_**Assistant**_
+
+I'll help you implement these changes step by step.
+
+1. First, let's create the `.env.example` file:
+
+---
+
+```diff
+- 
++ # Supabase Configuration
++ # Get these values from your Supabase project settings
++ NEXT_PUBLIC_SUPABASE_URL=your-project-url.supabase.co
++ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
++ 
++ # Google Cloud Text-to-Speech API credentials
++ # Get these from your Google Cloud Console
++ GCP_PROJECT_ID=your-project-id
++ GCP_SERVICE_ACCOUNT_EMAIL=your-service-account@your-project.iam.gserviceaccount.com
++ GCP_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYour Private Key Here\n-----END PRIVATE KEY-----" 
+```
+
+---
+
+2. Now, let's update `.gitignore` to explicitly ignore `.env`:
+
+---
+
+```diff
+  .DS_Store
+  *.pem
++ .env
+  .env.local
+  .env.development.local
+```
+
+---
+
+3. Now, let's remove `.env` from Git:
+
+---
+
+Cancelled
+
+---
+
+
+
+---
+
 
 
 ---
