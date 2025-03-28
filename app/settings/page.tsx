@@ -1,55 +1,54 @@
-"use client"
+// File: /app/settings/page.tsx
+"use client";
 
-import { useEffect, useState, useCallback } from "react"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Label } from "@/components/ui/label"
-import { ArrowLeft, Save } from "lucide-react"
-import Link from "next/link"
-import { useSettings } from "@/hooks/use-settings"
-import { useTTS } from "@/hooks/use-tts"
-import { useToast } from "@/hooks/use-toast"
-import { useAuth } from "@/hooks/use-auth"
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { ArrowLeft, Save } from "lucide-react";
+import { useSettings } from "@/hooks/use-settings";
+import { useTTS } from "@/hooks/use-tts";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function SettingsPage() {
-  const { user } = useAuth()
-  const router = useRouter()
-  const { settings, updateSettings, loading: settingsLoading } = useSettings()
-  const { voices, loading: voicesLoading } = useTTS()
-  const { toast } = useToast()
+  const { user } = useAuth();
+  const router = useRouter();
+  const { settings, updateSettings, loading: settingsLoading } = useSettings();
+  const { voices, loading: voicesLoading } = useTTS();
+  const { toast } = useToast();
 
-  const [appLanguage, setAppLanguage] = useState<string>("en")
+  const [appLanguage, setAppLanguage] = useState<string>("en");
 
   // Load settings
   useEffect(() => {
     if (!settingsLoading && settings) {
-      setAppLanguage(settings.appLanguage || "en")
+      setAppLanguage(settings.appLanguage || "en");
     }
-  }, [settings, settingsLoading])
+  }, [settings, settingsLoading]);
 
   const handleSave = async () => {
     try {
       await updateSettings({
         appLanguage,
-      })
-
+      });
       toast({
         title: "Settings saved",
         description: "Your preferences have been updated.",
-      })
-
-      router.refresh()
+      });
+      router.refresh();
     } catch (error) {
-      console.error("Failed to save settings:", error)
+      console.error("Failed to save settings:", error);
       toast({
         title: "Error",
         description: "Failed to save settings. Please try again.",
         variant: "destructive",
-      })
+      });
     }
-  }
+  };
 
   if (settingsLoading || voicesLoading) {
     return (
@@ -59,15 +58,15 @@ export default function SettingsPage() {
         </div>
         <div>Loading...</div>
       </div>
-    )
+    );
   }
 
   // Group voices by language
   const voicesByLanguage = {
-    english: voices.filter(v => v.lang.toLowerCase().startsWith('en')),
-    dutch: voices.filter(v => v.lang.toLowerCase().startsWith('nl')),
-    french: voices.filter(v => v.lang.toLowerCase().startsWith('fr')),
-  }
+    english: voices.filter(v => v.lang.toLowerCase().startsWith("en")),
+    dutch: voices.filter(v => v.lang.toLowerCase().startsWith("nl")),
+    french: voices.filter(v => v.lang.toLowerCase().startsWith("fr")),
+  };
 
   return (
     <div className="container mx-auto py-8">
@@ -94,7 +93,6 @@ export default function SettingsPage() {
             <CardDescription>Configure your application preferences</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* App Language */}
             <div className="grid gap-4">
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="appLanguage" className="text-right">
@@ -137,6 +135,5 @@ export default function SettingsPage() {
         </Card>
       </div>
     </div>
-  )
+  );
 }
-

@@ -5,7 +5,6 @@ CREATE TABLE IF NOT EXISTS settings (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   app_language TEXT NOT NULL DEFAULT 'english',
-  preferred_voices JSONB NOT NULL DEFAULT '{"english": null, "dutch": null, "french": null}'::jsonb,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
