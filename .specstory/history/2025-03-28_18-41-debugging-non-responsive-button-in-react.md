@@ -1254,7 +1254,629 @@ Now the flow will be:
 2. If there are still cards with high difficulty scores:
    - See a message about remaining difficult cards
    - Option to practice those remaining difficult cards
-   - Option to practice
+   - Option to practice all cards or return to decks
+3. If no difficult cards remain:
+   - See a congratulatory message
+   - Option to practice all cards or return to decks
+
+This creates a loop where you can keep practicing difficult cards until they're all mastered (their difficulty scores drop below the EASY_CUTOFF threshold).
+
+---
+
+_**User**_
+
+Perfect. Can you make the following changes:
+1. When in difficulty mode, the border of the card should be amber.
+
+---
+
+_**Assistant**_
+
+I'll help you modify the card styling to show an amber border when in difficulty mode. We'll use the `studyingDifficult` flag from the deck's progress to conditionally apply the styling.
+
+Let me update the code:
+
+---
+
+```diff
+  import Link from "next/link"
+  import { ArrowLeft, ThumbsUp, ThumbsDown } from "lucide-react" // Only icons used directly here
++ import { cn } from "@/lib/utils"
+  
+  // UI Components (Assuming they are in standard UI folder)
+              {/* Front */}
+              <div className="flip-card-front absolute w-full h-full">
+-               <Card className="w-full h-full flex flex-col">
++               <Card className={cn("w-full h-full flex flex-col", 
++                 deck.progress?.studyingDifficult && "border-amber-500"
++               )}>
+                  <CardHeader className="text-center text-sm text-muted-foreground">
+                    <div className="flex items-center justify-between">
+              {/* Back */}
+              <div className="flip-card-back absolute w-full h-full">
+-               <Card className="w-full h-full flex flex-col">
++               <Card className={cn("w-full h-full flex flex-col",
++                 deck.progress?.studyingDifficult && "border-amber-500"
++               )}>
+                  <CardHeader className="text-center text-sm text-muted-foreground">
+                    <div>Answer</div>
+```
+
+---
+
+I've made the following changes:
+
+1. Added the `cn` utility import from `@/lib/utils` at the top of the file, which is a helper function for conditionally joining class names (commonly used in Next.js/Tailwind projects).
+
+2. Updated both the front and back card components to have a conditional amber border when in difficulty mode:
+   - Used the `cn` utility to combine the base classes with the conditional amber border
+   - The amber border (`border-amber-500`) is only applied when `deck.progress?.studyingDifficult` is true
+
+Now when you're practicing difficult cards, both sides of the flashcard will have an amber border to visually indicate that you're in difficulty mode. The border will match the amber color scheme used in the "Practice Difficult Cards" button, maintaining visual consistency throughout the interface.
+
+Would you like me to make any adjustments to the border color or styling?
+
+---
+
+_**User**_
+
+Can you vertically align the x/y correct (z more) message to the card x of y (in rotation) message and the difficulty rating block?
+
+---
+
+_**Assistant**_
+
+I'll help you align the progress text with the other elements in the card header. The issue is that the progress text is in a separate div below the other elements. Let's move it into the same flex container.
+
+---
+
+```diff
+                    <div className="flex items-center justify-between">
+                      <div>Card {currentCardIndex + 1} of {studyCards.length} (in rotation)</div>
++                     <div className="flex items-center gap-4">
++                       <div className="text-xs font-medium">{cardProgressText}</div>
+                        {settings?.showDifficulty && (
+                          <DifficultyIndicator 
+                        )}
+                      </div>
+-                   <div className="text-xs font-medium">{cardProgressText}</div>
++                   </div>
+                  </CardHeader>
+                  <CardContent className="flex-grow flex items-center justify-center p-6 text-center">
+                )}>
+                  <CardHeader className="text-center text-sm text-muted-foreground">
++                   <div className="flex items-center justify-between">
+                      <div>Answer</div>
+                      <div className="text-xs font-medium">{cardProgressText}</div>
++                   </div>
+                  </CardHeader>
+                  <CardContent className="flex-grow flex items-center justify-center p-6 text-center">
+```
+
+---
+
+I've made the following changes:
+
+1. For the front of the card:
+   - Moved the progress text into the same flex container as the difficulty indicator
+   - Added a flex container with gap to space out the progress text and difficulty indicator
+   - Both elements are now vertically centered using `items-center`
+
+2. For the back of the card:
+   - Added a flex container to align the "Answer" text and progress text horizontally
+   - Both elements are now vertically centered
+
+The layout now has:
+- Left side: "Card x of y (in rotation)" or "Answer"
+- Right side: "x/y correct (z more)" followed by the difficulty indicator (if enabled)
+- All elements are vertically aligned and properly spaced
+
+The elements should now be properly aligned in a single row. Would you like me to make any adjustments to the spacing or alignment?
+
+---
+
+_**User**_
+
+That's good. I now want to have the three elemnts evenly  distributed horizantly
+
+---
+
+_**Assistant**_
+
+I'll modify the layout to evenly distribute the three elements (card count, progress, and difficulty indicator) horizontally across the header. I'll use `justify-between` with a three-column layout.
+
+---
+
+```diff
+                  <CardHeader className="text-center text-sm text-muted-foreground">
+                    <div className="flex items-center justify-between">
+-                     <div>Card {currentCardIndex + 1} of {studyCards.length} (in rotation)</div>
+-                     <div className="flex items-center gap-4">
+-                       <div className="text-xs font-medium">{cardProgressText}</div>
++                     <div className="w-1/3 text-left">Card {currentCardIndex + 1} of {studyCards.length}</div>
++                     <div className="w-1/3 text-center text-xs font-medium">{cardProgressText}</div>
++                     <div className="w-1/3 flex justify-end">
+                        {settings?.showDifficulty && (
+                          <DifficultyIndicator 
+                  <CardHeader className="text-center text-sm text-muted-foreground">
+                    <div className="flex items-center justify-between">
+-                     <div>Answer</div>
+-                     <div className="text-xs font-medium">{cardProgressText}</div>
++                     <div className="w-1/3 text-left">Answer</div>
++                     <div className="w-1/3 text-center text-xs font-medium">{cardProgressText}</div>
++                     <div className="w-1/3"></div>
+                    </div>
+                  </CardHeader>
+```
+
+---
+
+I've made the following changes:
+
+1. For the front of the card:
+   - Divided the header into three equal sections using `w-1/3`
+   - Left section: Card count (left-aligned)
+   - Middle section: Progress text (center-aligned)
+   - Right section: Difficulty indicator (right-aligned)
+   - Removed "(in rotation)" to save space
+
+2. For the back of the card:
+   - Same three-column layout for consistency
+   - Left section: "Answer" text (left-aligned)
+   - Middle section: Progress text (center-aligned)
+   - Right section: Empty div to maintain spacing
+
+3. Added proper alignment classes:
+   - `text-left` for left column
+   - `text-center` for middle column
+   - `justify-end` for the difficulty indicator container
+
+This creates an evenly distributed layout with consistent spacing. Would you like me to make any adjustments to the spacing or alignment?
+
+---
+
+_**User**_
+
+Can you give the header section of the card a subtle background that is also responsive to day/night modes?
+
+---
+
+_**Assistant**_
+
+I'll add a subtle background to the card header that works well in both light and dark modes.
+
+---
+
+```diff
+                  deck.progress?.studyingDifficult && "border-amber-500"
+                )}>
+-                 <CardHeader className="text-center text-sm text-muted-foreground">
++                 <CardHeader className="text-center text-sm text-muted-foreground bg-muted/50 border-b">
+                    <div className="flex items-center justify-between">
+                      <div className="w-1/3 text-left">Card {currentCardIndex + 1} of {studyCards.length}</div>
+                  deck.progress?.studyingDifficult && "border-amber-500"
+                )}>
+-                 <CardHeader className="text-center text-sm text-muted-foreground">
++                 <CardHeader className="text-center text-sm text-muted-foreground bg-muted/50 border-b">
+                    <div className="flex items-center justify-between">
+                      <div className="w-1/3 text-left">Answer</div>
+```
+
+---
+
+I've made the following changes to both the front and back card headers:
+
+1. Added `bg-muted/50` which:
+   - Uses the theme's muted color (gray in light mode, darker gray in dark mode)
+   - The `/50` makes it 50% opacity for subtlety
+   - This automatically adapts to light/dark mode because it uses the theme's muted color
+
+2. Added `border-b` to create a subtle separator line between the header and content
+
+The result will be:
+- Light mode: A very subtle light gray background
+- Dark mode: A very subtle dark gray background
+- The 50% opacity ensures it blends well with the card's background
+- The bottom border provides a gentle visual separation
+- All colors are from the theme, ensuring consistency with the rest of the UI
+
+Would you like me to adjust the opacity or try a different color from the theme?
+
+---
+
+_**User**_
+
+1. Can you make sure the font size is the same for all objects in the header of the card? I like the font size of the progress text.
+2. Can you make sure that the difficulty indicator is also on the answer page?
+
+---
+
+_**Assistant**_
+
+I'll help you update the card header styling to ensure consistent font sizes and add the difficulty indicator to the answer side. Let me make those changes.
+
+---
+
+```diff
+                  <CardHeader className="text-center text-sm text-muted-foreground bg-muted/50 border-b">
+                    <div className="flex items-center justify-between">
+-                     <div className="w-1/3 text-left">Card {currentCardIndex + 1} of {studyCards.length}</div>
++                     <div className="w-1/3 text-left text-xs font-medium">Card {currentCardIndex + 1} of {studyCards.length}</div>
+                      <div className="w-1/3 text-center text-xs font-medium">{cardProgressText}</div>
+                      <div className="w-1/3 flex justify-end">
+                  <CardHeader className="text-center text-sm text-muted-foreground bg-muted/50 border-b">
+                    <div className="flex items-center justify-between">
+-                     <div className="w-1/3 text-left">Answer</div>
++                     <div className="w-1/3 text-left text-xs font-medium">Answer</div>
+                      <div className="w-1/3 text-center text-xs font-medium">{cardProgressText}</div>
+-                     <div className="w-1/3"></div>
++                     <div className="w-1/3 flex justify-end">
++                       {settings?.showDifficulty && (
++                         <DifficultyIndicator 
++                           difficultyScore={currentStudyCard.difficultyScore ?? null} 
++                         />
++                       )}
++                     </div>
+                    </div>
+                  </CardHeader>
+```
+
+---
+
+I've made the following changes to ensure consistent styling in the card headers:
+
+1. Font Size Consistency:
+   - Added `text-xs font-medium` to the left section ("Card X of Y" and "Answer") to match the progress text
+   - All text in the header now uses the same size and weight
+
+2. Difficulty Indicator:
+   - Added the difficulty indicator to the answer side of the card
+   - Used the same layout structure as the question side
+   - Maintained the same positioning in the right section
+
+The header now has three consistently styled sections on both sides of the card:
+- Left: Card count/Answer text (small, medium weight)
+- Center: Progress text (small, medium weight)
+- Right: Difficulty indicator (when enabled)
+
+Would you like any adjustments to the styling or layout?
+
+---
+
+_**User**_
+
+Can you make sure that the bottem of the cards look identical in terms of vertical spacing, borders and background to the header?
+
+---
+
+_**Assistant**_
+
+I'll update both the front and back card footers to match the header styling. I notice that the back card's footer has different padding and we need to ensure consistency across all headers and footers.
+
+---
+
+```diff
+                    <p className="text-xl md:text-2xl">{currentStudyCard.question}</p>
+                  </CardContent>
+-                 <CardFooter className="justify-center text-sm text-muted-foreground bg-muted/50 border-b">
++                 <CardFooter className="text-center text-sm text-muted-foreground bg-muted/50 border-t p-3">
+                    Click card to reveal answer
+                  </CardFooter>
+                    <p className="text-xl md:text-2xl">{currentStudyCard.answer}</p>
+                  </CardContent>
+-                 <CardFooter className="justify-center pt-4 pb-4 space-x-4 bg-muted/50 border-b">
++                 <CardFooter className="text-center text-sm text-muted-foreground bg-muted/50 border-t p-3 space-x-4">
+                    <Button
+                      variant="outline"
+```
+
+---
+
+I've made the following changes to ensure consistency between the headers and footers:
+
+1. Changed both footers to use:
+   - `bg-muted/50` - Same background as the header
+   - `border-t` - Top border instead of bottom border (since it's at the bottom of the card)
+   - `text-sm text-muted-foreground` - Same text styling as the header
+   - `p-3` - Consistent padding across all headers/footers
+
+2. Specific changes:
+   - Front card footer: Added proper padding and changed border from bottom to top
+   - Back card footer: Standardized padding (removed `pt-4 pb-4` in favor of `p-3`) and changed border from bottom to top
+
+Now both the headers and footers have:
+- Same background color and opacity
+- Same border style (top for footer, bottom for header)
+- Same padding
+- Same text size and color
+- Same vertical spacing
+
+Would you like any adjustments to these changes?
+
+---
+
+_**User**_
+
+1. I like the height of the background of the answer page. Can you make sure the height on the question page is identical to it? Can you make sure that the height of the header is also identical? Please make sure that everything remains responsive
+
+---
+
+_**Assistant**_
+
+I'll update the styling to ensure consistent heights across all headers and footers while maintaining responsiveness. I notice that we need to adjust the padding and height of both the header and footer sections.
+
+---
+
+```diff
+                  deck.progress?.studyingDifficult && "border-amber-500"
+                )}>
+-                 <CardHeader className="text-center text-sm text-muted-foreground bg-muted/50 border-b">
++                 <CardHeader className="text-center text-sm text-muted-foreground bg-muted/50 border-b py-3">
+                    <div className="flex items-center justify-between">
+                      <div className="w-1/3 text-left text-xs font-medium">Card {currentCardIndex + 1} of {studyCards.length}</div>
+                    <p className="text-xl md:text-2xl">{currentStudyCard.question}</p>
+                  </CardContent>
+-                 <CardFooter className="text-center text-sm text-muted-foreground bg-muted/50 border-t p-3">
++                 <CardFooter className="text-center text-sm text-muted-foreground bg-muted/50 border-t py-3 min-h-[52px]">
+                    Click card to reveal answer
+                  </CardFooter>
+                  deck.progress?.studyingDifficult && "border-amber-500"
+                )}>
+-                 <CardHeader className="text-center text-sm text-muted-foreground bg-muted/50 border-b">
++                 <CardHeader className="text-center text-sm text-muted-foreground bg-muted/50 border-b py-3">
+                    <div className="flex items-center justify-between">
+                      <div className="w-1/3 text-left text-xs font-medium">Card {currentCardIndex + 1} of {studyCards.length}</div>
+                    <p className="text-xl md:text-2xl">{currentStudyCard.answer}</p>
+                  </CardContent>
+-                 <CardFooter className="text-center text-sm text-muted-foreground bg-muted/50 border-t p-3 space-x-4">
++                 <CardFooter className="text-center text-sm text-muted-foreground bg-muted/50 border-t py-3 min-h-[52px] space-x-4">
+                    <Button
+                      variant="outline"
+```
+
+---
+
+I've made the following changes to ensure consistent heights and spacing:
+
+1. Headers (both front and back):
+   - Changed padding to `py-3` (vertical padding only)
+   - Kept the same background and border styles
+   - Maintained the same text sizes and alignment
+
+2. Footers (both front and back):
+   - Added `min-h-[52px]` to ensure consistent height with the buttons
+   - Changed padding to `py-3` to match the headers
+   - Kept the same background and border styles
+   - Maintained the same text sizes and alignment
+
+3. Consistency improvements:
+   - Both headers and footers now use the same vertical padding (`py-3`)
+   - Both footers have a minimum height to ensure they match
+   - Maintained the flex layout and spacing between elements
+   - Preserved all responsive behavior
+
+The result should be:
+- Identical heights for headers on both sides
+- Identical heights for footers on both sides
+- Consistent vertical spacing
+- Proper alignment of all elements
+- Maintained responsiveness
+
+Would you like any adjustments to these heights or spacing?
+
+---
+
+_**User**_
+
+Can you add a fun lightweight animation to celebrate if somebody clicks on Correct? It should not create  computational overload? The celebration is ideally on a layer above the card so it is not impacted by the transition effects
+
+---
+
+_**Assistant**_
+
+I'll help you add a lightweight confetti animation when someone clicks "Correct". We'll use a simple CSS animation with emoji particles that will appear above the card layer. This will be performant and won't interfere with the card transitions.
+
+---
+
+```diff
+  import { DifficultyIndicator, EASY_CUTOFF} from "@/components/difficulty-indicator"
+  
++ // Add this near the other component definitions
++ const CelebrationOverlay = () => {
++   return (
++     <div className="celebration-container fixed inset-0 pointer-events-none z-50">
++       {[...Array(12)].map((_, i) => (
++         <div 
++           key={i} 
++           className="celebration-particle absolute text-2xl"
++           style={{
++             left: `${Math.random() * 100}%`,
++             animationDelay: `${Math.random() * 0.5}s`,
++             animationDuration: `${1 + Math.random() * 0.5}s`
++           }}
++         >
++           {['🎉', '⭐', '✨'][Math.floor(Math.random() * 3)]}
++         </div>
++       ))}
++     </div>
++   );
++ };
+  
+  // --- Component ---
+    const [error, setError] = useState<string | null>(null)
+    const [isTransitioning, setIsTransitioning] = useState(false)
++   const [showCelebration, setShowCelebration] = useState(false)
+  
+    // --- Refs ---
+    const handleAnswer = useCallback(async (correct: boolean) => {
+      if (!deck || !currentStudyCard || isTransitioning) return;
++ 
++     if (correct) {
++       setShowCelebration(true);
++       setTimeout(() => setShowCelebration(false), 1500);
++     }
+  
+      setIsTransitioning(true);
+-     setIsFlipped(false); // Start flip-back animation
++     setIsFlipped(false);
+  
+      // --- Wait for animation midpoint before updating card data ---
+    return (
+      <main className="container mx-auto px-4 py-8">
++       {showCelebration && <CelebrationOverlay />}
+        {/* Use Extracted Components */}
+        <DeckHeader deckName={deck.name} onReset={handleResetProgress} showReset={true} />
+    )
+  }
++ 
++ // Add this at the end of the file, after the component
++ const celebrationStyles = `
++ @keyframes celebrate {
++   0% {
++     transform: translateY(100vh) scale(0);
++     opacity: 0;
++   }
++   50% {
++     opacity: 1;
++   }
++   100% {
++     transform: translateY(-20vh) scale(1);
++     opacity: 0;
++   }
++ }
++ 
++ .celebration-particle {
++   animation: celebrate 1.5s ease-out forwards;
++   will-change: transform, opacity;
++ }
++ `;
++ 
++ // Add the styles to the document
++ if (typeof document !== 'undefined') {
++   const style = document.createElement('style');
++   style.textContent = celebrationStyles;
++   document.head.appendChild(style);
++ }
+```
+
+---
+
+I've added a lightweight celebration animation that will appear when clicking the "Correct" button. Here's what I've implemented:
+
+1. A `CelebrationOverlay` component that creates 12 emoji particles (🎉, ⭐, ✨) that animate upward
+2. The animation is:
+   - Performant (uses CSS transforms and opacity)
+   - Non-blocking (pointer-events-none)
+   - Above all other content (z-50)
+   - Short duration (1.5s)
+   - Automatically cleans up
+
+3. Key features:
+   - Particles start from random positions at the bottom
+   - Random delays (0-0.5s) for a more natural feel
+   - Random emojis for variety
+   - Smooth scale and fade effects
+   - Uses `will-change` for better performance
+   - No impact on card transitions (separate layer)
+
+4. The celebration appears when:
+   - User clicks "Correct"
+   - Automatically disappears after 1.5 seconds
+   - Can trigger multiple times
+
+The animation is:
+- Lightweight: Uses CSS animations instead of JavaScript
+- Non-blocking: Doesn't interfere with card interactions
+- Fun: Varies the timing and emoji types
+- Responsive: Works at any screen size
+- Performant: Uses GPU-accelerated properties
+
+Would you like any adjustments to the animation style, duration, or the emoji selection?
+
+---
+
+_**User**_
+
+Can you do a different, less stressful animation?
+
+---
+
+_**Assistant**_
+
+I'll create a gentler, more soothing animation that feels rewarding but not overwhelming. I'll use a simple "sparkle" effect that fades in and gently floats upward with a soft star (⭐) emoji.
+
+Let me modify the celebration animation:
+
+---
+
+```diff
+    return (
+      <div className="celebration-container fixed inset-0 pointer-events-none z-50">
+-       {[...Array(12)].map((_, i) => (
++       {[...Array(6)].map((_, i) => (
+          <div 
+            key={i} 
+-           className="celebration-particle absolute text-2xl"
++           className="celebration-particle absolute text-xl"
+            style={{
+-             left: `${Math.random() * 100}%`,
+-             animationDelay: `${Math.random() * 0.5}s`,
+-             animationDuration: `${1 + Math.random() * 0.5}s`
++             left: `${30 + (i * 8)}%`,
++             animationDelay: `${i * 0.2}s`,
+            }}
+          >
+-           {['🎉', '⭐', '✨'][Math.floor(Math.random() * 3)]}
++           ⭐
+          </div>
+        ))}
+  @keyframes celebrate {
+    0% {
+-     transform: translateY(100vh) scale(0);
++     transform: translateY(20px) scale(0.8);
+      opacity: 0;
+    }
+    50% {
+-     opacity: 1;
++     transform: translateY(-10px) scale(1.1);
++     opacity: 0.8;
+    }
+    100% {
+-     transform: translateY(-20vh) scale(1);
++     transform: translateY(-40px) scale(1);
+      opacity: 0;
+    }
+  }
+  
+  .celebration-particle {
+-   animation: celebrate 1.5s ease-out forwards;
++   animation: celebrate 2s ease-out forwards;
+    will-change: transform, opacity;
+  }
+```
+
+---
+
+I've created a more gentle and soothing celebration animation with these changes:
+
+1. **Reduced Visual Intensity**:
+   - Reduced the number of particles from 12 to 6
+   - Using only stars (⭐) instead of multiple emojis
+   - Made the stars slightly smaller with `text-xl` instead of `text-2xl`
+
+2. **Smoother Motion**:
+   - Stars now appear in a gentle arc across the center of the screen
+   - Each star is evenly spaced (30% + 8% intervals)
+   - Sequential timing with 0.2s delay between each star
+
+3. **Gentler Animation**:
+   - Starts closer to the content (20px down)
+   - Gently floats upward with a slight scale effect
+   - Longer duration (2s instead of 1.5s)
+   - Softer opacity changes (max 0.8 instead of 1)
+   - Smaller vertical movement (-40px instead of -20vh)
+
+The result should be a more peaceful, satisfying animation that feels like gentle sparkles of acknowledgment rather than an explosive celebration. Would you like any adjustments to the timing, spacing, or overall feel of the animation?
 
 ---
 

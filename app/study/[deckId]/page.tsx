@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef, useMemo } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, ThumbsUp, ThumbsDown } from "lucide-react" // Only icons used directly here
+import { cn } from "@/lib/utils"
 
 // UI Components (Assuming they are in standard UI folder)
 import { Button } from "@/components/ui/button"
@@ -712,37 +713,52 @@ export default function StudyDeckPage() {
           <div className="flip-card-inner relative w-full h-full">
             {/* Front */}
             <div className="flip-card-front absolute w-full h-full">
-              <Card className="w-full h-full flex flex-col">
-                <CardHeader className="text-center text-sm text-muted-foreground">
+              <Card className={cn("w-full h-full flex flex-col", 
+                deck.progress?.studyingDifficult && "border-amber-500"
+              )}>
+                <CardHeader className="text-center text-sm text-muted-foreground bg-muted/50 border-b py-3">
                   <div className="flex items-center justify-between">
-                    <div>Card {currentCardIndex + 1} of {studyCards.length} (in rotation)</div>
-                    {settings?.showDifficulty && (
-                      <DifficultyIndicator 
-                        difficultyScore={currentStudyCard.difficultyScore ?? null} 
-                      />
-                    )}
+                    <div className="w-1/3 text-left text-xs font-medium">Card {currentCardIndex + 1} of {studyCards.length}</div>
+                    <div className="w-1/3 text-center text-xs font-medium">{cardProgressText}</div>
+                    <div className="w-1/3 flex justify-end">
+                      {settings?.showDifficulty && (
+                        <DifficultyIndicator 
+                          difficultyScore={currentStudyCard.difficultyScore ?? null} 
+                        />
+                      )}
+                    </div>
                   </div>
-                  <div className="text-xs font-medium">{cardProgressText}</div>
                 </CardHeader>
                 <CardContent className="flex-grow flex items-center justify-center p-6 text-center">
                   <p className="text-xl md:text-2xl">{currentStudyCard.question}</p>
                 </CardContent>
-                <CardFooter className="justify-center text-sm text-muted-foreground">
+                <CardFooter className="justify-center text-sm text-muted-foreground bg-muted/50 border-t py-3 min-h-[52px]">
                   Click card to reveal answer
                 </CardFooter>
               </Card>
             </div>
             {/* Back */}
             <div className="flip-card-back absolute w-full h-full">
-              <Card className="w-full h-full flex flex-col">
-                <CardHeader className="text-center text-sm text-muted-foreground">
-                  <div>Answer</div>
-                  <div className="text-xs font-medium">{cardProgressText}</div>
+              <Card className={cn("w-full h-full flex flex-col",
+                deck.progress?.studyingDifficult && "border-amber-500"
+              )}>
+                <CardHeader className="text-center text-sm text-muted-foreground bg-muted/50 border-b py-3">
+                  <div className="flex items-center justify-between">
+                    <div className="w-1/3 text-left text-xs font-medium">Card {currentCardIndex + 1} of {studyCards.length}</div>
+                    <div className="w-1/3 text-center text-xs font-medium">{cardProgressText}</div>
+                    <div className="w-1/3 flex justify-end">
+                      {settings?.showDifficulty && (
+                        <DifficultyIndicator 
+                          difficultyScore={currentStudyCard.difficultyScore ?? null} 
+                        />
+                      )}
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent className="flex-grow flex items-center justify-center p-6 text-center">
                   <p className="text-xl md:text-2xl">{currentStudyCard.answer}</p>
                 </CardContent>
-                <CardFooter className="justify-center pt-4 pb-4 space-x-4">
+                <CardFooter className="text-center text-sm text-muted-foreground bg-muted/50 border-t py-3 space-x-4">
                   <Button
                     variant="outline"
                     className="flex-1 border-red-500 text-red-700 hover:bg-red-500/10 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 active:scale-95 transition-all duration-150"
