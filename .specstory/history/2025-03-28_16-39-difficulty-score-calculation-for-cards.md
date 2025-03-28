@@ -1328,11 +1328,162 @@ I'll help you update the DifficultyIndicator component to use emojis instead of 
 
 ---
 
-Cancelled
+```diff
+- import { Circle, HelpCircle } from "lucide-react"
++ import { HelpCircle } from "lucide-react"
+  import { cn } from "@/lib/utils"
+  
+    let color: string
+    let label: string
++   let emoji: string
+  
+    if (difficultyScore === 0) {
+-     color = "text-grey-100"
+-     label = "Fresh start"
++     color = "text-gray-500"
++     label = "Fresh Start"
++     emoji = "🐣"
+    } else if (difficultyScore < EASY_CUTOFF) {
+      color = "text-green-500"
+      label = "Easy Peasy"
++     emoji = "🍋"
+    } else if (difficultyScore < MEDIUM_CUTOFF) {
+      color = "text-yellow-500"
+      label = "Getting There"
++     emoji = "🥾"
+    } else {
+      color = "text-red-500"
+      label = "Tough Cookie"
++     emoji = "🍪"
+    }
+  
+    return (
+      <div className={cn("flex items-center gap-1", color, className)}>
+-       <Circle className="h-4 w-4 fill-current" />
++       <span className="text-base leading-none">{emoji}</span>
+        <span className="text-xs">{label}</span>
+      </div>
+```
 
 ---
 
+I've made the following changes to the DifficultyIndicator component:
 
+1. Removed the `Circle` icon import since we're using emojis now
+2. Added an `emoji` variable to store the appropriate emoji for each difficulty level
+3. Updated the icons to match your requested emojis:
+   - 🐣 for Fresh Start
+   - 🍋 for Easy Peasy
+   - 🥾 for Getting There
+   - 🍪 for Tough Cookie
+4. Fixed the capitalization of "Fresh Start" to be consistent with the other labels
+5. Changed `text-grey-100` to `text-gray-500` for better visibility of the Fresh Start text
+6. Added appropriate styling for the emoji with `text-base leading-none` to ensure proper alignment
+
+The emojis will now appear next to their respective difficulty labels, making the indicator more visually appealing and intuitive. The HelpCircle icon is still kept for the "Unknown" state.
+
+Would you like me to make any adjustments to the styling or sizing of the emojis?
+
+---
+
+_**User**_
+
+If all cards in the deck have been mastered (see print screen), I want that the app to give the student the possibility to continue practicing all cards (as is already implemented), or just the most difficult cards, or go back to Decks (as is already implemented)? Difficult cards are cards that have a difficulty level higher than the MEDIUM_CUTOFF value
+
+---
+
+_**Assistant**_
+
+I'll help you modify the "All Cards Mastered" state to include an option to practice difficult cards. I'll update the UI to show three options and implement the logic for practicing difficult cards.
+
+---
+
+```diff
+    MAX_DECK_LOAD_RETRIES,
+    FLIP_ANIMATION_MIDPOINT_MS,
+-   FLIP_ANIMATION_DURATION_MS
++   FLIP_ANIMATION_DURATION_MS,
++   MEDIUM_CUTOFF
+  } from "@/lib/study-utils";
+  
+    // All Cards Mastered State
+    if (studyCards.length === 0 && totalCards > 0) {
++     // Calculate number of difficult cards
++     const difficultCards = deck.cards.filter(card => (card.difficultyScore ?? 0) >= MEDIUM_CUTOFF);
++     const difficultCardsCount = difficultCards.length;
++ 
++     const handlePracticeDifficult = () => {
++       const difficultStudyCards = prepareStudyCards(difficultCards);
++       setStudyCards(difficultStudyCards);
++       setCurrentCardIndex(0);
++       setIsFlipped(false);
++     };
++ 
+      return (
+        <main className="container mx-auto px-4 py-8">
+-         {/* Use Extracted Components */}
+          <DeckHeader deckName={deck.name} onReset={handleResetProgress} showReset={true} />
+          <StudyProgress
+                You've mastered all {totalCards} cards in this deck!
+              </p>
+-             <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
+-               <Button variant="outline" onClick={handleResetProgress}>
+-                 {/* RotateCcw is handled within DeckHeader, showing different button here */}
+-                 Study Again
++             <div className="flex flex-col gap-3 w-full max-w-sm">
++               <Button 
++                 variant="outline" 
++                 onClick={handleResetProgress}
++                 className="w-full"
++               >
++                 Practice All Cards
+                </Button>
+-               <Link href="/" passHref>
+-                 <Button><ArrowLeft className="mr-2 h-4 w-4"/> Back to Decks</Button>
++               {difficultCardsCount > 0 && (
++                 <Button 
++                   variant="outline"
++                   onClick={handlePracticeDifficult}
++                   className="w-full border-amber-500 text-amber-700 hover:bg-amber-500/10 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300"
++                 >
++                   Practice {difficultCardsCount} Difficult {difficultCardsCount === 1 ? 'Card' : 'Cards'} 🍪
++                 </Button>
++               )}
++               <Link href="/" passHref className="w-full">
++                 <Button className="w-full">
++                   <ArrowLeft className="mr-2 h-4 w-4"/> Back to Decks
++                 </Button>
+                </Link>
+              </div>
+```
+
+---
+
+I see we need to import the `MEDIUM_CUTOFF` from the difficulty indicator component instead. Let me fix that:
+
+---
+
+```diff
+    FLIP_ANIMATION_MIDPOINT_MS,
+    FLIP_ANIMATION_DURATION_MS,
+-   MEDIUM_CUTOFF
+  } from "@/lib/study-utils";
+  
+  // Extracted Study Components
+  import { DeckHeader } from "@/components/deck-header";
+  import { StudyProgress } from "@/components/study-progress";
+- import { DifficultyIndicator } from "@/components/difficulty-indicator"
++ import { DifficultyIndicator, MEDIUM_CUTOFF } from "@/components/difficulty-indicator"
+  
+  
+```
+
+---
+
+Great! I've made the following changes:
+
+1. Added a new option to practice difficult cards (cards with difficulty score ≥ MEDIUM_CUTOFF)
+2. The difficult cards option only appears if there are actually
 
 ---
 

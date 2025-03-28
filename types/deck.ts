@@ -20,6 +20,7 @@ export interface Deck {
   progress: {
     correct: number
     total: number
+    studyingDifficult?: boolean // Optional flag to indicate if we're studying difficult cards
   }
 }
 

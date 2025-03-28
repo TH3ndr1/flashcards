@@ -101,3 +101,25 @@ export const calculateDifficultyScore = (card: FlashCard): number => {
 
   return Math.min(1, Math.max(0, score)); // Ensure score is between 0 and 1
 };
+
+export const prepareDifficultCards = (cards: FlashCard[]): FlashCard[] => {
+  if (!Array.isArray(cards)) return [];
+
+  // For difficult cards, we don't filter by mastery status
+  const weightedCards = cards.map((card) => {
+    const difficultyWeight = card.difficultyScore || 0;
+    return { card, weight: difficultyWeight };
+  });
+
+  // Sort by difficulty weight (descending), with slight randomization
+  weightedCards.sort((a, b) => {
+    const weightDiff = b.weight - a.weight;
+    // If weights are close, introduce random shuffling
+    if (Math.abs(weightDiff) < 0.1) {
+      return Math.random() - 0.5;
+    }
+    return weightDiff;
+  });
+
+  return weightedCards.map((wc) => wc.card);
+};
