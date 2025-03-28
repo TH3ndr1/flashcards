@@ -12,6 +12,7 @@ export interface Settings {
   userId: string;
   appLanguage: string;
   ttsEnabled: boolean;
+  showDifficulty: boolean;
   languageDialects: {
     en: string;
     nl: string;
@@ -28,6 +29,7 @@ const DEFAULT_SETTINGS = (userId: string): Settings => ({
   userId,
   appLanguage: detectSystemLanguage(),
   ttsEnabled: true,
+  showDifficulty: true,
   languageDialects: {
     en: 'en-GB',  // Default to UK English
     nl: 'nl-NL',  // Default to Netherlands Dutch

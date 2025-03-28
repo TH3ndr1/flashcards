@@ -135,17 +135,20 @@ export default function SettingsPage() {
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Language Dialects</CardTitle>
-            <CardDescription>Choose your preferred dialect for each language</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid gap-4">
+              <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div>
+                  <h3 className="font-medium">Show Difficulty Indicators</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Display difficulty level indicators on flashcards
+                  </p>
+                </div>
+                <Switch
+                  checked={settings?.showDifficulty ?? true}
+                  onCheckedChange={(checked) => updateSettings({ showDifficulty: checked })}
+                />
+              </div>
+
               <div className="flex items-center justify-between p-4 border rounded-lg">
                 <div>
                   <h3 className="font-medium">Text-to-Speech</h3>
@@ -158,7 +161,17 @@ export default function SettingsPage() {
                   onCheckedChange={(checked) => updateSettings({ ttsEnabled: checked })}
                 />
               </div>
+            </div>
+          </CardContent>
+        </Card>
 
+        <Card>
+          <CardHeader>
+            <CardTitle>Language Dialects</CardTitle>
+            <CardDescription>Choose your preferred dialect for each language</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid gap-4">
               {/* English Dialect */}
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="dialectEn" className="text-right">

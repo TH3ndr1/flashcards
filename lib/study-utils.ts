@@ -12,9 +12,9 @@ export const FLIP_ANIMATION_DURATION_MS = 300; // Should match your CSS flip ani
 
 // --- Difficulty Score Constants ---
 export const DIFFICULTY_WEIGHTS = {
-  INCORRECT_RATIO: 0.6,  // Heaviest weight on failure rate
-  ATTEMPTS: 0.2,         // Some weight for exposure/effort
-  FORGETFULNESS: 0.2     // Weight for time decay
+  INCORRECT_RATIO: 0.8,  // Heaviest weight on failure rate
+  ATTEMPTS: 0.1,         // Some weight for exposure/effort
+  FORGETFULNESS: 0.1     // Weight for time decay
 } as const;
 
 export const DAYS_FOR_MAX_FORGETFULNESS = 5; // Time window for forgetting
@@ -69,15 +69,19 @@ export const calculateMasteredCount = (cards: FlashCard[]): number => {
 /**
  * Calculates a difficulty score for a flashcard based on performance metrics
  * Score ranges from 0 to 1, where higher scores indicate greater difficulty
+ * Returns 0 if the card has been attempted less than 2 times
  */
 export const calculateDifficultyScore = (card: FlashCard): number => {
+  // Return 0 if card has less than 2 attempts
+  if (!card.attemptCount || card.attemptCount < 2) {
+    return 0;
+  }
+
   let score = 0;
 
   // --- Factor 1: Incorrectness Ratio ---
-  if (card.attemptCount > 0) {
-    const incorrectRatio = card.incorrectCount / card.attemptCount;
-    score += DIFFICULTY_WEIGHTS.INCORRECT_RATIO * incorrectRatio;
-  }
+  const incorrectRatio = card.incorrectCount / card.attemptCount;
+  score += DIFFICULTY_WEIGHTS.INCORRECT_RATIO * incorrectRatio;
 
   // --- Factor 2: Number of Attempts (Normalized) ---
   const attemptsFactor = card.attemptCount / (card.attemptCount + ATTEMPTS_NORMALIZATION_FACTOR);
