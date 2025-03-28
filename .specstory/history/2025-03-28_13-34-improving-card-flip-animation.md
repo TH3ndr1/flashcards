@@ -339,6 +339,110 @@ I've updated the `handleAnswer` function with the new implementation that:
 5. Waits another 300ms for the flip to complete before clearing the transition state
 
 The key timing sequence is now:
+1. Button click → Immediate start of flip animation
+2. 300ms wait → Update card content (while card is perpendicular to view)
+3. 300ms wait → Animation completes
+
+This should completely fix the issue where you could see the next card's content during the flip, as we now wait until the card is not visible before updating any content.
+
+Would you like me to adjust any of the timings or make any other improvements to the animation sequence?
+
+---
+
+_**User**_
+
+Ok this works visually but now we are confronted with the fact that the both the previous question and the current question are being spoken out by the tts
+
+---
+
+_**Assistant**_
+
+Ah yes, this is happening because our TTS effect is triggered whenever the card content changes. Let's modify the TTS effect to only speak when we're not in a transitioning state:
+
+```diff
+  // Combined effect for language setup and speaking
+  useEffect(() => {
+-   if (!deck || !studyCards.length || loading || isFlipped) return
++   if (!deck || !studyCards.length || loading || isFlipped || isTransitioning) return
+
+    const currentCard = studyCards[currentCardIndex]
+    if (!currentCard?.question) return
+
+    // Set language for the current state
+    const language = deck.isBilingual ? deck.questionLanguage : deck.language
+    console.log('Setting language to:', language)
+    setLanguage(language)
+    
+    // Add a small delay before speaking to ensure everything is ready
+    const timeoutId = setTimeout(() => {
+      if (settings?.ttsEnabled) {
+        console.log("Speaking question in", language, ":", currentCard.question)
+        speak(currentCard.question, language)
+      }
+    }, TTS_DELAY)
+    
+    return () => clearTimeout(timeoutId)
+-   }, [deck, studyCards, currentCardIndex, isFlipped, loading, setLanguage, speak, settings?.ttsEnabled])
++   }, [deck, studyCards, currentCardIndex, isFlipped, loading, isTransitioning, setLanguage, speak, settings?.ttsEnabled])
+```
+
+The changes:
+1. Added `isTransitioning` to the dependency array of the effect
+2. Added `isTransitioning` to the guard clause at the start of the effect
+
+This means:
+- When a card transition starts, TTS will be prevented from speaking
+- Only after the transition is complete and the new card is fully visible will TTS speak the new question
+- This prevents both the old and new questions from being spoken during the transition
+
+Would you like me to implement this change?
+
+---
+
+_**User**_
+
+please implement your recommendation yourself
+
+---
+
+_**Assistant**_
+
+I'll implement the changes to fix the TTS issue:
+
+---
+
+```diff
+    // Combined effect for language setup and speaking
+    useEffect(() => {
+-     if (!deck || !studyCards.length || loading || isFlipped) return
++     if (!deck || !studyCards.length || loading || isFlipped || isTransitioning) return
+  
+      const currentCard = studyCards[currentCardIndex]
+      
+      return () => clearTimeout(timeoutId)
+-   }, [deck, studyCards, currentCardIndex, isFlipped, loading, setLanguage, speak, settings?.ttsEnabled])
++   }, [deck, studyCards, currentCardIndex, isFlipped, loading, isTransitioning, setLanguage, speak, settings?.ttsEnabled])
+  
+    // Memoized handler for flipping the card.
+```
+
+---
+
+I've updated the TTS effect to:
+1. Include `isTransitioning` in the guard clause to prevent TTS during transitions
+2. Added `isTransitioning` to the dependency array to ensure the effect re-runs when the transition state changes
+
+Now the TTS will:
+1. Stop speaking when a transition starts
+2. Only speak the new question after the transition is complete
+3. Prevent the overlap of speaking both the old and new questions
+
+This should give you a clean transition where:
+1. The card flips smoothly
+2. The content updates while the card is edge-on
+3. TTS only speaks once the new card is fully visible
+
+Would you like me to make any adjustments to the timing or behavior?
 
 ---
 

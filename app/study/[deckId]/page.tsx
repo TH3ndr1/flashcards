@@ -156,7 +156,7 @@ export default function StudyDeckPage() {
 
   // Combined effect for language setup and speaking
   useEffect(() => {
-    if (!deck || !studyCards.length || loading || isFlipped) return
+    if (!deck || !studyCards.length || loading || isFlipped || isTransitioning) return
 
     const currentCard = studyCards[currentCardIndex]
     if (!currentCard?.question) return
@@ -175,7 +175,7 @@ export default function StudyDeckPage() {
     }, TTS_DELAY)
     
     return () => clearTimeout(timeoutId)
-  }, [deck, studyCards, currentCardIndex, isFlipped, loading, setLanguage, speak, settings?.ttsEnabled])
+  }, [deck, studyCards, currentCardIndex, isFlipped, loading, isTransitioning, setLanguage, speak, settings?.ttsEnabled])
 
   // Memoized handler for flipping the card.
   const handleFlip = useCallback(() => {
