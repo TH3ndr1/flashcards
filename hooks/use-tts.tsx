@@ -2,17 +2,49 @@
 
 import { useState, useCallback } from "react"
 import { useSettings } from "@/hooks/use-settings"
+import type { Settings } from "@/hooks/use-settings"
 
 // Language code mapping for Google Cloud TTS
 const LANGUAGE_CODES: Record<string, string> = {
-  // ISO codes
-  en: "en-US",
-  nl: "nl-NL",
-  fr: "fr-FR",
-  // Full names
-  english: "en-US",
-  dutch: "nl-BE",
+  // ISO codes with dialects
+  // English dialects
+  en: "en-GB",  // Default to UK English
+  "en-GB": "en-GB",
+  "en-US": "en-US",
+  
+  // Dutch dialects
+  nl: "nl-NL",  // Default to Netherlands Dutch
+  "nl-BE": "nl-BE",
+  "nl-NL": "nl-NL",
+  
+  // French dialects
+  fr: "fr-FR",  // Default to France French
+  "fr-BE": "fr-BE",
+  "fr-FR": "fr-FR",
+  "fr-CH": "fr-CH",
+  
+  // German dialects
+  de: "de-DE",  // Default to Germany German
+  "de-DE": "de-DE",
+  "de-AT": "de-AT",
+  "de-CH": "de-CH",
+  
+  // Spanish dialect
+  es: "es-ES",  // Default to Spain Spanish
+  "es-ES": "es-ES",
+  
+  // Italian dialects
+  it: "it-IT",  // Default to Italy Italian
+  "it-IT": "it-IT",
+  "it-CH": "it-CH",
+  
+  // Full names (for backward compatibility)
+  english: "en-GB",
+  dutch: "nl-NL",
   french: "fr-FR",
+  german: "de-DE",
+  spanish: "es-ES",
+  italian: "it-IT",
 }
 
 export function useTTS() {
@@ -28,8 +60,21 @@ export function useTTS() {
       setLoading(true)
       // Use provided language or fall back to current language
       const langToUse = language?.toLowerCase() || currentLanguage
-      const mappedLanguage = LANGUAGE_CODES[langToUse] || "en-US"
-      console.log('TTS speaking in language:', langToUse, '(mapped to:', mappedLanguage, ')')
+      // Get the base language code (en, nl, fr, etc.)
+      const baseLanguage = langToUse.split('-')[0] as keyof Settings['languageDialects']
+      // Get the dialect from settings if available, otherwise use default mapping
+      const mappedLanguage = settings?.languageDialects?.[baseLanguage] || 
+                            LANGUAGE_CODES[langToUse] || 
+                            "en-GB"
+      console.log('TTS Debug:', {
+        providedLanguage: language,
+        currentLanguage,
+        baseLanguage,
+        settingsDialects: settings?.languageDialects,
+        selectedDialect: settings?.languageDialects?.[baseLanguage],
+        fallbackDialect: LANGUAGE_CODES[langToUse],
+        finalMappedLanguage: mappedLanguage
+      })
 
       const response = await fetch('/api/tts', {
         method: 'POST',
@@ -68,7 +113,7 @@ export function useTTS() {
       console.error('TTS Error:', error)
       setLoading(false)
     }
-  }, [])
+  }, [currentLanguage, settings])
 
   const setLanguage = useCallback((lang: string) => {
     console.log('Setting TTS language to:', lang)

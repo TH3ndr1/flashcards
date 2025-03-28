@@ -263,6 +263,9 @@ export default function EditDeckPage() {
                   <SelectItem value="en">English</SelectItem>
                   <SelectItem value="nl">Dutch</SelectItem>
                   <SelectItem value="fr">French</SelectItem>
+                  <SelectItem value="de">German</SelectItem>
+                  <SelectItem value="es">Spanish</SelectItem>
+                  <SelectItem value="it">Italian</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -284,6 +287,9 @@ export default function EditDeckPage() {
                   <SelectItem value="en">English</SelectItem>
                   <SelectItem value="nl">Dutch</SelectItem>
                   <SelectItem value="fr">French</SelectItem>
+                  <SelectItem value="de">German</SelectItem>
+                  <SelectItem value="es">Spanish</SelectItem>
+                  <SelectItem value="it">Italian</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -309,6 +315,9 @@ export default function EditDeckPage() {
                 <SelectItem value="en">English</SelectItem>
                 <SelectItem value="nl">Dutch</SelectItem>
                 <SelectItem value="fr">French</SelectItem>
+                <SelectItem value="de">German</SelectItem>
+                <SelectItem value="es">Spanish</SelectItem>
+                <SelectItem value="it">Italian</SelectItem>
               </SelectContent>
             </Select>
           </div>

@@ -137,6 +137,9 @@ export function CreateDeckDialog({ open, onOpenChange }: CreateDeckDialogProps) 
                       <SelectItem value="en">English</SelectItem>
                       <SelectItem value="nl">Dutch</SelectItem>
                       <SelectItem value="fr">French</SelectItem>
+                      <SelectItem value="de">German</SelectItem>
+                      <SelectItem value="es">Spanish</SelectItem>
+                      <SelectItem value="it">Italian</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -152,6 +155,9 @@ export function CreateDeckDialog({ open, onOpenChange }: CreateDeckDialogProps) 
                       <SelectItem value="en">English</SelectItem>
                       <SelectItem value="nl">Dutch</SelectItem>
                       <SelectItem value="fr">French</SelectItem>
+                      <SelectItem value="de">German</SelectItem>
+                      <SelectItem value="es">Spanish</SelectItem>
+                      <SelectItem value="it">Italian</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -175,6 +181,9 @@ export function CreateDeckDialog({ open, onOpenChange }: CreateDeckDialogProps) 
                     <SelectItem value="en">English</SelectItem>
                     <SelectItem value="nl">Dutch</SelectItem>
                     <SelectItem value="fr">French</SelectItem>
+                    <SelectItem value="de">German</SelectItem>
+                    <SelectItem value="es">Spanish</SelectItem>
+                    <SelectItem value="it">Italian</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

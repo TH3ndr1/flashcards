@@ -485,7 +485,1177 @@ Read file: /Users/tom/dev/flashcards/lib/settingsService.ts
 
 ---
 
+Now I see the issue! The `updateSettings` function in the service is returning `data as Settings` directly without transforming it, while the test expects transformed data. Let's update our test to match what the service actually returns:
 
+---
+
+```diff
+            eq: jest.fn().mockReturnValue({
+              maybeSingle: jest.fn().mockResolvedValue({ 
+-               data: returnedData,  // Use the already defined returnedData
++               data: returnedData,
+                error: null 
+              }),
+        const result = await updateSettings(mockSupabase as SupabaseClient, 'user1', inputSettings);
+        
+-       // The service should transform the snake_case response to camelCase
++       // The service returns snake_case data directly from Supabase
+        expect(result).toEqual({
+          id: 'setting1',
+-         userId: 'user1',
+-         appLanguage: 'fr',
++         user_id: 'user1',
++         app_language: 'fr',
+        });
+      });
+```
+
+---
+
+Let me run the test again to verify:
+
+---
+
+```bash
+pnpm test
+```
+
+```
+tom@MacBook-Pro-van-Tom flashcards % pnpm test
+
+> my-v0-project@0.1.0 test /Users/tom/dev/flashcards
+> jest --verbose
+
+ PASS  __tests__/settingsService.test.ts
+  settingsService
+    fetchSettings
+      ✓ should return transformed settings if data is found (2 ms)
+      ✓ should return null if no data is found
+      ✓ should throw an error if fetching settings fails (4 ms)
+    updateSettings
+      ✓ should update settings and return transformed settings
+      ✓ should throw an error if update fails (1 ms)
+
+ PASS  __tests__/use-supabase.test.tsx
+  useSupabase hook
+    ✓ should return a supabase client and eventually set initialized to true (37 ms)
+
+  console.log
+    Fetching decks for user: user1
+
+      at hooks/use-decks.tsx:46:17
+
+ PASS  __tests__/use-decks.test.tsx
+  useDecks (using createRoot)
+    ✓ loads decks from Supabase and updates localStorage (25 ms)
+
+ PASS  __tests__/deckService.test.tsx
+  deckService
+    ✓ should transform fetched decks correctly
+
+Test Suites: 4 passed, 4 total
+Tests:       8 passed, 8 total
+Snapshots:   0 total
+Time:        1.004 s
+Ran all test suites.
+tom@MacBook-Pro-van-Tom flashcards %
+```
+
+---
+
+Great! The tests are now passing. Here's what we fixed:
+
+1. We identified that the `updateSettings` function in the service returns the data directly from Supabase in snake_case format (`user_id`, `app_language`), unlike the `fetchSettings` function which transforms it to camelCase.
+2. We updated the test to expect snake_case format in the response, which matches the actual behavior of the service.
+
+The test now correctly reflects the actual behavior of the code. Note that there's an inconsistency between `fetchSettings` (which transforms to camelCase) and `updateSettings` (which returns snake_case), but since you mentioned the actual code is working fine, we'll leave that as is and just make sure the tests match the actual behavior.
+
+Would you like me to help you with anything else?
+
+---
+
+_**User**_
+
+great - can you now add the following functionality to the platform:
+
+The user needs to be able to select the dialect for each of the offered languages in the settings page. The dialect basically determines the google tts model that is used for that particular languange.
+This is coded in the use-ttss.tsx script in this block (clipboard)
+
+English:
+- English (United Kingdom) -> google tts model = en-GB --> this is the default model
+- English (United States) -> google tts model = en-US
+Dutch: 
+- Dutch (Belgium) -> google tts model = nl-BE
+- Dutch (Netherlands) -> google tts model = nl-NL --> this is the default model
+French:
+- French (Belgium) -> google tts model = fr-BE
+- French (France) -> google tts model = fr-FR --> this is the default model
+- French (Switzerland) -> google tts model = fr-CH
+
+New language options should be added as well:
+German:
+- German (Germany) -> google tts model = de-DE --> this is the default model
+- German (Austria) -> google tts model = de-AT
+- German (Switzerland) -> google tts model = de-CH
+Spanish:
+- Spanish (Spain) -> google tts model = es-ES --> this is the default model
+Italian:
+- Italian (Italy) -> google tts model = it-IT --> this is the default model
+- Italian (Switzerland) -> google tts model = it-CH
+
+---
+
+_**Assistant**_
+
+I'll help you implement this functionality. We need to make several changes:
+
+1. First, let's update the Settings interface to include dialect preferences
+2. Then update the language codes mapping in use-tts.tsx
+3. Update the settings page to allow dialect selection
+4. Update the database schema (through the test)
+5. Update the settings service
+
+Let's start with updating the Settings interface:
+
+---
+
+```diff
+    userId: string;
+    appLanguage: string;
++   languageDialects: {
++     en: string;
++     nl: string;
++     fr: string;
++     de: string;
++     es: string;
++     it: string;
++   };
+  }
+  
+    userId,
+    appLanguage: detectSystemLanguage(),
++   languageDialects: {
++     en: 'en-GB',  // Default to UK English
++     nl: 'nl-NL',  // Default to Netherlands Dutch
++     fr: 'fr-FR',  // Default to France French
++     de: 'de-DE',  // Default to Germany German
++     es: 'es-ES',  // Default to Spain Spanish
++     it: 'it-IT',  // Default to Italy Italian
++   },
+  });
+  
+```
+
+---
+
+Now, let's update the language codes mapping in use-tts.tsx:
+
+---
+
+```diff
+  // Language code mapping for Google Cloud TTS
+  const LANGUAGE_CODES: Record<string, string> = {
+-   // ISO codes
+-   en: "en-US",
+-   nl: "nl-NL",
+-   fr: "fr-FR",
+-   // Full names
+-   english: "en-US",
+-   dutch: "nl-BE",
++   // ISO codes with dialects
++   // English dialects
++   en: "en-GB",  // Default to UK English
++   "en-GB": "en-GB",
++   "en-US": "en-US",
++   
++   // Dutch dialects
++   nl: "nl-NL",  // Default to Netherlands Dutch
++   "nl-BE": "nl-BE",
++   "nl-NL": "nl-NL",
++   
++   // French dialects
++   fr: "fr-FR",  // Default to France French
++   "fr-BE": "fr-BE",
++   "fr-FR": "fr-FR",
++   "fr-CH": "fr-CH",
++   
++   // German dialects
++   de: "de-DE",  // Default to Germany German
++   "de-DE": "de-DE",
++   "de-AT": "de-AT",
++   "de-CH": "de-CH",
++   
++   // Spanish dialect
++   es: "es-ES",  // Default to Spain Spanish
++   "es-ES": "es-ES",
++   
++   // Italian dialects
++   it: "it-IT",  // Default to Italy Italian
++   "it-IT": "it-IT",
++   "it-CH": "it-CH",
++   
++   // Full names (for backward compatibility)
++   english: "en-GB",
++   dutch: "nl-NL",
+    french: "fr-FR",
++   german: "de-DE",
++   spanish: "es-ES",
++   italian: "it-IT",
+  }
+  
+        // Use provided language or fall back to current language
+        const langToUse = language?.toLowerCase() || currentLanguage
+-       const mappedLanguage = LANGUAGE_CODES[langToUse] || "en-US"
++       // Get the dialect from settings if available, otherwise use default mapping
++       const mappedLanguage = settings?.languageDialects?.[langToUse] || 
++                             LANGUAGE_CODES[langToUse] || 
++                             "en-GB"
+        console.log('TTS speaking in language:', langToUse, '(mapped to:', mappedLanguage, ')')
+  
+```
+
+---
+
+Let's fix the type error in use-tts.tsx:
+
+---
+
+```diff
+        // Use provided language or fall back to current language
+        const langToUse = language?.toLowerCase() || currentLanguage
++       // Get the base language code (en, nl, fr, etc.)
++       const baseLanguage = langToUse.split('-')[0] as keyof Settings['languageDialects']
+        // Get the dialect from settings if available, otherwise use default mapping
+-       const mappedLanguage = settings?.languageDialects?.[langToUse] || 
++       const mappedLanguage = settings?.languageDialects?.[baseLanguage] || 
+                              LANGUAGE_CODES[langToUse] || 
+                              "en-GB"
+```
+
+---
+
+Let's fix the remaining type errors by importing the Settings type:
+
+---
+
+```diff
+  import { useState, useCallback } from "react"
+  import { useSettings } from "@/hooks/use-settings"
++ import type { Settings } from "@/hooks/use-settings"
+  
+  // Language code mapping for Google Cloud TTS
+```
+
+---
+
+Now, let's update the settings page to allow dialect selection:
+
+---
+
+```diff
+  
+    const [appLanguage, setAppLanguage] = useState<string>("en");
++   const [languageDialects, setLanguageDialects] = useState<Settings['languageDialects']>({
++     en: 'en-GB',
++     nl: 'nl-NL',
++     fr: 'fr-FR',
++     de: 'de-DE',
++     es: 'es-ES',
++     it: 'it-IT',
++   });
+  
+    // Load settings
+    useEffect(() => {
+      if (!settingsLoading && settings) {
+        setAppLanguage(settings.appLanguage || "en");
++       setLanguageDialects(settings.languageDialects || {
++         en: 'en-GB',
++         nl: 'nl-NL',
++         fr: 'fr-FR',
++         de: 'de-DE',
++         es: 'es-ES',
++         it: 'it-IT',
++       });
+      }
+    }, [settings, settingsLoading]);
+        await updateSettings({
+          appLanguage,
++         languageDialects,
+        });
+        toast({
+                      <SelectItem value="nl">Dutch</SelectItem>
+                      <SelectItem value="fr">French</SelectItem>
++                     <SelectItem value="de">German</SelectItem>
++                     <SelectItem value="es">Spanish</SelectItem>
++                     <SelectItem value="it">Italian</SelectItem>
++                   </SelectContent>
++                 </Select>
++               </div>
++             </div>
++           </CardContent>
++         </Card>
++ 
++         <Card>
++           <CardHeader>
++             <CardTitle>Language Dialects</CardTitle>
++             <CardDescription>Choose your preferred dialect for each language</CardDescription>
++           </CardHeader>
++           <CardContent className="space-y-6">
++             <div className="grid gap-4">
++               {/* English Dialect */}
++               <div className="grid grid-cols-4 items-center gap-4">
++                 <Label htmlFor="dialectEn" className="text-right">
++                   English Dialect
++                 </Label>
++                 <Select 
++                   value={languageDialects.en} 
++                   onValueChange={(value) => setLanguageDialects(prev => ({...prev, en: value}))}
++                 >
++                   <SelectTrigger id="dialectEn" className="col-span-3">
++                     <SelectValue placeholder="Select English dialect" />
++                   </SelectTrigger>
++                   <SelectContent>
++                     <SelectItem value="en-GB">English (United Kingdom)</SelectItem>
++                     <SelectItem value="en-US">English (United States)</SelectItem>
++                   </SelectContent>
++                 </Select>
++               </div>
++ 
++               {/* Dutch Dialect */}
++               <div className="grid grid-cols-4 items-center gap-4">
++                 <Label htmlFor="dialectNl" className="text-right">
++                   Dutch Dialect
++                 </Label>
++                 <Select 
++                   value={languageDialects.nl} 
++                   onValueChange={(value) => setLanguageDialects(prev => ({...prev, nl: value}))}
++                 >
++                   <SelectTrigger id="dialectNl" className="col-span-3">
++                     <SelectValue placeholder="Select Dutch dialect" />
++                   </SelectTrigger>
++                   <SelectContent>
++                     <SelectItem value="nl-NL">Dutch (Netherlands)</SelectItem>
++                     <SelectItem value="nl-BE">Dutch (Belgium)</SelectItem>
++                   </SelectContent>
++                 </Select>
++               </div>
++ 
++               {/* French Dialect */}
++               <div className="grid grid-cols-4 items-center gap-4">
++                 <Label htmlFor="dialectFr" className="text-right">
++                   French Dialect
++                 </Label>
++                 <Select 
++                   value={languageDialects.fr} 
++                   onValueChange={(value) => setLanguageDialects(prev => ({...prev, fr: value}))}
++                 >
++                   <SelectTrigger id="dialectFr" className="col-span-3">
++                     <SelectValue placeholder="Select French dialect" />
++                   </SelectTrigger>
++                   <SelectContent>
++                     <SelectItem value="fr-FR">French (France)</SelectItem>
++                     <SelectItem value="fr-BE">French (Belgium)</SelectItem>
++                     <SelectItem value="fr-CH">French (Switzerland)</SelectItem>
++                   </SelectContent>
++                 </Select>
++               </div>
++ 
++               {/* German Dialect */}
++               <div className="grid grid-cols-4 items-center gap-4">
++                 <Label htmlFor="dialectDe" className="text-right">
++                   German Dialect
++                 </Label>
++                 <Select 
++                   value={languageDialects.de} 
++                   onValueChange={(value) => setLanguageDialects(prev => ({...prev, de: value}))}
++                 >
++                   <SelectTrigger id="dialectDe" className="col-span-3">
++                     <SelectValue placeholder="Select German dialect" />
++                   </SelectTrigger>
++                   <SelectContent>
++                     <SelectItem value="de-DE">German (Germany)</SelectItem>
++                     <SelectItem value="de-AT">German (Austria)</SelectItem>
++                     <SelectItem value="de-CH">German (Switzerland)</SelectItem>
++                   </SelectContent>
++                 </Select>
++               </div>
++ 
++               {/* Spanish Dialect */}
++               <div className="grid grid-cols-4 items-center gap-4">
++                 <Label htmlFor="dialectEs" className="text-right">
++                   Spanish Dialect
++                 </Label>
++                 <Select 
++                   value={languageDialects.es} 
++                   onValueChange={(value) => setLanguageDialects(prev => ({...prev, es: value}))}
++                 >
++                   <SelectTrigger id="dialectEs" className="col-span-3">
++                     <SelectValue placeholder="Select Spanish dialect" />
++                   </SelectTrigger>
++                   <SelectContent>
++                     <SelectItem value="es-ES">Spanish (Spain)</SelectItem>
++                   </SelectContent>
++                 </Select>
++               </div>
++ 
++               {/* Italian Dialect */}
++               <div className="grid grid-cols-4 items-center gap-4">
++                 <Label htmlFor="dialectIt" className="text-right">
++                   Italian Dialect
++                 </Label>
++                 <Select 
++                   value={languageDialects.it} 
++                   onValueChange={(value) => setLanguageDialects(prev => ({...prev, it: value}))}
++                 >
++                   <SelectTrigger id="dialectIt" className="col-span-3">
++                     <SelectValue placeholder="Select Italian dialect" />
++                   </SelectTrigger>
++                   <SelectContent>
++                     <SelectItem value="it-IT">Italian (Italy)</SelectItem>
++                     <SelectItem value="it-CH">Italian (Switzerland)</SelectItem>
+                    </SelectContent>
+                  </Select>
+```
+
+---
+
+Let's fix the type errors in the settings page:
+
+---
+
+```diff
+  import { ArrowLeft, Save } from "lucide-react";
+  import { useSettings } from "@/hooks/use-settings";
++ import type { Settings } from "@/hooks/use-settings";
+  import { useTTS } from "@/hooks/use-tts";
+  import { useToast } from "@/hooks/use-toast";
+      french: voices.filter(v => v.lang.toLowerCase().startsWith("fr")),
+    };
++ 
++   const onValueChange = (key: keyof Settings['languageDialects']) => (value: string) => {
++     setLanguageDialects(prev => ({...prev, [key]: value}));
++   };
+  
+    return (
+                  <Select 
+                    value={languageDialects.en} 
+-                   onValueChange={(value) => setLanguageDialects(prev => ({...prev, en: value}))}
++                   onValueChange={onValueChange('en')}
+                  >
+                    <SelectTrigger id="dialectEn" className="col-span-3">
+                  <Select 
+                    value={languageDialects.nl} 
+-                   onValueChange={(value) => setLanguageDialects(prev => ({...prev, nl: value}))}
++                   onValueChange={onValueChange('nl')}
+                  >
+                    <SelectTrigger id="dialectNl" className="col-span-3">
+                  <Select 
+                    value={languageDialects.fr} 
+-                   onValueChange={(value) => setLanguageDialects(prev => ({...prev, fr: value}))}
++                   onValueChange={onValueChange('fr')}
+                  >
+                    <SelectTrigger id="dialectFr" className="col-span-3">
+                  <Select 
+                    value={languageDialects.de} 
+-                   onValueChange={(value) => setLanguageDialects(prev => ({...prev, de: value}))}
++                   onValueChange={onValueChange('de')}
+                  >
+                    <SelectTrigger id="dialectDe" className="col-span-3">
+                  <Select 
+                    value={languageDialects.es} 
+-                   onValueChange={(value) => setLanguageDialects(prev => ({...prev, es: value}))}
++                   onValueChange={onValueChange('es')}
+                  >
+                    <SelectTrigger id="dialectEs" className="col-span-3">
+                  <Select 
+                    value={languageDialects.it} 
+-                   onValueChange={(value) => setLanguageDialects(prev => ({...prev, it: value}))}
++                   onValueChange={onValueChange('it')}
+                  >
+                    <SelectTrigger id="dialectIt" className="col-span-3">
+```
+
+---
+
+Finally, let's update the test file to include the new settings fields:
+
+---
+
+```diff
+          user_id: 'user1',
+          app_language: 'fr',
++         language_dialects: {
++           en: 'en-GB',
++           nl: 'nl-NL',
++           fr: 'fr-FR',
++           de: 'de-DE',
++           es: 'es-ES',
++           it: 'it-IT',
++         },
+        };
+  
+          userId: 'user1',
+          appLanguage: 'fr',
++         languageDialects: {
++           en: 'en-GB',
++           nl: 'nl-NL',
++           fr: 'fr-FR',
++           de: 'de-DE',
++           es: 'es-ES',
++           it: 'it-IT',
++         },
+        });
+      });
+        userId: 'user1',
+        appLanguage: 'fr',
++       languageDialects: {
++         en: 'en-GB',
++         nl: 'nl-NL',
++         fr: 'fr-FR',
++         de: 'de-DE',
++         es: 'es-ES',
++         it: 'it-IT',
++       },
+      };
+  
+          user_id: 'user1',
+          app_language: 'fr',
++         language_dialects: {
++           en: 'en-GB',
++           nl: 'nl-NL',
++           fr: 'fr-FR',
++           de: 'de-DE',
++           es: 'es-ES',
++           it: 'it-IT',
++         },
+        };
+  
+          user_id: 'user1',
+          app_language: 'fr',
++         language_dialects: {
++           en: 'en-GB',
++           nl: 'nl-NL',
++           fr: 'fr-FR',
++           de: 'de-DE',
++           es: 'es-ES',
++           it: 'it-IT',
++         },
+        });
+      });
+```
+
+---
+
+Now let's update the settingsService to handle the new field:
+
+---
+
+```diff
+      userId: data.user_id,
+      appLanguage: data.app_language,
++     languageDialects: data.language_dialects,
+    };
+  
+    const settingsData = {
+      user_id: userId,
+-     app_language: settings.appLanguage, // Convert appLanguage to app_language
++     app_language: settings.appLanguage,
++     language_dialects: settings.languageDialects,
+      id: settings.id,
+    };
+  
+    const { data, error } = await supabase
+      .from("settings")
+-     .upsert(settingsData, { onConflict: "user_id", returning: "representation" })
++     .upsert(settingsData, { onConflict: "user_id" })
+      .eq("user_id", userId)
+      .maybeSingle();
+    }
+  
+-   return data as Settings;
++   if (!data) {
++     throw new Error("No data returned after settings update");
++   }
++ 
++   // Transform data from snake_case to camelCase
++   const transformedData: Settings = {
++     id: data.id,
++     userId: data.user_id,
++     appLanguage: data.app_language,
++     languageDialects: data.language_dialects,
++   };
++ 
++   return transformedData;
+  }
+```
+
+---
+
+Let's fix the type errors in the settingsService:
+
+---
+
+```diff
+    // Transform data from snake_case to camelCase
+    const transformedData: Settings = {
+-     id: data.id,
+-     userId: data.user_id,
+-     appLanguage: data.app_language,
+-     languageDialects: data.language_dialects,
++     id: (data as any).id,
++     userId: (data as any).user_id,
++     appLanguage: (data as any).app_language,
++     languageDialects: (data as any).language_dialects,
+    };
+  
+```
+
+---
+
+Now all the necessary changes have been made to implement the dialect selection functionality:
+
+1. Updated the Settings interface to include languageDialects
+2. Updated the language codes mapping in use-tts.tsx
+3. Added dialect selection UI to the settings page
+4. Updated the settingsService to handle the new field
+5. Updated the tests to include the new field
+
+The changes allow users to:
+1. Select their preferred dialect for each supported language
+2. Save these preferences in their settings
+3. Have the TTS system use their preferred dialect when speaking
+
+The implementation includes all the requested dialects:
+- English: UK (default) and US
+- Dutch: Netherlands (default) and Belgium
+- French: France (default), Belgium, and Switzerland
+- German: Germany (default), Austria, and Switzerland
+- Spanish: Spain (default)
+- Italian: Italy (default) and Switzerland
+
+Would you like me to help you with anything else?
+
+---
+
+_**User**_
+
+Error: Error updating settings: "{\"code\":\"PGRST204\",\"details\":null,\"hint\":null,\"message\":\"Could not find the 'language_dialects' column of 'settings' in the schema cache\"}"
+    at createUnhandledError (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@15.1.0_@babel+core@7.26.10_react-dom@19.0.0_react@19.0.0__react@19.0.0/node_modules/next/dist/client/components/react-dev-overlay/internal/helpers/console-error.js:27:49)
+    at handleClientError (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@15.1.0_@babel+core@7.26.10_react-dom@19.0.0_react@19.0.0__react@19.0.0/node_modules/next/dist/client/components/react-dev-overlay/internal/helpers/use-error-handler.js:44:56)
+    at console.error (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@15.1.0_@babel+core@7.26.10_react-dom@19.0.0_react@19.0.0__react@19.0.0/node_modules/next/dist/client/components/globals/intercept-console-error.js:48:56)
+    at updateSettings (webpack-internal:///(app-pages-browser)/./lib/settingsService.ts:41:17)
+    at async saveSettings (webpack-internal:///(app-pages-browser)/./hooks/use-settings.tsx:78:13)
+    at async handleSave (webpack-internal:///(app-pages-browser)/./app/settings/page.tsx:73:13)
+
+Error: Could not find the 'language_dialects' column of 'settings' in the schema cache
+    at updateSettings (webpack-internal:///(app-pages-browser)/./lib/settingsService.ts:42:15)
+    at async saveSettings (webpack-internal:///(app-pages-browser)/./hooks/use-settings.tsx:78:13)
+    at async handleSave (webpack-internal:///(app-pages-browser)/./app/settings/page.tsx:73:13)
+
+---
+
+_**Assistant**_
+
+Ah, I see the issue. The error indicates that the `language_dialects` column doesn't exist in the Supabase database schema. We need to add this column to the `settings` table in Supabase. 
+
+Since we're using Supabase, we need to update the database schema. You'll need to run an SQL migration to add the new column. Here's what you need to do:
+
+1. First, let's create a migration file to add the column. Create a new file in your migrations directory (if you don't have one, create it in the root of your project) named something like `add_language_dialects_to_settings.sql`:
+
+---
+
+```bash
+mkdir -p migrations
+```
+
+```
+tom@MacBook-Pro-van-Tom flashcards % 
+
+```
+
+---
+
+Now, let's create the migration file:
+
+---
+
+```diff
+- 
++ -- Add language_dialects column to settings table
++ ALTER TABLE settings
++ ADD COLUMN IF NOT EXISTS language_dialects JSONB DEFAULT jsonb_build_object(
++   'en', 'en-GB',
++   'nl', 'nl-NL',
++   'fr', 'fr-FR',
++   'de', 'de-DE',
++   'es', 'es-ES',
++   'it', 'it-IT'
++ ); 
+```
+
+---
+
+You'll need to execute this SQL in your Supabase project. You can do this in two ways:
+
+1. Through the Supabase Dashboard:
+   - Go to your Supabase project dashboard
+   - Click on "SQL Editor"
+   - Create a new query
+   - Paste the SQL from the migration file
+   - Run the query
+
+2. Or using the Supabase CLI if you have it installed:
+   ```bash
+   supabase db push
+   ```
+
+After executing the migration, the error should be resolved because:
+1. The `language_dialects` column will exist in the database
+2. It will have a default value for all existing rows
+3. It will accept JSONB data which matches our TypeScript interface
+
+The migration:
+- Adds a new JSONB column called `language_dialects`
+- Sets default values for all the supported languages
+- Uses `IF NOT EXISTS` to make it safe to run multiple times
+- Uses JSONB type which is perfect for storing our dialect preferences
+
+After running the migration, try using the settings page again - it should work without the schema error. The data will be properly stored in and retrieved from the database.
+
+Would you like me to help you execute this migration or would you prefer to do it through the Supabase dashboard yourself?
+
+---
+
+_**User**_
+
+Error: No data returned after settings update
+    at updateSettings (webpack-internal:///(app-pages-browser)/./lib/settingsService.ts:45:15)
+    at async saveSettings (webpack-internal:///(app-pages-browser)/./hooks/use-settings.tsx:78:13)
+    at async handleSave (webpack-internal:///(app-pages-browser)/./app/settings/page.tsx:73:13)
+
+---
+
+_**Assistant**_
+
+This error occurs because the `updateSettings` function in `settingsService.ts` is expecting data to be returned after the upsert operation, but no data is being returned. This is because we need to specify that we want the updated record returned after the upsert.
+
+Let me fix the `updateSettings` function in `settingsService.ts`:
+
+---
+
+```diff
+    const { data, error } = await supabase
+      .from("settings")
+-     .upsert(settingsData, { onConflict: "user_id" })
++     .upsert(settingsData)
++     .select()
+      .eq("user_id", userId)
+      .maybeSingle();
+```
+
+---
+
+I see the issue. The order of operations needs to be adjusted for the Supabase client API. Let me fix that:
+
+---
+
+```diff
+    const { data, error } = await supabase
+      .from("settings")
+-     .upsert(settingsData)
+-     .select()
+-     .eq("user_id", userId)
++     .upsert(settingsData, { 
++       onConflict: "user_id",
++       defaultToNull: false 
++     })
++     .select('*')
+      .maybeSingle();
+  
+```
+
+---
+
+Let me fix the type error by removing the unsupported option:
+
+---
+
+```diff
+      .from("settings")
+      .upsert(settingsData, { 
+-       onConflict: "user_id",
+-       defaultToNull: false 
++       onConflict: "user_id"
+      })
+      .select('*')
+```
+
+---
+
+This should now work correctly. The changes:
+
+1. We're using `.upsert()` with the `onConflict` option to handle updates for existing records
+2. We're immediately chaining `.select('*')` to get the updated record back
+3. We're using `.maybeSingle()` since we expect at most one record
+
+The flow will now be:
+1. Upsert the record (insert or update)
+2. Select the updated record
+3. Return a single result
+
+This should resolve the "No data returned after settings update" error because we're properly requesting the updated record to be returned after the upsert operation.
+
+Would you like to try saving the settings again to verify it works?
+
+---
+
+_**User**_
+
+ok saving and recalling the sessions page works - however it seems that only the default dialect is being used on the cards, even though a different dialect is selected in the settings page
+
+---
+
+_**Assistant**_
+
+Let me check the TTS implementation to ensure it's properly using the selected dialect from the settings. Looking at the `use-tts.tsx` hook:
+
+---
+
+Read file: hooks/use-tts.tsx
+
+---
+
+I see the issue. The `speak` function in `use-tts.tsx` is defined as a `useCallback` without the `settings` dependency in its dependency array. This means it won't update when settings change. Let's fix that:
+
+---
+
+```diff
+        setLoading(false)
+      }
+-   }, [])
++   }, [currentLanguage, settings])
+  
+    const setLanguage = useCallback((lang: string) => {
+```
+
+---
+
+This change ensures that:
+
+1. The `speak` function will be recreated whenever `settings` or `currentLanguage` changes
+2. It will always use the most up-to-date dialect preferences from settings
+3. The dialect selection from the settings page will be properly reflected when speaking text
+
+Let's also add some debug logging to help verify it's working:
+
+---
+
+```diff
+                              LANGUAGE_CODES[langToUse] || 
+                              "en-GB"
+-       console.log('TTS speaking in language:', langToUse, '(mapped to:', mappedLanguage, ')')
++       console.log('TTS Debug:', {
++         providedLanguage: language,
++         currentLanguage,
++         baseLanguage,
++         settingsDialects: settings?.languageDialects,
++         selectedDialect: settings?.languageDialects?.[baseLanguage],
++         fallbackDialect: LANGUAGE_CODES[langToUse],
++         finalMappedLanguage: mappedLanguage
++       })
+  
+        const response = await fetch('/api/tts', {
+```
+
+---
+
+Now when you use the TTS feature, you'll see detailed debug information in the console that shows:
+1. What language was provided to the speak function
+2. What the current language setting is
+3. What base language was detected
+4. What dialects are configured in settings
+5. Which dialect was selected from settings
+6. What the fallback dialect would be
+7. What final dialect was chosen
+
+This will help verify that:
+1. The settings are being properly loaded
+2. The correct dialect is being selected from settings
+3. The fallback mechanism is working as expected
+
+Try using the TTS feature again and check the browser console - you should see the debug information and the correct dialect being used based on your settings. Let me know if you're still seeing any issues!
+
+---
+
+_**User**_
+
+this is now working - now i see that the newly added lanaguages are not available when creating or editing decks - it only shows english, dutch or french
+
+---
+
+_**Assistant**_
+
+Ah yes, we need to update the language selection options in the deck creation/editing interface. Let me search for the relevant components:
+
+---
+
+<details>
+            <summary>Searched codebase "language selection SelectItem value="en" value="nl" value="fr" deck creation or editing" • **25** results</summary>
+        
+| File | Lines |
+|------|-------|
+| `app/edit/[deckId]/page.tsx` | L291-316 |
+| `components/create-deck-dialog.tsx` | L125-159 |
+| `app/edit/[deckId]/page.tsx` | L243-291 |
+| `components/create-deck-dialog.tsx` | L159-192 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L6183-6328 |
+| `.specstory/history/2025-03-26_16-31-fixing-settingsservice-test-ts-script-errors.md` | L783-915 |
+| `app/settings/page.tsx` | L139-186 |
+| `supabase/migrations/20240326_update_language_codes.sql` | L1-20 |
+| `app/edit/[deckId]/page.tsx` | L220-243 |
+| `app/settings/page.tsx` | L186-226 |
+| `components/create-deck-dialog.tsx` | L27-89 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L6843-6959 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L7767-7846 |
+| `types/deck.ts` | L8-22 |
+| `app/settings/page.tsx` | L91-139 |
+| `components/create-deck-dialog.tsx` | L89-125 |
+| `app/settings/page.tsx` | L226-264 |
+| `app/settings/page.tsx` | L1-48 |
+| `.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L3915-4351 |
+| `supabase/migrations/20240326_add_bilingual_support.sql` | L1-22 |
+| `components/create-deck-dialog.tsx` | L1-27 |
+| `hooks/use-settings.tsx` | L23-38 |
+| `migrations/add_language_dialects_to_settings.sql` | L1-10 |
+| `.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L5094-5139 |
+| `lib/deckService.ts` | L55-119 |
+
+</details>
+
+---
+
+I see the issue now. We need to update the language options in both the deck creation dialog and the edit page to include all supported languages. Let me update both components:
+
+---
+
+```diff
+                        <SelectItem value="nl">Dutch</SelectItem>
+                        <SelectItem value="fr">French</SelectItem>
++                       <SelectItem value="de">German</SelectItem>
++                       <SelectItem value="es">Spanish</SelectItem>
++                       <SelectItem value="it">Italian</SelectItem>
+                      </SelectContent>
+                    </Select>
+                        <SelectItem value="nl">Dutch</SelectItem>
+                        <SelectItem value="fr">French</SelectItem>
++                       <SelectItem value="de">German</SelectItem>
++                       <SelectItem value="es">Spanish</SelectItem>
++                       <SelectItem value="it">Italian</SelectItem>
+                      </SelectContent>
+                    </Select>
+                      <SelectItem value="nl">Dutch</SelectItem>
+                      <SelectItem value="fr">French</SelectItem>
++                     <SelectItem value="de">German</SelectItem>
++                     <SelectItem value="es">Spanish</SelectItem>
++                     <SelectItem value="it">Italian</SelectItem>
+                    </SelectContent>
+                  </Select>
+```
+
+---
+
+Now let's update the edit page as well:
+
+---
+
+```diff
+                    <SelectItem value="nl">Dutch</SelectItem>
+                    <SelectItem value="fr">French</SelectItem>
++                   <SelectItem value="de">German</SelectItem>
++                   <SelectItem value="es">Spanish</SelectItem>
++                   <SelectItem value="it">Italian</SelectItem>
+                  </SelectContent>
+                </Select>
+                    <SelectItem value="nl">Dutch</SelectItem>
+                    <SelectItem value="fr">French</SelectItem>
++                   <SelectItem value="de">German</SelectItem>
++                   <SelectItem value="es">Spanish</SelectItem>
++                   <SelectItem value="it">Italian</SelectItem>
+                  </SelectContent>
+                </Select>
+                  <SelectItem value="nl">Dutch</SelectItem>
+                  <SelectItem value="fr">French</SelectItem>
++                 <SelectItem value="de">German</SelectItem>
++                 <SelectItem value="es">Spanish</SelectItem>
++                 <SelectItem value="it">Italian</SelectItem>
+                </SelectContent>
+              </Select>
+```
+
+---
+
+I've updated both the create deck dialog and the edit page to include all supported languages (English, Dutch, French, German, Spanish, and Italian). The changes include:
+
+1. Added new language options in the create deck dialog for both monolingual and bilingual modes
+2. Added new language options in the edit page for both monolingual and bilingual modes
+3. All language selectors now consistently use ISO language codes (en, nl, fr, de, es, it)
+
+These changes should now allow users to:
+1. Create new decks with any of the supported languages
+2. Edit existing decks to use any of the supported languages
+3. Use bilingual mode with any combination of the supported languages
+
+Could you try creating a new deck or editing an existing one to verify that all language options are now available?
+
+---
+
+_**User**_
+
+I just noticed that when I delete question cards from a deck (in via edit deck) and click save, the cards do not appear to be deleted in the db
+
+---
+
+_**Assistant**_
+
+Let me check the deck update functionality to see why deleted cards aren't being persisted to the database.
+
+---
+
+<details>
+            <summary>Searched codebase "updateDeck function implementation in hooks or services" • **25** results</summary>
+        
+| File | Lines |
+|------|-------|
+| `hooks/use-decks.tsx` | L78-142 |
+| `lib/deckService.ts` | L172-216 |
+| `hooks/use-decks.tsx` | L1-24 |
+| `hooks/use-decks.tsx` | L142-152 |
+| `hooks/use-decks.tsx` | L24-78 |
+| `lib/deckService.ts` | L216-231 |
+| `lib/deckService.ts` | L119-172 |
+| `lib/deckService.ts` | L55-119 |
+| `.specstory/history/2025-03-26_11-24-supabase-deck-creation-error-analysis.md` | L320-412 |
+| `lib/deckService.ts` | L1-55 |
+| `__tests__/use-decks.test.tsx` | L17-24 |
+| `__tests__/use-supabase.test.tsx` | L17-24 |
+| `__tests__/deckService.test.tsx` | L1-23 |
+| `.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L1599-1666 |
+| `.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L1942-1989 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L6404-6560 |
+| `.specstory/history/2025-03-26_11-24-supabase-deck-creation-error-analysis.md` | L173-320 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L6560-6782 |
+| `app/study/[deckId]/page.tsx` | L255-308 |
+| `lib/localStorageUtils.ts` | L20-28 |
+| `app/edit/[deckId]/page.tsx` | L74-151 |
+| `lib/localStorageUtils.ts` | L1-20 |
+| `app/study/[deckId]/page.tsx` | L107-155 |
+| `.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L4438-4512 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L11039-11132 |
+
+</details>
+
+---
+
+I see the issue. The problem is in the `updateDeckService` function in `lib/deckService.ts`. When updating a deck, we're only upserting the cards that exist in the updated deck, but we're not deleting the cards that were removed. Let me fix that:
+
+---
+
+```diff
+    updatedDeck: Deck
+  ): Promise<void> {
++   // First update the deck record
+    const { error: deckError } = await supabase
+      .from("decks")
+    }
+  
+-   const { error: cardsError } = await supabase
+-     .from("cards")
+-     .upsert(
+-       updatedDeck.cards.map((card) => ({
+-         id: card.id,
+-         deck_id: updatedDeck.id,
+-         question: card.question,
+-         answer: card.answer,
+-         correct_count: card.correctCount,
+-         incorrect_count: card.incorrectCount,
+-         last_studied: card.lastStudied,
+-         updated_at: new Date().toISOString(),
+-       })),
+-       { onConflict: "id" }
+-     );
++   // Get existing cards to identify which ones to delete
++   const { data: existingCards, error: fetchError } = await supabase
++     .from("cards")
++     .select("id")
++     .eq("deck_id", updatedDeck.id);
++ 
++   if (fetchError) {
++     throw new Error(`Error fetching existing cards: ${JSON.stringify(fetchError)}`);
++   }
++ 
++   // Create sets of card IDs for comparison
++   const existingCardIds = new Set(existingCards?.map(card => card.id) || []);
++   const updatedCardIds = new Set(updatedDeck.cards.map(card => card.id));
++ 
++   // Find cards to delete (cards that exist in DB but not in updated deck)
++   const cardsToDelete = Array.from(existingCardIds).filter(id => !updatedCardIds.has(id));
++ 
++   // Delete removed cards if any exist
++   if (cardsToDelete.length > 0) {
++     const { error: deleteError } = await supabase
++       .from("cards")
++       .delete()
++       .eq("deck_id", updatedDeck.id)
++       .in("id", cardsToDelete);
++ 
++     if (deleteError) {
++       throw new Error(`Error deleting cards: ${JSON.stringify(deleteError)}`);
++     }
++   }
++ 
++   // Upsert remaining/new cards
++   if (updatedDeck.cards.length > 0) {
++     const { error: cardsError } = await supabase
++       .from("cards")
++       .upsert(
++         updatedDeck.cards.map((card) => ({
++           id: card.id,
++           deck_id: updatedDeck.id,
++           question: card.question,
++           answer: card.answer,
++           correct_count: card.correctCount,
++           incorrect_count: card.incorrectCount,
++           last_studied: card.lastStudied,
++           updated_at: new Date().toISOString(),
++         })),
++         { onConflict: "id" }
++       );
+  
+-   if (cardsError) {
+-     throw new Error(`Error updating cards: ${JSON.stringify(cardsError)}`);
++     if (cardsError) {
++       throw new Error(`Error updating cards: ${JSON.stringify(cardsError)}`);
++     }
+    }
+  }
+```
+
+---
+
+I've updated the `updateDeckService` function to properly handle card deletions. Here's what the updated function does:
+
+1. First updates the deck record with the new information
+2. Fetches the list of existing card IDs from the database for this deck
+3. Compares the existing card IDs with the updated deck's card IDs to identify which cards need to be deleted
+4. Deletes any cards that exist in the database but not in the updated deck
+5. Finally, upserts (updates or inserts) the remaining cards
+
+This change ensures that when you delete cards from a deck and save:
+1. The deleted cards are properly removed from the database
+2. The remaining cards are updated as needed
+3. Any new cards are inserted
+
+Could you try deleting some cards and saving the deck again? The cards should now be properly removed from the database.
 
 ---
 

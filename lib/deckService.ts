@@ -176,6 +176,7 @@ export async function updateDeckService(
   userId: string,
   updatedDeck: Deck
 ): Promise<void> {
+  // First update the deck record
   const { error: deckError } = await supabase
     .from("decks")
     .update({
@@ -194,24 +195,57 @@ export async function updateDeckService(
     throw new Error(`Error updating deck: ${JSON.stringify(deckError)}`);
   }
 
-  const { error: cardsError } = await supabase
+  // Get existing cards to identify which ones to delete
+  const { data: existingCards, error: fetchError } = await supabase
     .from("cards")
-    .upsert(
-      updatedDeck.cards.map((card) => ({
-        id: card.id,
-        deck_id: updatedDeck.id,
-        question: card.question,
-        answer: card.answer,
-        correct_count: card.correctCount,
-        incorrect_count: card.incorrectCount,
-        last_studied: card.lastStudied,
-        updated_at: new Date().toISOString(),
-      })),
-      { onConflict: "id" }
-    );
+    .select("id")
+    .eq("deck_id", updatedDeck.id);
 
-  if (cardsError) {
-    throw new Error(`Error updating cards: ${JSON.stringify(cardsError)}`);
+  if (fetchError) {
+    throw new Error(`Error fetching existing cards: ${JSON.stringify(fetchError)}`);
+  }
+
+  // Create sets of card IDs for comparison
+  const existingCardIds = new Set(existingCards?.map(card => card.id) || []);
+  const updatedCardIds = new Set(updatedDeck.cards.map(card => card.id));
+
+  // Find cards to delete (cards that exist in DB but not in updated deck)
+  const cardsToDelete = Array.from(existingCardIds).filter(id => !updatedCardIds.has(id));
+
+  // Delete removed cards if any exist
+  if (cardsToDelete.length > 0) {
+    const { error: deleteError } = await supabase
+      .from("cards")
+      .delete()
+      .eq("deck_id", updatedDeck.id)
+      .in("id", cardsToDelete);
+
+    if (deleteError) {
+      throw new Error(`Error deleting cards: ${JSON.stringify(deleteError)}`);
+    }
+  }
+
+  // Upsert remaining/new cards
+  if (updatedDeck.cards.length > 0) {
+    const { error: cardsError } = await supabase
+      .from("cards")
+      .upsert(
+        updatedDeck.cards.map((card) => ({
+          id: card.id,
+          deck_id: updatedDeck.id,
+          question: card.question,
+          answer: card.answer,
+          correct_count: card.correctCount,
+          incorrect_count: card.incorrectCount,
+          last_studied: card.lastStudied,
+          updated_at: new Date().toISOString(),
+        })),
+        { onConflict: "id" }
+      );
+
+    if (cardsError) {
+      throw new Error(`Error updating cards: ${JSON.stringify(cardsError)}`);
+    }
   }
 }
 

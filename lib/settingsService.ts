@@ -29,6 +29,7 @@ export async function fetchSettings(
     id: data.id,
     userId: data.user_id,
     appLanguage: data.app_language,
+    languageDialects: data.language_dialects,
   };
 
   return transformedData;
@@ -46,14 +47,17 @@ export async function updateSettings(
   // Convert camelCase keys to snake_case as expected by your database.
   const settingsData = {
     user_id: userId,
-    app_language: settings.appLanguage, // Convert appLanguage to app_language
+    app_language: settings.appLanguage,
+    language_dialects: settings.languageDialects,
     id: settings.id,
   };
 
   const { data, error } = await supabase
     .from("settings")
-    .upsert(settingsData, { onConflict: "user_id", returning: "representation" })
-    .eq("user_id", userId)
+    .upsert(settingsData, { 
+      onConflict: "user_id"
+    })
+    .select('*')
     .maybeSingle();
 
   if (error) {
@@ -61,5 +65,17 @@ export async function updateSettings(
     throw new Error(error.message || "Unknown error updating settings");
   }
 
-  return data as Settings;
+  if (!data) {
+    throw new Error("No data returned after settings update");
+  }
+
+  // Transform data from snake_case to camelCase
+  const transformedData: Settings = {
+    id: (data as any).id,
+    userId: (data as any).user_id,
+    appLanguage: (data as any).app_language,
+    languageDialects: (data as any).language_dialects,
+  };
+
+  return transformedData;
 }

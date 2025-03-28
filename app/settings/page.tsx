@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Save } from "lucide-react";
 import { useSettings } from "@/hooks/use-settings";
+import type { Settings } from "@/hooks/use-settings";
 import { useTTS } from "@/hooks/use-tts";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
@@ -22,11 +23,27 @@ export default function SettingsPage() {
   const { toast } = useToast();
 
   const [appLanguage, setAppLanguage] = useState<string>("en");
+  const [languageDialects, setLanguageDialects] = useState<Settings['languageDialects']>({
+    en: 'en-GB',
+    nl: 'nl-NL',
+    fr: 'fr-FR',
+    de: 'de-DE',
+    es: 'es-ES',
+    it: 'it-IT',
+  });
 
   // Load settings
   useEffect(() => {
     if (!settingsLoading && settings) {
       setAppLanguage(settings.appLanguage || "en");
+      setLanguageDialects(settings.languageDialects || {
+        en: 'en-GB',
+        nl: 'nl-NL',
+        fr: 'fr-FR',
+        de: 'de-DE',
+        es: 'es-ES',
+        it: 'it-IT',
+      });
     }
   }, [settings, settingsLoading]);
 
@@ -34,6 +51,7 @@ export default function SettingsPage() {
     try {
       await updateSettings({
         appLanguage,
+        languageDialects,
       });
       toast({
         title: "Settings saved",
@@ -66,6 +84,10 @@ export default function SettingsPage() {
     english: voices.filter(v => v.lang.toLowerCase().startsWith("en")),
     dutch: voices.filter(v => v.lang.toLowerCase().startsWith("nl")),
     french: voices.filter(v => v.lang.toLowerCase().startsWith("fr")),
+  };
+
+  const onValueChange = (key: keyof Settings['languageDialects']) => (value: string) => {
+    setLanguageDialects(prev => ({...prev, [key]: value}));
   };
 
   return (
@@ -106,6 +128,134 @@ export default function SettingsPage() {
                     <SelectItem value="en">English</SelectItem>
                     <SelectItem value="nl">Dutch</SelectItem>
                     <SelectItem value="fr">French</SelectItem>
+                    <SelectItem value="de">German</SelectItem>
+                    <SelectItem value="es">Spanish</SelectItem>
+                    <SelectItem value="it">Italian</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Language Dialects</CardTitle>
+            <CardDescription>Choose your preferred dialect for each language</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid gap-4">
+              {/* English Dialect */}
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="dialectEn" className="text-right">
+                  English Dialect
+                </Label>
+                <Select 
+                  value={languageDialects.en} 
+                  onValueChange={onValueChange('en')}
+                >
+                  <SelectTrigger id="dialectEn" className="col-span-3">
+                    <SelectValue placeholder="Select English dialect" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="en-GB">English (United Kingdom)</SelectItem>
+                    <SelectItem value="en-US">English (United States)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Dutch Dialect */}
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="dialectNl" className="text-right">
+                  Dutch Dialect
+                </Label>
+                <Select 
+                  value={languageDialects.nl} 
+                  onValueChange={onValueChange('nl')}
+                >
+                  <SelectTrigger id="dialectNl" className="col-span-3">
+                    <SelectValue placeholder="Select Dutch dialect" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="nl-NL">Dutch (Netherlands)</SelectItem>
+                    <SelectItem value="nl-BE">Dutch (Belgium)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* French Dialect */}
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="dialectFr" className="text-right">
+                  French Dialect
+                </Label>
+                <Select 
+                  value={languageDialects.fr} 
+                  onValueChange={onValueChange('fr')}
+                >
+                  <SelectTrigger id="dialectFr" className="col-span-3">
+                    <SelectValue placeholder="Select French dialect" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="fr-FR">French (France)</SelectItem>
+                    <SelectItem value="fr-BE">French (Belgium)</SelectItem>
+                    <SelectItem value="fr-CH">French (Switzerland)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* German Dialect */}
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="dialectDe" className="text-right">
+                  German Dialect
+                </Label>
+                <Select 
+                  value={languageDialects.de} 
+                  onValueChange={onValueChange('de')}
+                >
+                  <SelectTrigger id="dialectDe" className="col-span-3">
+                    <SelectValue placeholder="Select German dialect" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="de-DE">German (Germany)</SelectItem>
+                    <SelectItem value="de-AT">German (Austria)</SelectItem>
+                    <SelectItem value="de-CH">German (Switzerland)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Spanish Dialect */}
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="dialectEs" className="text-right">
+                  Spanish Dialect
+                </Label>
+                <Select 
+                  value={languageDialects.es} 
+                  onValueChange={onValueChange('es')}
+                >
+                  <SelectTrigger id="dialectEs" className="col-span-3">
+                    <SelectValue placeholder="Select Spanish dialect" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="es-ES">Spanish (Spain)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Italian Dialect */}
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="dialectIt" className="text-right">
+                  Italian Dialect
+                </Label>
+                <Select 
+                  value={languageDialects.it} 
+                  onValueChange={onValueChange('it')}
+                >
+                  <SelectTrigger id="dialectIt" className="col-span-3">
+                    <SelectValue placeholder="Select Italian dialect" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="it-IT">Italian (Italy)</SelectItem>
+                    <SelectItem value="it-CH">Italian (Switzerland)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

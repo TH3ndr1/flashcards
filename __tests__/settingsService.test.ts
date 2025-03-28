@@ -20,6 +20,14 @@ describe('settingsService', () => {
         id: 'setting1',
         user_id: 'user1',
         app_language: 'fr',
+        language_dialects: {
+          en: 'en-GB',
+          nl: 'nl-NL',
+          fr: 'fr-FR',
+          de: 'de-DE',
+          es: 'es-ES',
+          it: 'it-IT',
+        },
       };
 
       // Setup chainable mocks for fetching settings
@@ -35,6 +43,14 @@ describe('settingsService', () => {
         id: 'setting1',
         userId: 'user1',
         appLanguage: 'fr',
+        languageDialects: {
+          en: 'en-GB',
+          nl: 'nl-NL',
+          fr: 'fr-FR',
+          de: 'de-DE',
+          es: 'es-ES',
+          it: 'it-IT',
+        },
       });
     });
 
@@ -64,6 +80,14 @@ describe('settingsService', () => {
       id: 'setting1',
       userId: 'user1',
       appLanguage: 'fr',
+      languageDialects: {
+        en: 'en-GB',
+        nl: 'nl-NL',
+        fr: 'fr-FR',
+        de: 'de-DE',
+        es: 'es-ES',
+        it: 'it-IT',
+      },
     };
 
     it('should update settings and return transformed settings', async () => {
@@ -71,6 +95,14 @@ describe('settingsService', () => {
         id: 'setting1',
         user_id: 'user1',
         app_language: 'fr',
+        language_dialects: {
+          en: 'en-GB',
+          nl: 'nl-NL',
+          fr: 'fr-FR',
+          de: 'de-DE',
+          es: 'es-ES',
+          it: 'it-IT',
+        },
       };
 
       // Setup chainable mocks for upserting settings
@@ -92,6 +124,14 @@ describe('settingsService', () => {
         id: 'setting1',
         user_id: 'user1',
         app_language: 'fr',
+        language_dialects: {
+          en: 'en-GB',
+          nl: 'nl-NL',
+          fr: 'fr-FR',
+          de: 'de-DE',
+          es: 'es-ES',
+          it: 'it-IT',
+        },
       });
     });
 

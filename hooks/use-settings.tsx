@@ -12,6 +12,14 @@ export interface Settings {
   id: string;
   userId: string;
   appLanguage: string;
+  languageDialects: {
+    en: string;
+    nl: string;
+    fr: string;
+    de: string;
+    es: string;
+    it: string;
+  };
 }
 
 // Default settings function returns default settings using system language and a random id.
@@ -19,6 +27,14 @@ const DEFAULT_SETTINGS = (userId: string): Settings => ({
   id: crypto.randomUUID(),
   userId,
   appLanguage: detectSystemLanguage(),
+  languageDialects: {
+    en: 'en-GB',  // Default to UK English
+    nl: 'nl-NL',  // Default to Netherlands Dutch
+    fr: 'fr-FR',  // Default to France French
+    de: 'de-DE',  // Default to Germany German
+    es: 'es-ES',  // Default to Spain Spanish
+    it: 'it-IT',  // Default to Italy Italian
+  },
 });
 
 export function useSettings() {
