@@ -11,19 +11,19 @@ import { Label } from "@/components/ui/label";
 import { ArrowLeft, Save } from "lucide-react";
 import { useSettings } from "@/hooks/use-settings";
 import type { Settings } from "@/hooks/use-settings";
-import { useTTS } from "@/hooks/use-tts";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
 
 export default function SettingsPage() {
   const { user } = useAuth();
   const router = useRouter();
   const { settings, updateSettings, loading: settingsLoading } = useSettings();
-  const { voices, loading: voicesLoading } = useTTS();
   const { toast } = useToast();
 
   const [appLanguage, setAppLanguage] = useState<string>("en");
+  const [masteryThreshold, setMasteryThreshold] = useState<number>(3);
   const [languageDialects, setLanguageDialects] = useState<Settings['languageDialects']>({
     en: 'en-GB',
     nl: 'nl-NL',
@@ -37,6 +37,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (!settingsLoading && settings) {
       setAppLanguage(settings.appLanguage || "en");
+      setMasteryThreshold(settings.masteryThreshold || 3);
       setLanguageDialects(settings.languageDialects || {
         en: 'en-GB',
         nl: 'nl-NL',
@@ -48,17 +49,14 @@ export default function SettingsPage() {
     }
   }, [settings, settingsLoading]);
 
-  const handleSave = async () => {
+  // Auto-save settings when they change
+  const handleSettingChange = async (updates: Partial<Settings>) => {
     try {
-      await updateSettings({
-        appLanguage,
-        languageDialects,
-      });
+      await updateSettings(updates);
       toast({
-        title: "Settings saved",
-        description: "Your preferences have been updated.",
+        title: "Settings updated",
+        description: "Your changes have been saved.",
       });
-      router.refresh();
     } catch (error) {
       console.error("Failed to save settings:", error);
       toast({
@@ -69,7 +67,18 @@ export default function SettingsPage() {
     }
   };
 
-  if (settingsLoading || voicesLoading) {
+  const onValueChange = (key: keyof Settings['languageDialects']) => async (value: string) => {
+    const newDialects = { ...languageDialects, [key]: value };
+    setLanguageDialects(newDialects);
+    await handleSettingChange({ languageDialects: newDialects });
+  };
+
+  const handleLanguageChange = async (value: string) => {
+    setAppLanguage(value);
+    await handleSettingChange({ appLanguage: value });
+  };
+
+  if (settingsLoading) {
     return (
       <div className="container mx-auto py-8">
         <div className="flex items-center justify-between mb-8">
@@ -80,33 +89,14 @@ export default function SettingsPage() {
     );
   }
 
-  // Group voices by language
-  const voicesByLanguage = {
-    english: voices.filter(v => v.lang.toLowerCase().startsWith("en")),
-    dutch: voices.filter(v => v.lang.toLowerCase().startsWith("nl")),
-    french: voices.filter(v => v.lang.toLowerCase().startsWith("fr")),
-  };
-
-  const onValueChange = (key: keyof Settings['languageDialects']) => (value: string) => {
-    setLanguageDialects(prev => ({...prev, [key]: value}));
-  };
-
   return (
     <div className="container mx-auto py-8">
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold">Settings</h1>
-        <div className="flex items-center space-x-4">
-          <Link href="/">
-            <Button variant="outline">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back
-            </Button>
-          </Link>
-          <Button onClick={handleSave}>
-            <Save className="mr-2 h-4 w-4" />
-            Save Changes
-          </Button>
-        </div>
+        <Button variant="outline" onClick={() => router.back()}>
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back
+        </Button>
       </div>
 
       <div className="grid gap-6">
@@ -121,7 +111,7 @@ export default function SettingsPage() {
                 <Label htmlFor="appLanguage" className="text-right">
                   Language
                 </Label>
-                <Select value={appLanguage} onValueChange={setAppLanguage}>
+                <Select value={appLanguage} onValueChange={handleLanguageChange}>
                   <SelectTrigger id="appLanguage" className="col-span-3">
                     <SelectValue placeholder="Select language" />
                   </SelectTrigger>
@@ -136,6 +126,32 @@ export default function SettingsPage() {
                 </Select>
               </div>
 
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="masteryThreshold" className="text-right">
+                  Mastery Threshold
+                </Label>
+                <div className="col-span-3 flex items-center gap-4">
+                  <Input
+                    id="masteryThreshold"
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={masteryThreshold}
+                    onChange={(e) => {
+                      const value = parseInt(e.target.value);
+                      if (value >= 1 && value <= 10) {
+                        setMasteryThreshold(value);
+                        handleSettingChange({ masteryThreshold: value });
+                      }
+                    }}
+                    className="w-24"
+                  />
+                  <span className="text-sm text-muted-foreground">
+                    Correct answers needed to master a card (1-10)
+                  </span>
+                </div>
+              </div>
+
               <div className="flex items-center justify-between p-4 border rounded-lg">
                 <div>
                   <h3 className="font-medium">Show Difficulty Indicators</h3>
@@ -145,20 +161,7 @@ export default function SettingsPage() {
                 </div>
                 <Switch
                   checked={settings?.showDifficulty ?? true}
-                  onCheckedChange={(checked) => updateSettings({ showDifficulty: checked })}
-                />
-              </div>
-
-              <div className="flex items-center justify-between p-4 border rounded-lg">
-                <div>
-                  <h3 className="font-medium">Text-to-Speech</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Enable or disable text-to-speech functionality
-                  </p>
-                </div>
-                <Switch
-                  checked={settings?.ttsEnabled ?? true}
-                  onCheckedChange={(checked) => updateSettings({ ttsEnabled: checked })}
+                  onCheckedChange={(checked) => handleSettingChange({ showDifficulty: checked })}
                 />
               </div>
             </div>
@@ -167,22 +170,35 @@ export default function SettingsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Language Dialects</CardTitle>
-            <CardDescription>Choose your preferred dialect for each language</CardDescription>
+            <CardTitle>Speech Settings</CardTitle>
+            <CardDescription>Configure text-to-speech and language preferences</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div>
+                <h3 className="font-medium">Text-to-Speech</h3>
+                <p className="text-sm text-muted-foreground">
+                  Enable or disable text-to-speech functionality
+                </p>
+              </div>
+              <Switch
+                checked={settings?.ttsEnabled ?? true}
+                onCheckedChange={(checked) => handleSettingChange({ ttsEnabled: checked })}
+              />
+            </div>
+
             <div className="grid gap-4">
-              {/* English Dialect */}
+              {/* English */}
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="dialectEn" className="text-right">
-                  English Dialect
+                  English
                 </Label>
                 <Select 
                   value={languageDialects.en} 
                   onValueChange={onValueChange('en')}
                 >
                   <SelectTrigger id="dialectEn" className="col-span-3">
-                    <SelectValue placeholder="Select English dialect" />
+                    <SelectValue placeholder="Select English variant" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="en-GB">English (United Kingdom)</SelectItem>
@@ -191,17 +207,17 @@ export default function SettingsPage() {
                 </Select>
               </div>
 
-              {/* Dutch Dialect */}
+              {/* Dutch */}
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="dialectNl" className="text-right">
-                  Dutch Dialect
+                  Dutch
                 </Label>
                 <Select 
                   value={languageDialects.nl} 
                   onValueChange={onValueChange('nl')}
                 >
                   <SelectTrigger id="dialectNl" className="col-span-3">
-                    <SelectValue placeholder="Select Dutch dialect" />
+                    <SelectValue placeholder="Select Dutch variant" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="nl-NL">Dutch (Netherlands)</SelectItem>
@@ -210,17 +226,17 @@ export default function SettingsPage() {
                 </Select>
               </div>
 
-              {/* French Dialect */}
+              {/* French */}
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="dialectFr" className="text-right">
-                  French Dialect
+                  French
                 </Label>
                 <Select 
                   value={languageDialects.fr} 
                   onValueChange={onValueChange('fr')}
                 >
                   <SelectTrigger id="dialectFr" className="col-span-3">
-                    <SelectValue placeholder="Select French dialect" />
+                    <SelectValue placeholder="Select French variant" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="fr-FR">French (France)</SelectItem>
@@ -230,17 +246,17 @@ export default function SettingsPage() {
                 </Select>
               </div>
 
-              {/* German Dialect */}
+              {/* German */}
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="dialectDe" className="text-right">
-                  German Dialect
+                  German
                 </Label>
                 <Select 
                   value={languageDialects.de} 
                   onValueChange={onValueChange('de')}
                 >
                   <SelectTrigger id="dialectDe" className="col-span-3">
-                    <SelectValue placeholder="Select German dialect" />
+                    <SelectValue placeholder="Select German variant" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="de-DE">German (Germany)</SelectItem>
@@ -250,17 +266,17 @@ export default function SettingsPage() {
                 </Select>
               </div>
 
-              {/* Spanish Dialect */}
+              {/* Spanish */}
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="dialectEs" className="text-right">
-                  Spanish Dialect
+                  Spanish
                 </Label>
                 <Select 
                   value={languageDialects.es} 
                   onValueChange={onValueChange('es')}
                 >
                   <SelectTrigger id="dialectEs" className="col-span-3">
-                    <SelectValue placeholder="Select Spanish dialect" />
+                    <SelectValue placeholder="Select Spanish variant" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="es-ES">Spanish (Spain)</SelectItem>
@@ -268,17 +284,17 @@ export default function SettingsPage() {
                 </Select>
               </div>
 
-              {/* Italian Dialect */}
+              {/* Italian */}
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="dialectIt" className="text-right">
-                  Italian Dialect
+                  Italian
                 </Label>
                 <Select 
                   value={languageDialects.it} 
                   onValueChange={onValueChange('it')}
                 >
                   <SelectTrigger id="dialectIt" className="col-span-3">
-                    <SelectValue placeholder="Select Italian dialect" />
+                    <SelectValue placeholder="Select Italian variant" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="it-IT">Italian (Italy)</SelectItem>
@@ -286,27 +302,6 @@ export default function SettingsPage() {
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Voice Settings</CardTitle>
-            <CardDescription>Using Google Cloud Text-to-Speech for high-quality voices</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <p>This application uses Google Cloud Text-to-Speech for voice synthesis:</p>
-              <ul className="list-disc pl-6 space-y-2">
-                <li>English: High-quality US English voice</li>
-                <li>Dutch: Natural-sounding Dutch voice</li>
-                <li>French: Professional French voice</li>
-              </ul>
-              <p className="text-sm text-muted-foreground mt-4">
-                These voices are automatically selected based on your language preference and provide consistent,
-                high-quality speech powered by Google&apos;s advanced neural networks.
-              </p>
             </div>
           </CardContent>
         </Card>

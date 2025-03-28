@@ -20,11 +20,11 @@ import { useToast } from "@/hooks/use-toast"
 
 // Extracted Utils & Constants
 import {
+  DEFAULT_MASTERY_THRESHOLD,
   prepareStudyCards,
   prepareDifficultCards,
   calculateMasteredCount,
   calculateDifficultyScore,
-  MASTERY_THRESHOLD,
   TTS_DELAY_MS,
   DECK_LOAD_RETRY_DELAY_MS,
   MAX_DECK_LOAD_RETRIES,
@@ -64,27 +64,28 @@ export default function StudyDeckPage() {
 
   // --- Derived State ---
   const totalCards = useMemo(() => deck?.cards?.length ?? 0, [deck])
-  const masteredCount = useMemo(() => calculateMasteredCount(deck?.cards ?? []), [deck]) // Using helper
+  const masteredCount = useMemo(() => calculateMasteredCount(deck?.cards ?? [], settings), [deck, settings])
   const currentStudyCard = useMemo(() => studyCards?.[currentCardIndex], [studyCards, currentCardIndex])
   const currentDeckCard = useMemo(() => deck?.cards.find(card => card.id === currentStudyCard?.id), [deck, currentStudyCard])
   const currentCardCorrectCount = useMemo(() => currentDeckCard?.correctCount || 0, [currentDeckCard])
 
   // Progress Calculations
-  const totalRequiredCorrectAnswers = useMemo(() => totalCards * MASTERY_THRESHOLD, [totalCards])
+  const masteryThreshold = settings?.masteryThreshold ?? DEFAULT_MASTERY_THRESHOLD;
+  const totalRequiredCorrectAnswers = useMemo(() => totalCards * masteryThreshold, [totalCards, masteryThreshold]);
   const totalAchievedCorrectAnswers = useMemo(() =>
     deck?.cards?.reduce((sum, card) => sum + (card.correctCount || 0), 0) ?? 0,
     [deck]
-  )
+  );
   const overallProgressPercent = useMemo(() =>
     totalRequiredCorrectAnswers > 0
       ? Math.round((totalAchievedCorrectAnswers / totalRequiredCorrectAnswers) * 100)
       : 0,
     [totalAchievedCorrectAnswers, totalRequiredCorrectAnswers]
-  )
+  );
   const masteryProgressPercent = useMemo(() =>
     totalCards > 0 ? Math.round((masteredCount / totalCards) * 100) : 0,
     [masteredCount, totalCards]
-  )
+  );
 
 
   // --- Effects ---
@@ -93,12 +94,6 @@ export default function StudyDeckPage() {
   useEffect(() => {
     let isMounted = true
     const loadDeckData = async () => {
-      // ... (Keep the existing loadDeckData logic from the previous refactor)
-      // Important: Inside loadDeckData, use the imported helpers:
-      // const initialStudyCards = prepareStudyCards(loadedDeck.cards);
-      // const initialMasteredCount = calculateMasteredCount(loadedDeck.cards); // No longer needed here as masteredCount is derived state
-      // ... rest of the logic ...
-
       if (!deckId || hasLoadedInitiallyRef.current) return
 
       setIsLoading(true)
@@ -117,7 +112,7 @@ export default function StudyDeckPage() {
               throw new Error("Invalid deck data: 'cards' is not an array.")
             }
 
-            const initialStudyCards = prepareStudyCards(loadedDeck.cards); // Use helper
+            const initialStudyCards = prepareStudyCards(loadedDeck.cards, settings)
 
             if (isMounted) {
               setDeck(loadedDeck)
@@ -162,12 +157,11 @@ export default function StudyDeckPage() {
       isMounted = false
       console.log("StudyDeckPage unmounting or deckId changed.")
     }
-  }, [deckId, getDeck]) // Dependency: only re-run if deckId or getDeck changes
+  }, [deckId, getDeck, settings]) // Dependency: only re-run if deckId or getDeck changes
 
 
   // Effect: Speak question
   useEffect(() => {
-    // ... (Keep the existing TTS effect logic from the previous refactor)
     if (isLoading || isFlipped || isTransitioning || !settings?.ttsEnabled || !currentStudyCard?.question || !deck) {
       return
     }
@@ -204,8 +198,7 @@ export default function StudyDeckPage() {
 
   // Callback: Handle flipping the card
   const handleFlip = useCallback(() => {
-    // ... (Keep the existing handleFlip logic)
-     if (isTransitioning || !currentStudyCard?.answer || !deck) return
+    if (isTransitioning || !currentStudyCard?.answer || !deck) return
 
     const willBeFlipped = !isFlipped
     setIsFlipped(willBeFlipped)
@@ -264,8 +257,8 @@ export default function StudyDeckPage() {
         // Calculate new difficulty score
         updatedCard.difficultyScore = calculateDifficultyScore(updatedCard);
 
-        // Use same mastery condition for both modes
-        cardJustMastered = newCorrectCount >= MASTERY_THRESHOLD && oldCorrectCount < MASTERY_THRESHOLD;
+        // Use settings-based mastery threshold
+        cardJustMastered = newCorrectCount >= masteryThreshold && oldCorrectCount < masteryThreshold;
 
         return updatedCard;
       }
@@ -279,9 +272,6 @@ export default function StudyDeckPage() {
         if (updatedDeckCard) {
           return {
             ...card,
-            correctCount: updatedDeckCard.correctCount,
-            incorrectCount: updatedDeckCard.incorrectCount,
-            attemptCount: updatedDeckCard.attemptCount,
             lastStudied: updatedDeckCard.lastStudied,
             difficultyScore: updatedDeckCard.difficultyScore
           };
@@ -298,51 +288,40 @@ export default function StudyDeckPage() {
 
       if (nextStudyCards.length === 0) {
         // Study session complete
-        console.log("All cards mastered in this session!");
+        console.log("All available cards mastered in this session.");
+        // No index change needed, component will re-render to completion state
       } else {
-        // If the removed card was the last, loop back to the start
-        nextCardIndex = currentCardIndex >= nextStudyCards.length ? 0 : currentCardIndex;
+        // Adjust index if needed
+        nextCardIndex = Math.min(currentCardIndex, nextStudyCards.length - 1);
       }
     } else {
-      // Card not mastered, move to the next card
+      // For non-mastered cards, move to next card
       nextCardIndex = (currentCardIndex + 1) % nextStudyCards.length;
     }
 
-    // --- Prepare Updated Deck Object ---
-    const newMasteredCount = calculateMasteredCount(updatedDeckCards);
-    const updatedDeckData: Deck = {
+    // Update deck and study cards
+    const updatedDeck = {
       ...deck,
       cards: updatedDeckCards,
-      progress: {
-        ...deck.progress,
-        correct: newMasteredCount,
-        studyingDifficult: deck.progress?.studyingDifficult, // Preserve the studying difficult flag
-      },
     };
 
-    // --- Update State ---
-    setDeck(updatedDeckData);
+    setDeck(updatedDeck);
     setStudyCards(nextStudyCards);
     setCurrentCardIndex(nextCardIndex);
 
-    // --- Wait for flip animation to complete ---
-    await new Promise(resolve => setTimeout(resolve, FLIP_ANIMATION_DURATION_MS - FLIP_ANIMATION_MIDPOINT_MS));
-    setIsTransitioning(false);
-
-    // --- Persist Changes ---
     try {
-      console.log("Saving updated deck progress...");
-      await updateDeck(updatedDeckData);
-      console.log("Deck progress saved.");
-    } catch (err) {
-      console.error("Error updating deck:", err);
+      await updateDeck(updatedDeck);
+    } catch (error) {
+      console.error("Error updating deck:", error);
       toast({
         title: "Error Saving Progress",
         description: "Could not save your latest progress. Please try again later.",
         variant: "destructive",
       });
     }
-  }, [deck, studyCards, currentCardIndex, isTransitioning, updateDeck, toast]);
+
+    setIsTransitioning(false);
+  }, [deck, studyCards, currentCardIndex, isTransitioning, updateDeck, toast, masteryThreshold]);
 
 
   // Callback: Handle resetting progress for the deck
@@ -362,11 +341,6 @@ export default function StudyDeckPage() {
     const resetDeck: Deck = {
       ...deck,
       cards: resetCards,
-      progress: {
-        ...deck.progress,
-        correct: 0, // Reset mastered count
-        studyingDifficult: false, // Reset studying difficult mode
-      },
     }
 
     try {
@@ -374,7 +348,7 @@ export default function StudyDeckPage() {
 
       // Reset local state to reflect the change
       setDeck(resetDeck)
-      setStudyCards(prepareStudyCards(resetCards)) // Use helper
+      setStudyCards(prepareStudyCards(resetCards, settings))
       setCurrentCardIndex(0)
       setIsFlipped(false)
       setError(null) // Clear any previous errors
@@ -391,7 +365,7 @@ export default function StudyDeckPage() {
         variant: "destructive",
       })
     }
-  }, [deck, updateDeck, toast])
+  }, [deck, updateDeck, toast, settings])
 
 
   // --- Render Logic ---
@@ -682,9 +656,9 @@ export default function StudyDeckPage() {
      )
   }
 
-  const remainingCount = MASTERY_THRESHOLD - currentCardCorrectCount;
-  const cardProgressText = `${currentCardCorrectCount} / ${MASTERY_THRESHOLD} correct ${
-    remainingCount > 0 ? `(${remainingCount} more)` : '(Mastered!)'
+  const remainingCount = masteryThreshold - currentCardCorrectCount;
+  const cardProgressText = `${currentCardCorrectCount} / ${masteryThreshold} correct${
+    currentCardCorrectCount >= masteryThreshold ? ' (Mastered!)' : ''
   }`;
 
   return (
@@ -717,16 +691,14 @@ export default function StudyDeckPage() {
                 deck.progress?.studyingDifficult && "border-amber-500"
               )}>
                 <CardHeader className="text-center text-sm text-muted-foreground bg-muted/50 border-b py-3">
-                  <div className="flex items-center justify-between">
-                    <div className="w-1/3 text-left text-xs font-medium">Card {currentCardIndex + 1} of {studyCards.length}</div>
-                    <div className="w-1/3 text-center text-xs font-medium">{cardProgressText}</div>
-                    <div className="w-1/3 flex justify-end">
-                      {settings?.showDifficulty && (
-                        <DifficultyIndicator 
-                          difficultyScore={currentStudyCard.difficultyScore ?? null} 
-                        />
-                      )}
-                    </div>
+                  <div className="flex justify-between items-center">
+                    <div className="text-xs font-medium">Card {currentCardIndex + 1} of {studyCards.length}</div>
+                    <div className="text-xs font-medium">{cardProgressText}</div>
+                    {settings?.showDifficulty && (
+                      <DifficultyIndicator 
+                        difficultyScore={currentStudyCard.difficultyScore ?? null} 
+                      />
+                    )}
                   </div>
                 </CardHeader>
                 <CardContent className="flex-grow flex items-center justify-center p-6 text-center">
@@ -743,16 +715,14 @@ export default function StudyDeckPage() {
                 deck.progress?.studyingDifficult && "border-amber-500"
               )}>
                 <CardHeader className="text-center text-sm text-muted-foreground bg-muted/50 border-b py-3">
-                  <div className="flex items-center justify-between">
-                    <div className="w-1/3 text-left text-xs font-medium">Card {currentCardIndex + 1} of {studyCards.length}</div>
-                    <div className="w-1/3 text-center text-xs font-medium">{cardProgressText}</div>
-                    <div className="w-1/3 flex justify-end">
-                      {settings?.showDifficulty && (
-                        <DifficultyIndicator 
-                          difficultyScore={currentStudyCard.difficultyScore ?? null} 
-                        />
-                      )}
-                    </div>
+                  <div className="flex justify-between items-center">
+                    <div className="text-xs font-medium">Card {currentCardIndex + 1} of {studyCards.length}</div>
+                    <div className="text-xs font-medium">{cardProgressText}</div>
+                    {settings?.showDifficulty && (
+                      <DifficultyIndicator 
+                        difficultyScore={currentStudyCard.difficultyScore ?? null} 
+                      />
+                    )}
                   </div>
                 </CardHeader>
                 <CardContent className="flex-grow flex items-center justify-center p-6 text-center">

@@ -1,9 +1,10 @@
 // src/lib/study-utils.ts
 import type { FlashCard } from "@/types/deck";
+import type { Settings } from "@/providers/settings-provider";
 
 // --- Constants ---
-// Exporting from here makes it the single source of truth
-export const MASTERY_THRESHOLD = 3;
+// Default value, but actual threshold comes from settings
+export const DEFAULT_MASTERY_THRESHOLD = 3;
 export const TTS_DELAY_MS = 100;
 export const DECK_LOAD_RETRY_DELAY_MS = 500;
 export const MAX_DECK_LOAD_RETRIES = 5;
@@ -25,11 +26,13 @@ export const ATTEMPTS_NORMALIZATION_FACTOR = 5; // Constant C for attempt normal
 /**
  * Prepares cards for a study session, excluding mastered cards and applying weighted randomization.
  */
-export const prepareStudyCards = (cards: FlashCard[]): FlashCard[] => {
+export const prepareStudyCards = (cards: FlashCard[], settings?: Settings | null): FlashCard[] => {
   if (!Array.isArray(cards)) return [];
 
+  const threshold = settings?.masteryThreshold ?? DEFAULT_MASTERY_THRESHOLD;
+
   const availableCards = cards.filter(
-    (card) => card && (card.correctCount || 0) < MASTERY_THRESHOLD
+    (card) => card && (card.correctCount || 0) < threshold
   );
 
   if (availableCards.length === 0) return [];
@@ -61,9 +64,10 @@ export const prepareStudyCards = (cards: FlashCard[]): FlashCard[] => {
 /**
  * Calculates the mastery count for a given set of cards.
  */
-export const calculateMasteredCount = (cards: FlashCard[]): number => {
+export const calculateMasteredCount = (cards: FlashCard[], settings?: Settings | null): number => {
   if (!Array.isArray(cards)) return 0;
-  return cards.filter((card) => card && (card.correctCount || 0) >= MASTERY_THRESHOLD).length;
+  const threshold = settings?.masteryThreshold ?? DEFAULT_MASTERY_THRESHOLD;
+  return cards.filter((card) => card && (card.correctCount || 0) >= threshold).length;
 };
 
 /**

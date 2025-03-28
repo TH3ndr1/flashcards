@@ -1,6 +1,6 @@
 // src/components/study/deck-header.tsx
 import Link from "next/link";
-import { ArrowLeft, RotateCcw, Info } from "lucide-react";
+import { ArrowLeft, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -13,13 +13,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { MASTERY_THRESHOLD } from "@/lib/study-utils"; // Import constant
 
 interface DeckHeaderProps {
   deckName: string;
@@ -39,18 +32,6 @@ export function DeckHeader({ deckName, onReset, showReset }: DeckHeaderProps) {
         <h1 className="text-2xl font-bold truncate" title={deckName}>{deckName}</h1>
       </div>
       <div className="flex items-center space-x-2">
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full">
-                <Info className="h-4 w-4 text-muted-foreground" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Cards are mastered after {MASTERY_THRESHOLD} correct answers.</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
         {showReset && (
           <AlertDialog>
             <AlertDialogTrigger asChild>

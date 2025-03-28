@@ -1,7 +1,8 @@
 // File: lib/settingsService.ts
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Settings } from '@/hooks/use-settings';
+import type { Settings } from '@/providers/settings-provider';
+import { DEFAULT_MASTERY_THRESHOLD } from '@/lib/study-utils';
 
 /**
  * Fetches the settings for a given user from the Supabase "settings" table.
@@ -32,6 +33,7 @@ export async function fetchSettings(
     languageDialects: data.language_dialects,
     ttsEnabled: data.tts_enabled ?? true,
     showDifficulty: data.show_difficulty ?? true,
+    masteryThreshold: data.mastery_threshold ?? DEFAULT_MASTERY_THRESHOLD,
   };
 
   return transformedData;
@@ -53,6 +55,7 @@ export async function updateSettings(
     language_dialects: settings.languageDialects,
     tts_enabled: settings.ttsEnabled,
     show_difficulty: settings.showDifficulty,
+    mastery_threshold: settings.masteryThreshold,
     id: settings.id,
   };
 
@@ -81,6 +84,7 @@ export async function updateSettings(
     languageDialects: (data as any).language_dialects,
     ttsEnabled: (data as any).tts_enabled ?? true,
     showDifficulty: (data as any).show_difficulty ?? true,
+    masteryThreshold: (data as any).mastery_threshold ?? DEFAULT_MASTERY_THRESHOLD,
   };
 
   return transformedData;

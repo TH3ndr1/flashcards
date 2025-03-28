@@ -13,6 +13,7 @@ export interface Settings {
   appLanguage: string;
   ttsEnabled: boolean;
   showDifficulty: boolean;
+  masteryThreshold: number;
   languageDialects: {
     en: string;
     nl: string;
@@ -30,6 +31,7 @@ const DEFAULT_SETTINGS = (userId: string): Settings => ({
   appLanguage: detectSystemLanguage(),
   ttsEnabled: true,
   showDifficulty: true,
+  masteryThreshold: 3,
   languageDialects: {
     en: 'en-GB',  // Default to UK English
     nl: 'nl-NL',  // Default to Netherlands Dutch
