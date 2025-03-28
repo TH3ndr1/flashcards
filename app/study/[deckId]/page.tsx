@@ -168,12 +168,14 @@ export default function StudyDeckPage() {
     
     // Add a small delay before speaking to ensure everything is ready
     const timeoutId = setTimeout(() => {
-      console.log("Speaking question in", language, ":", currentCard.question)
-      speak(currentCard.question, language)
+      if (settings?.ttsEnabled) {
+        console.log("Speaking question in", language, ":", currentCard.question)
+        speak(currentCard.question, language)
+      }
     }, TTS_DELAY)
     
     return () => clearTimeout(timeoutId)
-  }, [deck, studyCards, currentCardIndex, isFlipped, loading, setLanguage, speak])
+  }, [deck, studyCards, currentCardIndex, isFlipped, loading, setLanguage, speak, settings?.ttsEnabled])
 
   // Memoized handler for flipping the card.
   const handleFlip = useCallback(() => {
@@ -184,7 +186,7 @@ export default function StudyDeckPage() {
 
     setIsFlipped((prev) => !prev)
 
-    if (!isFlipped) {
+    if (!isFlipped && settings?.ttsEnabled) {
       // For bilingual decks, switch to answer language before speaking
       if (deck.isBilingual) {
         console.log("Switching to answer language:", deck.answerLanguage)
@@ -202,7 +204,7 @@ export default function StudyDeckPage() {
         speak(currentCard.answer, deck.language)
       }
     }
-  }, [isFlipped, studyCards, currentCardIndex, speak, deck, setLanguage])
+  }, [isFlipped, studyCards, currentCardIndex, speak, deck, setLanguage, settings?.ttsEnabled])
 
   // Memoized handler for answering a card.
   const handleAnswer = useCallback(

@@ -54,6 +54,12 @@ export function useTTS() {
 
   // Speak text using Google Cloud TTS
   const speak = useCallback(async (text: string, language?: string) => {
+    // Check if TTS is enabled in settings, return early if disabled
+    if (!settings?.ttsEnabled) {
+      console.log('TTS is disabled in settings');
+      return;
+    }
+
     if (!text.trim()) return
 
     try {

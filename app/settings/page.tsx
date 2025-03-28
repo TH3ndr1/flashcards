@@ -14,6 +14,7 @@ import type { Settings } from "@/hooks/use-settings";
 import { useTTS } from "@/hooks/use-tts";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { Switch } from "@/components/ui/switch";
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -145,6 +146,19 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid gap-4">
+              <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div>
+                  <h3 className="font-medium">Text-to-Speech</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Enable or disable text-to-speech functionality
+                  </p>
+                </div>
+                <Switch
+                  checked={settings?.ttsEnabled ?? true}
+                  onCheckedChange={(checked) => updateSettings({ ttsEnabled: checked })}
+                />
+              </div>
+
               {/* English Dialect */}
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="dialectEn" className="text-right">

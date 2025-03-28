@@ -30,6 +30,7 @@ export async function fetchSettings(
     userId: data.user_id,
     appLanguage: data.app_language,
     languageDialects: data.language_dialects,
+    ttsEnabled: data.tts_enabled ?? true,
   };
 
   return transformedData;
@@ -49,6 +50,7 @@ export async function updateSettings(
     user_id: userId,
     app_language: settings.appLanguage,
     language_dialects: settings.languageDialects,
+    tts_enabled: settings.ttsEnabled,
     id: settings.id,
   };
 
@@ -75,6 +77,7 @@ export async function updateSettings(
     userId: (data as any).user_id,
     appLanguage: (data as any).app_language,
     languageDialects: (data as any).language_dialects,
+    ttsEnabled: (data as any).tts_enabled ?? true,
   };
 
   return transformedData;

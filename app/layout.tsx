@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toaster"
 import { AuthProvider } from "@/hooks/use-auth"
 import LayoutScript from "./layout-script"
+import { Header } from "@/components/header"
 
 export const metadata: Metadata = {
   title: "StudyCards - Interactive Flashcard App",
@@ -37,7 +38,14 @@ export default function RootLayout({
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <AuthProvider>
-            {children}
+            <div className="relative flex min-h-screen flex-col">
+              <div className="flex-1">
+                <div className="container mx-auto py-8">
+                  <Header />
+                  {children}
+                </div>
+              </div>
+            </div>
             <Toaster />
           </AuthProvider>
         </ThemeProvider>
