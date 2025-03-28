@@ -5,6 +5,7 @@ import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toaster"
 import { AuthProvider } from "@/hooks/use-auth"
+import { SettingsProvider } from "@/providers/settings-provider"
 import LayoutScript from "./layout-script"
 import { Header } from "@/components/header"
 
@@ -38,15 +39,17 @@ export default function RootLayout({
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <AuthProvider>
-            <div className="relative flex min-h-screen flex-col">
-              <div className="flex-1">
-                <div className="container mx-auto py-8">
-                  <Header />
-                  {children}
+            <SettingsProvider>
+              <div className="relative flex min-h-screen flex-col">
+                <div className="flex-1">
+                  <div className="container mx-auto py-8">
+                    <Header />
+                    {children}
+                  </div>
                 </div>
               </div>
-            </div>
-            <Toaster />
+              <Toaster />
+            </SettingsProvider>
           </AuthProvider>
         </ThemeProvider>
         <LayoutScript />
