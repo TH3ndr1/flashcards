@@ -5,6 +5,8 @@ export interface FlashCard {
   correctCount: number
   incorrectCount: number
   lastStudied: string | null
+  attemptCount: number // Total number of attempts
+  difficultyScore: number // Calculated difficulty score
 }
 
 export interface Deck {

@@ -20,7 +20,9 @@ export async function fetchDecks(supabase: SupabaseClient, userId: string): Prom
         answer,
         correct_count,
         incorrect_count,
-        last_studied
+        last_studied,
+        attempt_count,
+        difficulty_score
       )
     `)
     .eq("user_id", userId)
@@ -48,6 +50,8 @@ export async function fetchDecks(supabase: SupabaseClient, userId: string): Prom
       correctCount: card.correct_count || 0,
       incorrectCount: card.incorrect_count || 0,
       lastStudied: card.last_studied,
+      attemptCount: card.attempt_count || 0,
+      difficultyScore: card.difficulty_score || 0
     })),
     progress: deck.progress || { correct: 0, total: 0 },
   }));
@@ -139,7 +143,9 @@ export async function getDeckService(
         answer,
         correct_count,
         incorrect_count,
-        last_studied
+        last_studied,
+        attempt_count,
+        difficulty_score
       )
     `)
     .eq("id", deckId)
@@ -165,6 +171,8 @@ export async function getDeckService(
       correctCount: card.correct_count || 0,
       incorrectCount: card.incorrect_count || 0,
       lastStudied: card.last_studied,
+      attemptCount: card.attempt_count || 0,
+      difficultyScore: card.difficulty_score || 0
     })),
     progress: data.progress || { correct: 0, total: 0 },
   };
@@ -205,14 +213,36 @@ export async function updateDeckService(
     throw new Error(`Error fetching existing cards: ${JSON.stringify(fetchError)}`);
   }
 
-  // Create sets of card IDs for comparison
-  const existingCardIds = new Set(existingCards?.map(card => card.id) || []);
-  const updatedCardIds = new Set(updatedDeck.cards.map(card => card.id));
+  // Prepare card updates/inserts
+  const cardUpserts = updatedDeck.cards.map((card) => ({
+    id: card.id,
+    deck_id: updatedDeck.id,
+    question: card.question,
+    answer: card.answer,
+    correct_count: card.correctCount,
+    incorrect_count: card.incorrectCount,
+    last_studied: card.lastStudied,
+    attempt_count: card.attemptCount,
+    difficulty_score: card.difficultyScore,
+    updated_at: new Date().toISOString(),
+  }));
 
-  // Find cards to delete (cards that exist in DB but not in updated deck)
-  const cardsToDelete = Array.from(existingCardIds).filter(id => !updatedCardIds.has(id));
+  // Update all cards in a single operation
+  const { error: cardsError } = await supabase
+    .from("cards")
+    .upsert(cardUpserts, { onConflict: "id" });
 
-  // Delete removed cards if any exist
+  if (cardsError) {
+    throw new Error(`Error updating cards: ${JSON.stringify(cardsError)}`);
+  }
+
+  // Delete cards that are no longer in the deck
+  const existingCardIds = new Set(existingCards?.map((c: any) => c.id) || []);
+  const updatedCardIds = new Set(updatedDeck.cards.map((c) => c.id));
+  const cardsToDelete = Array.from(existingCardIds).filter(
+    (id) => !updatedCardIds.has(id)
+  );
+
   if (cardsToDelete.length > 0) {
     const { error: deleteError } = await supabase
       .from("cards")
@@ -221,30 +251,7 @@ export async function updateDeckService(
       .in("id", cardsToDelete);
 
     if (deleteError) {
-      throw new Error(`Error deleting cards: ${JSON.stringify(deleteError)}`);
-    }
-  }
-
-  // Upsert remaining/new cards
-  if (updatedDeck.cards.length > 0) {
-    const { error: cardsError } = await supabase
-      .from("cards")
-      .upsert(
-        updatedDeck.cards.map((card) => ({
-          id: card.id,
-          deck_id: updatedDeck.id,
-          question: card.question,
-          answer: card.answer,
-          correct_count: card.correctCount,
-          incorrect_count: card.incorrectCount,
-          last_studied: card.lastStudied,
-          updated_at: new Date().toISOString(),
-        })),
-        { onConflict: "id" }
-      );
-
-    if (cardsError) {
-      throw new Error(`Error updating cards: ${JSON.stringify(cardsError)}`);
+      throw new Error(`Error deleting removed cards: ${JSON.stringify(deleteError)}`);
     }
   }
 }
