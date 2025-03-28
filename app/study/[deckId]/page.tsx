@@ -210,12 +210,21 @@ export default function StudyDeckPage() {
   const handleAnswer = useCallback(
     async (correct: boolean) => {
       if (!deck || !studyCards.length) return
-  
+      
+      setIsTransitioning(true)
+      // First start the flip back animation
+      setIsFlipped(false)
+      
+      // Wait until card is halfway through the flip (when it's not visible) before updating content
+      await new Promise(resolve => setTimeout(resolve, 200))
+      
       const updatedCards = [...deck.cards]
       const currentCard = studyCards[currentCardIndex]
       if (!currentCard) return
-  
+
       const cardIndex = updatedCards.findIndex((c) => c.id === currentCard.id)
+      
+      // Update card counts and progress
       if (cardIndex !== -1) {
         // Store the current correctCount before updating
         const currentCorrectCount = updatedCards[cardIndex].correctCount || 0
@@ -232,19 +241,43 @@ export default function StudyDeckPage() {
             : updatedCards[cardIndex].incorrectCount || 0,
           lastStudied: new Date().toISOString(),
         }
-  
+
         // Check if the card just became mastered
         if (newCorrectCount >= MASTERY_THRESHOLD && wasNotMastered) {
           console.log(`Card ${currentCard.id} mastered! Correct count: ${newCorrectCount}`)
           setMasteredCount((prev) => prev + 1)
         }
       }
-  
+
+      // Determine next card index
+      let nextIndex = currentCardIndex
+      if (cardIndex !== -1 && updatedCards[cardIndex].correctCount >= MASTERY_THRESHOLD) {
+        const updatedStudyCards = studyCards.filter(card => card.id !== currentCard.id)
+        setStudyCards(updatedStudyCards)
+        
+        if (updatedStudyCards.length === 0) {
+          setIsTransitioning(false)
+          return
+        }
+        
+        nextIndex = currentCardIndex >= updatedStudyCards.length ? 0 : currentCardIndex
+      } else {
+        const availableIndices = studyCards
+          .map((_, index) => index)
+          .filter(index => index !== currentCardIndex)
+
+        if (correct && availableIndices.length > 0) {
+          nextIndex = availableIndices[Math.floor(Math.random() * availableIndices.length)]
+        } else {
+          nextIndex = currentCardIndex < studyCards.length - 1 ? currentCardIndex + 1 : 0
+        }
+      }
+
       // Update deck progress
       const correctCards = updatedCards.filter(
         (card) => card && card.correctCount >= MASTERY_THRESHOLD
       ).length
-  
+
       const updatedDeck = {
         ...deck,
         cards: updatedCards,
@@ -253,9 +286,17 @@ export default function StudyDeckPage() {
           correct: correctCards,
         },
       }
-  
+
       setDeck(updatedDeck)
-  
+
+      // Update the current card index
+      setCurrentCardIndex(nextIndex)
+      
+      // Wait for the flip animation to complete
+      await new Promise(resolve => setTimeout(resolve, 300))
+      setIsTransitioning(false)
+
+      // Save progress to the database
       try {
         await updateDeck(updatedDeck)
       } catch (error) {
@@ -266,45 +307,6 @@ export default function StudyDeckPage() {
           variant: "destructive",
         })
       }
-  
-      // Update study cards if the card is now mastered
-      if (
-        cardIndex !== -1 &&
-        updatedCards[cardIndex].correctCount >= MASTERY_THRESHOLD
-      ) {
-        console.log("Removing mastered card from study deck")
-        const updatedStudyCards = studyCards.filter(card => card.id !== currentCard.id)
-        setStudyCards(updatedStudyCards)
-        
-        if (updatedStudyCards.length === 0) {
-          setIsFlipped(false)
-          return
-        }
-        
-        // Adjust currentCardIndex if needed
-        if (currentCardIndex >= updatedStudyCards.length) {
-          setCurrentCardIndex(0)
-        }
-      } else {
-        // Create array of available indices excluding the current card
-        const availableIndices = studyCards
-          .map((_, index) => index)
-          .filter(index => index !== currentCardIndex)
-
-        // If we have other cards available and the answer was correct
-        if (correct && availableIndices.length > 0) {
-          // Pick a random index from the available indices
-          const randomIndex = Math.floor(Math.random() * availableIndices.length)
-          setCurrentCardIndex(availableIndices[randomIndex])
-        } else {
-          // For incorrect answers or when no other cards are available
-          setCurrentCardIndex(prev => 
-            prev < studyCards.length - 1 ? prev + 1 : 0
-          )
-        }
-      }
-  
-      setIsFlipped(false)
     },
     [deck, studyCards, currentCardIndex, updateDeck, toast]
   )
