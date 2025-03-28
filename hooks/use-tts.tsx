@@ -11,7 +11,7 @@ const LANGUAGE_CODES: Record<string, string> = {
   fr: "fr-FR",
   // Full names
   english: "en-US",
-  dutch: "nl-NL",
+  dutch: "nl-BE",
   french: "fr-FR",
 }
 
