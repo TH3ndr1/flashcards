@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -14,11 +14,22 @@ import type { AuthError } from '@supabase/supabase-js'
 
 /**
  * Renders the sign-up page component.
+ * Wraps the client-side logic in a Suspense boundary.
  * Allows new users to create an account with email and password.
  * Requires email confirmation after submission.
  * Redirects authenticated users away from this page.
  */
 export default function SignupPage() {
+  // The main export wraps SignupContent in Suspense
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading Page...</div>}>
+      <SignupContent />
+    </Suspense>
+  )
+}
+
+// --- Define the inner component containing the client logic ---
+function SignupContent() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -88,9 +99,9 @@ export default function SignupPage() {
           toast.error((error as any).message || "Sign up failed. Please try again.")
         }
       } else if (data?.user) {
-        if (data.user.identities && data.user.identities.length === 0) {
+        if (data.user.identities && data.user.identities.length > 0 && !data.user.email_confirmed_at) {
           toast.info("Sign up successful! Please check your email to confirm your account.")
-          router.push("/login")
+          router.push("/login?message=check_email")
         } else {
           toast.success("Sign up successful! Redirecting...")
           router.push("/")
@@ -109,7 +120,11 @@ export default function SignupPage() {
   }
 
   if (authLoading || user) {
-    return <div className="flex items-center justify-center min-h-screen">Loading...</div>
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    )
   }
 
   return (
@@ -174,4 +189,5 @@ export default function SignupPage() {
     </div>
   )
 }
+// --- End of SignupContent component ---
 
