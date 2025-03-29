@@ -248,96 +248,108 @@ export default function StudyDeckPage() {
     setIsFlipped(false); // Start flip-back animation
 
     // --- Wait for animation midpoint before updating card data ---
-    await new Promise(resolve => setTimeout(resolve, FLIP_ANIMATION_MIDPOINT_MS));
+    setTimeout(async () => {
+      if (!isMountedRef.current || !deck || !currentStudyCard) return;
 
-    // --- Update Card and Deck State ---
-    let nextStudyCards = [...studyCards];
-    let nextCardIndex = currentCardIndex;
-    let cardJustMastered = false;
-
-    const updatedDeckCards = deck.cards.map(card => {
-      if (card.id === currentStudyCard.id) {
-        const oldCorrectCount = card.correctCount || 0;
-        const newCorrectCount = correct ? oldCorrectCount + 1 : oldCorrectCount;
-        const newIncorrectCount = !correct ? (card.incorrectCount || 0) + 1 : (card.incorrectCount || 0);
-        const newAttemptCount = (card.attemptCount || 0) + 1;
-
-        const updatedCard = {
-          ...card,
-          correctCount: newCorrectCount,
-          incorrectCount: newIncorrectCount,
-          attemptCount: newAttemptCount,
-          lastStudied: new Date().toISOString(),
-        };
-
-        // Calculate new difficulty score
-        updatedCard.difficultyScore = calculateDifficultyScore(updatedCard);
-
-        // Use settings-based mastery threshold
-        cardJustMastered = newCorrectCount >= masteryThreshold && oldCorrectCount < masteryThreshold;
-
-        return updatedCard;
-      }
-      return card;
-    });
-
-    // Update the study cards with the new difficulty score
-    nextStudyCards = nextStudyCards.map(card => {
-      if (card.id === currentStudyCard.id) {
-        const updatedDeckCard = updatedDeckCards.find(dc => dc.id === card.id);
-        if (updatedDeckCard) {
-          return {
-            ...card,
-            lastStudied: updatedDeckCard.lastStudied,
-            difficultyScore: updatedDeckCard.difficultyScore
-          };
+      try {
+        // Steps 1-5: Find original card, calculate stats, create updatedCard with new score
+        const cardIndexInDeck = deck.cards.findIndex((c) => c.id === currentStudyCard.id);
+        if (cardIndexInDeck === -1) {
+          console.error("Card not found in deck state during update.");
+          if (isMountedRef.current) setIsTransitioning(false);
+          return;
         }
+        const originalCard = deck.cards[cardIndexInDeck];
+        const oldCorrectCount = originalCard.correctCount;
+        const updatedCorrectCount = originalCard.correctCount + (correct ? 1 : 0);
+        const updatedIncorrectCount = originalCard.incorrectCount + (correct ? 0 : 1);
+        const updatedAttemptCount = originalCard.attemptCount + 1;
+        const updatedLastStudied = new Date();
+        let updatedCard: FlashCard = {
+          ...originalCard,
+          correctCount: updatedCorrectCount,
+          incorrectCount: updatedIncorrectCount,
+          attemptCount: updatedAttemptCount,
+          lastStudied: updatedLastStudied,
+          difficultyScore: originalCard.difficultyScore,
+        };
+        const updatedDifficultyScore = calculateDifficultyScore(updatedCard);
+        updatedCard.difficultyScore = updatedDifficultyScore;
+
+        // 6. Create the new deck object for main state and persistence
+        const newDeckCards = [...deck.cards];
+        newDeckCards[cardIndexInDeck] = updatedCard;
+        const updatedDeckData: Deck = { ...deck, cards: newDeckCards };
+
+        // 7. Update main deck state immediately
+        setDeck(updatedDeckData);
+        
+        // --- 8. Update studyCards state immediately with the updated card --- 
+        const cardIndexInStudySet = studyCards.findIndex(c => c.id === currentStudyCard.id);
+        let updatedStudyCards = [...studyCards];
+        if (cardIndexInStudySet !== -1) {
+            updatedStudyCards[cardIndexInStudySet] = updatedCard; // Replace with the card having the new score
+            if (isMountedRef.current) setStudyCards(updatedStudyCards);
+        } else {
+            console.warn("Current study card not found in studyCards state array during update.");
+            // Potentially skip session logic or handle error, for now we proceed cautiously
+        }
+        // --- End update studyCards ---
+
+        // 9. Persist changes via the hook
+        await updateDeck(updatedDeckData);
+        console.log("Deck update persisted for card:", updatedCard.id);
+
+        // 10. Session Logic (now operates on updatedStudyCards implicitly via state or use it directly)
+        let nextStudyCardsForFiltering = updatedStudyCards; // Use the state we just set
+        let nextCardIndex = currentCardIndex;
+        const cardJustMastered = updatedCorrectCount >= masteryThreshold && oldCorrectCount < masteryThreshold;
+
+        if (cardJustMastered) {
+            console.log(`Card ${currentStudyCard.id} mastered! Removing from current session.`);
+            // Filter the updated set
+            nextStudyCardsForFiltering = updatedStudyCards.filter(card => card.id !== currentStudyCard.id);
+
+            if (nextStudyCardsForFiltering.length === 0) {
+              console.log("All available cards mastered in this session.");
+              if (isMountedRef.current) setStudyCards([]); // Trigger completion state
+            } else {
+              nextCardIndex = Math.min(currentCardIndex, nextStudyCardsForFiltering.length - 1);
+              if (isMountedRef.current) {
+                setStudyCards(nextStudyCardsForFiltering); // Update state with the filtered list
+                setCurrentCardIndex(nextCardIndex);
+              }
+            }
+        } else {
+            // Card not mastered, move to next using the length of the *current* (potentially updated) study set
+            if (updatedStudyCards.length > 0) { 
+                 nextCardIndex = (currentCardIndex + 1) % updatedStudyCards.length;
+                 if (isMountedRef.current) setCurrentCardIndex(nextCardIndex);
+            } else {
+                 console.warn("Attempting to move to next card, but studyCards is empty after update.");
+                 if (isMountedRef.current) {
+                     setStudyCards([]);
+                     setCurrentCardIndex(0);
+                 }
+            }
+        }
+
+      } catch (err) { 
+         console.error("Error updating deck after answer:", err);
+         if (isMountedRef.current) {
+           toast({ title: "Update Error", description: "Could not save study progress.", variant: "destructive" });
+         }
+      } finally {
+         if (isMountedRef.current) {
+             setIsTransitioning(false);
+         }
       }
-      return card;
-    });
+    }, FLIP_ANIMATION_MIDPOINT_MS);
 
-    // --- Determine Next Card ---
-    if (cardJustMastered) {
-      console.log(`Card ${currentStudyCard.id} mastered!`);
-      // Remove the mastered card from the active study set
-      nextStudyCards = nextStudyCards.filter(card => card.id !== currentStudyCard.id);
-
-      if (nextStudyCards.length === 0) {
-        // Study session complete
-        console.log("All available cards mastered in this session.");
-        // No index change needed, component will re-render to completion state
-      } else {
-        // Adjust index if needed
-        nextCardIndex = Math.min(currentCardIndex, nextStudyCards.length - 1);
-      }
-    } else {
-      // For non-mastered cards, move to next card
-      nextCardIndex = (currentCardIndex + 1) % nextStudyCards.length;
-    }
-
-    // Update deck and study cards
-    const updatedDeck = {
-      ...deck,
-      cards: updatedDeckCards,
-    };
-
-    setDeck(updatedDeck);
-    setStudyCards(nextStudyCards);
-    setCurrentCardIndex(nextCardIndex);
-
-    try {
-      await updateDeck(updatedDeck);
-    } catch (error) {
-      console.error("Error updating deck:", error);
-      toast({
-        title: "Error Saving Progress",
-        description: "Could not save your latest progress. Please try again later.",
-        variant: "destructive",
-      });
-    }
-
-    setIsTransitioning(false);
-  }, [deck, studyCards, currentCardIndex, isTransitioning, updateDeck, toast, masteryThreshold]);
+    // Cleanup function ...
+    const isMountedRef = { current: true };
+    return () => { isMountedRef.current = false; };
+  }, [deck, currentStudyCard, currentCardIndex, studyCards, updateDeck, toast, settings, isTransitioning, masteryThreshold]);
 
 
   // Callback: Handle resetting progress for the deck

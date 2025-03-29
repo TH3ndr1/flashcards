@@ -7,12 +7,18 @@ import { PlusCircle } from "lucide-react"
 import { CreateDeckDialog } from "@/components/create-deck-dialog"
 import { useDecks } from "@/hooks/use-decks"
 import { useRouter } from "next/navigation"
+import { useSettings } from "@/hooks/use-settings"
+import {
+  calculateMasteredCount,
+  DEFAULT_MASTERY_THRESHOLD,
+} from "@/lib/study-utils";
 
 export function DeckList() {
   const { decks, loading } = useDecks()
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isVisible, setIsVisible] = useState(true)
   const router = useRouter()
+  const { settings } = useSettings()
 
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -75,35 +81,44 @@ export function DeckList() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {decks.map((deck) => (
-            <Card key={deck.id} className="hover:shadow-md transition-shadow">
-              <CardHeader>
-                <CardTitle>{deck.name}</CardTitle>
-                <CardDescription>
-                  {deck.cards.length} cards • {deck.language}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-primary rounded-full"
-                    style={{
-                      width: `${deck.cards.length > 0 ? (deck.progress.correct / deck.cards.length) * 100 : 0}%`,
-                    }}
-                  ></div>
-                </div>
-                <p className="text-sm text-muted-foreground mt-2">
-                  {deck.progress.correct} of {deck.cards.length} cards mastered
-                </p>
-              </CardContent>
-              <CardFooter className="flex justify-between">
-                <Button variant="outline" onClick={() => handleEditDeck(deck.id)}>
-                  Edit
-                </Button>
-                <Button onClick={() => handleStudyDeck(deck.id)}>Study</Button>
-              </CardFooter>
-            </Card>
-          ))}
+          {decks.map((deck) => {
+            const totalCards = deck.cards.length;
+            const threshold = settings?.masteryThreshold ?? DEFAULT_MASTERY_THRESHOLD;
+            const masteredCount = calculateMasteredCount(deck.cards, settings);
+            const masteryProgressPercent = totalCards > 0 
+                ? Math.round((masteredCount / totalCards) * 100) 
+                : 0;
+
+            return (
+              <Card key={deck.id} className="hover:shadow-md transition-shadow">
+                <CardHeader>
+                  <CardTitle>{deck.name}</CardTitle>
+                  <CardDescription>
+                    {totalCards} cards • {deck.language}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary rounded-full transition-all duration-300 ease-out"
+                      style={{
+                        width: `${masteryProgressPercent}%`,
+                      }}
+                    ></div>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    {masteredCount} of {totalCards} cards mastered
+                  </p>
+                </CardContent>
+                <CardFooter className="flex justify-between">
+                  <Button variant="outline" onClick={() => handleEditDeck(deck.id)}>
+                    Edit
+                  </Button>
+                  <Button onClick={() => handleStudyDeck(deck.id)}>Study</Button>
+                </CardFooter>
+              </Card>
+            )
+          })}
         </div>
       )}
 

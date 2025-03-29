@@ -4,7 +4,7 @@ export interface FlashCard {
   answer: string
   correctCount: number
   incorrectCount: number
-  lastStudied: string | null
+  lastStudied: Date | null
   attemptCount: number // Total number of attempts
   difficultyScore: number // Calculated difficulty score
 }

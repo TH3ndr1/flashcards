@@ -10,7 +10,13 @@ export function getDecksFromLocalStorage(): Deck[] {
     if (savedDecks) {
       const parsedDecks = JSON.parse(savedDecks);
       if (Array.isArray(parsedDecks)) {
-        return parsedDecks;
+        return parsedDecks.map(deck => ({
+          ...deck,
+          cards: deck.cards.map((card: any) => ({
+            ...card,
+            lastStudied: card.lastStudied ? new Date(card.lastStudied) : null,
+          })),
+        }));
       }
     }
   } catch (error) {
