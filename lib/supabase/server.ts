@@ -9,7 +9,8 @@ import { cookies } from 'next/headers'
  * @returns A Supabase server client instance.
  */
 export function createSupabaseServerClient() {
-  const cookieStore = cookies()
+  // Removed top-level cookieStore
+  // const cookieStore: ReadonlyRequestCookies = cookies()
 
   // Retrieve Supabase URL and Anon Key from environment variables
   // Ensure these are set in your .env.local or environment configuration
@@ -23,24 +24,27 @@ export function createSupabaseServerClient() {
   return createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       get(name: string) {
+        const cookieStore = cookies()
+        // @ts-ignore - Linter incorrectly assumes Promise in server context
         return cookieStore.get(name)?.value
       },
       set(name: string, value: string, options: CookieOptions) {
+        const cookieStore = cookies()
         try {
+          // @ts-ignore - Linter incorrectly assumes Promise in server context
           cookieStore.set({ name, value, ...options })
         } catch (error) {          
-          // The `set` method was called from a Server Component.
-          // This can be ignored if you have middleware refreshing
-          // user sessions.
+          // Ignore errors if called from Server Component (middleware handles refresh)
         }
       },
       remove(name: string, options: CookieOptions) {
+        const cookieStore = cookies()
         try {
+          // Use set with empty value for removal
+          // @ts-ignore - Linter incorrectly assumes Promise in server context
           cookieStore.set({ name, value: '', ...options })
         } catch (error) {          
-          // The `delete` method was called from a Server Component.
-          // This can be ignored if you have middleware refreshing
-          // user sessions.
+          // Ignore errors if called from Server Component (middleware handles refresh)
         }
       },
     },

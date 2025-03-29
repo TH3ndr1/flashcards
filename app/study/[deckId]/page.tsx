@@ -145,11 +145,11 @@ export default function StudyDeckPage() {
   // Scenario 1: Deck is fully mastered on load (and not in difficult mode)
   if (!isLoading && isFullDeckMastered && !isDifficultMode && deck) {
     console.log("Rendering completion screen: Full deck mastered.");
-    return (
+      return (
        <StudyCompletionScreen
          deckName={deck.name}
          totalCards={totalCards}
-         masteredCount={masteredCount}
+            masteredCount={masteredCount}
          totalAchievedCorrectAnswers={totalAchievedCorrectAnswers}
          totalRequiredCorrectAnswers={totalRequiredCorrectAnswers}
          overallProgressPercent={overallProgressPercent}
@@ -169,7 +169,7 @@ export default function StudyDeckPage() {
        <StudyCompletionScreen
          deckName={deck.name}
          totalCards={totalCards}
-         masteredCount={masteredCount}
+            masteredCount={masteredCount}
          totalAchievedCorrectAnswers={totalAchievedCorrectAnswers}
          totalRequiredCorrectAnswers={totalRequiredCorrectAnswers}
          overallProgressPercent={overallProgressPercent}
@@ -188,10 +188,10 @@ export default function StudyDeckPage() {
   // This guard handles unexpected states and satisfies TypeScript.
   if (!deck || !currentFullCardData) {
       console.error("StudyDeckPage: Reached final render block with null deck or card data. This shouldn't happen.");
-      return (
-        <div className="container mx-auto px-4 py-8 text-center">
+       return (
+       <div className="container mx-auto px-4 py-8 text-center">
           <p className="text-destructive">Error: Cannot display current card data.</p>
-        </div>
+       </div>
       );
   }
 
