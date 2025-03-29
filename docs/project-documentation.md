@@ -93,7 +93,7 @@ Traditional flashcard methods lack the flexibility and features needed for moder
 - Frontend: Next.js 15.1.0 with React 19
 - Backend: Serverless with Next.js API routes
 - Database: Supabase (PostgreSQL)
-- Authentication: Supabase Auth
+- Authentication: Supabase Auth (using `@supabase/ssr` for server/client integration)
 - Storage: Supabase Storage
 - Text-to-Speech: Google Cloud TTS API
 
@@ -240,11 +240,11 @@ graph TD
 
 1. **useAuth**
    ```typescript
-   // Authentication hook
+   // Authentication hook leveraging @supabase/ssr
    export function useAuth() {
-     // User session management
-     // Login/logout functions
-     // Authentication state
+     // Provides access to user, session, and loading state.
+     // Offers signIn, signUp, signOut, resetPassword functions.
+     // Must be used within AuthProvider.
    }
    ```
 
@@ -524,3 +524,16 @@ study_progress
 - Project README.md
 - API Documentation
 - Contributing Guidelines 
+
+### 4.4 Authentication Flow
+
+The application utilizes Supabase Auth integrated with Next.js using the `@supabase/ssr` package. This ensures seamless authentication handling across Server Components, Client Components, and API/Route Handlers.
+
+Key aspects include:
+
+- **Middleware (`middleware.ts`):** Handles session cookie management and refresh for incoming requests, making the user session available server-side.
+- **Server Client (`lib/supabase/server.ts`):** Provides a utility to create Supabase clients within server contexts (Route Handlers, Server Components) that interact correctly with cookies managed by the middleware.
+- **Client Client (`hooks/use-supabase.tsx`):** Uses `createBrowserClient` from `@supabase/ssr` to create a Supabase client instance in client components, ensuring consistency with the server-managed session.
+- **Auth Provider (`hooks/use-auth.tsx`):** A context provider (`AuthProvider`) and hook (`useAuth`) that leverages `useSupabase` to manage authentication state (user, session, loading) and provides functions (`signIn`, `signUp`, `signOut`, `resetPassword`) for components.
+- **Email Confirmation (`app/auth/callback/route.ts`):** A server-side Route Handler processes the email confirmation link clicked by the user. It securely exchanges the confirmation code for a session using the server client and redirects the user appropriately (to the app on success, or to the login page with feedback messages on failure or if already confirmed).
+- **Login/Signup Pages:** Client components (`app/login/page.tsx`, `app/signup/page.tsx`) use the `useAuth` hook for sign-in/sign-up operations and reactively handle redirects based on authentication state. They also display feedback messages (e.g., from email confirmation redirects) using toasts. 

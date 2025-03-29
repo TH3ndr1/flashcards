@@ -24,6 +24,8 @@ A modern flashcard application built with Next.js, Supabase, and Google Cloud Te
      - `NEXT_PUBLIC_SUPABASE_URL`: Your Supabase project URL
      - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Your Supabase anonymous key
 
+     > **Note:** The application uses the `@supabase/ssr` package for seamless integration between server and client components. This requires the environment variables above and relies on the `middleware.ts` file for session management.
+
    - **Google Cloud Configuration**:
      - `GCP_PROJECT_ID`: Your Google Cloud project ID
      - `GCP_SERVICE_ACCOUNT_EMAIL`: Your service account email
@@ -56,6 +58,7 @@ A modern flashcard application built with Next.js, Supabase, and Google Cloud Te
 ## Documentation
 
 Additional documentation can be found in the `docs` directory:
+- [Project Documentation](docs/project-documentation.md)
 - [Google API Integration](docs/google-api-integration.md)
 
 ## Contributing
