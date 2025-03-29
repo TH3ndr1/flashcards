@@ -65,11 +65,20 @@ Improve code structure, maintainability, type safety, and error handling across 
     - [x] Resolved complex bugs related to completion screen rendering (mastered decks) and difficult mode state persistence/resumption.
     - [x] Corrected logic for removing mastered cards during study session.
     - [x] Fixed bug causing error when finishing difficult card session.
+    - [x] Corrected calculation for `isDifficultSessionComplete`.
 
-### Stage 5: API Routes (`app/api/`)
-- [ ] Review API route handlers.
-- [ ] Ensure consistent request validation, error handling, and response structure.
-- [ ] Check authentication/authorization logic.
+### Stage 5: API Routes (`app/api/`) (Current Stage)
+
+- **Goal**: Review API route handlers for consistent request validation, error handling, response structure, and authentication/authorization.
+- **Work Done**:
+    - [x] Reviewed and fixed `app/api/tts/route.ts`:
+        - [x] Added server-side authentication check using Supabase.
+        - [x] Corrected language code handling to use client-provided codes.
+        - [x] Verified credential handling.
+- **Planned Steps**:
+    - Identify and review any other API route handlers within `app/api/`.
+    - Ensure adherence to best practices (`docs/best-practices.md`).
+    - Check for proper Supabase client usage and RLS reliance.
 
 ### Stage 6: Testing (`__tests__/`)
 - [ ] Review existing tests.
@@ -170,6 +179,7 @@ Improve code structure, maintainability, type safety, and error handling across 
       - Extracted `StudyFlashcardView` component.
       - Applied font setting fix.
       - Extracted core logic into `useStudySession` hook, simplifying the page component significantly.
+      - Confirmed `studyingDifficult` persistence behavior in `useStudySession` is intentional.
 - **Next Steps**: Proceed to Stage 5: API Routes.
 
 ## Stage 5: Testing
