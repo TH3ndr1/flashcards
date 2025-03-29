@@ -1,9 +1,13 @@
 "use client"
+import { useMemo } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Trash2, Plus } from "lucide-react"
 import type { FlashCard } from "@/types/deck"
+import { debounce } from "@/lib/utils"
+
+const DEBOUNCE_WAIT_MS = 500;
 
 interface TableEditorProps {
   cards: FlashCard[]
@@ -13,6 +17,16 @@ interface TableEditorProps {
 }
 
 export function TableEditor({ cards, onUpdate, onDelete, onAdd }: TableEditorProps) {
+  const debouncedUpdateHandlers = useMemo(() => {
+    const handlers: Record<string, (question: string, answer: string) => void> = {};
+    cards.forEach(card => {
+      handlers[card.id] = debounce((question: string, answer: string) => {
+        onUpdate(card.id, question, answer);
+      }, DEBOUNCE_WAIT_MS);
+    });
+    return handlers;
+  }, [cards, onUpdate]);
+
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
@@ -43,15 +57,21 @@ export function TableEditor({ cards, onUpdate, onDelete, onAdd }: TableEditorPro
                 <TableRow key={card.id}>
                   <TableCell>
                     <Input
-                      value={card.question}
-                      onChange={(e) => onUpdate(card.id, e.target.value, card.answer)}
+                      defaultValue={card.question}
+                      onChange={(e) => {
+                        const newQuestion = e.target.value;
+                        debouncedUpdateHandlers[card.id]?.(newQuestion, card.answer);
+                      }}
                       placeholder="Enter question"
                     />
                   </TableCell>
                   <TableCell>
                     <Input
-                      value={card.answer}
-                      onChange={(e) => onUpdate(card.id, card.question, e.target.value)}
+                      defaultValue={card.answer}
+                      onChange={(e) => {
+                        const newAnswer = e.target.value;
+                        debouncedUpdateHandlers[card.id]?.(card.question, newAnswer);
+                      }}
                       placeholder="Enter answer"
                     />
                   </TableCell>

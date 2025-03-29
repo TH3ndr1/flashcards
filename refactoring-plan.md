@@ -2,6 +2,76 @@
 
 This document outlines the planned stages for refactoring the Flashcard application.
 
+## Goal
+Improve code structure, maintainability, type safety, and error handling across the application.
+
+## Stages
+
+### Stage 1: Setup & Environment (Complete)
+- [x] Initial setup, linting, formatting.
+- [x] Environment variable validation.
+
+### Stage 2: Data Services (`lib/`) (Complete)
+- [x] Review and refactor `lib/deckService.ts`
+  - [x] `createDeckService`
+  - [x] `fetchDecks`
+  - [x] `getDeckService`
+  - [x] `updateDeckService`
+  - [x] `deleteDeckService`
+- [x] Review other `lib/` utilities
+  - [x] `study-utils.ts` (Reviewed - OK)
+  - [x] `fonts.ts` (Reviewed - OK)
+  - [x] `localStorageUtils.ts` (Reviewed - OK, usage simplified in Stage 3)
+  - [x] ~~`cardDifficultyUtils.ts`~~ (Deleted - functionality likely integrated elsewhere or obsolete)
+  - [x] ~~`supabase.ts`~~ (Deleted - replaced by `@supabase/ssr` usage in hooks)
+
+### Stage 3: State Management (`providers/`, `hooks/`) (Complete)
+- [x] Review Providers:
+  - [x] `providers/settings-provider.tsx` (Reviewed & Refactored for error handling)
+- [x] Review Hooks:
+  - [x] `hooks/use-auth.tsx` (Reviewed - OK)
+  - [x] `hooks/use-decks.tsx` (Reviewed & Refactored - simplified localStorage usage, corrected getDeck state update)
+  - [x] `hooks/use-tts.tsx` (Reviewed - OK)
+  - [x] `hooks/use-supabase.tsx` (Reviewed - OK)
+  - [x] `hooks/use-mobile.tsx` (Reviewed - OK)
+
+### Stage 4: Components (`components/`, `app/` page components) (Partially Complete)
+- [x] Review shared UI components (`components/ui/`)
+  - [x] Mostly library components (Shadcn UI assumed) - OK.
+  - [x] Reviewed `sidebar.tsx` - OK.
+  - [x] Deleted leftover `use-toast.ts`.
+- [x] Review custom application components (`components/`)
+  - [x] Reviewed `theme-provider.tsx` - OK.
+  - [x] Reviewed `header.tsx` & sub-components (`user-nav`, `settings-button`, `tts-toggle-button`) - OK.
+  - [x] Reviewed `deck-list.tsx` - OK.
+  - [x] Reviewed `create-deck-dialog.tsx` - OK.
+  - [x] Reviewed study components (`flippable-flashcard`, `deck-header`, `study-progress`, `difficulty-indicator`, `study-completion-screen`) - OK.
+  - [x] Reviewed editor components (`table-editor`, `card-editor`).
+  - [x] Refactored `table-editor.tsx` & `card-editor.tsx` to use debounced updates (added `debounce` to `lib/utils.ts`).
+- [ ] Review page-level components (`app/**/page.tsx`, `app/**/layout.tsx`)
+  - Focus on: Prop drilling, component complexity, state management interactions, adherence to hook rules, error handling, loading states.
+
+### Stage 5: API Routes (`app/api/`)
+- [ ] Review API route handlers.
+- [ ] Ensure consistent request validation, error handling, and response structure.
+- [ ] Check authentication/authorization logic.
+
+### Stage 6: Testing (`__tests__/`)
+- [ ] Review existing tests.
+- [ ] Identify gaps in coverage.
+- [ ] Add tests for refactored services, hooks, and potentially complex components.
+
+### Stage 7: Documentation & Final Review
+- [ ] Update `README.md`.
+- [ ] Ensure JSDoc/TSDoc comments are up-to-date.
+- [ ] Perform a final review of changes.
+
+---
+
+## Next Steps
+
+- Continue Stage 4: Components. Start review of page-level components, beginning with `app/layout.tsx`.
+
 ## Stage 1: Authentication (✅ Completed)
 
 - **Goal**: Modernize authentication using Supabase Auth helpers (`@supabase/ssr`) for server-side rendering compatibility and improved security.

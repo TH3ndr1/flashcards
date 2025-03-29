@@ -103,13 +103,6 @@ export function useDecks() {
         if (newDeck) {
           logDecks("Deck created successfully, updating state.", newDeck);
           setDecks((prev) => [newDeck, ...prev]);
-          // Update localStorage cautiously
-          try {
-            const currentDecks = getDecksFromLocalStorage();
-            saveDecksToLocalStorage([newDeck, ...currentDecks]);
-          } catch (localError) {
-            logDecksError("Failed to update localStorage after creating deck:", localError);
-          }
           return { data: newDeck, error: null };
         } else {
           logDecksError("createDeckService returned no data and no error.");
@@ -144,28 +137,6 @@ export function useDecks() {
         
         // deck can be null if not found (not an error)
         logDecks("getDeckService successful.", deck ? "Deck found." : "Deck not found.");
-        if (deck) { 
-          // Update state if deck is found and exists in state, or add if new
-          setDecks((prevDecks) => {
-             if (!Array.isArray(prevDecks)) {
-                logDecksError("prevDecks is not an array in getDeck! Resetting.");
-                return [deck];
-             }
-            const index = prevDecks.findIndex((d) => d.id === deck.id);
-            let newDecks;
-            if (index === -1) {
-              logDecks("Deck fetched via getDeck was not in local state, adding it.");
-              newDecks = [...prevDecks, deck];
-            } else {
-              logDecks("Updating deck in local state from getDeck result.");
-              newDecks = [...prevDecks];
-              newDecks[index] = deck;
-            }
-            // Also update localStorage?
-            // saveDecksToLocalStorage(newDecks); // Consider if this is needed here
-            return newDecks;
-          });
-        }
         return { data: deck, error: null }; // Return the fetched deck (or null if not found)
       } catch (error) {
         logDecksError("Unexpected error in getDeck:", error);
@@ -194,7 +165,6 @@ export function useDecks() {
         }
         
         logDecks("updateDeckService successful, updating local state.");
-        // If no error, update the state and local storage
         setDecks((prev) => {
            if (!Array.isArray(prev)) {
               logDecksError("prevDecks is not an array in updateDeck! Resetting.");
@@ -202,16 +172,6 @@ export function useDecks() {
            }
            return prev.map((deck) => (deck.id === updatedDeck.id ? updatedDeck : deck));
         });
-        
-        try {
-           const currentDecks = getDecksFromLocalStorage();
-           const updatedDecks = currentDecks.map((deck: Deck) =>
-            deck.id === updatedDeck.id ? updatedDeck : deck
-           );
-           saveDecksToLocalStorage(updatedDecks);
-        } catch (localError) {
-           logDecksError("Failed to update localStorage after updating deck:", localError);
-        }
         return { data: updatedDeck, error: null }; // Return updated deck on success
 
       } catch (error) {
@@ -241,7 +201,6 @@ export function useDecks() {
         }
         
         logDecks("deleteDeckService successful, updating local state.");
-        // If no error, update state and local storage
         setDecks((prev) => {
            if (!Array.isArray(prev)) {
               logDecksError("prevDecks is not an array in deleteDeck! Resetting.");
@@ -249,20 +208,13 @@ export function useDecks() {
            }
            return prev.filter((deck) => deck.id !== id);
         });
-        try {
-           const savedDecks = getDecksFromLocalStorage();
-           const updatedDecks = savedDecks.filter((deck: Deck) => deck.id !== id);
-           saveDecksToLocalStorage(updatedDecks);
-        } catch (localError) {
-           logDecksError("Failed to update localStorage after deleting deck:", localError);
-        }
         return { success: true, error: null }; // Indicate success
       } catch (error) {
         logDecksError("Unexpected error in deleteDeck:", error);
         return { success: false, error: error instanceof Error ? error : new Error("An unexpected error occurred") };
       }
     },
-    [supabase, user, logDecks, logDecksError] // Added loggers
+    [user, supabase, logDecks, logDecksError] // Added loggers
   );
 
   // Return type needs adjustment based on new callback signatures

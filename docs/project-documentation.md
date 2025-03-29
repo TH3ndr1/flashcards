@@ -169,7 +169,7 @@ graph TD
     C1 --> C1_2["Deck Management API"]
     C1 --> C1_3["Authentication API"]
 
-    C2 --> C2_1["Supabase Client"]
+    C2 --> C2_1["Supabase Client (via useSupabase Hook / @supabase/ssr)"]
     C2 --> C2_2["Google TTS Client"]
     C2 --> C2_3["Auth Service"]
 
@@ -252,13 +252,25 @@ graph TD
    ```typescript
    // Deck management hook
    export function useDecks() {
-     // Deck CRUD operations
-     // Card management
-     // Deck statistics
+     // State Management:
+     // - decks: Deck[] - List of user's decks
+     // - loading: boolean - Loading state indicator
+     
+     // Core Functions:
+     // - fetchDecks(): Promise<void> - Fetches deck list from API
+     // - createDeck(data: CreateDeckData): Promise<Deck>
+     // - getDeck(id: string): Promise<GetDeckResult>
+     // - updateDeck(id: string, data: UpdateDeckData): Promise<Deck>
+     // - deleteDeck(id: string): Promise<void>
+     
+     // Performance Optimizations:
+     // - Initial load attempts localStorage first
+     // - Successful API fetches are cached to localStorage
+     // - getDeck doesn't modify main deck list state
    }
    ```
 
-3. **useStudy**
+3. **useStudy** _(Note: To be verified during page components review)_
    ```typescript
    // Study session hook
    export function useStudy() {
