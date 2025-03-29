@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useCallback } from "react"
-import { useSettings } from "@/hooks/use-settings"
-import type { Settings } from "@/hooks/use-settings"
+import { useSettings } from "@/providers/settings-provider"
+import type { Settings } from "@/providers/settings-provider"
 
 // Language code mapping for Google Cloud TTS
 const LANGUAGE_CODES: Record<string, string> = {
@@ -47,32 +47,47 @@ const LANGUAGE_CODES: Record<string, string> = {
   italian: "it-IT",
 }
 
+// Conditional logging helpers
+const logTTS = (...args: any[]) => {
+    if (process.env.NODE_ENV !== 'production') {
+        console.log('[TTS Hook]:', ...args);
+    }
+};
+const logTTSError = (...args: any[]) => {
+    if (process.env.NODE_ENV !== 'production') {
+        console.error('[TTS Hook Error]:', ...args);
+    }
+};
+
 export function useTTS() {
   const [loading, setLoading] = useState(false)
   const [currentLanguage, setCurrentLanguage] = useState<string>("en")
   const { settings } = useSettings()
 
   // Speak text using Google Cloud TTS
-  const speak = useCallback(async (text: string, language?: string) => {
+  const speak = useCallback(async (text: string, language?: string): Promise<{ success: boolean; error: Error | null }> => {
     // Check if TTS is enabled in settings, return early if disabled
     if (!settings?.ttsEnabled) {
-      console.log('TTS is disabled in settings');
-      return;
+      logTTS('TTS is disabled in settings');
+      return { success: false, error: new Error("TTS is disabled in settings") };
     }
 
-    if (!text.trim()) return
+    if (!text.trim()) {
+       logTTS('Speak called with empty text.');
+       return { success: true, error: null }; // Not an error, just nothing to do
+    }
+
+    let audio: HTMLAudioElement | null = null;
+    let audioUrl: string | null = null;
 
     try {
       setLoading(true)
-      // Use provided language or fall back to current language
       const langToUse = language?.toLowerCase() || currentLanguage
-      // Get the base language code (en, nl, fr, etc.)
       const baseLanguage = langToUse.split('-')[0] as keyof Settings['languageDialects']
-      // Get the dialect from settings if available, otherwise use default mapping
       const mappedLanguage = settings?.languageDialects?.[baseLanguage] || 
                             LANGUAGE_CODES[langToUse] || 
                             "en-GB"
-      console.log('TTS Debug:', {
+      logTTS('TTS Debug:', {
         providedLanguage: language,
         currentLanguage,
         baseLanguage,
@@ -94,40 +109,58 @@ export function useTTS() {
       })
 
       if (!response.ok) {
-        throw new Error('Failed to generate speech')
+        const errorBody = await response.text(); // Attempt to get error details
+        logTTSError(`Failed to generate speech. Status: ${response.status}`, errorBody);
+        throw new Error(`Failed to generate speech. Status: ${response.status}`);
       }
 
       const audioBlob = await response.blob()
-      const audioUrl = URL.createObjectURL(audioBlob)
-      const audio = new Audio(audioUrl)
+      audioUrl = URL.createObjectURL(audioBlob)
+      audio = new Audio(audioUrl)
 
-      // Clean up the URL after the audio has played
-      audio.onended = () => {
-        URL.revokeObjectURL(audioUrl)
-        setLoading(false)
-      }
+      return new Promise((resolve) => {
+         // Clean up the URL after the audio has played
+         audio!.onended = () => {
+           logTTS("Audio playback finished.");
+           if (audioUrl) URL.revokeObjectURL(audioUrl);
+           setLoading(false);
+           resolve({ success: true, error: null });
+         };
+   
+         // Handle errors during playback
+         audio!.onerror = (event) => {
+           const error = audio?.error || event;
+           logTTSError('Audio playback error:', error);
+           if (audioUrl) URL.revokeObjectURL(audioUrl);
+           setLoading(false);
+           resolve({ success: false, error: new Error(`Audio playback failed: ${error?.message || String(error)}`) });
+         };
+         
+         // Start playback
+         logTTS("Starting audio playback...");
+         audio!.play().catch(playError => { // Catch potential immediate play errors
+             logTTSError("Error initiating audio playback:", playError);
+             if (audioUrl) URL.revokeObjectURL(audioUrl);
+             setLoading(false);
+             resolve({ success: false, error: playError instanceof Error ? playError : new Error("Failed to start audio playback") });
+         });
+      });
 
-      // Handle errors during playback
-      audio.onerror = (error) => {
-        console.error('Audio playback error:', error)
-        URL.revokeObjectURL(audioUrl)
-        setLoading(false)
-      }
-
-      await audio.play()
     } catch (error) {
-      console.error('TTS Error:', error)
-      setLoading(false)
+      logTTSError('TTS Error (fetch or setup):', error);
+      if (audioUrl) URL.revokeObjectURL(audioUrl); // Cleanup if URL was created before error
+      setLoading(false);
+      return { success: false, error: error instanceof Error ? error : new Error("An unexpected error occurred during TTS processing") };
     }
-  }, [currentLanguage, settings])
+  }, [currentLanguage, settings, logTTS, logTTSError]) // Added loggers
 
   const setLanguage = useCallback((lang: string) => {
-    console.log('Setting TTS language to:', lang)
+    logTTS('Setting TTS language to:', lang)
     setCurrentLanguage(lang.toLowerCase())
-  }, [])
+  }, [logTTS]) // Added logger
 
   return {
-    speak,
+    speak, // Now returns Promise<{ success, error }>
     setLanguage,
     loading,
     // These are kept for compatibility with existing code

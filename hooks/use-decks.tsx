@@ -6,7 +6,6 @@ import { useState, useEffect, useCallback } from "react";
 import type { Deck } from "@/types/deck";
 import { useSupabase } from "@/hooks/use-supabase";
 import { useAuth } from "@/hooks/use-auth";
-import { useSettings } from "@/hooks/use-settings";
 import {
   fetchDecks,
   createDeckService,
@@ -23,52 +22,64 @@ interface CreateDeckParams {
   answerLanguage: string;
 }
 
+// Conditional logging helpers
+const logDecks = (...args: any[]) => {
+    if (process.env.NODE_ENV !== 'production') {
+        console.log('[Decks Hook]:', ...args);
+    }
+};
+const logDecksError = (...args: any[]) => {
+    if (process.env.NODE_ENV !== 'production') {
+        console.error('[Decks Hook Error]:', ...args);
+    }
+};
+
 export function useDecks() {
   const [decks, setDecks] = useState<Deck[]>([]);
   const [loading, setLoading] = useState(true);
   const { supabase } = useSupabase();
   const { user } = useAuth();
-  const { settings } = useSettings();
 
   useEffect(() => {
     const loadDecks = async () => {
       if (!user) {
+        logDecks("No user, skipping deck load.")
         setLoading(false);
+        setDecks([]); // Ensure decks are empty if no user
         return;
       }
-      // Try to load decks from localStorage as a fallback
+
+      logDecks("Initiating deck loading for user:", user.id);
+      setLoading(true);
+
+      // 1. Try to load initial state from localStorage
       const localDecks = getDecksFromLocalStorage();
       if (localDecks.length > 0) {
+        logDecks("Setting initial state from localStorage", localDecks.length, "decks");
         setDecks(localDecks);
       }
+
+      // 2. Fetch from API
       try {
-        setLoading(true);
-        console.log("Fetching decks for user:", user.id);
+        logDecks("Fetching decks from API...");
         const { data: fetchedDecks, error } = await fetchDecks(supabase, user.id);
 
         if (error) {
-          console.error("Error fetching decks, using local fallback:", error);
-          // Keep local decks if fetch fails
-          if (localDecks.length > 0) {
-             setDecks(localDecks);
-          } else {
-             setDecks([]); // Ensure it's an empty array if local is also empty
-          }
+          logDecksError("Error fetching decks from API:", error);
+          // Keep current state (which might be from localStorage or previous fetch)
+          // No explicit fallback needed here with the simplified strategy
         } else {
-          // Use fetched data, default to empty array if null/undefined
+          // API fetch successful
           const decksToSet = fetchedDecks || [];
+          logDecks("API fetch successful, setting state and saving to localStorage:", decksToSet.length, "decks");
           setDecks(decksToSet);
           saveDecksToLocalStorage(decksToSet);
         }
-      } catch (error) { // Catch any unexpected errors during the fetch process itself
-        console.error("Detailed error in loadDecks (outside service call):", error);
-        if (localDecks.length > 0) {
-          console.log("Using local decks as fallback due to unexpected error");
-          setDecks(localDecks);
-        } else {
-          setDecks([]);
-        }
+      } catch (error) { // Catch unexpected errors during the fetch process
+        logDecksError("Unexpected error during loadDecks:", error);
+        // Keep current state, don't crash
       } finally {
+        logDecks("Deck loading process finished.");
         setLoading(false);
       }
     };
@@ -77,138 +88,190 @@ export function useDecks() {
 
   const createDeck = useCallback(
     async (params: CreateDeckParams) => {
-      if (!user) throw new Error("User not authenticated");
+      if (!user) {
+          logDecksError("createDeck called without authenticated user.");
+          // Returning error instead of throwing
+          return { data: null, error: new Error("User not authenticated") }; 
+      }
       try {
+        logDecks("Calling createDeckService", params);
         const { data: newDeck, error } = await createDeckService(supabase, user.id, params);
         if (error) {
-          console.error("Error creating deck:", error);
-          throw error; // Re-throw the service error
+          logDecksError("Error creating deck:", error);
+          return { data: null, error }; // Return error from service
         }
         if (newDeck) {
+          logDecks("Deck created successfully, updating state.", newDeck);
           setDecks((prev) => [newDeck, ...prev]);
-          const currentDecks = getDecksFromLocalStorage();
-          saveDecksToLocalStorage([newDeck, ...currentDecks]);
-          return newDeck;
+          // Update localStorage cautiously
+          try {
+            const currentDecks = getDecksFromLocalStorage();
+            saveDecksToLocalStorage([newDeck, ...currentDecks]);
+          } catch (localError) {
+            logDecksError("Failed to update localStorage after creating deck:", localError);
+          }
+          return { data: newDeck, error: null };
         } else {
-           // Should not happen if no error, but handle defensively
-          console.error("createDeckService returned no data and no error.");
-          throw new Error("Failed to create deck, unexpected result.");
+          logDecksError("createDeckService returned no data and no error.");
+          return { data: null, error: new Error("Failed to create deck, unexpected result.") };
         }
       } catch (error) {
-        console.error("Error in createDeck (outside service call):", error);
-        throw error;
+        logDecksError("Unexpected error in createDeck:", error);
+        return { data: null, error: error instanceof Error ? error : new Error("An unexpected error occurred") };
       }
     },
-    [user, supabase]
+    [user, supabase, logDecks, logDecksError] // Added loggers
   );
 
   const getDeck = useCallback(
     async (id: string) => {
-      if (!user) return null;
+      if (!user) {
+          logDecksError("getDeck called without authenticated user.");
+          return { data: null, error: new Error("User not authenticated") };
+      }
+      if (!id) {
+          logDecksError("getDeck called without deck ID.");
+          return { data: null, error: new Error("Deck ID is required") };
+      }
       try {
+        logDecks("Calling getDeckService for ID:", id);
         const { data: deck, error } = await getDeckService(supabase, user.id, id);
 
         if (error) {
-          console.error("Error fetching deck:", error);
-          throw error; // Re-throw the service error
+          logDecksError("Error fetching deck:", error);
+          return { data: null, error }; // Return error from service
         }
         
-        // deck can be null if not found (handled by getDeckService), this is not an error state
+        // deck can be null if not found (not an error)
+        logDecks("getDeckService successful.", deck ? "Deck found." : "Deck not found.");
         if (deck) { 
+          // Update state if deck is found and exists in state, or add if new
           setDecks((prevDecks) => {
-             // Ensure prevDecks is an array before calling findIndex
              if (!Array.isArray(prevDecks)) {
-                console.warn("prevDecks is not an array in getDeck, resetting to [deck]");
+                logDecksError("prevDecks is not an array in getDeck! Resetting.");
                 return [deck];
              }
             const index = prevDecks.findIndex((d) => d.id === deck.id);
+            let newDecks;
             if (index === -1) {
-              return [...prevDecks, deck];
+              logDecks("Deck fetched via getDeck was not in local state, adding it.");
+              newDecks = [...prevDecks, deck];
+            } else {
+              logDecks("Updating deck in local state from getDeck result.");
+              newDecks = [...prevDecks];
+              newDecks[index] = deck;
             }
-            const newDecks = [...prevDecks];
-            newDecks[index] = deck;
+            // Also update localStorage?
+            // saveDecksToLocalStorage(newDecks); // Consider if this is needed here
             return newDecks;
           });
         }
-        return deck; // Return the fetched deck (or null if not found)
+        return { data: deck, error: null }; // Return the fetched deck (or null if not found)
       } catch (error) {
-        console.error("Error in getDeck (outside service call):", error);
-        throw error;
+        logDecksError("Unexpected error in getDeck:", error);
+        return { data: null, error: error instanceof Error ? error : new Error("An unexpected error occurred") };
       }
     },
-    [user, supabase]
+    [user, supabase, logDecks, logDecksError] // Added loggers
   );
 
   const updateDeck = useCallback(
     async (updatedDeck: Deck) => {
-      if (!user) throw new Error("User not authenticated");
+       if (!user) {
+          logDecksError("updateDeck called without authenticated user.");
+          return { data: null, error: new Error("User not authenticated") };
+      }
+      if (!updatedDeck || !updatedDeck.id) {
+          logDecksError("updateDeck called without valid deck data.");
+          return { data: null, error: new Error("Valid deck data with ID is required") };
+      }
       try {
+        logDecks("Calling updateDeckService for ID:", updatedDeck.id);
         const { error } = await updateDeckService(supabase, user.id, updatedDeck);
         if (error) {
-          console.error("Error updating deck:", error);
-          throw error; // Re-throw the service error
+          logDecksError("Error updating deck:", error);
+          return { data: null, error }; // Return error from service
         }
         
+        logDecks("updateDeckService successful, updating local state.");
         // If no error, update the state and local storage
         setDecks((prev) => {
            if (!Array.isArray(prev)) {
-              console.warn("prevDecks is not an array in updateDeck, resetting.");
-              // Cannot reliably update, perhaps fetch again or return an error?
-              // For now, just return an empty array to avoid crashing.
-              return []; 
+              logDecksError("prevDecks is not an array in updateDeck! Resetting.");
+              return []; // Or maybe return prev to avoid wiping state?
            }
            return prev.map((deck) => (deck.id === updatedDeck.id ? updatedDeck : deck));
         });
         
-        const currentDecks = getDecksFromLocalStorage();
-        const updatedDecks = currentDecks.map((deck: Deck) =>
-          deck.id === updatedDeck.id ? updatedDeck : deck
-        );
-        saveDecksToLocalStorage(updatedDecks);
+        try {
+           const currentDecks = getDecksFromLocalStorage();
+           const updatedDecks = currentDecks.map((deck: Deck) =>
+            deck.id === updatedDeck.id ? updatedDeck : deck
+           );
+           saveDecksToLocalStorage(updatedDecks);
+        } catch (localError) {
+           logDecksError("Failed to update localStorage after updating deck:", localError);
+        }
+        return { data: updatedDeck, error: null }; // Return updated deck on success
+
       } catch (error) {
-        console.error("Error in updateDeck (outside service call):", error);
-        throw error;
+        logDecksError("Unexpected error in updateDeck:", error);
+        return { data: null, error: error instanceof Error ? error : new Error("An unexpected error occurred") };
       }
     },
-    [user, supabase]
+    [user, supabase, logDecks, logDecksError] // Added loggers
   );
 
   const deleteDeck = useCallback(
     async (id: string) => {
-      if (!user || !id) throw new Error("User not authenticated or invalid deck ID");
+       if (!user) {
+          logDecksError("deleteDeck called without authenticated user.");
+          return { success: false, error: new Error("User not authenticated") };
+       }
+       if (!id) {
+          logDecksError("deleteDeck called without deck ID.");
+          return { success: false, error: new Error("Deck ID is required") };
+       }
       try {
+        logDecks("Calling deleteDeckService for ID:", id);
         const { error } = await deleteDeckService(supabase, user.id, id);
         if (error) {
-          console.error("Error deleting deck:", error);
-          throw error; // Re-throw the service error
+          logDecksError("Error deleting deck:", error);
+          return { success: false, error }; // Return error from service
         }
         
+        logDecks("deleteDeckService successful, updating local state.");
         // If no error, update state and local storage
         setDecks((prev) => {
            if (!Array.isArray(prev)) {
-              console.warn("prevDecks is not an array in deleteDeck, resetting.");
+              logDecksError("prevDecks is not an array in deleteDeck! Resetting.");
               return [];
            }
            return prev.filter((deck) => deck.id !== id);
         });
-        const savedDecks = getDecksFromLocalStorage();
-        const updatedDecks = savedDecks.filter((deck: Deck) => deck.id !== id);
-        saveDecksToLocalStorage(updatedDecks);
-        return true; // Indicate success
+        try {
+           const savedDecks = getDecksFromLocalStorage();
+           const updatedDecks = savedDecks.filter((deck: Deck) => deck.id !== id);
+           saveDecksToLocalStorage(updatedDecks);
+        } catch (localError) {
+           logDecksError("Failed to update localStorage after deleting deck:", localError);
+        }
+        return { success: true, error: null }; // Indicate success
       } catch (error) {
-        console.error("Error in deleteDeck (outside service call):", error);
-        throw error; // Re-throw unexpected errors
+        logDecksError("Unexpected error in deleteDeck:", error);
+        return { success: false, error: error instanceof Error ? error : new Error("An unexpected error occurred") };
       }
     },
-    [supabase, user]
+    [supabase, user, logDecks, logDecksError] // Added loggers
   );
 
+  // Return type needs adjustment based on new callback signatures
   return {
     decks,
     loading,
-    getDeck,
-    createDeck,
-    updateDeck,
-    deleteDeck,
+    getDeck, // Now returns Promise<{ data: Deck | null, error: ...}>
+    createDeck, // Now returns Promise<{ data: Deck | null, error: ...}>
+    updateDeck, // Now returns Promise<{ data: Deck | null, error: ...}>
+    deleteDeck, // Now returns Promise<{ success: boolean, error: ...}>
   };
 }

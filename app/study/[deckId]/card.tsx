@@ -4,9 +4,11 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { CardContent, CardFooter } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { useSettings } from "@/hooks/use-settings";
-// FONT_OPTIONS might not be needed here if useSettings directly returns 'opendyslexic'/'atkinson'
-import type { FontOption } from "@/hooks/use-settings";
+import { useTTS } from "@/hooks/use-tts";
+import { useSettings } from "@/providers/settings-provider";
+import type { Deck, FlashCard } from "@/types/deck";
+import type { FontOption } from "@/providers/settings-provider";
+import { getFontClass } from "@/lib/fonts";
 
 interface CardProps {
   card: {

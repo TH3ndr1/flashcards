@@ -5,7 +5,7 @@ import { useSupabase } from "@/hooks/use-supabase";
 import { useAuth } from "@/hooks/use-auth";
 import { detectSystemLanguage } from "@/lib/utils";
 import { fetchSettings, updateSettings as updateSettingsInDb } from "@/lib/settingsService";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import type { PostgrestError } from "@supabase/supabase-js";
 
 // Debug flag
@@ -74,7 +74,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
-  const { toast } = useToast(); // Get toast function
 
   // Log initial mount
   useEffect(() => {
@@ -101,10 +100,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (error) {
           console.error("Failed to load settings:", error);
           debug('Error loading settings, using defaults', DEFAULT_SETTINGS);
-          toast({ // Inform user about the error
-            title: "Error Loading Settings",
-            description: "Could not load your saved settings. Using default values.",
-            variant: "destructive",
+          toast.error("Failed to load settings", {
+            description: error.message || "Using default settings.",
           });
           setSettings(DEFAULT_SETTINGS);
         } else if (userSettings) {
@@ -121,11 +118,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         // Catch errors not originating from fetchSettings itself (e.g., programming errors)
         console.error("Unexpected error during settings load:", unexpectedError);
         debug('Unexpected error, using defaults', DEFAULT_SETTINGS);
-         toast({ 
-            title: "Error",
-            description: "An unexpected error occurred while loading settings. Using default values.",
-            variant: "destructive",
-          });
+         toast.error("Error", {
+          description: "An unexpected error occurred while loading settings. Using default values.",
+        });
         setSettings(DEFAULT_SETTINGS);
       } finally {
         setLoading(false);
@@ -133,7 +128,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     };
 
     loadSettings();
-  }, [user, supabase, toast]); // Added toast to dependency array
+  }, [user, supabase]);
 
   const updateSettings = useCallback(async (
     updates: Partial<Settings>
@@ -155,10 +150,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       if (error) { // This is a PostgrestError
         console.error("Failed to update settings in DB:", error);
         debug('Settings update failed', { error });
-        toast({ 
-          title: "Error Saving Settings",
+        toast.error("Error Saving Settings", {
           description: error.message || "Could not save your settings changes.",
-          variant: "destructive",
         });
         return { success: false, error }; // Return the PostgrestError
       } else {
@@ -168,15 +161,13 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     } catch (unexpectedError) {
       console.error("Unexpected error during settings update:", unexpectedError);
       debug('Unexpected settings update error');
-      toast({ 
-          title: "Error",
-          description: "An unexpected error occurred while saving settings.",
-          variant: "destructive",
+      toast.error("Error", {
+        description: "An unexpected error occurred while saving settings.",
       });
       // Return a standard Error object
       return { success: false, error: new Error("An unexpected error occurred while saving settings.") };
     }
-  }, [settings, user, supabase, toast]);
+  }, [settings, user, supabase]);
 
   // Log settings changes
   useEffect(() => {

@@ -15,8 +15,8 @@ import { Progress } from "@/components/ui/progress"
 import { useDecks } from "@/hooks/use-decks"
 import type { Deck, FlashCard } from "@/types/deck"
 import { useTTS } from "@/hooks/use-tts"
-import { useSettings } from "@/hooks/use-settings" // Assumed settings hook
-import { useToast } from "@/hooks/use-toast"
+import { useSettings } from "@/providers/settings-provider"
+import { toast } from "sonner"
 
 // --- 1. Import getFontClass ---
 import { getFontClass } from "@/lib/fonts";
@@ -49,8 +49,7 @@ export default function StudyDeckPage() {
   const router = useRouter()
   const { getDeck, updateDeck } = useDecks()
   // --- Settings Hook ---
-  const { settings } = useSettings() // Make sure 'settings' object contains the font preference, e.g., settings.cardFont
-  const { toast } = useToast()
+  const { settings } = useSettings()
   const { speak, setLanguage } = useTTS()
 
   // --- State ---
@@ -109,71 +108,97 @@ export default function StudyDeckPage() {
     // Effect: Load deck data
   useEffect(() => {
     let isMounted = true
-    const loadDeckData = async () => {
-      if (!deckId || hasLoadedInitiallyRef.current) return
+    // --- Declare result outside try block --- 
+    let result: { data: Deck | null; error: Error | null } | null = null; 
 
-      setIsLoading(true)
-      setError(null)
-      retryCountRef.current = 0
-      console.log("Attempting to load deck:", deckId)
-
-      const attemptLoad = async () => {
-        try {
-          const loadedDeck = await getDeck(deckId)
-
-          if (!isMounted) return // Component unmounted during fetch
-
-          if (loadedDeck) {
-            if (!Array.isArray(loadedDeck.cards)) {
-              throw new Error("Invalid deck data: 'cards' is not an array.")
-            }
-
-            const initialStudyCards = prepareStudyCards(loadedDeck.cards, settings)
-
-            if (isMounted) {
-              setDeck(loadedDeck)
-              setStudyCards(initialStudyCards)
-              setCurrentCardIndex(0)
-              setIsFlipped(false)
-              setError(null)
-              hasLoadedInitiallyRef.current = true // Mark initial load complete
-              console.log("Deck loaded successfully:", loadedDeck.name)
-            }
-          } else {
-            // Deck not found, attempt retry
-            if (retryCountRef.current < MAX_DECK_LOAD_RETRIES) {
-              retryCountRef.current++
-              console.log(`Deck not found. Retrying (${retryCountRef.current}/${MAX_DECK_LOAD_RETRIES})...`)
-              setTimeout(() => { if (isMounted) attemptLoad() }, DECK_LOAD_RETRY_DELAY_MS)
-            } else {
-              throw new Error(`Deck with ID "${deckId}" not found after ${MAX_DECK_LOAD_RETRIES} retries.`)
-            }
-          }
-        } catch (err) {
-          console.error("Error loading deck:", err)
+    const attemptLoad = async () => {
+      if (!deckId) {
+          console.error("No deck ID provided.");
           if (isMounted) {
-            setError(err instanceof Error ? err.message : "An unknown error occurred while loading the deck.")
-            setDeck(null) // Clear any potentially stale deck data
-            setStudyCards([])
+              setError("No deck ID found in URL.");
+              setIsLoading(false);
           }
-        } finally {
-          // Only set loading to false if loading finished (success or final error)
-          if (isMounted && (hasLoadedInitiallyRef.current || error || retryCountRef.current >= MAX_DECK_LOAD_RETRIES)) {
-            setIsLoading(false)
+          return; 
+      }
+      setIsLoading(true);
+      setError(null);
+      // Removed hasLoadedInitiallyRef logic as it was causing confusion
+      console.log("Attempting to load deck:", deckId, `Retry: ${retryCountRef.current}`);
+
+      try {
+        // --- Assign to outer result variable --- 
+        result = await getDeck(deckId);
+
+        if (!isMounted) return;
+
+        if (result.error) {
+          console.error("Failed to load deck:", result.error);
+          // --- Use sonner toast format --- 
+          toast.error("Error Loading Deck", {
+            description: result.error.message || "Could not load the requested deck.",
+          });
+          // --- Set deck to null --- 
+          setDeck(null);
+          setStudyCards([]);
+          setError(result.error.message || "Could not load deck.");
+        } else if (result.data) {
+          console.log("Deck loaded successfully:", result.data.name); // Use result.data.name
+          if (!Array.isArray(result.data.cards)) {
+             throw new Error("Invalid deck data: 'cards' is not an array.");
+          }
+          const initialStudyCards = prepareStudyCards(result.data.cards, settings); // Use result.data.cards
+          if (isMounted) {
+            setDeck(result.data); // Use result.data
+            setStudyCards(initialStudyCards);
+            setCurrentCardIndex(0);
+            setIsFlipped(false);
+            setError(null);
+            retryCountRef.current = 0; // Reset retry count on success
+          }
+        } else {
+          // Handle case where data is null but no error (deck not found)
+          if (retryCountRef.current < MAX_DECK_LOAD_RETRIES) {
+            retryCountRef.current++;
+            console.log(`Deck ${deckId} not found. Retrying (${retryCountRef.current}/${MAX_DECK_LOAD_RETRIES})...`);
+            setTimeout(() => { if (isMounted) attemptLoad(); }, DECK_LOAD_RETRY_DELAY_MS);
+            return; // Don't set loading false yet, we are retrying
+          } else {
+             console.error(`Deck with ID "${deckId}" not found after ${MAX_DECK_LOAD_RETRIES} retries.`);
+             if (isMounted) {
+                // --- Use sonner toast format --- 
+                toast.error("Deck Not Found", {
+                   description: "The requested deck could not be found.",
+                });
+                setDeck(null); // Set null if not found after retries
+                setStudyCards([]);
+                setError("Deck not found.");
+             }
           }
         }
+      } catch (err) {
+        console.error("Unexpected error during deck loading sequence:", err);
+        if (isMounted) {
+            // --- Use sonner toast format --- 
+            toast.error("Loading Error", {
+                description: err instanceof Error ? err.message : "An unexpected error occurred.",
+            });
+            setDeck(null);
+            setStudyCards([]);
+            setError(err instanceof Error ? err.message : "An unknown error occurred.");
+        }
+      } finally {
+        // --- Check outer result variable --- 
+        if (isMounted && (result?.data || result?.error || retryCountRef.current >= MAX_DECK_LOAD_RETRIES)) {
+          setIsLoading(false);
+          console.log("Deck loading process finished (success, final error, or max retries).")
+        }
       }
+    };
 
-      attemptLoad() // Start the loading process
-    }
+    attemptLoad();
 
-    loadDeckData()
-
-    return () => {
-      isMounted = false
-      console.log("StudyDeckPage unmounting or deckId changed.")
-    }
-  }, [deckId, getDeck, settings]) // Dependency: only re-run if deckId or getDeck changes
+    return () => { isMounted = false; console.log("StudyDeckPage unmounting or deckId changed."); };
+  }, [deckId, getDeck, settings]);
 
 
   // Effect: Speak question
@@ -337,7 +362,7 @@ export default function StudyDeckPage() {
       } catch (err) { 
          console.error("Error updating deck after answer:", err);
          if (isMountedRef.current) {
-           toast({ title: "Update Error", description: "Could not save study progress.", variant: "destructive" });
+           toast.error("Update Error", { description: "Could not save study progress." });
          }
       } finally {
          if (isMountedRef.current) {
@@ -381,17 +406,14 @@ export default function StudyDeckPage() {
       setIsFlipped(false)
       setError(null) // Clear any previous errors
 
-      toast({
-        title: "Progress Reset",
+      toast.success("Progress Reset", {
         description: `Progress for "${deck.name}" has been reset.`,
-      })
+      });
     } catch (err) {
       console.error("Error resetting progress:", err)
-      toast({
-        title: "Error Resetting Progress",
+      toast.error("Error Resetting Progress", {
         description: "Could not reset progress. Please try again later.",
-        variant: "destructive",
-      })
+      });
     }
   }, [deck, updateDeck, toast, settings])
 
@@ -509,16 +531,13 @@ export default function StudyDeckPage() {
         // Persist the changes to storage
         updateDeck(updatedDeck).catch(err => {
           console.error("Error updating deck:", err);
-          toast({
-            title: "Error Starting Difficult Practice",
+          toast.error("Error Starting Difficult Practice", {
             description: "Could not save deck state. Please try again.",
-            variant: "destructive",
           });
         });
 
         // Show feedback to user
-        toast({
-          title: "Practicing Difficult Cards",
+        toast.info("Practicing Difficult Cards", {
           description: `Starting practice with ${remainingDifficultCount} difficult ${remainingDifficultCount === 1 ? 'card' : 'cards'}.`,
         });
       };
@@ -621,16 +640,13 @@ export default function StudyDeckPage() {
       // Persist the changes to storage
       updateDeck(updatedDeck).catch(err => {
         console.error("Error updating deck:", err);
-        toast({
-          title: "Error Starting Difficult Practice",
+        toast.error("Error Starting Difficult Practice", {
           description: "Could not save deck state. Please try again.",
-          variant: "destructive",
         });
       });
 
       // Show feedback to user
-      toast({
-        title: "Practicing Difficult Cards",
+      toast.info("Practicing Difficult Cards", {
         description: `Starting practice with ${difficultCardsCount} difficult ${difficultCardsCount === 1 ? 'card' : 'cards'}.`,
       });
     };

@@ -7,7 +7,7 @@ import { PlusCircle } from "lucide-react"
 import { CreateDeckDialog } from "@/components/create-deck-dialog"
 import { useDecks } from "@/hooks/use-decks"
 import { useRouter } from "next/navigation"
-import { useSettings } from "@/hooks/use-settings"
+import { useSettings } from "@/providers/settings-provider"
 import {
   calculateMasteredCount,
   DEFAULT_MASTERY_THRESHOLD,

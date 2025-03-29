@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 // --- End of imports ---
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
-import { Toaster } from "@/components/ui/toaster";
+import { Toaster as SonnerToaster } from "sonner";
 import { AuthProvider } from "@/hooks/use-auth";
 import { SettingsProvider } from "@/providers/settings-provider";
 import LayoutScript from "./layout-script";
@@ -66,7 +66,7 @@ export default function RootLayout({
                   </div>
                 </div>
               </div>
-              <Toaster />
+              <SonnerToaster richColors closeButton />
             </SettingsProvider>
           </AuthProvider>
         </ThemeProvider>

@@ -11,7 +11,7 @@ import { CardEditor } from "@/components/card-editor"
 import { TableEditor } from "@/components/table-editor"
 import { useDecks } from "@/hooks/use-decks"
 import type { Deck } from "@/types/deck"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -22,7 +22,6 @@ export default function EditDeckPage() {
   const deckId = params?.deckId
   const router = useRouter()
   const { getDeck, updateDeck, deleteDeck } = useDecks()
-  const { toast } = useToast()
   const [deck, setDeck] = useState<Deck | null>(null)
   const [activeTab, setActiveTab] = useState("cards")
   const [loading, setLoading] = useState(true)
@@ -31,39 +30,58 @@ export default function EditDeckPage() {
   const [retryCount, setRetryCount] = useState(0)
 
   useEffect(() => {
+    let isMounted = true; // Track mount status
     const loadDeck = async () => {
       try {
         if (!deckId) {
-          console.error("No deck ID provided")
-          setError("No deck ID provided")
-          router.push("/")
-          return
+          console.error("No deck ID provided");
+          if (isMounted) setError("No deck ID provided");
+          router.push("/");
+          return;
         }
 
-        console.log("Loading deck with ID:", deckId)
-        setLoading(true)
-        setError(null)
-
-        const loadedDeck = await getDeck(deckId)
-
-        if (!loadedDeck) {
-          console.error("Deck not found:", deckId)
-          setError("Deck not found")
-          return
+        console.log("Loading deck with ID:", deckId);
+        if (isMounted) {
+             setLoading(true);
+             setError(null);
         }
 
-        setDeck(loadedDeck)
-        setError(null)
+        // --- Refactor: Handle { data, error } from getDeck --- 
+        const result = await getDeck(deckId);
+
+        if (!isMounted) return; // Exit if component unmounted during fetch
+
+        if (result.error) {
+          console.error("Error fetching deck:", result.error);
+          setError(`Error loading deck: ${result.error.message}`);
+          setDeck(null); // Ensure deck is null on error
+        } else if (result.data) {
+          // Deck found successfully
+          setDeck(result.data);
+          setError(null);
+        } else {
+          // Deck not found (data is null, no error)
+          console.error("Deck not found:", deckId);
+          setError("Deck not found");
+          setDeck(null);
+        }
+        // --- End Refactor ---
+
       } catch (error) {
-        console.error("Error loading deck:", error)
-        setError(`Error loading deck: ${error instanceof Error ? error.message : String(error)}`)
+        // Catch unexpected errors outside the getDeck promise flow
+        console.error("Unexpected error loading deck:", error);
+         if (isMounted) setError(`Unexpected error: ${error instanceof Error ? error.message : String(error)}`);
       } finally {
-        setLoading(false)
+        if (isMounted) setLoading(false);
       }
-    }
+    };
 
-    loadDeck()
-  }, [deckId, getDeck, router])
+    loadDeck();
+
+    // Cleanup function
+    return () => { isMounted = false; };
+
+  }, [deckId, getDeck, router]); // Dependencies
 
   const handleNameChange = (newName: string) => {
     if (!deck) return
@@ -76,23 +94,25 @@ export default function EditDeckPage() {
   const handleSave = async () => {
     if (!deck) return
 
+    setSaving(true)
     try {
-      setSaving(true)
-      await updateDeck(deck)
+      const result = await updateDeck(deck)
 
-      toast({
-        title: "Changes saved",
-        description: "Your deck has been updated successfully.",
-      })
-
-      // Navigate back to home page after saving
-      router.push("/")
+      if (result.error) {
+        console.error("Error saving deck:", result.error)
+        toast.error("Error saving changes", {
+          description: result.error.message || "There was a problem saving your changes.",
+        })
+      } else {
+        toast.success("Changes saved", {
+          description: "Your deck has been updated successfully.",
+        })
+        router.push("/")
+      }
     } catch (error) {
-      console.error("Error saving deck:", error)
-      toast({
-        title: "Error saving changes",
-        description: "There was a problem saving your changes. Please try again.",
-        variant: "destructive",
+      console.error("Unexpected error saving deck:", error)
+      toast.error("Error saving changes", {
+        description: "An unexpected error occurred. Please try again.",
       })
     } finally {
       setSaving(false)
@@ -104,20 +124,23 @@ export default function EditDeckPage() {
 
     if (confirm("Are you sure you want to delete this deck? This action cannot be undone.")) {
       try {
-        await deleteDeck(deck.id)
+        const result = await deleteDeck(deck.id)
 
-        toast({
-          title: "Deck deleted",
-          description: "Your deck has been deleted successfully.",
-        })
-
-        router.push("/")
+        if (result.error) {
+          console.error("Error deleting deck:", result.error)
+          toast.error("Error deleting deck", {
+            description: result.error.message || "There was a problem deleting your deck.",
+          })
+        } else {
+          toast.success("Deck deleted", {
+            description: "Your deck has been deleted successfully.",
+          })
+          router.push("/")
+        }
       } catch (error) {
-        console.error("Error deleting deck:", error)
-        toast({
-          title: "Error deleting deck",
-          description: "There was a problem deleting your deck. Please try again.",
-          variant: "destructive",
+        console.error("Unexpected error deleting deck:", error)
+        toast.error("Error deleting deck", {
+          description: "An unexpected error occurred. Please try again.",
         })
       }
     }
@@ -371,4 +394,10 @@ export default function EditDeckPage() {
     </main>
   )
 }
+
+const logDecksError = (...args: any[]) => {
+    if (process.env.NODE_ENV !== 'production') {
+        console.error('[EditDeck Page Error]:', ...args);
+    }
+};
 

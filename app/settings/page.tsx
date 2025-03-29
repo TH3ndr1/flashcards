@@ -9,10 +9,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Save } from "lucide-react";
-import { useSettings } from "@/hooks/use-settings";
-import type { Settings, FontOption } from "@/hooks/use-settings";
-import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { useSettings } from "@/providers/settings-provider";
+import type { Settings, FontOption } from "@/providers/settings-provider";
+import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { FONT_OPTIONS } from "@/lib/fonts";
@@ -21,7 +21,6 @@ export default function SettingsPage() {
   const { user } = useAuth();
   const router = useRouter();
   const { settings, updateSettings, loading: settingsLoading } = useSettings();
-  const { toast } = useToast();
 
   const [appLanguage, setAppLanguage] = useState<string>("en");
   const [cardFont, setCardFont] = useState<FontOption>("default");
@@ -56,16 +55,13 @@ export default function SettingsPage() {
   const handleSettingChange = async (updates: Partial<Settings>) => {
     try {
       await updateSettings(updates);
-      toast({
-        title: "Settings updated",
+      toast.success("Settings updated", {
         description: "Your changes have been saved.",
       });
     } catch (error) {
       console.error("Failed to save settings:", error);
-      toast({
-        title: "Error",
+      toast.error("Error", {
         description: "Failed to save settings. Please try again.",
-        variant: "destructive",
       });
     }
   };

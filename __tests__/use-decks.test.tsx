@@ -8,12 +8,8 @@ jest.mock('@/hooks/use-auth', () => ({
     useSupabase: jest.fn(),
   }));
   // Updated mock: useSettings now always returns an object with settings and setSettings
-  jest.mock('@/hooks/use-settings', () => ({
-    __esModule: true,
-    useSettings: () => ({
-      settings: {},
-      setSettings: () => {},
-    }),
+  jest.mock('@/providers/settings-provider', () => ({
+    useSettings: jest.fn(),
   }));
   jest.mock('@/lib/deckService', () => ({
     fetchDecks: jest.fn(),

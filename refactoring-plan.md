@@ -1,110 +1,85 @@
-# Refactoring Plan & Progress
+# Refactoring Plan: Flashcard App
 
-This document tracks the progress of the codebase refactoring effort aimed at improving structure, performance, maintainability, and adherence to best practices.
+This document outlines the planned stages for refactoring the Flashcard application.
 
-## Stages
+## Stage 1: Authentication (✅ Completed)
 
-### 1. Authentication System (✅ Completed)
+- **Goal**: Modernize authentication using Supabase Auth helpers (`@supabase/ssr`) for server-side rendering compatibility and improved security.
+- **Work Done**:
+    - Replaced client-side Supabase logic with `@supabase/ssr`.
+    - Implemented middleware for session handling (`middleware.ts`).
+    - Created server and client Supabase instances.
+    - Refactored components (`AuthForm`, protected routes) to use the new auth flow.
+    - Updated `useAuth` hook.
+    - Added email confirmation handling.
+    - Updated documentation (`project-documentation.md`, `README.md`).
 
-**Goal:** Modernize and stabilize the Supabase authentication flow using server-side rendering (SSR) best practices.
+## Stage 2: Data Services (`lib/`) (✅ Completed)
 
-**Work Done:**
+- **Goal**: Refactor data fetching and manipulation services in the `lib/` directory for improved type safety, error handling, and adherence to best practices.
+- **Work Done**:
+    - Refactored `deckService.ts`:
+        - Introduced interfaces (`RawDeckQueryResult`, `RawCardQueryResult`, `CreateDeckParams`, `DeckWithCards`).
+        - Changed function signatures to return `{ data, error }`.
+        - Implemented structured error handling.
+        - Added JSDoc comments.
+        - Improved type safety in data transformations.
+        - Refactored `updateDeckService` for better atomicity (conceptual - needs backend transaction for true atomicity).
+        - Addressed potential orphaned cards in `deleteDeckService`.
+    - Refactored `cardService.ts`:
+        - Introduced interfaces (`RawCardQueryResult`, `CreateCardParams`, `UpdateCardParams`).
+        - Changed function signatures to return `{ data, error }`.
+        - Implemented structured error handling.
+        - Added JSDoc comments.
+        - Improved type safety.
+        - Refactored `updateCardResult`.
+        - Handled card updates and SR algorithm updates.
+    - Reviewed `settingsService.ts`:
+        - Added type safety and `{ data, error }` return signature.
+    - Reviewed `studyService.ts`:
+        - Found to be well-structured and using modern patterns. No major refactoring needed.
+    - Reviewed `study-utils.ts`, `fonts.ts`, `localStorageUtils.ts`: Minor utilities, generally okay.
+    - Deleted `lib/cardDifficultyUtils.ts` (unused) and `lib/supabase.ts` (obsolete).
 
-- **Integrated `@supabase/ssr`:** Replaced client-only Supabase setup with `@supabase/ssr` for consistent auth state management across server and client.
-- **Implemented Middleware:** Added `middleware.ts` to handle session cookie refresh and management.
-- **Refactored Hooks:**
-    - `hooks/use-supabase.tsx`: Updated to use `createBrowserClient`.
-    - `hooks/use-auth.tsx`: Updated to use the SSR-compatible client, improved error handling (including removing the Strict Mode `effectRan` check and fixing the `signOut` syntax error), refined `signIn` logic (removed forced navigation), and added comprehensive JSDoc documentation.
-- **Created Server-Side Callback:** Replaced the client-side `app/auth/callback/page.tsx` with a server-side Route Handler (`app/auth/callback/route.ts`) using `createSupabaseServerClient` to securely handle email confirmation code exchange.
-- **Improved User Feedback:** Updated `app/login/page.tsx` and `app/signup/page.tsx` to handle redirects reactively based on auth state, provide clearer loading states, and display specific feedback messages (using toasts) derived from the auth callback redirects.
-- **Error Handling:** Refined error handling in `signIn` to prevent the Next.js error overlay for expected errors like invalid credentials, while still providing user feedback via toasts.
-- **Cleanup:** Removed redundant `app/auth/error/` directory and client-side callback page.
-- **Documentation:** Updated `docs/project-documentation.md` and `README.md` to reflect the new authentication setup.
-- **Version Control:** Changes committed and pushed to the `refactor/auth` branch.
+## Stage 3: State Management & Hooks (Current Stage)
 
-### 2. Data Services (`lib/`) (⏳ In Progress)
+- **Goal**: Review and refactor global state management and custom hooks for better clarity, efficiency, and error handling.
+- **Work Done**:
+    - **`providers/settings-provider.tsx`** (✅ Completed):
+        - Reviewed state management logic (fetching, context, updates).
+        - Refactored `useEffect` for loading settings to properly handle `{ data, error }` from `fetchSettings`, show toasts on error, and set defaults reliably.
+        - Refactored `updateSettings` callback to return a structured `Promise<{ success: boolean; error?: PostgrestError | Error | null }>`, handle errors from `updateSettingsInDb`, show toasts, and manage preconditions.
+        - Corrected `PostgrestError` import.
+        - Modified `debug` function to be conditional based on `process.env.NODE_ENV`.
+- **Next Steps**:
+    - Review other custom hooks (e.g., `useSupabase`, `useAuth`, `useToast`, `useStudySession` if applicable) for consistency, error handling, and potential improvements.
+    - Evaluate if a dedicated state management library (Zustand, Jotai) is beneficial or if the current context-based approach is sufficient.
 
-**Goal:** Refactor core data interaction logic (e.g., for decks, cards, settings) to ensure type safety, robustness, efficiency, and adherence to SOLID principles.
+## Stage 4: Component Structure & UI
 
-**Work Done:**
+- **Goal**: Review components for clarity, reusability, adherence to SOLID principles, and proper use of hooks and state.
+- **Planned Steps**:
+    - Examine key components (e.g., Deck list, Card view, Study session UI).
+    - Identify complex or tightly coupled components for potential refactoring.
+    - Ensure consistent styling and UI patterns.
+    - Check for accessibility improvements.
 
-- **Refactored `lib/deckService.ts`:**
-    - Overhauled all CRUD functions (`fetchDecks`, `createDeckService`, `getDeckService`, `updateDeckService`, `deleteDeckService`).
-    - Standardized return signatures to `Promise<{ data: T | null; error: PostgrestError | CustomError | null }>`, replacing direct returns or thrown errors.
-    - Implemented structured error handling and logging within each service function.
-    - Enhanced type safety using interfaces (`RawDeckQueryResult`, `RawCardQueryResult`, `CreateDeckParams`) and Supabase `.returns<T>()`.
-    - Correctly handled `Date` object transformations (`lastStudied`) between database strings and frontend state.
-    - Added comprehensive JSDoc documentation, including warnings about lack of atomicity in `updateDeckService` and `deleteDeckService`.
-    - Explicitly deleted cards before deck deletion in `deleteDeckService`.
-- **Updated Consumers of `deckService`:**
-    - **`hooks/use-decks.tsx`:** Refactored all function calls (`loadDecks`, `createDeck`, `getDeck`, `updateDeck`, `deleteDeck`) to correctly handle the new `{ data, error }` return structure and manage loading/error states.
-    - **`lib/localStorageUtils.ts`:** Fixed `getDecksFromLocalStorage` to correctly parse stored ISO date strings (`lastStudied`) back into `Date` objects.
-    - **`types/deck.ts`:** Updated `FlashCard` interface to define `lastStudied` as `Date | null`.
-    - **`app/study/[deckId]/page.tsx`:** Significantly refactored `handleAnswer` to correctly:
-        - Handle the `Date` object for `lastStudied`.
-        - Call `calculateDifficultyScore` with the appropriate arguments.
-        - Restore and fix the study session logic (mastery checks, card filtering, next index calculation) to prevent premature completion messages.
-        - Update the `studyCards` state immediately to reflect visual changes (like difficulty score) without waiting for a full cycle.
-    - **`components/deck-list.tsx`:** Corrected the progress bar calculation and text to accurately reflect card mastery using `calculateMasteredCount` instead of relying on potentially incorrect `deck.progress` fields.
-- **Version Control:** Changes committed and pushed to the `refactor/data-layer` branch (renamed from `refactor/auth`).
+## Stage 5: Testing
 
-- **Refactored `lib/settingsService.ts`:**
-    - Standardized return signatures to `Promise<{ data: Settings | null; error: PostgrestError | null }>`.
-    - Implemented structured error handling.
-    - Enhanced type safety using `RawSettingsQueryResult` interface and `.returns<T>()`.
-    - Validated `cardFont` during transformation.
-    - Added/updated JSDoc documentation.
+- **Goal**: Improve test coverage and quality for unit and potentially integration tests.
+- **Planned Steps**:
+    - Review existing tests (if any).
+    - Add unit tests for refactored services and hooks.
+    - Add tests for critical UI components.
+    - Configure testing environment and CI pipeline.
 
-**Next Steps:**
+## Future Work & Recommendations
 
-- **Review Other `lib/` Utilities:** Assess `study-utils.ts`, `cardDifficultyUtils.ts` (if exists), `fonts.ts`, etc., for clarity, efficiency, and documentation.
+- **Backend Atomicity**: For operations like deck updates/deletes involving cards, implement proper database transactions (e.g., using Supabase Edge Functions) to ensure atomicity.
+- **State Management Library**: Re-evaluate the need for Zustand/Jotai as the application grows.
+- **End-to-End Testing**: Consider implementing E2E tests (e.g., using Playwright or Cypress) for critical user flows.
+- **Performance Optimization**: Profile the application and identify bottlenecks, especially in data fetching and rendering during study sessions.
+- **Advanced SR Features**: Explore more sophisticated spaced repetition algorithms or user-configurable options.
 
-### 3. State Management (`providers/`, `hooks/`)
-
-**Goal:** Review and potentially refactor global/feature-specific state management.
-
-**Planned Steps:**
-
-- **Review `providers/SettingsProvider.tsx`:** Understand how settings are fetched, stored, and updated. Ensure efficient context usage and minimize unnecessary re-renders.
-- **Review Custom Hooks:** Examine hooks like `useDecks`, `useStudy` (as mentioned in `project-documentation.md`) if they exist, ensuring they manage state effectively and encapsulate logic cleanly.
-
-### 4. API Routes (`app/api/`)
-
-**Goal:** Ensure backend API routes are secure, efficient, well-structured, and handle errors gracefully.
-
-**Planned Steps:**
-
-- **Review Existing Routes:** Analyze routes mentioned in documentation (TTS, Deck Management) or found in the directory.
-- **Authentication/Authorization:** Verify that routes correctly use the Supabase server client (from `lib/supabase/server.ts` or similar) to check user authentication and apply necessary authorization logic (e.g., checking if the user owns the deck they're trying to modify).
-- **Input Validation:** Ensure robust input validation (e.g., using Zod) is applied to request bodies/parameters.
-- **Error Handling:** Standardize error responses.
-- **Structure:** Ensure clear separation of concerns within API route handlers.
-
-### 5. Core UI Components (`components/`)
-
-**Goal:** Improve reusability, maintainability, and performance of key UI components.
-
-**Planned Steps:**
-
-- **Review `DeckList`:** Analyze props, data fetching/display logic, and potential optimizations.
-- **Review `Header`:** Check for clarity, state dependencies, and responsiveness.
-- **Review Other Shared Components:** Assess general component structure, prop types, styling encapsulation, and documentation.
-
-### 6. Testing (`__tests__/`)
-
-**Goal:** Ensure adequate test coverage and improve test quality.
-
-**Planned Steps:**
-
-- **Review Existing Tests:** Assess current unit/integration tests for clarity, coverage, and correctness.
-- **Add Tests for Refactored Code:** Write tests specifically for the refactored authentication logic and data services.
-- **Improve Test Setup:** Review `jest.config.js` and `jest.setup.js` for potential improvements.
-
-### 7. Final Documentation Update
-
-**Goal:** Ensure all documentation (`README.md`, `docs/`) is fully up-to-date after all refactoring stages.
-
-**Planned Steps:**
-
-- Review all modified sections.
-- Add any missing documentation for new patterns or components. 
+---
+*This plan is iterative and may be adjusted based on findings during the refactoring process.* 

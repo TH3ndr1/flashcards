@@ -26,6 +26,9 @@ jest.mock('@/lib/localStorageUtils', () => ({
   getDecksFromLocalStorage: jest.fn(),
   saveDecksToLocalStorage: jest.fn(),
 }));
+jest.mock('@supabase/ssr', () => ({
+  createBrowserClient: jest.fn(),
+}));
 
 // IMPORTANT: Do NOT mock use-supabase so that we test the real hook
 import React, { useEffect } from 'react';
