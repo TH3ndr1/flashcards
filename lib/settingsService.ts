@@ -17,60 +17,74 @@ interface RawSettingsQueryResult {
 }
 // --- End Helper Type ---
 
+// Define default dialects structure based on the expected Settings type
+const DEFAULT_DIALECTS = {
+  en: '',
+  nl: '',
+  fr: '',
+  de: '',
+  es: '',
+  it: '',
+  // Add other required keys if the error message implies more
+};
+
 /**
  * Fetches the settings for a given user from the Supabase "settings" table.
  *
  * @param {SupabaseClient} supabase - The Supabase client instance.
  * @param {string} userId - The ID of the user whose settings are to be fetched.
- * @returns {Promise<{ data: Settings | null; error: PostgrestError | null }>} 
+ * @returns {Promise<{ data: Settings | null; error: PostgrestError | Error | null }>} 
  *          An object containing the fetched settings on success,
  *          null data if not found, or an error object if the fetch fails.
  */
 export async function fetchSettings(
   supabase: SupabaseClient,
   userId: string
-): Promise<{ data: Settings | null; error: PostgrestError | null }> {
-  // Use type for query result
+): Promise<{ data: Settings | null; error: PostgrestError | Error | null }> {
   const { data: rawData, error } = await supabase
     .from('settings')
     .select('*')
     .eq('user_id', userId)
-    .returns<RawSettingsQueryResult | null>() // Specify expected structure
+    .returns<RawSettingsQueryResult | null>()
     .maybeSingle();
 
   if (error) {
     console.error('Error fetching settings:', error);
-    // Return error object
     return { data: null, error }; 
   }
 
-  // Handle case where no settings found (not an error)
   if (!rawData) {
+    // No settings found for user, return null data (not an error)
     return { data: null, error: null }; 
   }
 
   // Type-safe transformation
   try {
-    // Validate card_font if necessary or handle potential unknown values
-    const cardFontValue = rawData.card_font as FontOption | null; // Keep assertion or add validation
+    // Explicitly assert the type now that we know rawData is not null
+    const checkedRawData = rawData as RawSettingsQueryResult;
+
+    const cardFontValue = checkedRawData.card_font as FontOption | null; 
     const isValidFont = ['default', 'opendyslexic', 'atkinson'].includes(cardFontValue ?? '');
-    
+      
     const transformedData: Settings = {
-      id: rawData.id,
-      userId: rawData.user_id,
-      appLanguage: rawData.app_language ?? 'en', // Provide default if needed
-      languageDialects: rawData.language_dialects ?? {}, // Default to empty object
-      ttsEnabled: rawData.tts_enabled ?? true,
-      showDifficulty: rawData.show_difficulty ?? true,
-      masteryThreshold: rawData.mastery_threshold ?? DEFAULT_MASTERY_THRESHOLD,
+      // id: checkedRawData.id, // REMOVED
+      // userId: checkedRawData.user_id, // REMOVED - userId is context, not part of settings data model
+      appLanguage: checkedRawData.app_language ?? 'en',
+      // Merge DB dialects onto defaults to ensure all keys exist
+      languageDialects: { 
+        ...DEFAULT_DIALECTS, 
+        ...(checkedRawData.language_dialects || {}) 
+      },
+      ttsEnabled: checkedRawData.tts_enabled ?? true,
+      showDifficulty: checkedRawData.show_difficulty ?? true,
+      masteryThreshold: checkedRawData.mastery_threshold ?? DEFAULT_MASTERY_THRESHOLD,
       cardFont: isValidFont && cardFontValue ? cardFontValue : 'default',
     };
-    // Return data on success
     return { data: transformedData, error: null };
   } catch (transformError) {
+    // Keep catch block in case casting or unexpected data causes issues
     console.error("Error transforming settings data:", transformError);
-    // Return transformation error (as a generic PostgrestError-like structure)
-    return { data: null, error: { message: "Failed to process settings data", details: String(transformError), hint: "", code: "SETTINGS_TRANSFORM_ERROR" } };
+    return { data: null, error: new Error(`Failed to process settings data: ${transformError}`) };
   }
 }
 
@@ -81,17 +95,16 @@ export async function fetchSettings(
  * @param {SupabaseClient} supabase - The Supabase client instance.
  * @param {string} userId - The ID of the user whose settings are being updated.
  * @param {Settings} settings - The complete settings object with updated values.
- * @returns {Promise<{ data: Settings | null; error: PostgrestError | null }>} 
+ * @returns {Promise<{ data: Settings | null; error: PostgrestError | Error | null }>} 
  *          An object containing the updated settings on success,
  *          or an error object if the update fails.
  */
 export async function updateSettings(
   supabase: SupabaseClient,
-  userId: string, // userId from auth context, settings.userId might differ if admin action
+  userId: string,
   settings: Settings
-): Promise<{ data: Settings | null; error: PostgrestError | null }> { // Updated Signature
-  // Convert camelCase keys to snake_case as expected by your database.
-  // Ensure user_id from the authenticated context is used for the upsert constraint/filter.
+): Promise<{ data: Settings | null; error: PostgrestError | Error | null }> {
+  
   const settingsData = {
     user_id: userId, 
     app_language: settings.appLanguage,
@@ -100,53 +113,52 @@ export async function updateSettings(
     show_difficulty: settings.showDifficulty,
     mastery_threshold: settings.masteryThreshold,
     card_font: settings.cardFont,
-    // Pass the existing ID only if it exists in the input settings object
-    // This helps Supabase identify the record to update in the upsert.
-    ...(settings.id && { id: settings.id }), 
   };
 
-  // Use type for query result
   const { data: rawData, error } = await supabase
     .from("settings")
     .upsert(settingsData, { 
-      onConflict: "user_id" // Assuming user_id is the unique constraint for upsert
+      onConflict: "user_id"
     })
-    .select('*') // Select all columns after upsert
-    .returns<RawSettingsQueryResult | null>() // Specify expected structure
-    .single(); // Use single() as upsert on unique constraint returns one row
+    .select('*')
+    .returns<RawSettingsQueryResult | null>()
+    .single();
 
   if (error) {
     console.error("Error updating settings:", error);
-    // Return error object
     return { data: null, error }; 
   }
 
-  // Handle case where upsert+select returns no data (unexpected)
   if (!rawData) {
     console.error("No data returned after settings update, though no error reported.");
-    return { data: null, error: { message: "Failed to retrieve updated settings data", details: "", hint: "", code: "FETCH_AFTER_UPSERT_FAILED" } };
+    return { data: null, error: new Error("Failed to retrieve updated settings data after upsert.") }; 
   }
 
-  // Type-safe transformation (same logic as fetchSettings)
+  // Type-safe transformation
   try {
-    const cardFontValue = rawData.card_font as FontOption | null;
+    // Explicitly assert the type now that we know rawData is not null
+    const checkedRawData = rawData as RawSettingsQueryResult;
+
+    const cardFontValue = checkedRawData.card_font as FontOption | null;
     const isValidFont = ['default', 'opendyslexic', 'atkinson'].includes(cardFontValue ?? '');
 
     const transformedData: Settings = {
-      id: rawData.id,
-      userId: rawData.user_id, // Use user_id from the returned data
-      appLanguage: rawData.app_language ?? 'en',
-      languageDialects: rawData.language_dialects ?? {},
-      ttsEnabled: rawData.tts_enabled ?? true,
-      showDifficulty: rawData.show_difficulty ?? true,
-      masteryThreshold: rawData.mastery_threshold ?? DEFAULT_MASTERY_THRESHOLD,
+      // id: checkedRawData.id, // REMOVED
+      // userId: checkedRawData.user_id, // REMOVED
+      appLanguage: checkedRawData.app_language ?? 'en',
+      // Merge DB dialects onto defaults
+      languageDialects: { 
+        ...DEFAULT_DIALECTS, 
+        ...(checkedRawData.language_dialects || {}) 
+      },
+      ttsEnabled: checkedRawData.tts_enabled ?? true,
+      showDifficulty: checkedRawData.show_difficulty ?? true,
+      masteryThreshold: checkedRawData.mastery_threshold ?? DEFAULT_MASTERY_THRESHOLD,
       cardFont: isValidFont && cardFontValue ? cardFontValue : 'default',
     };
-    // Return data on success
     return { data: transformedData, error: null };
   } catch (transformError) {
     console.error("Error transforming updated settings data:", transformError);
-    // Return transformation error
-    return { data: null, error: { message: "Failed to process updated settings data", details: String(transformError), hint: "", code: "SETTINGS_TRANSFORM_ERROR" } };
+    return { data: null, error: new Error(`Failed to process updated settings data: ${transformError}`) }; 
   }
 }

@@ -79,8 +79,9 @@ Improve code structure, maintainability, type safety, and error handling across 
     - Identify and review any other API route handlers within `app/api/`.
     - Ensure adherence to best practices (`docs/best-practices.md`).
     - Check for proper Supabase client usage and RLS reliance.
+- **Status**: Stage Complete. All identified API routes reviewed.
 
-### Stage 6: Testing (`__tests__/`)
+### Stage 6: Testing (`__tests__/`) (Current Stage)
 - [ ] Review existing tests.
 - [ ] Identify gaps in coverage.
 - [ ] Add tests for refactored services, hooks, and potentially complex components.

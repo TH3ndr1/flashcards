@@ -1,6 +1,6 @@
 // File: lib/deckService.ts
 
-import type { Deck, Card } from "@/types/deck";
+import type { Deck, FlashCard } from "@/types/deck";
 import type { SupabaseClient, PostgrestError } from "@supabase/supabase-js";
 import { calculateDifficultyScore } from "@/lib/study-utils"; // Import needed function
 
@@ -14,16 +14,7 @@ interface RawDeckQueryResult {
   question_language: string | null;
   answer_language: string | null;
   progress: { correct: number; total: number } | null; // Assuming progress is JSONB
-  cards: {
-    id: string;
-    question: string;
-    answer: string;
-    correct_count: number | null;
-    incorrect_count: number | null;
-    last_studied: string | null; // Assuming timestampz
-    attempt_count: number | null;
-    difficulty_score: number | null;
-  }[];
+  cards: RawCardQueryResult[]; // Use RawCardQueryResult here
 }
 
 interface RawCardQueryResult {
@@ -43,14 +34,14 @@ interface RawCardQueryResult {
  * 
  * @param {SupabaseClient} supabase - The Supabase client instance.
  * @param {string} userId - The ID of the user whose decks are to be fetched.
- * @returns {Promise<{ data: Deck[] | null; error: PostgrestError | null }>} 
+ * @returns {Promise<{ data: Deck[] | null; error: PostgrestError | Error | null }>} 
  *          An object containing the fetched decks on success (or null if none found),
  *          or an error object if the fetch fails.
  */
 export async function fetchDecks(
   supabase: SupabaseClient,
   userId: string
-): Promise<{ data: Deck[] | null; error: PostgrestError | null }> {
+): Promise<{ data: Deck[] | null; error: PostgrestError | Error | null }> {
   // --- 1. Use type for query result --- 
   const { data: rawData, error } = await supabase
     .from("decks")
@@ -92,13 +83,13 @@ export async function fetchDecks(
   try {
     const transformedDecks: Deck[] = rawData.map((deck): Deck => {
       // Map cards safely
-      const cards: Card[] = (deck.cards || []).map((card: RawCardQueryResult): Card => ({
+      const cards: FlashCard[] = (deck.cards || []).map((card: RawCardQueryResult): FlashCard => ({
         id: card.id,
         question: card.question,
         answer: card.answer,
         correctCount: card.correct_count ?? 0,
         incorrectCount: card.incorrect_count ?? 0,
-        lastStudied: card.last_studied ? new Date(card.last_studied) : undefined,
+        lastStudied: card.last_studied ? new Date(card.last_studied) : null,
         attemptCount: card.attempt_count ?? 0,
         difficultyScore: card.difficulty_score ?? 0
       }));
@@ -122,7 +113,7 @@ export async function fetchDecks(
      console.error("Error transforming deck data:", transformError);
      // --- 6. Return transformation error (as a generic PostgrestError-like structure) ---
      // Ideally, define a custom error type, but this mimics the structure.
-     return { data: null, error: { message: "Failed to process deck data", details: String(transformError), hint: "", code: "TRANSFORM_ERROR" } };
+     return { data: null, error: new Error(`Failed to process deck data: ${transformError}`) };
   }
 }
 
@@ -140,7 +131,7 @@ interface CreateDeckParams {
  * @param {SupabaseClient} supabase - The Supabase client instance.
  * @param {string} userId - The ID of the user creating the deck.
  * @param {CreateDeckParams} params - The properties of the new deck.
- * @returns {Promise<{ data: Deck | null; error: PostgrestError | null }>} 
+ * @returns {Promise<{ data: Deck | null; error: PostgrestError | Error | null }>} 
  *          An object containing the newly created deck on success,
  *          or an error object if the creation fails.
  */
@@ -148,7 +139,7 @@ export async function createDeckService(
   supabase: SupabaseClient,
   userId: string,
   params: CreateDeckParams
-): Promise<{ data: Deck | null; error: PostgrestError | null }> {
+): Promise<{ data: Deck | null; error: PostgrestError | Error | null }> {
   const newDeckId = crypto.randomUUID(); // Generate ID client-side for immediate use if needed
   
   // --- 1. Use type for query result --- 
@@ -189,7 +180,7 @@ export async function createDeckService(
   // --- 3. Handle case where insert succeeded but select returned null (shouldn't usually happen with .single()) ---
   if (!rawData) {
     console.error("No data returned from Supabase after creating deck, though no error reported.");
-    return { data: null, error: { message: "Failed to retrieve created deck data", details: "", hint: "", code: "FETCH_AFTER_INSERT_FAILED" } };
+    return { data: null, error: new Error("Failed to retrieve created deck data after insert.") };
   }
 
   // --- 4. Type-safe transformation --- 
@@ -209,7 +200,7 @@ export async function createDeckService(
   } catch (transformError) {
      console.error("Error transforming created deck data:", transformError);
      // --- 6. Return transformation error ---
-     return { data: null, error: { message: "Failed to process created deck data", details: String(transformError), hint: "", code: "TRANSFORM_ERROR" } };
+     return { data: null, error: new Error(`Failed to process created deck data: ${transformError}`) };
   }
 }
 
@@ -219,7 +210,7 @@ export async function createDeckService(
  * @param {SupabaseClient} supabase - The Supabase client instance.
  * @param {string} userId - The ID of the user who owns the deck.
  * @param {string} deckId - The ID of the deck to fetch.
- * @returns {Promise<{ data: Deck | null; error: PostgrestError | null }>} 
+ * @returns {Promise<{ data: Deck | null; error: PostgrestError | Error | null }>} 
  *          An object containing the fetched deck on success,
  *          null data if not found, or an error object if the fetch fails.
  */
@@ -227,7 +218,7 @@ export async function getDeckService(
   supabase: SupabaseClient,
   userId: string,
   deckId: string
-): Promise<{ data: Deck | null; error: PostgrestError | null }> {
+): Promise<{ data: Deck | null; error: PostgrestError | Error | null }> {
   // --- 1. Use type for query result --- 
   const { data: rawData, error } = await supabase
     .from("decks")
@@ -275,13 +266,13 @@ export async function getDeckService(
 
   // --- 5. Type-safe transformation --- 
   try {
-    const cards: Card[] = (rawData.cards || []).map((card: RawCardQueryResult): Card => ({
+    const cards: FlashCard[] = (rawData.cards || []).map((card: RawCardQueryResult): FlashCard => ({
         id: card.id,
         question: card.question,
         answer: card.answer,
         correctCount: card.correct_count ?? 0,
         incorrectCount: card.incorrect_count ?? 0,
-        lastStudied: card.last_studied ? new Date(card.last_studied) : undefined,
+        lastStudied: card.last_studied ? new Date(card.last_studied) : null,
         attemptCount: card.attempt_count ?? 0,
         difficultyScore: card.difficulty_score ?? 0
     }));
@@ -301,7 +292,7 @@ export async function getDeckService(
   } catch (transformError) {
     console.error("Error transforming single deck data:", transformError);
     // --- 7. Return transformation error ---
-    return { data: null, error: { message: "Failed to process fetched deck data", details: String(transformError), hint: "", code: "TRANSFORM_ERROR" } };
+    return { data: null, error: new Error(`Failed to process fetched deck data: ${transformError}`) };
   }
 }
 
@@ -324,30 +315,28 @@ interface CustomError {
  * @param {SupabaseClient} supabase - The Supabase client instance.
  * @param {string} userId - The ID of the user performing the update (for RLS).
  * @param {Deck} updatedDeck - The deck object containing the updated data and cards.
- * @returns {Promise<{ error: PostgrestError | CustomError | null }>} 
+ * @returns {Promise<{ error: PostgrestError | Error | null }>} 
  *          An object containing an error if any step fails, or null on success.
  */
 export async function updateDeckService(
   supabase: SupabaseClient,
-  userId: string, // userId might not be strictly needed here if RLS handles ownership based on the deck ID
+  userId: string,
   updatedDeck: Deck
-): Promise<{ error: PostgrestError | CustomError | null }> {
-  // 1. Update the deck record itself
+): Promise<{ error: PostgrestError | Error | null }> {
+  // 1. Update deck metadata
   console.log(`Updating deck metadata for ID: ${updatedDeck.id}`);
   const { error: deckError } = await supabase
     .from("decks")
     .update({
       name: updatedDeck.name,
-      // Avoid updating language if it's derived; update specific fields
       is_bilingual: updatedDeck.isBilingual,
       question_language: updatedDeck.questionLanguage,
       answer_language: updatedDeck.answerLanguage,
       progress: updatedDeck.progress,
-      updated_at: new Date().toISOString(), // Keep track of updates
+      updated_at: new Date().toISOString(),
     })
     .eq("id", updatedDeck.id)
-    // Ensure user owns the deck (RLS should ideally handle this, but belt-and-suspenders)
-    .eq("user_id", userId); 
+    .eq("user_id", userId);
 
   if (deckError) {
     console.error(`Error updating deck metadata (ID: ${updatedDeck.id}):`, deckError);
@@ -361,33 +350,38 @@ export async function updateDeckService(
     .from("cards")
     .select("id")
     .eq("deck_id", updatedDeck.id)
-    // --- Add type safety --- 
     .returns<{ id: string }[] | null>();
 
   if (fetchError) {
     console.error(`Error fetching existing card IDs (Deck ID: ${updatedDeck.id}):`, fetchError);
-    // Rollback is not possible here, deck metadata is already updated.
     return { error: fetchError };
   }
-  console.log(`Fetched ${existingCardsData?.length ?? 0} existing card IDs for deck ID: ${updatedDeck.id}`);
 
-  // --- Use existingCardsData which is typed --- 
-  const existingCardIds = new Set(existingCardsData?.map(c => c.id) || []);
+  // --- Explicit check and initialization for existing cards ---
+  let existingCardIds: Set<string> = new Set(); // Initialize as empty Set
+  if (existingCardsData && Array.isArray(existingCardsData)) {
+      // Now we know it's an array, proceed safely
+      console.log(`Fetched ${existingCardsData.length} existing card IDs for deck ID: ${updatedDeck.id}`);
+      // Explicitly type 'c' in map
+      existingCardIds = new Set(existingCardsData.map((c: { id: string }) => c.id));
+  } else {
+      // Handle null or non-array case (treat as no existing cards)
+      console.log(`No existing cards found or invalid data received for deck ID: ${updatedDeck.id}`);
+  }
+  // --- End explicit check ---
 
-  // 3. Prepare card upserts (insert new cards or update existing ones)
-  // Ensure card IDs are generated for new cards if they don't have one
+  // 3. Prepare card upserts
   const cardUpserts = updatedDeck.cards.map((card) => ({
-    id: card.id || crypto.randomUUID(), // Assign UUID if card is new
+    id: card.id || crypto.randomUUID(),
     deck_id: updatedDeck.id,
     question: card.question,
     answer: card.answer,
     correct_count: card.correctCount,
     incorrect_count: card.incorrectCount,
-    last_studied: card.lastStudied?.toISOString(), // Convert Date back to ISO string or null
+    last_studied: card.lastStudied?.toISOString(), 
     attempt_count: card.attemptCount,
     difficulty_score: card.difficultyScore,
-    // created_at is handled by DB default on insert
-    updated_at: new Date().toISOString(), // Ensure updated_at is set on upsert
+    updated_at: new Date().toISOString(),
   }));
 
   if (cardUpserts.length > 0) {
@@ -398,7 +392,6 @@ export async function updateDeckService(
 
     if (cardsUpsertError) {
       console.error(`Error upserting cards (Deck ID: ${updatedDeck.id}):`, cardsUpsertError);
-      // Data is now inconsistent (deck metadata updated, cards potentially partially updated)
       return { error: cardsUpsertError };
     }
      console.log(`Cards upserted successfully for deck ID: ${updatedDeck.id}`);
@@ -406,10 +399,11 @@ export async function updateDeckService(
     console.log(`No cards to upsert for deck ID: ${updatedDeck.id}`);
   }
 
-  // 4. Identify and delete cards that were removed from the deck object
-  const updatedCardIds = new Set(cardUpserts.map((c) => c.id)); // Use IDs from upserts
+  // 4. Identify and delete cards that were removed
+  const updatedCardIds = new Set(cardUpserts.map((c) => c.id));
+  // Explicitly type 'id' in filter callback
   const cardsToDelete = Array.from(existingCardIds).filter(
-    (id) => !updatedCardIds.has(id)
+    (id: string) => !updatedCardIds.has(id)
   );
 
   if (cardsToDelete.length > 0) {
@@ -417,13 +411,11 @@ export async function updateDeckService(
     const { error: deleteError } = await supabase
       .from("cards")
       .delete()
-      // Ensure we only delete cards belonging to this deck
       .eq("deck_id", updatedDeck.id) 
       .in("id", cardsToDelete);
 
     if (deleteError) {
       console.error(`Error deleting cards (Deck ID: ${updatedDeck.id}):`, deleteError);
-      // Data is now inconsistent
       return { error: deleteError };
     }
     console.log(`Cards deleted successfully for deck ID: ${updatedDeck.id}`);
@@ -496,7 +488,7 @@ export async function deleteDeckService(
  * @param {string} deckId - The ID of the deck the card belongs to (for context/RLS).
  * @param {string} cardId - The ID of the card to update.
  * @param {boolean | null} isCorrect - True if answered correctly, false if incorrect, null if skipped (counts not updated).
- * @returns {Promise<{ data: Card | null; error: PostgrestError | null }>} 
+ * @returns {Promise<{ data: FlashCard | null; error: PostgrestError | Error | null }>} 
  *          An object containing the updated card data on success,
  *          or an error object if the update fails.
  */
@@ -506,7 +498,7 @@ export async function updateCardResultService(
   deckId: string, // For context/RLS
   cardId: string,
   isCorrect: boolean | null // null indicates 'skip'
-): Promise<{ data: Card | null; error: PostgrestError | null }> {
+): Promise<{ data: FlashCard | null; error: PostgrestError | Error | null }> {
 
   // 1. Fetch current card data
   const { data: currentCardData, error: fetchError } = await supabase
@@ -519,7 +511,7 @@ export async function updateCardResultService(
 
   if (fetchError || !currentCardData) {
     console.error(`Error fetching card ${cardId} for update:`, fetchError);
-    return { data: null, error: fetchError || { message: "Card not found", details: "Failed to fetch card before update", hint: "", code: "FETCH_FAILED" } };
+    return { data: null, error: fetchError || new Error("Card not found or fetch failed before update.") };
   }
 
   // 2. Calculate new values
@@ -538,7 +530,7 @@ export async function updateCardResultService(
   }
 
   // 3. Calculate new difficulty score
-  const tempCardForScore: Card = {
+  const tempCardForScore: FlashCard = {
       id: cardId,
       question: '', // Not needed for score calc
       answer: '',   // Not needed for score calc
@@ -580,24 +572,24 @@ export async function updateCardResultService(
 
   if (!updatedRawCard) {
       console.error("No data returned from Supabase after updating card, though no error reported.");
-      return { data: null, error: { message: "Failed to retrieve updated card data", details: "", hint: "", code: "FETCH_AFTER_UPDATE_FAILED" } };
+      return { data: null, error: new Error("Failed to retrieve updated card data after update.") };
   }
 
   // 5. Transform and return
   try {
-    const updatedCard: Card = {
+    const updatedCard: FlashCard = {
         id: updatedRawCard.id,
         question: updatedRawCard.question,
         answer: updatedRawCard.answer,
         correctCount: updatedRawCard.correct_count ?? 0,
         incorrectCount: updatedRawCard.incorrect_count ?? 0,
-        lastStudied: updatedRawCard.last_studied ? new Date(updatedRawCard.last_studied) : undefined,
+        lastStudied: updatedRawCard.last_studied ? new Date(updatedRawCard.last_studied) : null,
         attemptCount: updatedRawCard.attempt_count ?? 0,
         difficultyScore: updatedRawCard.difficulty_score ?? 0
     };
     return { data: updatedCard, error: null };
   } catch (transformError) {
      console.error("Error transforming updated card data:", transformError);
-     return { data: null, error: { message: "Failed to process updated card data", details: String(transformError), hint: "", code: "TRANSFORM_ERROR" } };
+     return { data: null, error: new Error(`Failed to process updated card data: ${transformError}`) };
   }
 }
