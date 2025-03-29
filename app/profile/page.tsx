@@ -7,39 +7,32 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { ArrowLeft, LogOut } from "lucide-react"
 import Link from "next/link"
 import { useAuth } from "@/hooks/use-auth"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
+import type { AuthError } from "@supabase/supabase-js"
 
 export default function ProfilePage() {
   const { user, signOut } = useAuth()
   const router = useRouter()
-  const { toast } = useToast()
   const [loading, setLoading] = useState(false)
 
   const handleSignOut = async () => {
-    try {
-      setLoading(true)
-      await signOut()
+    setLoading(true)
+    const { error } = await signOut()
 
-      toast({
-        title: "Signed out",
-        description: "You have been signed out successfully.",
-      })
-
-      router.push("/login")
-    } catch (error) {
+    if (error) {
       console.error("Error signing out:", error)
-      toast({
-        title: "Error",
-        description: "There was a problem signing out. Please try again.",
-        variant: "destructive",
-      })
-    } finally {
+      if (error instanceof Error) {
+        toast.error(error.message || "An unexpected error occurred during sign out.")
+      } else {
+        toast.error(error.message || "Sign out failed. Please try again.")
+      }
       setLoading(false)
+    } else {
+      toast.success("Signed out successfully.")
     }
   }
 
   if (!user) {
-    router.push("/login")
     return null
   }
 

@@ -10,7 +10,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/hooks/use-auth"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
+import type { AuthError } from '@supabase/supabase-js'
 
 /**
  * Renders the login page component.
@@ -23,7 +24,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { signIn, user, loading: authLoading } = useAuth()
-  const { toast } = useToast()
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -32,27 +32,21 @@ export default function LoginPage() {
     const error = searchParams.get('error')
 
     if (message === 'email_already_confirmed_or_link_invalid') {
-      toast({
-        title: "Email Confirmation Info",
-        description: "Your email may already be confirmed, or the link was invalid/expired. Please try logging in.",
-        duration: 7000,
-      })
+      toast("Your email may already be confirmed, or the link was invalid/expired. Please try logging in.")
     } else if (error === 'confirmation_failed') {
-      toast({
-        title: "Email Confirmation Failed",
-        description: "Could not confirm your email. Please try the link again or sign up if needed.",
-        variant: "destructive",
-        duration: 7000,
+      toast.error("Email Confirmation Failed", {
+        description: "Could not confirm your email. Please try the link again or sign up if needed."
       })
     } else if (error === 'missing_confirmation_code') {
-      toast({
-        title: "Invalid Link",
-        description: "The confirmation link is missing necessary information. Please use the link from your email.",
-        variant: "destructive",
-        duration: 7000,
+      toast.error("Invalid Link", {
+        description: "The confirmation link is missing necessary information. Please use the link from your email."
       })
     }
-  }, [searchParams, toast, router])
+
+    if (message || error) {
+      router.replace('/login', { scroll: false })
+    }
+  }, [searchParams, router])
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -65,10 +59,8 @@ export default function LoginPage() {
     setIsSubmitting(true)
 
     if (!email || !password) {
-      toast({
-        title: "Missing Information",
-        description: "Please enter both email and password.",
-        variant: "destructive",
+      toast.error("Missing Information", {
+        description: "Please enter both email and password."
       })
       setIsSubmitting(false)
       return
@@ -78,18 +70,20 @@ export default function LoginPage() {
       const { error } = await signIn(email, password)
 
       if (error) {
-        toast({
-          title: "Login Failed",
-          description: error.message || "Invalid credentials. Please try again.",
-          variant: "destructive",
-        })
+        console.error("Sign in error:", error)
+        if (error instanceof Error) {
+          toast.error(error.message || "An unexpected error occurred during sign in.")
+        } else {
+          toast.error(error.message || "Invalid login credentials.")
+        }
+      } else {
+        toast.success("Sign in successful! Redirecting...")
+        router.push("/")
       }
     } catch (error) {
       console.error("Login submit error:", error)
-      toast({
-        title: "Login Failed",
-        description: "An unexpected error occurred. Please try again later.",
-        variant: "destructive",
+      toast.error("Login Failed", {
+        description: "An unexpected error occurred. Please try again later."
       })
     } finally {
       setIsSubmitting(false)

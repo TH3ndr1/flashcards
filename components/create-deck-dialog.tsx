@@ -18,8 +18,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { useDecks } from "@/hooks/use-decks"
 import { useRouter } from "next/navigation"
-import { useSettings } from "@/hooks/use-settings"
-import { useToast } from "@/hooks/use-toast"
+import { useSettings } from "@/providers/settings-provider"
+import { toast } from "sonner"
 
 interface CreateDeckDialogProps {
   open: boolean
@@ -34,7 +34,6 @@ export function CreateDeckDialog({ open, onOpenChange }: CreateDeckDialogProps) 
   const [loading, setLoading] = useState(false)
   const { createDeck } = useDecks()
   const { settings } = useSettings()
-  const { toast } = useToast()
   const router = useRouter()
 
   // Set default languages from settings
@@ -48,11 +47,7 @@ export function CreateDeckDialog({ open, onOpenChange }: CreateDeckDialogProps) 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter a name for your deck",
-        variant: "destructive",
-      })
+      toast.error("Deck name is required")
       return
     }
 
@@ -69,19 +64,14 @@ export function CreateDeckDialog({ open, onOpenChange }: CreateDeckDialogProps) 
         throw new Error("Failed to create deck")
       }
 
-      toast({
-        title: "Deck created",
-        description: "Your new deck has been created successfully.",
-      })
+      toast.success("Deck created successfully!")
 
       onOpenChange(false)
       router.push(`/edit/${newDeck.id}`)
     } catch (error) {
       console.error("Error creating deck:", error)
-      toast({
-        title: "Error creating deck",
-        description: error instanceof Error ? error.message : "There was a problem creating your deck. Please try again.",
-        variant: "destructive",
+      toast.error("Failed to create deck", {
+        description: error instanceof Error ? error.message : "An unexpected error occurred."
       })
     } finally {
       setLoading(false)
