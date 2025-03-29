@@ -1,6 +1,7 @@
 // src/lib/study-utils.ts
 import type { FlashCard } from "@/types/deck";
 import type { Settings } from "@/providers/settings-provider";
+import type { Deck } from "@/types/deck";
 
 // --- Constants ---
 // Default value, but actual threshold comes from settings
@@ -139,4 +140,165 @@ export const prepareDifficultCards = (cards: FlashCard[]): FlashCard[] => {
 
   const result = weightedCards.map((wc) => wc.card);
   return result;
+};
+
+/**
+ * Calculates updated statistics for a flashcard after an answer.
+ * @param card The original card data.
+ * @param isCorrect Whether the answer was correct.
+ * @returns A new FlashCard object with updated statistics.
+ */
+export const updateCardStats = (card: FlashCard, isCorrect: boolean): FlashCard => {
+  const newCorrectCount = isCorrect ? (card.correctCount || 0) + 1 : (card.correctCount || 0);
+  const newIncorrectCount = !isCorrect ? (card.incorrectCount || 0) + 1 : (card.incorrectCount || 0);
+  const newAttemptCount = (card.attemptCount || 0) + 1;
+  const now = new Date();
+
+  // Create a temporary card object with updated stats to calculate the new score
+  const tempUpdatedCard: FlashCard = {
+    ...card,
+    correctCount: newCorrectCount,
+    incorrectCount: newIncorrectCount,
+    attemptCount: newAttemptCount,
+    lastStudied: now,
+  };
+  const newDifficultyScore = calculateDifficultyScore(tempUpdatedCard);
+
+  return {
+    ...card,
+    correctCount: newCorrectCount,
+    incorrectCount: newIncorrectCount,
+    attemptCount: newAttemptCount,
+    lastStudied: now,
+    difficultyScore: newDifficultyScore,
+  };
+};
+
+/**
+ * Determines the next state of the study session (next card index and updated study card list).
+ *
+ * @param currentStudyCards The current array of cards being studied.
+ * @param currentCardIndex The index of the card just answered.
+ * @param answeredCard The card that was just answered, with its *updated* statistics.
+ * @param masteryThreshold The number of correct answers required for mastery.
+ * @returns An object containing the next study cards array and the next card index.
+ */
+export const determineNextCardState = (
+  currentStudyCards: FlashCard[],
+  currentCardIndex: number,
+  answeredCard: FlashCard,
+  masteryThreshold: number
+): { nextStudyCards: FlashCard[]; nextIndex: number; cardJustMastered: boolean } => {
+  let nextStudyCards = [...currentStudyCards];
+  let nextIndex = currentCardIndex;
+  let cardJustMastered = false;
+
+  // Check if the *updated* answered card meets the mastery threshold
+  if (answeredCard.correctCount >= masteryThreshold) {
+    cardJustMastered = true;
+    console.log(`study-utils: Card ${answeredCard.id} mastered and will be removed.`);
+    // Filter based on the ID of the card that was just answered
+    nextStudyCards = currentStudyCards.filter(card => card.id !== answeredCard.id);
+    // Adjust index: stay at current index if it's still valid, otherwise wrap or go to 0
+    nextIndex = Math.min(currentCardIndex, nextStudyCards.length - 1);
+    if (nextIndex < 0) nextIndex = 0; // Handle empty list case
+  } else {
+    // Standard progression: Move to the next card, wrapping around
+    if (currentStudyCards.length > 0) {
+      // Ensure the calculation only happens if there are cards to cycle through
+      // Use the length of the *original* list before potential filtering
+      nextIndex = (currentCardIndex + 1) % currentStudyCards.length;
+    }
+    // If the list became empty *before* this answer (shouldn't normally happen here, but safety check)
+    if (nextStudyCards.length === 0) {
+        nextIndex = 0;
+    }
+
+  }
+
+  return { nextStudyCards, nextIndex, cardJustMastered };
+};
+
+/**
+ * Creates the necessary state components for resetting a deck's progress.
+ * Does not perform side effects (like saving).
+ *
+ * @param deck The current deck object.
+ * @param settings User settings (needed for prepareStudyCards).
+ * @returns An object containing the deck with reset progress and the initial study cards list.
+ */
+export const createResetDeckState = (deck: Deck, settings: Settings | null): { resetDeck: Deck; initialStudyCards: FlashCard[] } => {
+  console.log("study-utils: Preparing reset state for deck:", deck.name);
+
+  const resetCards = deck.cards.map((card) => ({
+    ...card,
+    correctCount: 0,
+    incorrectCount: 0,
+    lastStudied: null,
+    attemptCount: 0,
+    difficultyScore: 0,
+  }));
+
+  const resetDeck: Deck = {
+    ...deck,
+    cards: resetCards,
+    progress: { ...deck.progress, studyingDifficult: false }, // Ensure difficult mode flag is reset
+  };
+
+  // Re-prepare study cards based on the newly reset deck data
+  const initialStudyCards = prepareStudyCards(resetCards, settings);
+
+  return { resetDeck, initialStudyCards };
+};
+
+/**
+ * Creates the necessary state components for starting a difficult card study session.
+ * Identifies difficult cards, resets their progress *within the returned state*,
+ * and marks the deck state for difficult mode.
+ * Does not perform side effects (like saving).
+ *
+ * @param deck The current deck object.
+ * @returns An object containing the deck updated for difficult mode (with partial resets)
+ *          and the list of difficult cards to study.
+ *          Returns null if no difficult cards are found.
+ */
+export const createDifficultSessionState = (
+  deck: Deck
+): { updatedDeck: Deck; difficultCardsToStudy: FlashCard[] } | null => {
+  const difficultCards = prepareDifficultCards(deck.cards);
+  if (difficultCards.length === 0) {
+    console.log("study-utils: No difficult cards found to create session state.");
+    return null; // Indicate no session could be started
+  }
+
+  console.log(`study-utils: Preparing difficult session state with ${difficultCards.length} cards.`);
+
+  // Create a map for quick lookup of difficult card IDs
+  const difficultCardIds = new Set(difficultCards.map(card => card.id));
+
+  // Create a new array of cards where only the difficult ones have their progress reset
+  const partiallyResetCards = deck.cards.map(card => {
+    if (difficultCardIds.has(card.id)) {
+      return {
+        ...card,
+        correctCount: 0,
+        incorrectCount: 0,
+        lastStudied: null, // Also reset lastStudied for score calculation consistency
+        attemptCount: 0,
+        difficultyScore: 0, // Reset score to ensure they aren't immediately filtered
+      };
+    }
+    return card; // Keep non-difficult cards unchanged
+  });
+
+  // Create the updated deck state, marking it for difficult mode
+  const updatedDeck: Deck = {
+    ...deck,
+    cards: partiallyResetCards, // Use the list with difficult cards reset
+    progress: { ...deck.progress, studyingDifficult: true },
+  };
+
+  // The list of cards to actually cycle through in the UI is the original difficult cards list
+  // The main deck state holds the *reset* progress for lookup when answering.
+  return { updatedDeck, difficultCardsToStudy: difficultCards };
 };

@@ -250,35 +250,59 @@ graph TD
 
 2. **useDecks**
    ```typescript
-   // Deck management hook
+   // Hook for managing deck CRUD operations and deck list state.
    export function useDecks() {
-     // State Management:
-     // - decks: Deck[] - List of user's decks
-     // - loading: boolean - Loading state indicator
-     
-     // Core Functions:
-     // - fetchDecks(): Promise<void> - Fetches deck list from API
-     // - createDeck(data: CreateDeckData): Promise<Deck>
-     // - getDeck(id: string): Promise<GetDeckResult>
-     // - updateDeck(id: string, data: UpdateDeckData): Promise<Deck>
-     // - deleteDeck(id: string): Promise<void>
-     
-     // Performance Optimizations:
-     // - Initial load attempts localStorage first
-     // - Successful API fetches are cached to localStorage
-     // - getDeck doesn't modify main deck list state
+     // Provides deck list, loading state, and functions like:
+     // getDecks, getDeck, createDeck, updateDeck, deleteDeck.
+     // Handles optimistic updates and error reporting for deck operations.
    }
    ```
 
-3. **useStudy** _(Note: To be verified during page components review)_
+3. **useDeckLoader** (New)
    ```typescript
-   // Study session hook
-   export function useStudy() {
-     // Study progress tracking
-     // Spaced repetition logic
-     // Performance metrics
+   // Hook specifically responsible for loading a single deck by ID.
+   export function useDeckLoader(deckId: string | undefined) {
+     // Encapsulates fetching logic, including retries and caching checks.
+     // Manages loading and error states specifically for the deck fetch operation.
+     // Returns { loadedDeck, isLoadingDeck, deckLoadError }.
+     // Used by useStudySession.
    }
    ```
+
+4. **useStudySession** (Updated - formerly useStudy Hook)
+   ```typescript
+   // Main hook for orchestrating the flashcard study session logic.
+   export function useStudySession({ deckId, settings }) {
+     // Manages core study state (current card, flipped state, progress).
+     // Uses `useDeckLoader` to fetch the deck data.
+     // Uses `useStudyTTS` for text-to-speech side effects.
+     // Coordinates utility functions from `/lib/study-utils.ts` for specific logic 
+     // (e.g., card updates, next card determination, reset/difficult mode state prep).
+     // Provides action callbacks (answerCardCorrect, flipCard, etc.) to the UI.
+   }
+   ```
+
+5. **useStudyTTS** (New)
+   ```typescript
+   // Hook dedicated to handling Text-to-Speech side effects during a study session.
+   export function useStudyTTS({ isEnabled, isLoading, ... }) {
+     // Uses the core `useTTS` hook internally.
+     // Listens to relevant state changes (loading, card flips, current card) 
+     // and triggers speech accordingly with appropriate delays.
+   }
+   ```
+
+6. **useTTS**
+   ```typescript
+   // Lower-level hook for interacting with the TTS API (e.g., Google Cloud TTS).
+   export function useTTS() {
+     // Provides core `speak` function and state management for audio playback.
+     // Handles API calls, audio buffering, and playback controls.
+     // Manages available voices and language settings.
+   }
+   ```
+
+*Note:* Utility functions in `/lib/study-utils.ts` handle specific, reusable logic like calculating difficulty scores (`calculateDifficultyScore`), preparing card lists (`prepareStudyCards`, `prepareDifficultCards`), updating card stats (`updateCardStats`), determining the next card (`determineNextCardState`), and preparing state for reset/difficult modes (`createResetDeckState`, `createDifficultSessionState`). This separation improves testability and maintainability.
 
 #### 3. API Routes (`/app/api/*`)
 

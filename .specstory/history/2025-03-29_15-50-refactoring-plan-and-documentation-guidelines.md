@@ -8823,7 +8823,2065 @@ Ok, now it seems that we have finally recreated the business logic. Update all r
 
 _**Assistant**_
 
+Excellent! It's great to hear that the core business logic appears to be functioning correctly again after those fixes.
 
+Let's update the documentation and get these changes committed.
+
+**Documentation Updates:**
+
+I'll update `refactoring-plan.md` to include the recent fixes:
+
+*   Restoration of TTS functionality in `useStudySession`.
+*   Correction of the mastered card removal logic in `useStudySession`.
+*   Debugging and correction of deck creation flow (PostgREST syntax error, navigation guard).
+*   Fix for `isDifficultSessionComplete` calculation causing errors.
+
+---
+
+```diff
+      - [x] Page component simplified to use hook.
+      - [x] Resolved complex bugs related to completion screen rendering (mastered decks) and difficult mode state persistence/resumption.
++     - [x] Corrected logic for removing mastered cards during study session.
++     - [x] Fixed bug causing error when finishing difficult card session.
+  
+  ### Stage 5: API Routes (`app/api/`)
+          - Extracted core study logic from `StudyDeckPage`.
+          - Implemented per-card persistence.
++         - Restored missing Text-to-Speech (TTS) functionality.
+          - Refactored state logic for difficult mode completion (`isDifficultSessionComplete`).
++         - Corrected logic for removing mastered cards from the study set.
+          - Debugged and fixed state persistence issues related to `studyingDifficult` flag.
+          - Corrected logic for handling mastered deck loading.
+- - **Next Steps**:
+-     - Review other custom hooks (e.g., `useSupabase`, `useAuth`, `useToast`, `useStudySession` if applicable) for consistency, error handling, and potential improvements.
+-     - Evaluate if a dedicated state management library (Zustand, Jotai) is beneficial or if the current context-based approach is sufficient.
++         - Corrected calculation for `isDifficultSessionComplete`.
++     - **`lib/deckService.ts`** (✅ Minor Fixes):
++         - Corrected syntax error in `createDeckService` select statement.
++         - Improved error logging in various service functions.
++     - **`components/create-deck-dialog.tsx`** (✅ Minor Fixes):
++         - Added error handling and navigation guard after deck creation attempt.
++     - **Status**: Stage Complete.
+  
+  ## Stage 4: Component Structure & UI (✅ Completed)
+```
+
+---
+
+The `refactoring-plan.md` has been updated.
+
+**Git Commit:**
+
+Here's the proposed commit message:
+
+```
+feat(study): Restore TTS and fix mastered card removal
+
+- Restore Text-to-Speech (TTS) functionality in the useStudySession hook.
+- Correct logic in useStudySession to properly remove cards from the current study set immediately after they reach the mastery threshold.
+
+fix(study): Resolve difficult session completion error
+
+- Correct the calculation of `isDifficultSessionComplete` in useStudySession to properly handle the case where the studyCards array becomes empty, preventing errors when finishing a difficult card session.
+
+fix(deck): Resolve deck creation errors and navigation issues
+
+- Fix syntax error in the `.select()` statement within `createDeckService` in deckService.ts.
+- Add robust error handling and a navigation guard to `handleSubmit` in CreateDeckDialog to prevent navigation attempts if deck creation fails or doesn't return a valid ID.
+- Improve error logging in deck service functions and hooks.
+```
+
+And the command:
+
+---
+
+```bash
+git add . && git commit -m \"feat(study): Restore TTS and fix mastered card removal\" -m \"- Restore Text-to-Speech (TTS) functionality in the useStudySession hook.\" -m \"- Correct logic in useStudySession to properly remove cards from the current study set immediately after they reach the mastery threshold.\" -m \"fix(study): Resolve difficult session completion error\" -m \"- Correct the calculation of \`isDifficultSessionComplete\` in useStudySession to properly handle the case where the studyCards array becomes empty, preventing errors when finishing a difficult card session.\" -m \"fix(deck): Resolve deck creation errors and navigation issues\" -m \"- Fix syntax error in the \`.select()\` statement within \`createDeckService\` in deckService.ts.\" -m \"- Add robust error handling and a navigation guard to \`handleSubmit\` in CreateDeckDialog to prevent navigation attempts if deck creation fails or doesn't return a valid ID.\" -m \"- Improve error logging in deck service functions and hooks.\"
+```
+
+```
+<error logging in deck service functions and hooks.\"
+cmdand function quote> 
+tom@MacBook-Pro-van-Tom flashcards % 
+tom@MacBook-Pro-van-Tom flashcards %
+```
+
+---
+
+It seems the commit command was cancelled. No worries.
+
+Let's try that again. Here's the command to stage the changes and commit them with the detailed message:
+
+---
+
+```bash
+git add . && git commit -m "feat(study): Restore TTS and fix mastered card removal" -m "- Restore Text-to-Speech (TTS) functionality in the useStudySession hook." -m "- Correct logic in useStudySession to properly remove cards from the current study set immediately after they reach the mastery threshold." -m "fix(study): Resolve difficult session completion error" -m "- Correct the calculation of 'isDifficultSessionComplete' in useStudySession to properly handle the case where the studyCards array becomes empty, preventing errors when finishing a difficult card session." -m "fix(deck): Resolve deck creation errors and navigation issues" -m "- Fix syntax error in the '.select()' statement within 'createDeckService' in deckService.ts." -m "- Add robust error handling and a navigation guard to 'handleSubmit' in CreateDeckDialog to prevent navigation attempts if deck creation fails or doesn't return a valid ID." -m "- Improve error logging in deck service functions and hooks."
+```
+
+```
+< error logging in deck service functions and hooks."
+[refactor fab9e4d] feat(study): Restore TTS and fix mastered card removal
+ 7 files changed, 1124 insertions(+), 23 deletions(-)
+ create mode 100644 .specstory/history/2025-03-29_19-14-sanity-check-on-refactored-page-component.md
+tom@MacBook-Pro-van-Tom flashcards %
+```
+
+---
+
+The commit was successful this time.
+
+Now, I'll propose the `git push` command.
+
+---
+
+```bash
+git push
+```
+
+```
+tom@MacBook-Pro-van-Tom flashcards % git push
+Enumerating objects: 26, done.
+Counting objects: 100% (26/26), done.
+Delta compression using up to 8 threads
+Compressing objects: 100% (14/14), done.
+Writing objects: 100% (14/14), 18.98 KiB | 6.33 MiB/s, done.
+Total 14 (delta 11), reused 0 (delta 0), pack-reused 0
+remote: Resolving deltas: 100% (11/11), completed with 11 local objects.
+To https://github.com/TH3ndr1/flashcards.git
+   a0f313d..fab9e4d  refactor -> refactor
+tom@MacBook-Pro-van-Tom flashcards %
+```
+
+---
+
+All the recent fixes have been committed and pushed to the remote repository.
+
+This marks the end of this rather intensive debugging and refactoring session focused on the study logic and related deck operations. Hopefully, the core functionality is now stable and correct.
+
+---
+
+_**User**_
+
+what does check status on a branch means in git?
+
+---
+
+_**Assistant**_
+
+In Git, "checking the status on a branch" almost always refers to using the command:
+
+```bash
+git status
+```
+
+Running `git status` tells you the current state of your **working directory** and **staging area** relative to the **last commit** on the branch you currently have checked out. It's one of the most frequently used Git commands because it helps you understand what changes you've made and what will be included in your next commit.
+
+Here's what `git status` typically shows you:
+
+1.  **Current Branch:** It confirms which branch you are currently working on.
+2.  **Branch Sync Status:** It often tells you if your local branch is up-to-date, ahead of, or behind its remote tracking branch (e.g., `origin/main`), if one exists.
+3.  **Changes to be Committed (Staged Changes):**
+    *   These are files listed under "Changes to be committed".
+    *   You've modified these files and then explicitly told Git to prepare them for the next commit using `git add <file>`.
+    *   These changes **will** be included when you run `git commit`.
+4.  **Changes not Staged for Commit (Unstaged Changes):**
+    *   These are files listed under "Changes not staged for commit".
+    *   You've modified these files since your last commit, but you have **not** run `git add` on them yet.
+    *   These changes **will not** be included in the next commit unless you stage them first.
+5.  **Untracked Files:**
+    *   These are files listed under "Untracked files".
+    *   These files exist in your working directory, but Git doesn't know about them (they haven't been committed or staged before).
+    *   They won't be included in commits unless you explicitly `git add` them.
+
+**In short, `git status` is like asking Git:** "What have I done since my last save point (commit), and what am I about to save in the next one?"
+
+You use it constantly to:
+
+*   See what you've changed.
+*   Check which changes are ready to be committed.
+*   Make sure you haven't forgotten to `git add` any files you intended to commit.
+*   Verify your current branch and its relationship with the remote.
+
+---
+
+_**User**_
+
+no I mean in the git webpage - it says check status 1/2
+
+---
+
+_**Assistant**_
+
+Ah, thank you for clarifying! You're not talking about the `git status` command in your terminal, but rather something you're seeing on a Git hosting website like **GitHub, GitLab, or Bitbucket** associated with a branch or, more commonly, a **Pull Request (PR)**.
+
+That "check status 1/2" (or similar notation like ✅ 1 / 2 checks successful) almost certainly refers to **automated status checks** configured for your repository.
+
+Here's what it means:
+
+1.  **Automated Checks:** Your repository likely has Continuous Integration (CI), automated tests, linters, security scanners, or other automated processes set up. These run automatically when code is pushed to a branch or a PR is opened/updated. Examples include GitHub Actions, GitLab CI/CD, Jenkins, CircleCI, etc.
+2.  **Purpose:** These checks act as quality gates. They verify things like:
+    *   Does the code build successfully?
+    *   Do all the automated tests pass?
+    *   Does the code adhere to style guidelines (linting)?
+    *   Are there any known security vulnerabilities?
+3.  **"Status":** Each individual check reports its status (e.g., Pending, Running, Success, Failure, Cancelled).
+4.  **"1/2":** This notation usually means:
+    *   **Y (the `2`):** The total number of *required* automated checks that must pass for this branch/PR in its current context.
+    *   **X (the `1`):** The number of those required checks that have reported a status. Often, this specifically counts checks that have *passed* or are *still running*. The exact meaning depends on the platform's UI, but generally, it indicates progress through the required checks. In your case, "1/2" likely means one check has reported its status (it might have passed, failed, or still be running), and there's one more required check waiting to run or report.
+5.  **Pull Requests & Branch Protection:** These checks are very common on Pull Requests. Repository administrators often set up **branch protection rules** requiring certain status checks to pass *before* a PR can be merged into a protected branch (like `main` or `master`).
+
+**What to do:**
+
+On the webpage (GitHub, GitLab, etc.), you should be able to **click on that status indicator**. This will usually expand to show:
+
+*   The names of the specific checks configured (e.g., `build`, `test`, `lint`, `security-scan`).
+*   The individual status of each check (✅ Success, ❌ Failure, 🟡 Pending/Running).
+*   Links to view the detailed logs or output for each check, which is crucial for diagnosing failures.
+
+So, "check status 1/2" means your code is undergoing automated verification, and one of the two required steps has reported its status. You'll need to wait for the second one to complete, or investigate if the first one failed.
+
+---
+
+_**User**_
+
+can you show me where the main business logic resides for the cards / study
+
+---
+
+_**Assistant**_
+
+Okay, let's pinpoint where the main business logic for handling cards and the study session resides in the codebase, especially after the recent refactoring:
+
+1.  **`hooks/use-study-session.ts`**: **This is the absolute core.** Since extracting the logic from the page component, this custom hook now encapsulates the vast majority of the study session's business logic. It is responsible for:
+    *   Fetching the specific deck being studied (`getDeck`).
+    *   Managing the current state of the session:
+        *   Which cards are currently being studied (`studyCards` state).
+        *   The index of the current card (`currentCardIndex` state).
+        *   Whether the card is flipped (`isFlipped` state).
+        *   Loading and error states (`isLoading`, `error`).
+        *   Whether the session is in "difficult mode" (`isDifficultMode` derived state).
+        *   Tracking transitions (`isTransitioning` state).
+    *   Handling user actions:
+        *   `flipCard`: Manages the flipped state.
+        *   `handleAnswer` (called by `answerCardCorrect`/`answerCardIncorrect`): This is a critical piece. It updates the card's statistics (`correctCount`, `incorrectCount`, `difficultyScore`, `lastStudied`), determines if the card is mastered, decides whether to remove the card from the current session (`setStudyCards`), calculates the next card index, and triggers the debounced save (`updateDeck`).
+        *   `practiceDifficultCards`: Filters difficult cards, resets their progress *locally*, sets the `studyingDifficult` flag in the local deck state, and updates `studyCards` to the difficult set.
+        *   `resetDeckProgress`: Resets all card statistics locally and triggers a save.
+    *   Calculating derived state: `isFullDeckMastered`, `isDifficultSessionComplete`, `masteredCount`, progress percentages, etc.
+    *   Interacting with the TTS hook (`useTTS`) based on session state and settings.
+    *   Calling `updateDeck` (from `useDecks`) to persist changes.
+
+2.  **`lib/study-utils.ts`**: This file contains crucial **helper functions and constants** that *support* the business logic in `useStudySession`. It doesn't manage the session flow but defines *how* certain calculations are done:
+    *   `prepareStudyCards`: Determines the initial list of cards to study based on settings (e.g., excluding already mastered cards if applicable, although we fixed the removal logic to be dynamic).
+    *   `prepareDifficultCards`: Filters cards based on the `DIFFICULTY_THRESHOLD`.
+    *   `calculateDifficultyScore`: Implements the algorithm to determine a card's difficulty score based on its history.
+    *   `calculateMasteredCount`: Counts how many cards meet the `masteryThreshold`.
+    *   Constants like `DEFAULT_MASTERY_THRESHOLD`, `DIFFICULTY_THRESHOLD`, `TTS_DELAY_MS`, etc.
+
+3.  **`lib/deckService.ts`**: This contains the functions that interact directly with the **database** for decks and their associated cards. Specifically for the study loop:
+    *   `updateDeckService`: Persists the changes made to the deck and its cards (including updated `correctCount`, `incorrectCount`, `lastStudied`, `difficultyScore`, and `progress.studyingDifficult`) during the `handleAnswer`'s debounced save.
+    *   `getDeckService`: Fetches the deck and its cards, including their current progress state, when the study session starts.
+
+4.  **`app/study/[deckId]/page.tsx`**: After the refactoring, this page component primarily acts as an **orchestrator**. It:
+    *   Calls the `useStudySession` hook to get all the state and action functions.
+    *   Handles the overall page structure (loading, error, empty deck, completion screens).
+    *   Passes the necessary data and callbacks down to the presentational components (`DeckHeader`, `StudyProgress`, `StudyFlashcardView`, `StudyCompletionScreen`).
+    *   Contains the conditional rendering logic to display the correct screen (loading, error, completion, active study) based on the state provided by the hook.
+
+**In Summary:**
+
+The *state management* and *flow control* of the study session happen almost entirely within **`hooks/use-study-session.ts`**. This hook relies on **`lib/study-utils.ts`** for specific calculations and **`lib/deckService.ts`** (via `useDecks`) for persisting the results. The **`app/study/[deckId]/page.tsx`** component uses the hook's output to render the appropriate UI.
+
+---
+
+_**User**_
+
+The @use-study-session.ts is still very large. Can you review it according to best practices? I also consolidated best practice information in @best-practices.md . Please review the documents and then consider the code. Let me know the conclusions from your review and your suggestion for improvements, if any.
+
+---
+
+_**Assistant**_
+
+Okay, I've reviewed the `use-study-session.ts` hook and the `best-practices.md` document you provided.
+
+**Conclusions from Review:**
+
+1.  **Separation of Concerns (Good):** The hook successfully implements the best practice of separating the business logic layer from the presentation layer (`StudyDeckPage`) and the data layer (`useDecks`, `deckService`). It acts as the central "brain" for the study session, which is appropriate.
+2.  **Hook Usage (Good):** It makes effective use of standard React hooks:
+    *   `useState` for core session state.
+    *   `useEffect` for side effects like deck loading and TTS. Each effect seems focused on a single concern.
+    *   `useCallback` for action functions (`handleAnswer`, `flipCard`, etc.), ensuring stable references for consumers and dependencies.
+    *   `useMemo` for derived state calculations (progress, counts, completion flags), optimizing performance by avoiding unnecessary recalculations.
+3.  **Dependency Management (Good):** It correctly utilizes other hooks (`useDecks`, `useTTS`) and utility functions (`study-utils`) for specific tasks like data persistence, text-to-speech, and calculation helpers.
+4.  **Constants (Good):** It relies on constants defined in `lib/study-utils.ts` (like `DEFAULT_MASTERY_THRESHOLD`, `TTS_DELAY_MS`) rather than magic numbers/strings.
+5.  **Size and Complexity (Area for Improvement):** As you noted, the hook is quite large (around 500 lines). While functionally correct, its size leads to:
+    *   **Reduced Readability:** It takes significant effort to understand the entire flow and all the interconnected state updates.
+    *   **Maintainability Challenges:** Modifying or debugging specific parts can be harder due to the large scope.
+    *   **`handleAnswer` Complexity:** This function, in particular, handles many steps: updating card stats, calculating difficulty, updating local state, debouncing saves, checking mastery, filtering the study list, and managing the transition to the next card. This concentration of logic makes it dense.
+
+**Suggestions for Improvement (Aligning with Best Practices):**
+
+The primary opportunity lies in applying the principle of **extracting reusable logic into utility functions** to reduce the size and complexity of the main hook, particularly the `handleAnswer` function.
+
+1.  **Extract Card Update Logic:** The core logic within `handleAnswer` that calculates the updated card statistics (`newCorrectCount`, `newIncorrectCount`, `newAttemptCount`, `newDifficultyScore`, `lastStudied`) could be extracted into a pure utility function in `lib/study-utils.ts`.
+    *   **Function Signature Example:** `updateCardStats(card: FlashCard, isCorrect: boolean): FlashCard`
+    *   **Benefit:** This would make the calculation testable in isolation and simplify `handleAnswer`. `handleAnswer` would just call this function to get the fully `updatedCard` object.
+
+2.  **Extract Next Card Logic:** The logic determining the `nextIndex` and potentially the `nextStudyCards` (based on `cardJustMastered`) could also be extracted into a utility function.
+    *   **Function Signature Example:** `determineNextStudyState(studyCards: FlashCard[], currentCardIndex: number, masteredCardId: string | null): { nextIndex: number; nextStudyCards: FlashCard[] }` (where `masteredCardId` is the ID if a card was just mastered, otherwise null).
+    *   **Benefit:** Further simplifies `handleAnswer` by separating the state update calculation from the state transition logic. `handleAnswer` would call this function to know which index and card list to transition to.
+
+**Example of Refactored `handleAnswer` (Conceptual):**
+
+```typescript
+  const handleAnswer = useCallback(async (isCorrect: boolean) => {
+    if (isTransitioning || !currentStudyCard || !deck) return;
+    setIsTransitioning(true);
+
+    // 1. Calculate updated card stats using the new utility
+    const cardWithUpdatedStats = updateCardStats(currentStudyCard, isCorrect); // From study-utils
+
+    // 2. Update the main deck state locally
+    const updatedCards = deck.cards.map((card) =>
+      card.id === currentStudyCard.id ? cardWithUpdatedStats : card
+    );
+    const updatedDeck = { ...deck, cards: updatedCards };
+    setDeck(updatedDeck);
+
+    // 3. Debounce save operation (remains the same)
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(async () => {
+      const saveResult = await updateDeck(updatedDeck);
+      // ... error handling ...
+    }, 1500);
+
+    // 4. Determine if the card was just mastered
+    const cardJustMastered = (cardWithUpdatedStats.correctCount || 0) >= masteryThreshold;
+    const masteredCardId = cardJustMastered ? currentStudyCard.id : null;
+
+    // 5. Determine the next state using the new utility
+    const { nextIndex, nextStudyCards } = determineNextStudyState(studyCards, currentCardIndex, masteredCardId); // From study-utils
+
+    // 6. Transition to the next card state
+    setTimeout(() => {
+      if (masteredCardId) { // If a card was mastered, update the study list
+         setStudyCards(nextStudyCards);
+      }
+      setCurrentCardIndex(nextIndex);
+      setIsFlipped(false);
+      setIsTransitioning(false);
+      // ... logging ...
+    }, FLIP_ANIMATION_MIDPOINT_MS);
+
+  }, [/* ... dependencies ... */]);
+```
+
+**Summary of Suggestions:**
+
+The hook is architecturally sound in its role, but its internal complexity, especially in `handleAnswer`, can be reduced by extracting calculation logic into pure utility functions in `lib/study-utils.ts`. This aligns with the best practices of keeping components/hooks focused and extracting reusable logic, leading to improved readability, testability, and maintainability.
+
+Would you like me to proceed with implementing these refactoring suggestions?
+
+---
+
+_**User**_
+
+yes please, but as always, we do absolutely not want to break business logic - review, analyse, plan and implement very carefullly and do this in seperate steps.
+
+---
+
+_**Assistant**_
+
+Okay, I understand the need for careful, step-by-step implementation to ensure the business logic remains intact. We will refactor the `useStudySession` hook by extracting logic into utility functions in two distinct phases.
+
+**Phase 1: Extract Card Statistics Update Logic**
+
+**Analysis:**
+The first part of `handleAnswer` calculates the new `correctCount`, `incorrectCount`, `attemptCount`, `difficultyScore`, and `lastStudied` date for the card that was just answered. This is a pure calculation based on the current card state and whether the answer was correct. It's a prime candidate for extraction into a utility function.
+
+**Plan (Phase 1):**
+
+1.  **Create Utility Function:** Define a new function `updateCardStats` in `lib/study-utils.ts`. This function will take the current `card: FlashCard` and `isCorrect: boolean` as input and return a *new* `FlashCard` object containing the updated statistics. It will internally call `calculateDifficultyScore`.
+2.  **Refactor `handleAnswer`:** Modify the `handleAnswer` function in `hooks/use-study-session.ts` to call this new `updateCardStats` function instead of performing the calculations inline. The result of this call (`cardWithUpdatedStats`) will then be used to update the local `deck` state.
+
+**Implementation (Phase 1):**
+
+First, I will add the `updateCardStats` function to `lib/study-utils.ts`.
+
+---
+
+```diff
+    return result;
+  };
++ 
++ /**
++  * Calculates updated statistics for a flashcard after an answer.
++  * Returns a new card object with the updated values.
++  * @param card The original flashcard.
++  * @param isCorrect Whether the answer given was correct.
++  * @returns A new FlashCard object with updated statistics.
++  */
++ export const updateCardStats = (card: FlashCard, isCorrect: boolean): FlashCard => {
++   // Calculate updated counts and time
++   const newCorrectCount = isCorrect ? (card.correctCount || 0) + 1 : (card.correctCount || 0);
++   const newIncorrectCount = !isCorrect ? (card.incorrectCount || 0) + 1 : (card.incorrectCount || 0);
++   const newAttemptCount = (card.attemptCount || 0) + 1;
++   const newLastStudied = new Date(); // Use Date object
++ 
++   // Create a temporary card object with updated stats to calculate the new score
++   const tempUpdatedCard: FlashCard = {
++     ...card,
++     correctCount: newCorrectCount,
++     incorrectCount: newIncorrectCount,
++     attemptCount: newAttemptCount,
++     lastStudied: newLastStudied, // Use Date object for score calc
++   };
++   const newDifficultyScore = calculateDifficultyScore(tempUpdatedCard);
++ 
++   // Final updated card object
++   const updatedCard: FlashCard = {
++     ...card,
++     correctCount: newCorrectCount,
++     incorrectCount: newIncorrectCount,
++     attemptCount: newAttemptCount,
++     lastStudied: newLastStudied,
++     difficultyScore: newDifficultyScore, // Include the updated score
++   };
++ 
++   return updatedCard;
++ };
+```
+
+---
+
+OK, the `updateCardStats` utility function has been added to `lib/study-utils.ts`.
+
+Now, I will refactor the `handleAnswer` function in `hooks/use-study-session.ts` to use this new utility function. I'll also need to add the import for `updateCardStats`.
+
+---
+
+_**User**_
+
+continnue
+
+---
+
+_**Assistant**_
+
+Okay, let's proceed with Phase 1. I'll now refactor the `handleAnswer` function in `hooks/use-study-session.ts` to use the new `updateCardStats` utility function we just created.
+
+First, I need to read the current implementation of `handleAnswer` to identify the exact lines to modify.
+
+---
+
+Read file: hooks/use-study-session.ts
+
+---
+
+Okay, I have the code for `handleAnswer`. Now I'll apply the refactoring.
+
+I will import `updateCardStats` from `lib/study-utils` and replace the manual calculation block within the `.map` function in `handleAnswer` with a call to this new utility function.
+
+---
+
+```diff
+    FLIP_ANIMATION_MIDPOINT_MS, // Needed for transition timing
+    TTS_DELAY_MS, // Needed for TTS timing
++   updateCardStats,
+  } from "@/lib/study-utils";
+  
+      const updatedCards = deck.cards.map((card) => {
+        if (card.id === currentStudyCard.id) {
+-         // Calculate updated counts and time
+-         const newCorrectCount = isCorrect ? (card.correctCount || 0) + 1 : (card.correctCount || 0);
+-         const newIncorrectCount = !isCorrect ? (card.incorrectCount || 0) + 1 : (card.incorrectCount || 0);
+-         const newAttemptCount = (card.attemptCount || 0) + 1;
+- 
+-         // Create a temporary card object with updated stats to calculate the new score
+-         const tempUpdatedCard: FlashCard = {
+-           ...card,
+-           correctCount: newCorrectCount,
+-           incorrectCount: newIncorrectCount,
+-           attemptCount: newAttemptCount,
+-           lastStudied: new Date(), // Use Date object for score calc
+-         };
+-         const newDifficultyScore = calculateDifficultyScore(tempUpdatedCard);
+- 
+-         // Final updated card object
+-         updatedCard = {
+-           ...card,
+-           correctCount: newCorrectCount,
+-           incorrectCount: newIncorrectCount,
+-           attemptCount: newAttemptCount,
+-           lastStudied: new Date(), // Use Date object
+-           difficultyScore: newDifficultyScore, // Include the updated score
+-         };
++         updatedCard = updateCardStats(card, isCorrect);
+          return updatedCard;
+        }
+```
+
+---
+
+Excellent, the refactoring in `handleAnswer` to use the `updateCardStats` utility function is complete. This simplifies the `handleAnswer` function by delegating the responsibility of calculating updated card statistics.
+
+This concludes Phase 1 of the refactoring. The logic for updating card stats is now neatly encapsulated in `lib/study-utils.ts`, improving the readability and maintainability of `handleAnswer`.
+
+Shall we proceed with Phase 2, which involves extracting the logic for determining the next card?
+
+---
+
+_**User**_
+
+yes pleae
+
+---
+
+_**Assistant**_
+
+Okay, let's start Phase 2. I'll begin by creating the new utility function `determineNextCardState` in `lib/study-utils.ts`.
+
+This function will encapsulate the logic for deciding which card comes next in the study session, considering whether the card just answered has reached the mastery threshold. It will take the current list of study cards, the index of the card just answered, the updated card data, and the mastery threshold. It will return the potentially updated list of study cards and the index of the next card to show.
+
+I will now add this function to `lib/study-utils.ts`.
+
+---
+
+```diff
+  /**
+   * Calculates updated statistics for a flashcard after an answer.
+-  * Returns a new card object with the updated values.
+-  * @param card The original flashcard.
+-  * @param isCorrect Whether the answer given was correct.
++  * @param card The original card data.
++  * @param isCorrect Whether the answer was correct.
+   * @returns A new FlashCard object with updated statistics.
+   */
+  export const updateCardStats = (card: FlashCard, isCorrect: boolean): FlashCard => {
+-   // Calculate updated counts and time
+    const newCorrectCount = isCorrect ? (card.correctCount || 0) + 1 : (card.correctCount || 0);
+    const newIncorrectCount = !isCorrect ? (card.incorrectCount || 0) + 1 : (card.incorrectCount || 0);
+    const newAttemptCount = (card.attemptCount || 0) + 1;
+-   const newLastStudied = new Date(); // Use Date object
++   const now = new Date();
+  
+    // Create a temporary card object with updated stats to calculate the new score
+      incorrectCount: newIncorrectCount,
+      attemptCount: newAttemptCount,
+-     lastStudied: newLastStudied, // Use Date object for score calc
++     lastStudied: now,
+    };
+    const newDifficultyScore = calculateDifficultyScore(tempUpdatedCard);
+  
+-   // Final updated card object
+-   const updatedCard: FlashCard = {
++   return {
+      ...card,
+      correctCount: newCorrectCount,
+      incorrectCount: newIncorrectCount,
+      attemptCount: newAttemptCount,
+-     lastStudied: newLastStudied,
+-     difficultyScore: newDifficultyScore, // Include the updated score
+-   };
+- 
+-   return updatedCard;
++     lastStudied: now,
++     difficultyScore: newDifficultyScore,
++   };
++ };
++ 
++ /**
++  * Determines the next state of the study session (next card index and updated study card list).
++  *
++  * @param currentStudyCards The current array of cards being studied.
++  * @param currentCardIndex The index of the card just answered.
++  * @param answeredCard The card that was just answered, with its *updated* statistics.
++  * @param masteryThreshold The number of correct answers required for mastery.
++  * @returns An object containing the next study cards array and the next card index.
++  */
++ export const determineNextCardState = (
++   currentStudyCards: FlashCard[],
++   currentCardIndex: number,
++   answeredCard: FlashCard,
++   masteryThreshold: number
++ ): { nextStudyCards: FlashCard[]; nextIndex: number; cardJustMastered: boolean } => {
++   let nextStudyCards = [...currentStudyCards];
++   let nextIndex = currentCardIndex;
++   let cardJustMastered = false;
++ 
++   // Check if the *updated* answered card meets the mastery threshold
++   if (answeredCard.correctCount >= masteryThreshold) {
++     cardJustMastered = true;
++     console.log(`study-utils: Card ${answeredCard.id} mastered and will be removed.`);
++     // Filter based on the ID of the card that was just answered
++     nextStudyCards = currentStudyCards.filter(card => card.id !== answeredCard.id);
++     // Adjust index: stay at current index if it's still valid, otherwise wrap or go to 0
++     nextIndex = Math.min(currentCardIndex, nextStudyCards.length - 1);
++     if (nextIndex < 0) nextIndex = 0; // Handle empty list case
++   } else {
++     // Standard progression: Move to the next card, wrapping around
++     if (currentStudyCards.length > 0) {
++       // Ensure the calculation only happens if there are cards to cycle through
++       // Use the length of the *original* list before potential filtering
++       nextIndex = (currentCardIndex + 1) % currentStudyCards.length;
++     }
++     // If the list became empty *before* this answer (shouldn't normally happen here, but safety check)
++     if (nextStudyCards.length === 0) {
++         nextIndex = 0;
++     }
++ 
++   }
++ 
++   return { nextStudyCards, nextIndex, cardJustMastered };
+  };
+```
+
+---
+
+Great, the `determineNextCardState` function is now available in `lib/study-utils.ts`.
+
+Now, I will refactor the `handleAnswer` function in `hooks/use-study-session.ts` again, this time to utilize `determineNextCardState`. I'll remove the existing logic for calculating `nextStudyCards` and `nextIndex` and replace it with a call to this new utility.
+
+I'll import `determineNextCardState` and adjust the `handleAnswer` function accordingly.
+
+---
+
+```diff
+    TTS_DELAY_MS, // Needed for TTS timing
+    updateCardStats,
++   determineNextCardState,
+  } from "@/lib/study-utils";
+  
+      setIsTransitioning(true);
+  
+-     // 1. Update card statistics in local deck state
++     // 1. Update card statistics (using utility function)
+      let updatedCard: FlashCard | null = null;
+      const updatedCards = deck.cards.map((card) => {
+  
+      const updatedDeck = { ...deck, cards: updatedCards };
+-     setDeck(updatedDeck); // Update state with the deck containing the fully updated card
++     setDeck(updatedDeck);
+  
+-     // 2. Debounce save operation (remains the same, using updatedDeck)
++     // 2. Debounce save operation (remains the same)
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = setTimeout(async () => {
+        console.log("useStudySession: Saving updated deck...");
+-       // --- Modification START ---
+-       // Create a version of the deck specifically for saving,
+-       // ensuring studyingDifficult is NOT persisted as true.
+-       // Revert: Save the actual updatedDeck state, including studyingDifficult status
+-       const saveResult = await updateDeck(updatedDeck); // Use the actual updatedDeck
+-       // --- Modification END ---
++       const saveResult = await updateDeck(updatedDeck);
+        if (saveResult.error) {
+          console.error("useStudySession: Failed to save deck updates:", saveResult.error);
+      }, 1500);
+  
+-     // 3. Session Logic: Determine next card index correctly
+-     let nextStudyCards = [...studyCards];
+-     let nextIndex = currentCardIndex;
+-     let cardJustMastered = false; // Flag to track if the current action mastered the card
+- 
+-     // Check if the *updated* card meets the mastery threshold
+-     if (updatedCard && (updatedCard as FlashCard).correctCount >= masteryThreshold) {
+-       cardJustMastered = true;
+-     }
+- 
+-     if (cardJustMastered) {
+-       console.log(`useStudySession: Card ${currentStudyCard.id} mastered and will be removed.`);
+-       // Filter based on the ID of the card that was just answered
+-       nextStudyCards = studyCards.filter(card => card.id !== currentStudyCard.id);
+-       // Adjust index: stay at current index if it's still valid, otherwise wrap or go to 0
+-       nextIndex = Math.min(currentCardIndex, nextStudyCards.length - 1); // If cards removed, index might need adjustment
+-       if (nextIndex < 0) nextIndex = 0; // Handle empty list case
+-     } else {
+-       // Standard progression: Move to the next card, wrapping around
+-       if (studyCards.length > 0) {
+-          nextIndex = (currentCardIndex + 1) % studyCards.length;
+-       }
+-     }
++     // 3. Determine next card state using utility function
++     const { nextStudyCards, nextIndex, cardJustMastered } = determineNextCardState(
++       studyCards,          // Current list being studied
++       currentCardIndex,    // Index just answered
++       updatedCard,         // The card with *updated* stats
++       masteryThreshold     // Threshold from settings
++     );
+  
+      // 4. Transition to next card state
+      setTimeout(() => {
+-       // Only update studyCards state if a card was actually removed
++       // Only update studyCards state if a card was actually removed (determined by utility)
+        if (cardJustMastered) {
+          setStudyCards(nextStudyCards);
+```
+
+---
+
+Excellent, Phase 2 is complete! The logic for determining the next card and updating the list of study cards (specifically, removing mastered cards) has been successfully extracted from `handleAnswer` into the `determineNextCardState` utility function in `lib/study-utils.ts`.
+
+**Summary of Refactoring:**
+
+1.  **Phase 1:** We extracted the logic for calculating updated card statistics (correct/incorrect counts, difficulty score, last studied date) into the `updateCardStats` function in `lib/study-utils.ts`. The `handleAnswer` function in `useStudySession` now calls this utility.
+2.  **Phase 2:** We extracted the logic for determining the next card index and filtering out mastered cards from the study list into the `determineNextCardState` function in `lib/study-utils.ts`. The `handleAnswer` function now calls this utility as well.
+
+**Benefits:**
+
+*   **Improved Readability:** The `handleAnswer` function is now significantly shorter and easier to understand, as its main responsibilities are clearer: update stats, determine next state, save progress, and transition UI.
+*   **Increased Maintainability:** Changes to card statistics calculation or next-card logic can now be made in the focused utility functions within `lib/study-utils.ts`, reducing the risk of unintended side effects in the main hook.
+*   **Enhanced Testability:** The extracted utility functions (`updateCardStats`, `determineNextCardState`) are pure functions (or close to it), making them much easier to unit test independently compared to testing the complex `handleAnswer` callback directly.
+
+The core business logic remains the same, but the code structure is now more modular and aligned with the best practices outlined in `best-practices.md`.
+
+It would be prudent to test the study session functionality now, including answering questions correctly/incorrectly, mastering cards, and ensuring the progression works as expected, to confirm that no regressions were introduced during this refactoring.
+
+---
+
+_**User**_
+
+I just did a test and it seems ok. That being said, the @use-study-session.ts code is still very large
+
+---
+
+_**Assistant**_
+
+You're right, even after extracting the card update and next-state logic, `use-study-session.ts` remains quite substantial. At around 450+ lines, it's definitely pushing the boundaries of comfortable maintainability for a single hook, as outlined in our `best-practices.md`.
+
+The reason it's still large is that it orchestrates many different concerns:
+
+1.  **Deck Loading & Retries:** Fetching the initial deck data, including retry logic.
+2.  **Core State Management:** Tracking the `deck`, `studyCards`, `currentCardIndex`, `isFlipped`, `isLoading`, `isTransitioning`, etc.
+3.  **Derived State Calculation:** Calculating values like `masteredCount`, progress percentages, `isFullDeckMastered`, `isDifficultSessionComplete`, etc., using `useMemo`.
+4.  **User Action Handling:** Managing `flipCard`, `handleAnswer` (now simplified), `resetDeckProgress`, and `practiceDifficultCards`.
+5.  **Persistence:** Debouncing and saving updates via `updateDeck`.
+6.  **TTS Integration:** Handling text-to-speech logic based on card state and settings.
+7.  **Error Handling:** Managing loading errors and save errors.
+
+**Further Refactoring Opportunities:**
+
+Following the principle of Single Responsibility and aiming for smaller, more focused units, we could consider extracting:
+
+1.  **Deck Loading Logic:** The large `useEffect` block responsible for fetching the deck, handling errors, and retries (lines ~135-207) could potentially be moved into its own dedicated hook, maybe `useDeckLoader(deckId)`. This would isolate the data fetching concern.
+2.  **Action Logic (`resetDeckProgress`, `practiceDifficultCards`):** The core logic *inside* these `useCallback` functions could be moved to utility functions in `lib/study-utils.ts`. For example, a `createResetDeckState(deck, settings)` function could return the `resetDeck` and `initialStudyCards` needed by `resetDeckProgress`. Similarly, a `createDifficultSessionState(deck)` function could handle the filtering and partial reset logic for `practiceDifficultCards`. The callbacks in the hook would then primarily orchestrate calling these utilities and updating the state.
+3.  **TTS Logic:** The `useEffect` managing TTS (lines ~211-232) is relatively self-contained and could potentially become a separate hook (`useStudyTTS`) that takes the necessary data (`currentStudyCard`, `deck`, `settings`, `isFlipped`, etc.) as props.
+
+**Recommendation:**
+
+Extracting the core logic from `resetDeckProgress` and `practiceDifficultCards` into utility functions seems like a good next step. These actions contain significant imperative logic that isn't directly tied to React's rendering lifecycle and would benefit from being separated and potentially unit-tested more easily.
+
+Shall we proceed with extracting the logic from `resetDeckProgress` first? We can create a `createResetDeckState` function in `lib/study-utils.ts`.
+
+---
+
+_**User**_
+
+yes - do you need to add it in study-utils or is a deidication script better?
+
+---
+
+_**Assistant**_
+
+That's a great question about organization!
+
+For now, placing the `createResetDeckState` function within the existing `lib/study-utils.ts` file is the most appropriate choice. Here's why:
+
+1.  **Cohesion:** This function directly manipulates `Deck` and `FlashCard` data structures and prepares state specifically *for* the study session, similar to other functions already in `study-utils.ts` (like `prepareStudyCards`, `updateCardStats`, `determineNextCardState`). Keeping these related utilities together improves logical grouping.
+2.  **Simplicity:** It follows the principle of "less is more" for now. Creating a dedicated file for just one or two state-preparation functions might be overkill at this stage and could slightly fragment the related logic.
+3.  **Existing Pattern:** We already have a pattern of placing study-session helper logic in `lib/study-utils.ts`. Sticking to this pattern maintains consistency.
+
+If `study-utils.ts` were to grow much larger with many *different kinds* of utilities, then creating a more specialized file (like `lib/session-state-utils.ts` or similar) might become beneficial. But for now, `study-utils.ts` is the best home for it.
+
+Okay, I will now add the `createResetDeckState` function to `lib/study-utils.ts`. This function will take the current deck and settings, perform the reset logic, and return the `resetDeck` object and the `initialStudyCards` array.
+
+---
+
+```diff
+  import type { FlashCard } from "@/types/deck";
+  import type { Settings } from "@/providers/settings-provider";
++ import type { Deck } from "@/types/deck";
+  
+  // --- Constants ---
+    return { nextStudyCards, nextIndex, cardJustMastered };
+  };
++ 
++ /**
++  * Creates the necessary state components for resetting a deck's progress.
++  * Does not perform side effects (like saving).
++  *
++  * @param deck The current deck object.
++  * @param settings User settings (needed for prepareStudyCards).
++  * @returns An object containing the deck with reset progress and the initial study cards list.
++  */
++ export const createResetDeckState = (deck: Deck, settings: Settings | null): { resetDeck: Deck; initialStudyCards: FlashCard[] } => {
++   console.log("study-utils: Preparing reset state for deck:", deck.name);
++ 
++   const resetCards = deck.cards.map((card) => ({
++     ...card,
++     correctCount: 0,
++     incorrectCount: 0,
++     lastStudied: null,
++     attemptCount: 0,
++     difficultyScore: 0,
++   }));
++ 
++   const resetDeck: Deck = {
++     ...deck,
++     cards: resetCards,
++     progress: { ...deck.progress, studyingDifficult: false }, // Ensure difficult mode flag is reset
++   };
++ 
++   // Re-prepare study cards based on the newly reset deck data
++   const initialStudyCards = prepareStudyCards(resetCards, settings);
++ 
++   return { resetDeck, initialStudyCards };
++ };
+```
+
+---
+
+Okay, the `createResetDeckState` utility function has been added successfully to `lib/study-utils.ts`.
+
+Now, I'll refactor the `resetDeckProgress` function within `hooks/use-study-session.ts` to use this new utility. This will involve importing `createResetDeckState`, calling it, and then using its results to set the state and persist the changes.
+
+---
+
+```diff
+    updateCardStats,
+    determineNextCardState,
++   createResetDeckState,
+  } from "@/lib/study-utils";
+  
+      }
+  
+-     console.log("useStudySession: Resetting progress for deck:", deck.name);
+-     const resetCards = deck.cards.map((card) => ({
+-       ...card,
+-       correctCount: 0,
+-       incorrectCount: 0,
+-       lastStudied: null, // Reset last studied time
+-       attemptCount: 0, // Reset attempt count
+-       difficultyScore: 0, // Reset difficulty score to initial/neutral
+-     }));
+- 
+-     const resetDeck: Deck = {
+-       ...deck,
+-       cards: resetCards,
+-       progress: { ...deck.progress, studyingDifficult: false } // Ensure difficult mode is reset
+-     };
++     // --- Refactoring START ---
++     // Use utility function to get the reset state
++     const { resetDeck, initialStudyCards } = createResetDeckState(deck, settings);
++     // --- Refactoring END ---
++ 
++     console.log("useStudySession: Applying reset state for deck:", deck.name);
+  
+-     // Optimistic UI update
++     // Optimistic UI update (using results from utility)
+      setDeck(resetDeck);
+-     // Re-prepare study cards based on the reset deck
+-     const initialStudyCards = prepareStudyCards(resetCards, settings);
+      setStudyCards(initialStudyCards);
+      setCurrentCardIndex(0);
+      setIsTransitioning(false);
+  
+-     // Persist the changes
++     // Persist the changes (using resetDeck from utility)
+      try {
+        const result = await updateDeck(resetDeck);
+        // TODO: Consider reverting optimistic update
+      }
+-   }, [deck, updateDeck, settings, setDeck]); // Added setDeck dependency
++   }, [deck, updateDeck, settings, setDeck]); // Keep existing dependencies
+  
+    // --- Action: Restart with Difficult Cards ---
+```
+
+---
+
+Alright, the `resetDeckProgress` function has been successfully refactored to use the `createResetDeckState` utility. This further cleans up the main hook file.
+
+Now, let's apply the same pattern to the `practiceDifficultCards` function. We'll create a `createDifficultSessionState` utility function in `lib/study-utils.ts` to handle the logic of identifying difficult cards, resetting their progress within a temporary deck structure, and setting the difficult mode flag.
+
+---
+
+```diff
+    return { resetDeck, initialStudyCards };
+  };
++ 
++ /**
++  * Creates the necessary state components for starting a difficult card study session.
++  * Identifies difficult cards, resets their progress *within the returned state*,
++  * and marks the deck state for difficult mode.
++  * Does not perform side effects (like saving).
++  *
++  * @param deck The current deck object.
++  * @returns An object containing the deck updated for difficult mode (with partial resets)
++  *          and the list of difficult cards to study.
++  *          Returns null if no difficult cards are found.
++  */
++ export const createDifficultSessionState = (
++   deck: Deck
++ ): { updatedDeck: Deck; difficultCardsToStudy: FlashCard[] } | null => {
++   const difficultCards = prepareDifficultCards(deck.cards);
++   if (difficultCards.length === 0) {
++     console.log("study-utils: No difficult cards found to create session state.");
++     return null; // Indicate no session could be started
++   }
++ 
++   console.log(`study-utils: Preparing difficult session state with ${difficultCards.length} cards.`);
++ 
++   // Create a map for quick lookup of difficult card IDs
++   const difficultCardIds = new Set(difficultCards.map(card => card.id));
++ 
++   // Create a new array of cards where only the difficult ones have their progress reset
++   const partiallyResetCards = deck.cards.map(card => {
++     if (difficultCardIds.has(card.id)) {
++       return {
++         ...card,
++         correctCount: 0,
++         incorrectCount: 0,
++         lastStudied: null, // Also reset lastStudied for score calculation consistency
++         attemptCount: 0,
++         difficultyScore: 0, // Reset score to ensure they aren't immediately filtered
++       };
++     }
++     return card; // Keep non-difficult cards unchanged
++   });
++ 
++   // Create the updated deck state, marking it for difficult mode
++   const updatedDeck: Deck = {
++     ...deck,
++     cards: partiallyResetCards, // Use the list with difficult cards reset
++     progress: { ...deck.progress, studyingDifficult: true },
++   };
++ 
++   // The list of cards to actually cycle through in the UI is the original difficult cards list
++   // The main deck state holds the *reset* progress for lookup when answering.
++   return { updatedDeck, difficultCardsToStudy: difficultCards };
++ };
+```
+
+---
+
+Okay, the `createDifficultSessionState` utility function is now available in `lib/study-utils.ts`.
+
+Let's complete this refactoring step by updating the `practiceDifficultCards` function in `hooks/use-study-session.ts` to use this new utility.
+
+---
+
+```diff
+    determineNextCardState,
+    createResetDeckState,
++   createDifficultSessionState,
+  } from "@/lib/study-utils";
+  
+      if (!deck) return;
+  
+-     const difficultCards = prepareDifficultCards(deck.cards);
+-     if (difficultCards.length === 0) {
++     // --- Refactoring START ---
++     // Use utility function to prepare the difficult session state
++     const difficultSessionState = createDifficultSessionState(deck);
++ 
++     // Handle case where no difficult cards were found
++     if (!difficultSessionState) {
+        toast.info("No difficult cards found to practice!");
+        return;
+      }
+  
+-     // --- Reset progress ONLY for the difficult cards --- 
+-     const difficultCardIds = new Set(difficultCards.map(card => card.id));
+-     const partiallyResetCards = deck.cards.map(card => {
+-       if (difficultCardIds.has(card.id)) {
+-         // Reset progress for this difficult card
+-         return {
+-           ...card,
+-           correctCount: 0,
+-           incorrectCount: 0,
+-           lastStudied: null,
+-           attemptCount: 0,
+-           difficultyScore: 0, // Reset score as well
+-         };
+-       }
+-       return card; // Keep non-difficult cards as they are
+-     });
+- 
+-     // Explicitly mark the deck state as studying difficult cards
+-     // Use the partially reset card list for the main deck state update
+-     const updatedDeck = {
+-       ...deck,
+-       cards: partiallyResetCards, // Use the cards with difficult ones reset
+-       progress: { ...deck.progress, studyingDifficult: true }
+-     };
++     // Destructure the results from the utility function
++     const { updatedDeck, difficultCardsToStudy } = difficultSessionState;
++     // --- Refactoring END ---
+  
+-     console.log("useStudySession: Restarting with difficult cards.");
+-     setDeck(updatedDeck); // Update the main deck state to reflect difficult mode & reset progress
+-     // Set the studyCards state with the list of difficult cards (before reset)
+-     // The view will get the actual card data (with reset progress) via currentFullCardData lookup
+-     setStudyCards(difficultCards); 
++     console.log("useStudySession: Applying difficult session state.");
++ 
++     // Set state using the results from the utility function
++     setDeck(updatedDeck);
++     setStudyCards(difficultCardsToStudy);
+      setCurrentCardIndex(0);
+      setIsFlipped(false);
+-     setIsTransitioning(false); // Ensure transition state is reset
++     setIsTransitioning(false);
+      setError(null);
+  
+-     // Note: We are NOT persisting the studyingDifficult flag here, treating it as session-only.
+-     // If persistence is desired, an updateDeck call could be added.
++     // Note: Persistence logic (if desired) would go here, calling updateDeck(updatedDeck)
++     // Currently, difficult mode is session-only.
+  
+-   }, [deck, setDeck, settings]); // Add settings dependency for prepareStudyCards consistency
++   }, [deck, setDeck, settings]); // Maintain dependencies, settings might be needed if prepareDifficultCards evolves
+  
+    // --- Return Hook State and Actions ---
+```
+
+---
+
+Perfect! The `practiceDifficultCards` function is now refactored to use the `createDifficultSessionState` utility.
+
+We have now successfully extracted the core state preparation logic for both `resetDeckProgress` and `practiceDifficultCards` into `lib/study-utils.ts`.
+
+The `useStudySession` hook is now leaner in terms of the *imperative logic* contained within its callbacks. The callbacks primarily orchestrate:
+1.  Calling utility functions to prepare the necessary state changes.
+2.  Updating the React state (`setDeck`, `setStudyCards`, etc.).
+3.  Handling side effects like persistence (`updateDeck`) and UI feedback (`toast`).
+
+While the hook still manages many pieces of state and derived values, the most complex *procedural* parts of the actions have been cleanly separated. This significantly improves adherence to the Single Responsibility Principle for the callback functions within the hook itself and enhances the overall testability and maintainability of the study session logic.
+
+Do you feel this addresses the concern about the size of `use-study-session.ts` sufficiently for now, or would you like to explore further refactoring, such as extracting the deck loading or TTS logic?
+
+---
+
+_**User**_
+
+explore further refactoring
+
+---
+
+_**Assistant**_
+
+Okay, let's explore further refactoring. As we discussed, the two main areas remaining within `useStudySession` that could potentially be extracted are:
+
+1.  **Deck Loading Logic:** The large `useEffect` responsible for fetching the deck, handling retries, and setting initial loading/error states.
+2.  **TTS Logic:** The `useEffect` dedicated to handling text-to-speech functionality.
+
+Extracting the **Deck Loading Logic** seems the most impactful next step, as it represents a significant, distinct block of complex logic involving asynchronous operations, state management (`isLoading`, `error`), and retries.
+
+**Proposed Plan:**
+
+1.  **Create a new hook `useDeckLoader`:**
+    *   This hook will encapsulate the responsibility of fetching a specific deck by its ID.
+    *   It will take `deckId` as an argument.
+    *   It will manage the `isLoading` and `error` states related *specifically* to loading the deck.
+    *   It will use the `useDecks` hook internally to call `getDeck`.
+    *   It will handle the retry logic.
+    *   It will return an object containing `{ loadedDeck: Deck | null, isLoading: boolean, error: string | null }`.
+2.  **Refactor `useStudySession`:**
+    *   Remove the existing deck loading `useEffect` and its associated state variables (`isLoading`, `error` related to initial load, `retryCountRef`).
+    *   Call the new `useDeckLoader` hook: `const { loadedDeck, isLoading: isLoadingDeck, error: deckError } = useDeckLoader(deckId);`
+    *   Adapt `useStudySession`:
+        *   It will still maintain its own `deck`, `studyCards`, `currentCardIndex`, etc., state.
+        *   It will use `isLoadingDeck` and `deckError` returned from `useDeckLoader` for its loading/error indicators *during the initial fetch*.
+        *   A new `useEffect` will be added inside `useStudySession` that depends on `loadedDeck`. When `loadedDeck` changes (and is not null), this effect will:
+            *   Set the internal `deck` state of `useStudySession`.
+            *   Prepare the `initialStudyCards` using `prepareStudyCards`.
+            *   Reset `currentCardIndex`, `isFlipped`, etc.
+
+This approach separates the concern of *fetching the data* (`useDeckLoader`) from the concern of *managing the study session state and interactions* (`useStudySession`). `useStudySession` becomes a consumer of the loaded deck data.
+
+Does this plan sound good to you? If so, I'll start by creating the `useDeckLoader.ts` file and implementing the new hook.
+
+---
+
+_**User**_
+
+ok let's do it
+
+---
+
+_**Assistant**_
+
+Okay, let's start by creating the new hook file `hooks/useDeckLoader.ts` and implementing the deck loading logic within it.
+
+---
+
+```diff
+- 
++ "use client";
++ 
++ import { useState, useEffect, useRef } from "react";
++ import { useDecks } from "./use-decks";
++ import type { Deck } from "@/types/deck";
++ import { toast } from "sonner";
++ import { MAX_DECK_LOAD_RETRIES, DECK_LOAD_RETRY_DELAY_MS } from "@/lib/study-utils"; // Assuming these constants are exported
++ 
++ interface UseDeckLoaderResult {
++   loadedDeck: Deck | null;
++   isLoadingDeck: boolean;
++   deckLoadError: string | null;
++ }
++ 
++ /**
++  * Hook specifically responsible for loading a single deck by ID, including retry logic.
++  * @param deckId The ID of the deck to load.
++  * @returns An object containing the loaded deck, loading status, and any error message.
++  */
++ export function useDeckLoader(deckId: string | undefined): UseDeckLoaderResult {
++   const { getDeck, loading: useDecksLoading } = useDecks();
++   const [loadedDeck, setLoadedDeck] = useState<Deck | null>(null);
++   const [isLoadingDeck, setIsLoadingDeck] = useState<boolean>(true);
++   const [deckLoadError, setDeckLoadError] = useState<string | null>(null);
++   const retryCountRef = useRef(0);
++ 
++   useEffect(() => {
++     let isMounted = true;
++     let result: { data: Deck | null; error: Error | null } | null = null;
++ 
++     const attemptLoad = async () => {
++       if (!deckId) {
++         console.warn("useDeckLoader: No deckId provided.");
++         if (isMounted) {
++           setDeckLoadError("No deck ID specified for loading.");
++           setIsLoadingDeck(false);
++           setLoadedDeck(null); // Ensure deck is null if no ID
++         }
++         return;
++       }
++ 
++       // Wait for useDecks hook (and Supabase client) to be ready
++       if (useDecksLoading) {
++         console.log("useDeckLoader: Waiting for useDecks to initialize...");
++         // Keep isLoadingDeck true, wait for the next effect run when useDecksLoading becomes false
++         return;
++       }
++ 
++       // Start loading process
++       setIsLoadingDeck(true);
++       setDeckLoadError(null);
++       setLoadedDeck(null); // Reset deck state on new load attempt/retry
++       console.log(`useDeckLoader: Attempting load for deck ${deckId}, Retry: ${retryCountRef.current}`);
++ 
++       try {
++         result = await getDeck(deckId);
++ 
++         if (!isMounted) return; // Component unmounted during async operation
++ 
++         if (result.error) {
++           console.error("useDeckLoader: Failed to load deck:", result.error);
++           // Don't retry on explicit errors from getDeck
++           toast.error("Error Loading Deck", {
++             description: result.error.message || "Could not load the requested deck.",
++           });
++           setDeckLoadError(result.error.message || "Failed to load deck.");
++           setLoadedDeck(null);
++         } else if (result.data) {
++           // Deck loaded successfully
++           console.log("useDeckLoader: Deck loaded successfully:", result.data.name);
++           if (!Array.isArray(result.data.cards)) {
++               // Data integrity check
++               throw new Error("Invalid deck data: 'cards' property is not an array.");
++           }
++           setLoadedDeck(result.data);
++           setDeckLoadError(null);
++           retryCountRef.current = 0; // Reset retries on success
++         } else {
++           // Deck not found (data is null, no error) - Initiate retry logic
++           if (retryCountRef.current < MAX_DECK_LOAD_RETRIES) {
++             retryCountRef.current++;
++             console.warn(`useDeckLoader: Deck ${deckId} not found. Retrying (${retryCountRef.current}/${MAX_DECK_LOAD_RETRIES})...`);
++             setTimeout(() => {
++               if (isMounted) {
++                 attemptLoad(); // Re-trigger the load attempt
++               }
++             }, DECK_LOAD_RETRY_DELAY_MS);
++             // Return here to keep isLoadingDeck true while retrying
++             return;
++           } else {
++             // Retries exhausted
++             console.error(`useDeckLoader: Deck ${deckId} not found after ${MAX_DECK_LOAD_RETRIES} retries.`);
++             toast.error("Deck Not Found", {
++               description: "The requested deck could not be found after multiple attempts.",
++             });
++             setDeckLoadError("Deck not found.");
++             setLoadedDeck(null);
++           }
++         }
++       } catch (err) {
++         // Catch unexpected errors (e.g., network issues, data integrity check failure)
++         console.error("useDeckLoader: Unexpected error during deck load:", err);
++         toast.error("Loading Error", {
++           description: err instanceof Error ? err.message : "An unexpected error occurred.",
++         });
++         setDeckLoadError(err instanceof Error ? err.message : "An unknown loading error occurred.");
++         setLoadedDeck(null);
++       } finally {
++         // Set loading to false only when the process is truly finished (success, error, retries exhausted)
++         // This check prevents setting isLoading false during the retry delay.
++          if (isMounted && (result?.data || result?.error || retryCountRef.current >= MAX_DECK_LOAD_RETRIES)) {
++              setIsLoadingDeck(false);
++              console.log("useDeckLoader: Loading process finished.");
++          }
++       }
++     };
++ 
++     // Reset retry count when deckId changes before starting the load
++     retryCountRef.current = 0;
++     attemptLoad(); // Initial call
++ 
++     // Cleanup function
++     return () => {
++       isMounted = false;
++       console.log("useDeckLoader: Unmounting or deckId changed.");
++       // Optional: Clear any pending timeouts if necessary, though setTimeout is usually safe
++     };
++   }, [deckId, getDeck, useDecksLoading]); // Effect dependencies
++ 
++   return { loadedDeck, isLoadingDeck, deckLoadError };
++ } 
+```
+
+---
+
+Okay, the `useDeckLoader` hook is ready.
+
+Now, let's refactor `hooks/use-study-session.ts` to use it:
+
+1.  I will remove the existing deck loading `useEffect` block and the related state (`isLoading`, `error`, `retryCountRef`).
+2.  I will import and call `useDeckLoader`.
+3.  I will add a new `useEffect` hook that listens for changes in `loadedDeck` from `useDeckLoader` to initialize the study session state (`deck`, `studyCards`, etc.).
+4.  I will update the returned `isLoading` and `error` values to reflect the state from `useDeckLoader`.
+5.  I will update dependencies in other hooks (like the TTS effect) to use the loading state from `useDeckLoader`.
+
+---
+
+```diff
+  import { useDecks } from "./use-decks";
+  import { useTTS } from "./use-tts";
++ import { useDeckLoader } from "./useDeckLoader";
+  import type { Deck, FlashCard } from "@/types/deck";
+  import type { Settings } from "@/providers/settings-provider"; // Assuming Settings type is exported
+  import { toast } from "sonner";
+  import {
+    prepareStudyCards,
+-   prepareDifficultCards,
+    calculateMasteredCount,
+-   calculateDifficultyScore,
+-   DECK_LOAD_RETRY_DELAY_MS,
+-   MAX_DECK_LOAD_RETRIES,
+-   DEFAULT_MASTERY_THRESHOLD,
+-   FLIP_ANIMATION_MIDPOINT_MS, // Needed for transition timing
+-   TTS_DELAY_MS, // Needed for TTS timing
+    updateCardStats,
+    determineNextCardState,
+    settings,
+  }: UseStudySessionProps): StudySessionState {
+-   const { getDeck, updateDeck, loading: useDecksLoading } = useDecks();
++   const { updateDeck } = useDecks();
+    const { speak, setLanguage } = useTTS();
++   const { loadedDeck, isLoadingDeck, deckLoadError } = useDeckLoader(deckId);
+  
+-   // --- State Migration --- 
+    const [deck, setDeck] = useState<Deck | null>(null);
+    const [studyCards, setStudyCards] = useState<FlashCard[]>([]);
+    const [currentCardIndex, setCurrentCardIndex] = useState(0);
+    const [isFlipped, setIsFlipped] = useState(false);
+-   const [isLoading, setIsLoading] = useState(true);
+-   const [error, setError] = useState<string | null>(null);
+    const [isTransitioning, setIsTransitioning] = useState(false);
+-   const retryCountRef = useRef(0);
+-   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null); // For debounced saving
+-   const isMountedRef = useRef(true);
+- 
+-   // --- Derived State Migration ---
++   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
++ 
++   useEffect(() => {
++     if (loadedDeck) {
++       console.log("useStudySession: Initializing session with loaded deck:", loadedDeck.name);
++       const initialStudyCards = prepareStudyCards(loadedDeck.cards, settings);
++       setDeck(loadedDeck);
++       setStudyCards(initialStudyCards);
++       setCurrentCardIndex(0);
++       setIsFlipped(false);
++       setIsTransitioning(false);
++     } else {
++       console.log("useStudySession: Resetting session state due to missing loadedDeck.");
++       setDeck(null);
++       setStudyCards([]);
++       setCurrentCardIndex(0);
++       setIsFlipped(false);
++     }
++   }, [loadedDeck, settings]);
++ 
+    const totalCards = useMemo(() => deck?.cards?.length ?? 0, [deck]);
+    const masteredCount = useMemo(() => calculateMasteredCount(deck?.cards ?? [], settings), [deck, settings]);
+    const difficultCardsCount = useMemo(() => {
+      if (!deck?.cards) return 0;
+-     // Rely on the same logic used for practicing them
++     const { prepareDifficultCards } = require('@/lib/study-utils');
+      return prepareDifficultCards(deck.cards).length;
+    }, [deck?.cards]);
+    const isDifficultMode = useMemo(() => deck?.progress?.studyingDifficult ?? false, [deck]);
+    const cardProgressText = useMemo(() => `${currentCardCorrectCount} / ${masteryThreshold} correct${currentCardCorrectCount >= masteryThreshold ? ' (Mastered!)' : ''}`, [currentCardCorrectCount, masteryThreshold]);
+    const isFullDeckMastered = useMemo(() => {
+-     return !isLoading && totalCards > 0 && masteredCount >= totalCards;
+-   }, [isLoading, totalCards, masteredCount]);
++     return !isLoadingDeck && totalCards > 0 && masteredCount >= totalCards;
++   }, [isLoadingDeck, totalCards, masteredCount]);
+    const isDifficultSessionComplete = useMemo(() => {
+-     // Must be in difficult mode and have a loaded deck to be possibly complete.
+      if (!isDifficultMode || !deck) {
+        return false;
+      }
+-     // If in difficult mode and the study list is now empty, the session is complete.
+      if (studyCards.length === 0) {
+        console.log("[useStudySession] isDifficultSessionComplete: TRUE (studyCards empty)");
+        return true;
+      }
+-     // Otherwise (difficult mode, deck exists, cards remain), check if all *remaining* cards meet mastery.
+      const allRemainingMastered = studyCards.every(studyCard => {
+        const mainCardData = deck.cards.find(card => card.id === studyCard.id);
+-       // Ensure card exists and its correct count meets the threshold
+        return mainCardData && (mainCardData.correctCount || 0) >= masteryThreshold;
+      });
+      console.log(`[useStudySession] isDifficultSessionComplete: ${allRemainingMastered} (checked ${studyCards.length} cards)`);
+      return allRemainingMastered;
+- 
+    }, [isDifficultMode, deck, studyCards, masteryThreshold]);
+  
+-   // --- Deck Loading Effect (Moved from component) ---
+    useEffect(() => {
+-     let isMounted = true;
+-     let result: { data: Deck | null; error: Error | null } | null = null;
+- 
+-     const attemptLoad = async () => {
+-       if (!deckId) {
+-         console.warn("useStudySession: No deckId provided.");
+-         if (isMounted) {
+-           setError("No deck ID available.");
+-           setIsLoading(false);
+-         }
+-         return;
+-       }
+-       // --- Crucial Check: Wait for useDecks (and thus Supabase client) to be ready --- 
+-       if (useDecksLoading) {
+-         console.log("useStudySession: Waiting for useDecks to finish loading...");
+-         // We don't set isLoading to false here, just wait for the next effect run
++     if (!settings?.ttsEnabled || isLoadingDeck || isTransitioning || !currentStudyCard || !deck) {
+        return;
+      }
+- 
+-       setIsLoading(true);
+-       setError(null);
+-       setDeck(null); // Reset deck state on new load attempt
+-       setStudyCards([]);
+-       setCurrentCardIndex(0);
+-       setIsFlipped(false);
+-       console.log(`useStudySession: Attempting load for deck ${deckId}, Retry: ${retryCountRef.current}`);
+- 
+-       try {
+-         result = await getDeck(deckId);
+- 
+-         if (!isMounted) return;
+- 
+-         if (result.error) {
+-           console.error("useStudySession: Failed to load deck:", result.error);
+-           toast.error("Error Loading Deck", {
+-             description: result.error.message || "Could not load the requested deck.",
+-           });
+-           setError(result.error.message || "Could not load deck.");
+-           setDeck(null);
+-           setStudyCards([]);
+-         } else if (result.data) {
+-           console.log("useStudySession: Deck loaded successfully:", result.data.name);
+-           if (!Array.isArray(result.data.cards)) {
+-             throw new Error("Invalid deck data: 'cards' is not an array.");
+-           }
+-           const initialStudyCards = prepareStudyCards(result.data.cards, settings);
+-           if (isMounted) {
+-             setDeck(result.data);
+-             setStudyCards(initialStudyCards);
+-             setCurrentCardIndex(0);
+-             setIsFlipped(false);
+-             setError(null);
+-             retryCountRef.current = 0; // Reset retry count on success
+-           }
+-         } else {
+-           // Handle case where data is null but no error (deck not found)
+-           if (retryCountRef.current < MAX_DECK_LOAD_RETRIES) {
+-             retryCountRef.current++;
+-             console.log(`useStudySession: Deck ${deckId} not found. Retrying...`);
+-             setTimeout(() => { if (isMounted) attemptLoad(); }, DECK_LOAD_RETRY_DELAY_MS);
+-             return; // Don't set loading false yet, we are retrying
+-           } else {
+-             console.error(`useStudySession: Deck ${deckId} not found after retries.`);
+-             toast.error("Deck Not Found", {
+-               description: "The requested deck could not be found.",
+-             });
+-             setError("Deck not found.");
+-             setDeck(null);
+-             setStudyCards([]);
+-           }
+-         }
+-       } catch (err) {
+-         console.error("useStudySession: Unexpected error during load:", err);
+-         toast.error("Loading Error", {
+-           description: err instanceof Error ? err.message : "An unexpected error occurred.",
+-         });
+-         setError(err instanceof Error ? err.message : "An unknown error occurred.");
+-         setDeck(null);
+-         setStudyCards([]);
+-       } finally {
+-         if (isMounted && (result?.data || result?.error || retryCountRef.current >= MAX_DECK_LOAD_RETRIES)) {
+-           setIsLoading(false);
+-           console.log("useStudySession: Loading process finished.");
+-         }
+-       }
+-     };
+- 
+-     attemptLoad();
+- 
+-     return () => { isMounted = false; };
+-   }, [deckId, settings, getDeck, useDecksLoading]);
+- 
+-   // --- TTS Effects ---
+-   // Effect: Speak question
+-   useEffect(() => {
+-     if (!settings?.ttsEnabled || isLoading || isTransitioning || !currentStudyCard || !deck) {
+-       return; // Don't speak if disabled, loading, transitioning, or no card/deck
+-     }
+- 
+-     // Determine text and language based on flipped state
+      const textToSpeak = isFlipped ? currentStudyCard.answer : currentStudyCard.question;
+      const langCode = isFlipped ? deck.answerLanguage : deck.questionLanguage;
+- 
+      if (!textToSpeak || !langCode) {
+        console.warn("TTS: Missing text or language code.");
+        return;
+      }
+- 
+-     // Set the language for the TTS engine
+      setLanguage(langCode);
+- 
+-     // Speak after a short delay to allow transitions
+      const speakTimeout = setTimeout(() => {
+        speak(textToSpeak);
+-     }, TTS_DELAY_MS); // Use constant for delay
+- 
+-     // Cleanup function to clear timeout if dependencies change before firing
++     }, TTS_DELAY_MS);
+      return () => clearTimeout(speakTimeout);
+-   }, [currentStudyCard, isFlipped, isLoading, isTransitioning, settings?.ttsEnabled, deck, setLanguage, speak]);
++   }, [currentStudyCard, isFlipped, isLoadingDeck, isTransitioning, settings?.ttsEnabled, deck, setLanguage, speak]);
+  
+-   // --- Action: Flip Card ---
+    const flipCard = useCallback(() => {
+      if (isTransitioning || !currentStudyCard) return;
+      setIsFlipped((prev) => !prev);
+    }, [isTransitioning, currentStudyCard]);
+  
+-   // --- Action: Handle Answer (Correct/Incorrect) ---
+    const handleAnswer = useCallback(async (isCorrect: boolean) => {
+      if (isTransitioning || !currentStudyCard || !deck) return;
+- 
+      setIsTransitioning(true);
+- 
+-     // 1. Update card statistics (using utility function)
+      let updatedCard: FlashCard | null = null;
+      const updatedCards = deck.cards.map((card) => {
+        return card;
+      });
+- 
+      if (!updatedCard) {
+        console.error("useStudySession: Could not find card to update locally.");
+        setIsTransitioning(false);
+        return;
+      }
+- 
+      const updatedDeck = { ...deck, cards: updatedCards };
+      setDeck(updatedDeck);
+  
+-     // 2. Debounce save operation (remains the same)
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = setTimeout(async () => {
+      }, 1500);
+  
+-     // 3. Determine next card state using utility function
+      const { nextStudyCards, nextIndex, cardJustMastered } = determineNextCardState(
+-       studyCards,          // Current list being studied
+-       currentCardIndex,    // Index just answered
+-       updatedCard,         // The card with *updated* stats
+-       masteryThreshold     // Threshold from settings
++       studyCards,
++       currentCardIndex,
++       updatedCard,
++       masteryThreshold
+      );
+  
+-     // 4. Transition to next card state
+      setTimeout(() => {
+-       // Only update studyCards state if a card was actually removed (determined by utility)
+        if (cardJustMastered) {
+          setStudyCards(nextStudyCards);
+        console.log(`useStudySession: Moving to card index ${nextIndex} in study list of length ${nextStudyCards.length}`);
+      }, FLIP_ANIMATION_MIDPOINT_MS);
+- 
+-   }, [currentStudyCard, deck, isTransitioning, updateDeck, studyCards, settings, currentCardIndex]);
++   }, [currentStudyCard, deck, isTransitioning, updateDeck, studyCards, settings, currentCardIndex, masteryThreshold]);
+  
+    const answerCardCorrect = useCallback(() => handleAnswer(true), [handleAnswer]);
+    const answerCardIncorrect = useCallback(() => handleAnswer(false), [handleAnswer]);
+  
+-   // --- Action: Reset Progress for the Deck ---
+    const resetDeckProgress = useCallback(async () => {
+      if (!deck) {
+-       toast.error("Cannot reset progress: Deck not loaded.");
++       toast.error("Cannot reset progress: Deck not loaded or session not initialized.");
+        return;
+      }
+- 
+-     // --- Refactoring START ---
+-     // Use utility function to get the reset state
+      const { resetDeck, initialStudyCards } = createResetDeckState(deck, settings);
+-     // --- Refactoring END ---
+- 
+      console.log("useStudySession: Applying reset state for deck:", deck.name);
+- 
+-     // Optimistic UI update (using results from utility)
+      setDeck(resetDeck);
+      setStudyCards(initialStudyCards);
+      setCurrentCardIndex(0);
+      setIsFlipped(false);
+-     setError(null);
+      setIsTransitioning(false);
+- 
+-     // Persist the changes (using resetDeck from utility)
+      try {
+        const result = await updateDeck(resetDeck);
+        if (result.error) {
+-         toast.error("Error Resetting Progress", {
+-           description: result.error.message || "Could not save reset progress.",
+-         });
+-         // TODO: Consider reverting optimistic update on error
++         toast.error("Error Resetting Progress", { description: result.error.message || "Could not save reset progress." });
+        } else {
+-         toast.success("Progress Reset", {
+-           description: `Progress for "${deck.name}" has been reset.`,
+-         });
++         toast.success("Progress Reset", { description: `Progress for "${deck.name}" has been reset.` });
+        }
+      } catch (err) {
+        console.error("useStudySession: Unexpected error resetting progress:", err);
+-       toast.error("Error Resetting Progress", {
+-         description: "An unexpected error occurred while saving.",
+-       });
+-       // TODO: Consider reverting optimistic update
++       toast.error("Error Resetting Progress", { description: "An unexpected error occurred while saving." });
+      }
+-   }, [deck, updateDeck, settings, setDeck]); // Keep existing dependencies
++   }, [deck, updateDeck, settings, setDeck]);
+  
+-   // --- Action: Restart with Difficult Cards ---
+    const practiceDifficultCards = useCallback(() => {
+-     if (!deck) return;
+- 
+-     // --- Refactoring START ---
+-     // Use utility function to prepare the difficult session state
++     if (!deck) {
++       toast.error("Cannot practice difficult cards: Deck not loaded or session not initialized.");
++       return;
++     }
+      const difficultSessionState = createDifficultSessionState(deck);
+- 
+-     // Handle case where no difficult cards were found
+      if (!difficultSessionState) {
+        toast.info("No difficult cards found to practice!");
+        return;
+      }
+- 
+-     // Destructure the results from the utility function
+      const { updatedDeck, difficultCardsToStudy } = difficultSessionState;
+-     // --- Refactoring END ---
+- 
+      console.log("useStudySession: Applying difficult session state.");
+- 
+-     // Set state using the results from the utility function
+      setDeck(updatedDeck);
+      setStudyCards(difficultCardsToStudy);
+      setCurrentCardIndex(0);
+      setIsFlipped(false);
+      setIsTransitioning(false);
+-     setError(null);
+- 
+-     // Note: Persistence logic (if desired) would go here, calling updateDeck(updatedDeck)
+-     // Currently, difficult mode is session-only.
+- 
+-   }, [deck, setDeck, settings]); // Maintain dependencies, settings might be needed if prepareDifficultCards evolves
+- 
+-   // --- Return Hook State and Actions ---
++   }, [deck, setDeck]);
++ 
+    return {
+      deck,
+      currentStudyCard,
+      isFlipped,
+-     isLoading,
+-     error,
++     isLoading: isLoadingDeck,
++     error: deckLoadError,
+      isTransitioning,
+      isFullDeckMastered,
+      isDifficultMode,
+      cardProgressText,
+-     // Actions
+      flipCard,
+      answerCardCorrect,
+```
+
+---
+
+Ah, it seems the previous edit inadvertently removed the imports for some constants (`DEFAULT_MASTERY_THRESHOLD`, `TTS_DELAY_MS`, `FLIP_ANIMATION_MIDPOINT_MS`) that are still needed elsewhere in the `useStudySession` hook.
+
+My apologies for that oversight. I need to re-apply the refactoring but ensure those constants remain imported.
+
+Let's correct that now. I'll perform the edit again, making sure to keep the necessary imports from `lib/study-utils`.
+
+---
+
+```diff
+    prepareStudyCards,
+    calculateMasteredCount,
++   DEFAULT_MASTERY_THRESHOLD,
++   FLIP_ANIMATION_MIDPOINT_MS,
++   TTS_DELAY_MS,
+    updateCardStats,
+    determineNextCardState,
+```
+
+---
+
+Okay, the refactoring to use `useDeckLoader` seems to be correctly applied now, with the necessary constants kept. `useStudySession` is now significantly cleaner, having delegated:
+
+*   Card statistics updates (`updateCardStats`)
+*   Next card determination (`determineNextCardState`)
+*   Reset state preparation (`createResetDeckState`)
+*   Difficult session state preparation (`createDifficultSessionState`)
+*   Initial deck loading (`useDeckLoader`)
+
+The final piece of distinct logic embedded directly within `useStudySession` is the **Text-to-Speech (TTS) effect**. We can extract this into its own dedicated hook as well.
+
+**Plan:**
+
+1.  Create `hooks/useStudyTTS.ts`.
+2.  Move the TTS-related `useEffect` logic from `useStudySession` into `useStudyTTS`.
+3.  The new hook will accept props like `isEnabled`, `isLoading`, `isTransitioning`, `currentStudyCard`, `deck`, `isFlipped`.
+4.  Refactor `useStudySession` to remove the TTS effect and call `useStudyTTS` instead, passing the required state variables.
+
+Shall we proceed with creating `useStudyTTS.ts`?
+
+---
+
+_**User**_
+
+yes
+
+---
+
+_**Assistant**_
+
+Okay, let's create the `useStudyTTS` hook. I'll create the file `hooks/useStudyTTS.ts` and place the TTS effect logic inside it.
+
+---
+
+```diff
+- 
++ "use client";
++ 
++ import { useEffect } from 'react';
++ import { useTTS } from "./use-tts";
++ import type { FlashCard, Deck } from "@/types/deck";
++ import { TTS_DELAY_MS } from "@/lib/study-utils";
++ 
++ interface UseStudyTTSProps {
++   /** Whether TTS functionality is enabled in settings. */
++   isEnabled: boolean | undefined;
++   /** Whether the main session/deck is currently loading. */
++   isLoading: boolean;
++   /** Whether a card flip/transition animation is in progress. */
++   isTransitioning: boolean;
++   /** The card currently displayed in the study session. */
++   currentStudyCard: FlashCard | undefined;
++   /** The full deck object (needed for language codes). */
++   deck: Deck | null;
++   /** Whether the current card is flipped to show the answer. */
++   isFlipped: boolean;
++ }
++ 
++ /**
++  * Hook dedicated to handling Text-to-Speech side effects during a study session.
++  * It listens to relevant state changes and triggers speech accordingly.
++  */
++ export function useStudyTTS({
++   isEnabled,
++   isLoading,
++   isTransitioning,
++   currentStudyCard,
++   deck,
++   isFlipped,
++ }: UseStudyTTSProps): void { // This hook performs side effects, doesn't return state
++   const { speak, setLanguage } = useTTS();
++ 
++   useEffect(() => {
++     // Conditions under which speech should NOT occur
++     if (!isEnabled || isLoading || isTransitioning || !currentStudyCard || !deck) {
++       return;
++     }
++ 
++     // Determine the text and language code based on the card's flipped state
++     const textToSpeak = isFlipped ? currentStudyCard.answer : currentStudyCard.question;
++     const langCode = isFlipped ? deck.answerLanguage : deck.questionLanguage;
++ 
++     // Validate required data for TTS
++     if (!textToSpeak || !langCode) {
++       console.warn("useStudyTTS: Missing text or language code, cannot speak.");
++       return;
++     }
++ 
++     // Configure the TTS engine
++     setLanguage(langCode);
++ 
++     // Speak the text after a configured delay (allows for transitions)
++     const speakTimeout = setTimeout(() => {
++       speak(textToSpeak);
++     }, TTS_DELAY_MS);
++ 
++     // Cleanup: Clear the timeout if dependencies change before it fires
++     return () => clearTimeout(speakTimeout);
++ 
++     // Dependencies: Re-run effect if any of these values change
++   }, [isEnabled, isLoading, isTransitioning, currentStudyCard, deck, isFlipped, speak, setLanguage]);
++ } 
+```
+
+---
+
+Excellent, the `useStudyTTS` hook is created.
+
+Now, I'll refactor `hooks/use-study-session.ts` one last time to:
+1.  Remove the TTS `useEffect`.
+2.  Import and call the new `useStudyTTS` hook, passing it the necessary state.
+
+---
+
+```diff
+  import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+  import { useDecks } from "./use-decks";
+- import { useTTS } from "./use-tts";
++ // import { useTTS } from "./use-tts"; // No longer needed directly here
+  import { useDeckLoader } from "./useDeckLoader";
++ import { useStudyTTS } from "./useStudyTTS"; // <-- ADDED useStudyTTS import
+  import type { Deck, FlashCard } from "@/types/deck";
+  import type { Settings } from "@/providers/settings-provider"; // Assuming Settings type is exported
+    DEFAULT_MASTERY_THRESHOLD,
+    FLIP_ANIMATION_MIDPOINT_MS,
+-   TTS_DELAY_MS,
++   // TTS_DELAY_MS, // Moved to useStudyTTS
+    updateCardStats,
+    determineNextCardState,
+  }: UseStudySessionProps): StudySessionState {
+    const { updateDeck } = useDecks();
+-   const { speak, setLanguage } = useTTS();
++   // const { speak, setLanguage } = useTTS(); // REMOVED
+    const { loadedDeck, isLoadingDeck, deckLoadError } = useDeckLoader(deckId);
+  
+    }, [isDifficultMode, deck, studyCards, masteryThreshold]);
+  
+-   useEffect(() => {
+-     if (!settings?.ttsEnabled || isLoadingDeck || isTransitioning || !currentStudyCard || !deck) {
+-       return;
+-     }
+-     const textToSpeak = isFlipped ? currentStudyCard.answer : currentStudyCard.question;
+-     const langCode = isFlipped ? deck.answerLanguage : deck.questionLanguage;
+-     if (!textToSpeak || !langCode) {
+-       console.warn("TTS: Missing text or language code.");
+-       return;
+-     }
+-     setLanguage(langCode);
+-     const speakTimeout = setTimeout(() => {
+-       speak(textToSpeak);
+-     }, TTS_DELAY_MS);
+-     return () => clearTimeout(speakTimeout);
+-   }, [currentStudyCard, isFlipped, isLoadingDeck, isTransitioning, settings?.ttsEnabled, deck, setLanguage, speak]);
++   useStudyTTS({
++     isEnabled: settings?.ttsEnabled,
++     isLoading: isLoadingDeck, // Pass loading state from deck loader
++     isTransitioning,
++     currentStudyCard,
++     deck,
++     isFlipped,
++   });
+  
+    const flipCard = useCallback(() => {
+```
+
+---
+
+Excellent! The final refactoring step is complete. The TTS logic is now encapsulated within the `useStudyTTS` hook, and `useStudySession` calls this hook to handle the speech side effects.
+
+**Summary of Refactoring:**
+
+We have successfully broken down the large `useStudySession` hook into smaller, more focused units:
+
+1.  **`useDeckLoader`:** Handles fetching the deck data, including retries and loading/error states.
+2.  **`useStudyTTS`:** Manages the Text-to-Speech side effects based on session state.
+3.  **Utility Functions in `lib/study-utils.ts`:**
+    *   `updateCardStats`: Calculates updated card statistics.
+    *   `determineNextCardState`: Determines the next card index and handles mastered card removal.
+    *   `createResetDeckState`: Prepares the state for resetting deck progress.
+    *   `createDifficultSessionState`: Prepares the state for starting a difficult cards session.
+4.  **`useStudySession` (Orchestrator):**
+    *   Uses `useDeckLoader` to get the deck data.
+    *   Manages core session state (`deck`, `studyCards`, `currentCardIndex`, `isFlipped`, `isTransitioning`).
+    *   Calculates derived state using `useMemo`.
+    *   Calls `useStudyTTS` for speech effects.
+    *   Provides action callbacks (`flipCard`, `handleAnswer`, `resetDeckProgress`, `practiceDifficultCards`) which now primarily:
+        *   Call the relevant utility functions from `study-utils`.
+        *   Update the internal state.
+        *   Handle persistence (`updateDeck`).
+
+This structure significantly improves the separation of concerns, making `useStudySession` much more readable and maintainable. Each part now has a clearer responsibility, adhering closely to the principles outlined in `best-practices.md`.
+
+---
+
+_**User**_
+
+ok I found a very strange bug...
+
+Sometimes when clicking the disable / enable tts button, the progress jumps ahead or is reset. Can you investigate?
+
+---
+
+_**Assistant**_
+
+That's definitely a strange bug! Based on your description, the most likely cause is that the `useEffect` hook in `useStudySession` responsible for initializing the session state when the deck loads is being re-triggered unintentionally when the `settings` object changes.
+
+Let's look at the relevant effect in `use-study-session.ts`:
+
+```typescript
+  // --- Initialize Session from Loader ---
+  useEffect(() => {
+    if (loadedDeck) {
+      console.log("useStudySession: Initializing session with loaded deck:", loadedDeck.name);
+      // This line uses settings
+      const initialStudyCards = prepareStudyCards(loadedDeck.cards, settings);
+      setDeck(loadedDeck);
+      // These lines reset the session state
+      setStudyCards(initialStudyCards);
+      setCurrentCardIndex(0);
+      setIsFlipped(false);
+      setIsTransitioning(false);
+    } else {
+      // ... reset logic ...
+    }
+    // !!! The Problem Child !!!
+  }, [loadedDeck, settings]); // Depends on the entire settings object reference
+```
+
+**The Problem:**
+
+1.  This `useEffect` depends on `[loadedDeck, settings]`.
+2.  When you toggle the TTS button, the `SettingsProvider` likely updates its state, creating a *new* `settings` object instance.
+3.  Even though only the `ttsEnabled` property within the `settings` object changed, the *reference* to the `settings` object itself is new.
+4.  Because the effect depends on the `settings` object reference, React re-runs the effect.
+5.  Inside the effect, `prepareStudyCards` is called again, and critically, `setStudyCards` and `setCurrentCardIndex(0)` are executed, resetting your current position in the study session.
+
+**The Solution:**
+
+The session initialization (setting the deck, preparing the initial card list, and resetting the index to 0) should primarily happen only when the `loadedDeck` itself changes, indicating a new deck has actually been loaded. Changes to settings like `ttsEnabled` shouldn't trigger a full session reset.
+
+The most direct way to fix the bug you're observing is to remove the `settings` object from the dependency array of this specific `useEffect`. The `prepareStudyCards` function will still receive the *current* `settings` when the effect runs due to `loadedDeck` changing, which is the intended behavior for initialization.
+
+*Caveat:* If, in the future, you add settings that *should* dynamically reshuffle the `studyCards` list *during* a session (e.g., changing sort order), we might need a more sophisticated approach with a separate effect. But for fixing the TTS toggle bug, removing this dependency is the correct step.
+
+I will now edit `hooks/use-study-session.ts` to remove `settings` from the dependency array of the initialization effect.
+
+---
+
+```diff
+        setIsFlipped(false);
+      }
+-   }, [loadedDeck, settings]);
++   }, [loadedDeck]);
+  
+    const totalCards = useMemo(() => deck?.cards?.length ?? 0, [deck]);
+```
+
+---
+
+Okay, I've removed the `settings` dependency from the `useEffect` that initializes the study session.
+
+Now, this effect will only re-run when the `loadedDeck` data actually changes (i.e., when a new deck is fetched or the `deckId` prop changes), preventing the session progress from resetting when unrelated settings like the TTS toggle are modified.
+
+Please test the TTS enable/disable button again during a study session and see if the unexpected progress jump or reset issue is resolved.
+
+---
+
+_**User**_
+
+ok this seems to work - can you update the documentation and then push to git?
+
+---
+
+_**Assistant**_
+
+Okay, great to hear the fix worked!
+
+Yes, I can certainly update the documentation and then handle the Git operations.
+
+First, I need to understand the current structure of the documentation related to the study session logic to update it accurately. I'll read the `project-documentation.md` file. Since it's quite large, I'll focus on reading the whole file to ensure I find the relevant sections.
+
+---
+
+Read file: docs/project-documentation.md
+
+---
+
+Okay, I've reviewed the `project-documentation.md` file. The relevant section seems to be **4.1 Code Structure and Organization**, specifically under **Key Components and Their Functions -> 2. Custom Hooks (`/hooks/*`)**. It currently lists a `useStudy Hook` (which likely corresponds to our `useStudySession`).
+
+I will update this section to reflect the recent refactoring:
+
+1.  Rename `useStudy Hook` to `useStudySession` for accuracy.
+2.  Update the description of `useStudySession` to highlight its role as an orchestrator that manages the core study state and coordinates other hooks and utilities.
+3.  Add new entries and descriptions for `useDeckLoader` and `useStudyTTS`.
+4.  Briefly mention the role of utility functions in `lib/study-utils.ts` in handling specific logic pieces extracted from the main hook.
+
+Here's the proposed update for that section:
+
+---
+
+```diff
+  2. **useDecks**
+     ```typescript
+-    // Deck management hook
++    // Hook for managing deck CRUD operations and deck list state.
+     export function useDecks() {
+-      // State Management:
+-      // - decks: Deck[] - List of user's decks
+-      // - loading: boolean - Loading state indicator
+-      
+-      // Core Functions:
+-      // - fetchDecks(): Promise<void> - Fetches deck list from API
+-      // - createDeck(data: CreateDeckData): Promise<Deck>
+-      // - getDeck(id: string): Promise<GetDeckResult>
+-      // - updateDeck(id: string, data: UpdateDeckData): Promise<Deck>
+-      // - deleteDeck(id: string): Promise<void>
+-      
+-      // Performance Optimizations:
+-      // - Initial load attempts localStorage first
+-      // - Successful API fetches are cached to localStorage
+-      // - getDeck doesn't modify main deck list state
++      // Provides deck list, loading state, and functions like:
++      // getDecks, getDeck, createDeck, updateDeck, deleteDeck.
++      // Handles optimistic updates and error reporting for deck operations.
++    }
++    ```
++ 
++ 3. **useDeckLoader** (New)
++    ```typescript
++    // Hook specifically responsible for loading a single deck by ID.
++    export function useDeckLoader(deckId: string | undefined) {
++      // Encapsulates fetching logic, including retries and caching checks.
++      // Manages loading and error states specifically for the deck fetch operation.
++      // Returns { loadedDeck, isLoadingDeck, deckLoadError }.
++      // Used by useStudySession.
++    }
++    ```
++ 
++ 4. **useStudySession** (Updated - formerly useStudy Hook)
++    ```typescript
++    // Main hook for orchestrating the flashcard study session logic.
++    export function useStudySession({ deckId, settings }) {
++      // Manages core study state (current card, flipped state, progress).
++      // Uses `useDeckLoader` to fetch the deck data.
++      // Uses `useStudyTTS` for text-to-speech side effects.
++      // Coordinates utility functions from `/lib/study-utils.ts` for specific logic 
++      // (e.g., card updates, next card determination, reset/difficult mode state prep).
++      // Provides action callbacks (answerCardCorrect, flipCard, etc.) to the UI.
+     }
+     ```
+  
+- 3. **useStudy** _(Note: To be verified during page components review)_
++ 5. **useStudyTTS** (New)
++    ```typescript
++    // Hook dedicated to handling Text-to-Speech side effects during a study session.
++    export function useStudyTTS({ isEnabled, isLoading, ... }) {
++      // Uses the core `useTTS` hook internally.
++      // Listens to relevant state changes (loading, card flips, current card) 
++      // and triggers speech accordingly with appropriate delays.
++    }
++    ```
++ 
++ 6. **useTTS**
+     ```typescript
+-    // Study session hook
+-    export function useStudy() {
+-      // Study progress tracking
+-      // Spaced repetition logic
+-      // Performance metrics
+-    }
+-    ```
++    // Lower-level hook for interacting with the TTS API (e.g., Google Cloud TTS).
++    export function useTTS() {
++      // Provides core `speak` function and state management for audio playback.
++      // Handles API calls, audio buffering, and playback controls.
++      // Manages available voices and language settings.
++    }
++    ```
++ 
++ *Note:* Utility functions in `/lib/study-utils.ts` handle specific, reusable logic like calculating difficulty scores (`calculateDifficultyScore`), preparing card lists (`prepareStudyCards`, `prepareDifficultCards`), updating card stats (`updateCardStats`), determining the next card (`determineNextCardState`), and preparing state for reset/difficult modes (`createResetDeckState`, `createDifficultSessionState`). This separation improves testability and maintainability.
+  
+  #### 3. API Routes (`/app/api/*`)
+```
+
+---
+
+Okay, the documentation has been updated to reflect the new hook structure and the refactored `useStudySession`.
+
+Now, let's commit these changes and push them to your remote repository. I'll first stage all the changes and then commit them with a detailed message summarizing the refactoring and the bug fix.
+
+---
+
+Cancelled
+
+---
+
+_**User**_
+
+he? you are halucinating - I asked you to update the documentation and you propose to change a script??
+
+---
+
+_**Assistant**_
+
+You are absolutely right! My apologies for the confusion. My previous message jumped ahead.
+
+You are correct, the sequence should be:
+
+1.  **Update Documentation:** Which I did in the message just before the one you're replying to, by editing `docs/project-documentation.md`.
+2.  **Commit Changes:** Save both the code changes (the hook refactoring, the TTS bug fix) and the documentation update to Git.
+3.  **Push Changes:** Push the committed changes to the remote repository.
+
+The terminal command I proposed (`git add . && git commit ...`) was intended for step 2, to **save the documentation changes** I had just made, along with the code refactoring we completed. It wasn't proposing a *
 
 ---
 

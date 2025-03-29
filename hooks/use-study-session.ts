@@ -2,20 +2,22 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useDecks } from "./use-decks";
-import { useTTS } from "./use-tts";
+// import { useTTS } from "./use-tts"; // No longer needed directly here
+import { useDeckLoader } from "./useDeckLoader";
+import { useStudyTTS } from "./useStudyTTS"; // <-- ADDED useStudyTTS import
 import type { Deck, FlashCard } from "@/types/deck";
 import type { Settings } from "@/providers/settings-provider"; // Assuming Settings type is exported
 import { toast } from "sonner";
 import {
   prepareStudyCards,
-  prepareDifficultCards,
   calculateMasteredCount,
-  calculateDifficultyScore,
-  DECK_LOAD_RETRY_DELAY_MS,
-  MAX_DECK_LOAD_RETRIES,
   DEFAULT_MASTERY_THRESHOLD,
-  FLIP_ANIMATION_MIDPOINT_MS, // Needed for transition timing
-  TTS_DELAY_MS, // Needed for TTS timing
+  FLIP_ANIMATION_MIDPOINT_MS,
+  // TTS_DELAY_MS, // Moved to useStudyTTS
+  updateCardStats,
+  determineNextCardState,
+  createResetDeckState,
+  createDifficultSessionState,
 } from "@/lib/study-utils";
 
 /**
@@ -80,22 +82,35 @@ export function useStudySession({
   deckId,
   settings,
 }: UseStudySessionProps): StudySessionState {
-  const { getDeck, updateDeck, loading: useDecksLoading } = useDecks();
-  const { speak, setLanguage } = useTTS();
+  const { updateDeck } = useDecks();
+  // const { speak, setLanguage } = useTTS(); // REMOVED
+  const { loadedDeck, isLoadingDeck, deckLoadError } = useDeckLoader(deckId);
 
-  // --- State Migration --- 
   const [deck, setDeck] = useState<Deck | null>(null);
   const [studyCards, setStudyCards] = useState<FlashCard[]>([]);
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
-  const retryCountRef = useRef(0);
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null); // For debounced saving
-  const isMountedRef = useRef(true);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // --- Derived State Migration ---
+  useEffect(() => {
+    if (loadedDeck) {
+      console.log("useStudySession: Initializing session with loaded deck:", loadedDeck.name);
+      const initialStudyCards = prepareStudyCards(loadedDeck.cards, settings);
+      setDeck(loadedDeck);
+      setStudyCards(initialStudyCards);
+      setCurrentCardIndex(0);
+      setIsFlipped(false);
+      setIsTransitioning(false);
+    } else {
+      console.log("useStudySession: Resetting session state due to missing loadedDeck.");
+      setDeck(null);
+      setStudyCards([]);
+      setCurrentCardIndex(0);
+      setIsFlipped(false);
+    }
+  }, [loadedDeck]);
+
   const totalCards = useMemo(() => deck?.cards?.length ?? 0, [deck]);
   const masteredCount = useMemo(() => calculateMasteredCount(deck?.cards ?? [], settings), [deck, settings]);
   const currentStudyCard = useMemo(() => studyCards?.[currentCardIndex], [studyCards, currentCardIndex]);
@@ -109,380 +124,144 @@ export function useStudySession({
   const masteryProgressPercent = useMemo(() => totalCards > 0 ? Math.round((masteredCount / totalCards) * 100) : 0, [masteredCount, totalCards]);
   const difficultCardsCount = useMemo(() => {
     if (!deck?.cards) return 0;
-    // Rely on the same logic used for practicing them
+    const { prepareDifficultCards } = require('@/lib/study-utils');
     return prepareDifficultCards(deck.cards).length;
   }, [deck?.cards]);
   const isDifficultMode = useMemo(() => deck?.progress?.studyingDifficult ?? false, [deck]);
   const cardProgressText = useMemo(() => `${currentCardCorrectCount} / ${masteryThreshold} correct${currentCardCorrectCount >= masteryThreshold ? ' (Mastered!)' : ''}`, [currentCardCorrectCount, masteryThreshold]);
   const isFullDeckMastered = useMemo(() => {
-    return !isLoading && totalCards > 0 && masteredCount >= totalCards;
-  }, [isLoading, totalCards, masteredCount]);
+    return !isLoadingDeck && totalCards > 0 && masteredCount >= totalCards;
+  }, [isLoadingDeck, totalCards, masteredCount]);
   const isDifficultSessionComplete = useMemo(() => {
-    // Must be in difficult mode and have a loaded deck to be possibly complete.
     if (!isDifficultMode || !deck) {
       return false;
     }
-    // If in difficult mode and the study list is now empty, the session is complete.
     if (studyCards.length === 0) {
       console.log("[useStudySession] isDifficultSessionComplete: TRUE (studyCards empty)");
       return true;
     }
-    // Otherwise (difficult mode, deck exists, cards remain), check if all *remaining* cards meet mastery.
     const allRemainingMastered = studyCards.every(studyCard => {
       const mainCardData = deck.cards.find(card => card.id === studyCard.id);
-      // Ensure card exists and its correct count meets the threshold
       return mainCardData && (mainCardData.correctCount || 0) >= masteryThreshold;
     });
     console.log(`[useStudySession] isDifficultSessionComplete: ${allRemainingMastered} (checked ${studyCards.length} cards)`);
     return allRemainingMastered;
-
   }, [isDifficultMode, deck, studyCards, masteryThreshold]);
 
-  // --- Deck Loading Effect (Moved from component) ---
-  useEffect(() => {
-    let isMounted = true;
-    let result: { data: Deck | null; error: Error | null } | null = null;
+  useStudyTTS({
+    isEnabled: settings?.ttsEnabled,
+    isLoading: isLoadingDeck, // Pass loading state from deck loader
+    isTransitioning,
+    currentStudyCard,
+    deck,
+    isFlipped,
+  });
 
-    const attemptLoad = async () => {
-      if (!deckId) {
-        console.warn("useStudySession: No deckId provided.");
-        if (isMounted) {
-          setError("No deck ID available.");
-          setIsLoading(false);
-        }
-        return;
-      }
-      // --- Crucial Check: Wait for useDecks (and thus Supabase client) to be ready --- 
-      if (useDecksLoading) {
-        console.log("useStudySession: Waiting for useDecks to finish loading...");
-        // We don't set isLoading to false here, just wait for the next effect run
-        return;
-      }
-
-      setIsLoading(true);
-      setError(null);
-      setDeck(null); // Reset deck state on new load attempt
-      setStudyCards([]);
-      setCurrentCardIndex(0);
-      setIsFlipped(false);
-      console.log(`useStudySession: Attempting load for deck ${deckId}, Retry: ${retryCountRef.current}`);
-
-      try {
-        result = await getDeck(deckId);
-
-        if (!isMounted) return;
-
-        if (result.error) {
-          console.error("useStudySession: Failed to load deck:", result.error);
-          toast.error("Error Loading Deck", {
-            description: result.error.message || "Could not load the requested deck.",
-          });
-          setError(result.error.message || "Could not load deck.");
-          setDeck(null);
-          setStudyCards([]);
-        } else if (result.data) {
-          console.log("useStudySession: Deck loaded successfully:", result.data.name);
-          if (!Array.isArray(result.data.cards)) {
-            throw new Error("Invalid deck data: 'cards' is not an array.");
-          }
-          const initialStudyCards = prepareStudyCards(result.data.cards, settings);
-          if (isMounted) {
-            setDeck(result.data);
-            setStudyCards(initialStudyCards);
-            setCurrentCardIndex(0);
-            setIsFlipped(false);
-            setError(null);
-            retryCountRef.current = 0; // Reset retry count on success
-          }
-        } else {
-          // Handle case where data is null but no error (deck not found)
-          if (retryCountRef.current < MAX_DECK_LOAD_RETRIES) {
-            retryCountRef.current++;
-            console.log(`useStudySession: Deck ${deckId} not found. Retrying...`);
-            setTimeout(() => { if (isMounted) attemptLoad(); }, DECK_LOAD_RETRY_DELAY_MS);
-            return; // Don't set loading false yet, we are retrying
-          } else {
-            console.error(`useStudySession: Deck ${deckId} not found after retries.`);
-            toast.error("Deck Not Found", {
-              description: "The requested deck could not be found.",
-            });
-            setError("Deck not found.");
-            setDeck(null);
-            setStudyCards([]);
-          }
-        }
-      } catch (err) {
-        console.error("useStudySession: Unexpected error during load:", err);
-        toast.error("Loading Error", {
-          description: err instanceof Error ? err.message : "An unexpected error occurred.",
-        });
-        setError(err instanceof Error ? err.message : "An unknown error occurred.");
-        setDeck(null);
-        setStudyCards([]);
-      } finally {
-        if (isMounted && (result?.data || result?.error || retryCountRef.current >= MAX_DECK_LOAD_RETRIES)) {
-          setIsLoading(false);
-          console.log("useStudySession: Loading process finished.");
-        }
-      }
-    };
-
-    attemptLoad();
-
-    return () => { isMounted = false; };
-  }, [deckId, settings, getDeck, useDecksLoading]);
-
-  // --- TTS Effects ---
-  // Effect: Speak question
-  useEffect(() => {
-    if (!settings?.ttsEnabled || isLoading || isTransitioning || !currentStudyCard || !deck) {
-      return; // Don't speak if disabled, loading, transitioning, or no card/deck
-    }
-
-    // Determine text and language based on flipped state
-    const textToSpeak = isFlipped ? currentStudyCard.answer : currentStudyCard.question;
-    const langCode = isFlipped ? deck.answerLanguage : deck.questionLanguage;
-
-    if (!textToSpeak || !langCode) {
-      console.warn("TTS: Missing text or language code.");
-      return;
-    }
-
-    // Set the language for the TTS engine
-    setLanguage(langCode);
-
-    // Speak after a short delay to allow transitions
-    const speakTimeout = setTimeout(() => {
-      speak(textToSpeak);
-    }, TTS_DELAY_MS); // Use constant for delay
-
-    // Cleanup function to clear timeout if dependencies change before firing
-    return () => clearTimeout(speakTimeout);
-  }, [currentStudyCard, isFlipped, isLoading, isTransitioning, settings?.ttsEnabled, deck, setLanguage, speak]);
-
-  // --- Action: Flip Card ---
   const flipCard = useCallback(() => {
     if (isTransitioning || !currentStudyCard) return;
     setIsFlipped((prev) => !prev);
   }, [isTransitioning, currentStudyCard]);
 
-  // --- Action: Handle Answer (Correct/Incorrect) ---
   const handleAnswer = useCallback(async (isCorrect: boolean) => {
     if (isTransitioning || !currentStudyCard || !deck) return;
-
     setIsTransitioning(true);
-
-    // 1. Update card statistics in local deck state
     let updatedCard: FlashCard | null = null;
     const updatedCards = deck.cards.map((card) => {
       if (card.id === currentStudyCard.id) {
-        // Calculate updated counts and time
-        const newCorrectCount = isCorrect ? (card.correctCount || 0) + 1 : (card.correctCount || 0);
-        const newIncorrectCount = !isCorrect ? (card.incorrectCount || 0) + 1 : (card.incorrectCount || 0);
-        const newAttemptCount = (card.attemptCount || 0) + 1;
-
-        // Create a temporary card object with updated stats to calculate the new score
-        const tempUpdatedCard: FlashCard = {
-          ...card,
-          correctCount: newCorrectCount,
-          incorrectCount: newIncorrectCount,
-          attemptCount: newAttemptCount,
-          lastStudied: new Date(), // Use Date object for score calc
-        };
-        const newDifficultyScore = calculateDifficultyScore(tempUpdatedCard);
-
-        // Final updated card object
-        updatedCard = {
-          ...card,
-          correctCount: newCorrectCount,
-          incorrectCount: newIncorrectCount,
-          attemptCount: newAttemptCount,
-          lastStudied: new Date(), // Use Date object
-          difficultyScore: newDifficultyScore, // Include the updated score
-        };
+        updatedCard = updateCardStats(card, isCorrect);
         return updatedCard;
       }
       return card;
     });
-
     if (!updatedCard) {
       console.error("useStudySession: Could not find card to update locally.");
       setIsTransitioning(false);
       return;
     }
-
     const updatedDeck = { ...deck, cards: updatedCards };
-    setDeck(updatedDeck); // Update state with the deck containing the fully updated card
+    setDeck(updatedDeck);
 
-    // 2. Debounce save operation (remains the same, using updatedDeck)
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(async () => {
       console.log("useStudySession: Saving updated deck...");
-      // --- Modification START ---
-      // Create a version of the deck specifically for saving,
-      // ensuring studyingDifficult is NOT persisted as true.
-      // Revert: Save the actual updatedDeck state, including studyingDifficult status
-      const saveResult = await updateDeck(updatedDeck); // Use the actual updatedDeck
-      // --- Modification END ---
+      const saveResult = await updateDeck(updatedDeck);
       if (saveResult.error) {
         console.error("useStudySession: Failed to save deck updates:", saveResult.error);
         toast.error("Save Error", { description: "Could not save study progress." });
       }
     }, 1500);
 
-    // 3. Session Logic: Determine next card index correctly
-    let nextStudyCards = [...studyCards];
-    let nextIndex = currentCardIndex;
-    let cardJustMastered = false; // Flag to track if the current action mastered the card
+    const { nextStudyCards, nextIndex, cardJustMastered } = determineNextCardState(
+      studyCards,
+      currentCardIndex,
+      updatedCard,
+      masteryThreshold
+    );
 
-    // Check if the *updated* card meets the mastery threshold
-    if (updatedCard && (updatedCard as FlashCard).correctCount >= masteryThreshold) {
-      cardJustMastered = true;
-    }
-
-    if (cardJustMastered) {
-      console.log(`useStudySession: Card ${currentStudyCard.id} mastered and will be removed.`);
-      // Filter based on the ID of the card that was just answered
-      nextStudyCards = studyCards.filter(card => card.id !== currentStudyCard.id);
-      // Adjust index: stay at current index if it's still valid, otherwise wrap or go to 0
-      nextIndex = Math.min(currentCardIndex, nextStudyCards.length - 1); // If cards removed, index might need adjustment
-      if (nextIndex < 0) nextIndex = 0; // Handle empty list case
-    } else {
-      // Standard progression: Move to the next card, wrapping around
-      if (studyCards.length > 0) {
-         nextIndex = (currentCardIndex + 1) % studyCards.length;
-      }
-    }
-
-    // 4. Transition to next card state
     setTimeout(() => {
-      // Only update studyCards state if a card was actually removed
       if (cardJustMastered) {
-         setStudyCards(nextStudyCards);
+        setStudyCards(nextStudyCards);
       }
       setCurrentCardIndex(nextIndex);
       setIsFlipped(false);
       setIsTransitioning(false);
       console.log(`useStudySession: Moving to card index ${nextIndex} in study list of length ${nextStudyCards.length}`);
     }, FLIP_ANIMATION_MIDPOINT_MS);
-
-  }, [currentStudyCard, deck, isTransitioning, updateDeck, studyCards, settings, currentCardIndex]);
+  }, [currentStudyCard, deck, isTransitioning, updateDeck, studyCards, settings, currentCardIndex, masteryThreshold]);
 
   const answerCardCorrect = useCallback(() => handleAnswer(true), [handleAnswer]);
   const answerCardIncorrect = useCallback(() => handleAnswer(false), [handleAnswer]);
 
-  // --- Action: Reset Progress for the Deck ---
   const resetDeckProgress = useCallback(async () => {
     if (!deck) {
-      toast.error("Cannot reset progress: Deck not loaded.");
+      toast.error("Cannot reset progress: Deck not loaded or session not initialized.");
       return;
     }
-
-    console.log("useStudySession: Resetting progress for deck:", deck.name);
-    const resetCards = deck.cards.map((card) => ({
-      ...card,
-      correctCount: 0,
-      incorrectCount: 0,
-      lastStudied: null, // Reset last studied time
-      attemptCount: 0, // Reset attempt count
-      difficultyScore: 0, // Reset difficulty score to initial/neutral
-    }));
-
-    const resetDeck: Deck = {
-      ...deck,
-      cards: resetCards,
-      progress: { ...deck.progress, studyingDifficult: false } // Ensure difficult mode is reset
-    };
-
-    // Optimistic UI update
+    const { resetDeck, initialStudyCards } = createResetDeckState(deck, settings);
+    console.log("useStudySession: Applying reset state for deck:", deck.name);
     setDeck(resetDeck);
-    // Re-prepare study cards based on the reset deck
-    const initialStudyCards = prepareStudyCards(resetCards, settings);
     setStudyCards(initialStudyCards);
     setCurrentCardIndex(0);
     setIsFlipped(false);
-    setError(null);
     setIsTransitioning(false);
-
-    // Persist the changes
     try {
       const result = await updateDeck(resetDeck);
       if (result.error) {
-        toast.error("Error Resetting Progress", {
-          description: result.error.message || "Could not save reset progress.",
-        });
-        // TODO: Consider reverting optimistic update on error
+        toast.error("Error Resetting Progress", { description: result.error.message || "Could not save reset progress." });
       } else {
-        toast.success("Progress Reset", {
-          description: `Progress for "${deck.name}" has been reset.`,
-        });
+        toast.success("Progress Reset", { description: `Progress for "${deck.name}" has been reset.` });
       }
     } catch (err) {
       console.error("useStudySession: Unexpected error resetting progress:", err);
-      toast.error("Error Resetting Progress", {
-        description: "An unexpected error occurred while saving.",
-      });
-      // TODO: Consider reverting optimistic update
+      toast.error("Error Resetting Progress", { description: "An unexpected error occurred while saving." });
     }
-  }, [deck, updateDeck, settings, setDeck]); // Added setDeck dependency
+  }, [deck, updateDeck, settings, setDeck]);
 
-  // --- Action: Restart with Difficult Cards ---
   const practiceDifficultCards = useCallback(() => {
-    if (!deck) return;
-
-    const difficultCards = prepareDifficultCards(deck.cards);
-    if (difficultCards.length === 0) {
+    if (!deck) {
+      toast.error("Cannot practice difficult cards: Deck not loaded or session not initialized.");
+      return;
+    }
+    const difficultSessionState = createDifficultSessionState(deck);
+    if (!difficultSessionState) {
       toast.info("No difficult cards found to practice!");
       return;
     }
-
-    // --- Reset progress ONLY for the difficult cards --- 
-    const difficultCardIds = new Set(difficultCards.map(card => card.id));
-    const partiallyResetCards = deck.cards.map(card => {
-      if (difficultCardIds.has(card.id)) {
-        // Reset progress for this difficult card
-        return {
-          ...card,
-          correctCount: 0,
-          incorrectCount: 0,
-          lastStudied: null,
-          attemptCount: 0,
-          difficultyScore: 0, // Reset score as well
-        };
-      }
-      return card; // Keep non-difficult cards as they are
-    });
-
-    // Explicitly mark the deck state as studying difficult cards
-    // Use the partially reset card list for the main deck state update
-    const updatedDeck = {
-      ...deck,
-      cards: partiallyResetCards, // Use the cards with difficult ones reset
-      progress: { ...deck.progress, studyingDifficult: true }
-    };
-
-    console.log("useStudySession: Restarting with difficult cards.");
-    setDeck(updatedDeck); // Update the main deck state to reflect difficult mode & reset progress
-    // Set the studyCards state with the list of difficult cards (before reset)
-    // The view will get the actual card data (with reset progress) via currentFullCardData lookup
-    setStudyCards(difficultCards); 
+    const { updatedDeck, difficultCardsToStudy } = difficultSessionState;
+    console.log("useStudySession: Applying difficult session state.");
+    setDeck(updatedDeck);
+    setStudyCards(difficultCardsToStudy);
     setCurrentCardIndex(0);
     setIsFlipped(false);
-    setIsTransitioning(false); // Ensure transition state is reset
-    setError(null);
-    
-    // Note: We are NOT persisting the studyingDifficult flag here, treating it as session-only.
-    // If persistence is desired, an updateDeck call could be added.
+    setIsTransitioning(false);
+  }, [deck, setDeck]);
 
-  }, [deck, setDeck, settings]); // Add settings dependency for prepareStudyCards consistency
-
-  // --- Return Hook State and Actions ---
   return {
     deck,
     currentStudyCard,
     isFlipped,
-    isLoading,
-    error,
+    isLoading: isLoadingDeck,
+    error: deckLoadError,
     isTransitioning,
     isFullDeckMastered,
     isDifficultSessionComplete,
@@ -497,7 +276,6 @@ export function useStudySession({
     difficultCardsCount,
     isDifficultMode,
     cardProgressText,
-    // Actions
     flipCard,
     answerCardCorrect,
     answerCardIncorrect,
