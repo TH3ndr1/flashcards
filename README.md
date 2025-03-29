@@ -61,6 +61,8 @@ Additional documentation can be found in the `docs` directory:
 - [Project Documentation](docs/project-documentation.md)
 - [Google API Integration](docs/google-api-integration.md)
 
+**Note:** The project is currently undergoing refactoring to improve code structure, maintainability, and documentation (TSDoc). See [Refactoring Plan](refactoring-plan.md) for details.
+
 ## Contributing
 
 1. Fork the repository

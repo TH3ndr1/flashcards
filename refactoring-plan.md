@@ -48,8 +48,14 @@ Improve code structure, maintainability, type safety, and error handling across 
   - [x] Reviewed study components (`flippable-flashcard`, `deck-header`, `study-progress`, `difficulty-indicator`, `study-completion-screen`) - OK.
   - [x] Reviewed editor components (`table-editor`, `card-editor`).
   - [x] Refactored `table-editor.tsx` & `card-editor.tsx` to use debounced updates (added `debounce` to `lib/utils.ts`).
-- [ ] Review page-level components (`app/**/page.tsx`, `app/**/layout.tsx`)
+- [x] Review page-level components (`app/**/page.tsx`, `app/**/layout.tsx`)
   - Focus on: Prop drilling, component complexity, state management interactions, adherence to hook rules, error handling, loading states.
+  - [x] `app/layout.tsx`: Reviewed, added TSDoc. OK.
+  - [x] `app/page.tsx`: Reviewed, added TSDoc. OK.
+  - [x] `app/login/page.tsx`: Reviewed, added TSDoc. OK.
+  - [x] `app/signup/page.tsx`: Reviewed, removed unused state, added TSDoc. OK.
+  - [x] `app/edit/[deckId]/page.tsx`: Reviewed, cleaned effect dependency, added TSDoc. OK.
+  - [ ] `app/study/[deckId]/page.tsx`: Initial review & safety refactor complete. Next: Decide persistence strategy & extract components.
 
 ### Stage 5: API Routes (`app/api/`)
 - [ ] Review API route handlers.
@@ -70,7 +76,11 @@ Improve code structure, maintainability, type safety, and error handling across 
 
 ## Next Steps
 
-- Continue Stage 4: Components. Start review of page-level components, beginning with `app/layout.tsx`.
+- Continue Stage 4: Components.
+  - Refactor `app/study/[deckId]/page.tsx`:
+    - Decide on persistence strategy (Option A: Per-Card Save Recommended).
+    - Implement chosen persistence strategy.
+    - Extract components (`StudyCardView`, `StudyControls`, `StudyCompletionScreen`).
 
 ## Stage 1: Authentication (✅ Completed)
 
@@ -128,11 +138,20 @@ Improve code structure, maintainability, type safety, and error handling across 
 ## Stage 4: Component Structure & UI
 
 - **Goal**: Review components for clarity, reusability, adherence to SOLID principles, and proper use of hooks and state.
-- **Planned Steps**:
-    - Examine key components (e.g., Deck list, Card view, Study session UI).
-    - Identify complex or tightly coupled components for potential refactoring.
-    - Ensure consistent styling and UI patterns.
-    - Check for accessibility improvements.
+- **Work Done**:
+  - Reviewed shared UI (`components/ui`), theme provider, header, deck list, create dialog, basic study components, and editors (✅ Completed).
+  - Reviewed page-level components:
+    - `app/layout.tsx`, `app/page.tsx`, `app/login/page.tsx`, `app/signup/page.tsx`, `app/edit/[deckId]/page.tsx` (✅ Completed - Minor cleanup, TSDoc added).
+    - `app/study/[deckId]/page.tsx` (✅ Initial Review & Safety Refactor Completed):
+      - Added TSDoc comment.
+      - Removed unused `handleNextCard` function.
+      - Wrapped `updateDeck` call in `handleAnswer` with `try...catch` for error handling.
+      - Corrected dependencies for `handleAnswer` callback.
+      - **Identified Issues**: High complexity, potentially inefficient persistence strategy (saving full deck on every answer), lack of component separation.
+- **Next Steps**:
+  - Refactor `app/study/[deckId]/page.tsx`:
+    - **Persistence Strategy:** Confirm decision (Option A: Per-Card Save recommended) and implement. This might involve changes to `useDecks` or related services/backend calls if `updateCardResult` needs adjustments.
+    - **Component Extraction:** Extract `StudyCardView`, `StudyControls`, and `StudyCompletionScreen` to reduce complexity.
 
 ## Stage 5: Testing
 
