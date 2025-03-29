@@ -175,13 +175,13 @@ export async function createDeckService(
       question_language,
       answer_language,
       progress
-      // No need to select cards here, as a new deck has none
-    `)
+    `) // No need to select cards here, as a new deck has none
     .single() // Expecting a single record back
     .returns<RawDeckQueryResult | null>(); // Specify expected return type (can be null on error)
 
   if (error) {
-    console.error("Error creating deck:", error);
+    // Log the full error object for more detail
+    console.error("Error creating deck in createDeckService:", JSON.stringify(error, null, 2));
     // --- 2. Return error object --- 
     return { data: null, error };
   }
@@ -263,7 +263,6 @@ export async function getDeckService(
 
   if (error) {
     console.error("Error fetching single deck:", error);
-    // --- 3. Return other errors --- 
     return { data: null, error };
   }
 

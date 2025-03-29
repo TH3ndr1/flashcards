@@ -63,6 +63,8 @@ Improve code structure, maintainability, type safety, and error handling across 
     - [x] Extracted core logic into `useStudySession` hook.
     - [x] Page component simplified to use hook.
     - [x] Resolved complex bugs related to completion screen rendering (mastered decks) and difficult mode state persistence/resumption.
+    - [x] Corrected logic for removing mastered cards during study session.
+    - [x] Fixed bug causing error when finishing difficult card session.
 
 ### Stage 5: API Routes (`app/api/`)
 - [ ] Review API route handlers.
@@ -141,12 +143,18 @@ Improve code structure, maintainability, type safety, and error handling across 
     - **`hooks/use-study-session.ts`** (✅ Completed):
         - Extracted core study logic from `StudyDeckPage`.
         - Implemented per-card persistence.
+        - Restored missing Text-to-Speech (TTS) functionality.
         - Refactored state logic for difficult mode completion (`isDifficultSessionComplete`).
+        - Corrected logic for removing mastered cards from the study set.
         - Debugged and fixed state persistence issues related to `studyingDifficult` flag.
         - Corrected logic for handling mastered deck loading.
-- **Next Steps**:
-    - Review other custom hooks (e.g., `useSupabase`, `useAuth`, `useToast`, `useStudySession` if applicable) for consistency, error handling, and potential improvements.
-    - Evaluate if a dedicated state management library (Zustand, Jotai) is beneficial or if the current context-based approach is sufficient.
+        - Corrected calculation for `isDifficultSessionComplete`.
+    - **`lib/deckService.ts`** (✅ Minor Fixes):
+        - Corrected syntax error in `createDeckService` select statement.
+        - Improved error logging in various service functions.
+    - **`components/create-deck-dialog.tsx`** (✅ Minor Fixes):
+        - Added error handling and navigation guard after deck creation attempt.
+    - **Status**: Stage Complete.
 
 ## Stage 4: Component Structure & UI (✅ Completed)
 

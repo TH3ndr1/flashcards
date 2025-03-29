@@ -53,21 +53,33 @@ export function CreateDeckDialog({ open, onOpenChange }: CreateDeckDialogProps) 
 
     try {
       setLoading(true)
-      const newDeck = await createDeck({
+      const { data: newDeckData, error: createError } = await createDeck({
         name,
         isBilingual,
         questionLanguage,
         answerLanguage,
       })
 
-      if (!newDeck) {
-        throw new Error("Failed to create deck")
+      if (createError) {
+        console.error("Error creating deck (from hook):", createError)
+        toast.error("Failed to create deck", {
+          description: createError.message || "An unexpected error occurred."
+        })
+        return
+      }
+
+      if (!newDeckData || !newDeckData.id) {
+        console.error("Error creating deck: No data or ID returned from hook.")
+        toast.error("Failed to create deck", {
+          description: "Could not retrieve deck information after creation."
+        })
+        return
       }
 
       toast.success("Deck created successfully!")
 
       onOpenChange(false)
-      router.push(`/edit/${newDeck.id}`)
+      router.push(`/edit/${newDeckData.id}`)
     } catch (error) {
       console.error("Error creating deck:", error)
       toast.error("Failed to create deck", {

@@ -118,15 +118,24 @@ export function useStudySession({
     return !isLoading && totalCards > 0 && masteredCount >= totalCards;
   }, [isLoading, totalCards, masteredCount]);
   const isDifficultSessionComplete = useMemo(() => {
-    if (!isDifficultMode || !deck || studyCards.length === 0) {
-      return false; // Not in difficult mode or no cards to check
+    // Must be in difficult mode and have a loaded deck to be possibly complete.
+    if (!isDifficultMode || !deck) {
+      return false;
     }
-    // Check if *every* card currently in the study list meets mastery in the main deck state
-    return studyCards.every(studyCard => {
+    // If in difficult mode and the study list is now empty, the session is complete.
+    if (studyCards.length === 0) {
+      console.log("[useStudySession] isDifficultSessionComplete: TRUE (studyCards empty)");
+      return true;
+    }
+    // Otherwise (difficult mode, deck exists, cards remain), check if all *remaining* cards meet mastery.
+    const allRemainingMastered = studyCards.every(studyCard => {
       const mainCardData = deck.cards.find(card => card.id === studyCard.id);
       // Ensure card exists and its correct count meets the threshold
       return mainCardData && (mainCardData.correctCount || 0) >= masteryThreshold;
     });
+    console.log(`[useStudySession] isDifficultSessionComplete: ${allRemainingMastered} (checked ${studyCards.length} cards)`);
+    return allRemainingMastered;
+
   }, [isDifficultMode, deck, studyCards, masteryThreshold]);
 
   // --- Deck Loading Effect (Moved from component) ---
@@ -226,8 +235,29 @@ export function useStudySession({
   // --- TTS Effects ---
   // Effect: Speak question
   useEffect(() => {
-    // ... speak question logic placeholder ...
-    console.log("Placeholder: TTS effect runs");
+    if (!settings?.ttsEnabled || isLoading || isTransitioning || !currentStudyCard || !deck) {
+      return; // Don't speak if disabled, loading, transitioning, or no card/deck
+    }
+
+    // Determine text and language based on flipped state
+    const textToSpeak = isFlipped ? currentStudyCard.answer : currentStudyCard.question;
+    const langCode = isFlipped ? deck.answerLanguage : deck.questionLanguage;
+
+    if (!textToSpeak || !langCode) {
+      console.warn("TTS: Missing text or language code.");
+      return;
+    }
+
+    // Set the language for the TTS engine
+    setLanguage(langCode);
+
+    // Speak after a short delay to allow transitions
+    const speakTimeout = setTimeout(() => {
+      speak(textToSpeak);
+    }, TTS_DELAY_MS); // Use constant for delay
+
+    // Cleanup function to clear timeout if dependencies change before firing
+    return () => clearTimeout(speakTimeout);
   }, [currentStudyCard, isFlipped, isLoading, isTransitioning, settings?.ttsEnabled, deck, setLanguage, speak]);
 
   // --- Action: Flip Card ---
@@ -301,8 +331,6 @@ export function useStudySession({
     }, 1500);
 
     // 3. Session Logic: Determine next card index correctly
-    const shouldRemoveMastered = settings?.removeMasteredCards ?? false;
-
     let nextStudyCards = [...studyCards];
     let nextIndex = currentCardIndex;
     let cardJustMastered = false; // Flag to track if the current action mastered the card
@@ -312,7 +340,7 @@ export function useStudySession({
       cardJustMastered = true;
     }
 
-    if (shouldRemoveMastered && cardJustMastered) {
+    if (cardJustMastered) {
       console.log(`useStudySession: Card ${currentStudyCard.id} mastered and will be removed.`);
       // Filter based on the ID of the card that was just answered
       nextStudyCards = studyCards.filter(card => card.id !== currentStudyCard.id);
@@ -329,7 +357,7 @@ export function useStudySession({
     // 4. Transition to next card state
     setTimeout(() => {
       // Only update studyCards state if a card was actually removed
-      if (shouldRemoveMastered && cardJustMastered) {
+      if (cardJustMastered) {
          setStudyCards(nextStudyCards);
       }
       setCurrentCardIndex(nextIndex);

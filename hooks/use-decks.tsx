@@ -110,7 +110,8 @@ export function useDecks() {
         logDecks("Calling createDeckService", params);
         const { data: newDeck, error } = await createDeckService(supabase, user.id, params);
         if (error) {
-          logDecksError("Error creating deck:", error);
+          // Log the full error object for more detail
+          logDecksError("Error creating deck from createDeckService:", JSON.stringify(error, null, 2));
           return { data: null, error }; // Return error from service
         }
         if (newDeck) {
@@ -149,7 +150,8 @@ export function useDecks() {
         const { data: deck, error } = await getDeckService(supabase, user.id, id);
 
         if (error) {
-          logDecksError("Error fetching deck:", error);
+          // Log the full error object for more detail
+          logDecksError("Error fetching deck from getDeckService:", JSON.stringify(error, null, 2));
           return { data: null, error }; // Return error from service
         }
         
