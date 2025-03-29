@@ -1,19 +1,31 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useSupabase } from "@/hooks/use-supabase";
 import { useAuth } from "@/hooks/use-auth";
 import { detectSystemLanguage } from "@/lib/utils";
-import { fetchSettings, updateSettings as updateSettingsService } from "@/lib/settingsService";
+import { fetchSettings, updateSettings as updateSettingsInDb } from "@/lib/settingsService";
+
+// Debug flag
+const DEBUG = true;
+
+// Debug logging function
+const debug = (...args: any[]) => {
+  if (DEBUG) {
+    console.warn('[Settings Debug]:', ...args);
+  }
+};
+
+// Define a type for available fonts
+export type FontOption = "default" | "opendyslexic" | "atkinson";
 
 // Define a type for settings
 export interface Settings {
-  id: string;
-  userId: string;
   appLanguage: string;
-  ttsEnabled: boolean;
+  cardFont: FontOption;
   showDifficulty: boolean;
   masteryThreshold: number;
+  ttsEnabled: boolean;
   languageDialects: {
     en: string;
     nl: string;
@@ -24,86 +36,106 @@ export interface Settings {
   };
 }
 
-// Default settings function returns default settings using system language and a random id.
-const DEFAULT_SETTINGS = (userId: string): Settings => ({
-  id: crypto.randomUUID(),
-  userId,
-  appLanguage: detectSystemLanguage(),
-  ttsEnabled: true,
-  showDifficulty: true,
-  masteryThreshold: 3,
-  languageDialects: {
-    en: 'en-GB',  // Default to UK English
-    nl: 'nl-NL',  // Default to Netherlands Dutch
-    fr: 'fr-FR',  // Default to France French
-    de: 'de-DE',  // Default to Germany German
-    es: 'es-ES',  // Default to Spain Spanish
-    it: 'it-IT',  // Default to Italy Italian
-  },
-});
-
 interface SettingsContextType {
   settings: Settings | null;
+  updateSettings: (updates: Partial<Settings>) => Promise<void>;
   loading: boolean;
-  error: string | null;
-  updateSettings: (newSettings: Partial<Settings>) => Promise<void>;
 }
 
-const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
+export const DEFAULT_SETTINGS: Settings = {
+  appLanguage: "en",
+  cardFont: "default",
+  showDifficulty: true,
+  masteryThreshold: 3,
+  ttsEnabled: true,
+  languageDialects: {
+    en: "en-GB",
+    nl: "nl-NL",
+    fr: "fr-FR",
+    de: "de-DE",
+    es: "es-ES",
+    it: "it-IT",
+  },
+};
+
+export const SettingsContext = createContext<SettingsContextType>({
+  settings: null,
+  updateSettings: async () => {},
+  loading: true,
+});
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
+  debug('SettingsProvider initializing'); // Initial debug log
+
   const { supabase } = useSupabase();
   const { user } = useAuth();
   const [settings, setSettings] = useState<Settings | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Log initial mount
+  useEffect(() => {
+    debug('SettingsProvider mounted');
+    return () => debug('SettingsProvider unmounting');
+  }, []);
 
   useEffect(() => {
-    async function loadSettings() {
+    debug('Settings effect triggered', { user: user?.id });
+    
+    const loadSettings = async () => {
       if (!user) {
+        debug('No user, skipping settings load');
         setLoading(false);
         return;
       }
+
       try {
-        const fetchedSettings = await fetchSettings(supabase, user.id);
-        if (fetchedSettings) {
-          setSettings(fetchedSettings);
+        debug('Loading settings for user', user.id);
+        const userSettings = await fetchSettings(supabase, user.id);
+        debug('Fetched settings', userSettings);
+        
+        if (userSettings) {
+          debug('Setting user settings', userSettings);
+          setSettings(userSettings);
         } else {
-          // Fallback to default settings if none are found
-          setSettings(DEFAULT_SETTINGS(user.id));
+          debug('No settings found, using defaults', DEFAULT_SETTINGS);
+          setSettings(DEFAULT_SETTINGS);
         }
-      } catch (err: any) {
-        console.error("Error in settings provider:", err);
-        setError(err.message || "Error loading settings");
-        setSettings(DEFAULT_SETTINGS(user.id));
+      } catch (error) {
+        console.error("Failed to load settings:", error);
+        debug('Error loading settings, using defaults', DEFAULT_SETTINGS);
+        setSettings(DEFAULT_SETTINGS);
       } finally {
         setLoading(false);
       }
-    }
+    };
+
     loadSettings();
   }, [user, supabase]);
 
-  const saveSettings = async (newSettings: Partial<Settings>) => {
-    if (!settings || !user) return;
-    const updated = { ...settings, ...newSettings };
-    setSettings(updated);
-    try {
-      await updateSettingsService(supabase, user.id, updated);
-    } catch (err: any) {
-      console.error("Failed to update settings:", err);
-      setError(err.message || "Error updating settings");
+  const updateSettings = useCallback(async (updates: Partial<Settings>) => {
+    debug('Updating settings', { current: settings, updates });
+    if (!settings || !user) {
+      debug('Cannot update settings - no current settings or user');
+      return;
     }
-  };
+    const updatedSettings = { ...settings, ...updates };
+    setSettings(updatedSettings);
+    try {
+      const result = await updateSettingsInDb(supabase, user.id, updatedSettings);
+      debug('Settings updated successfully', result);
+    } catch (error) {
+      console.error("Failed to update settings:", error);
+      throw error;
+    }
+  }, [settings, user, supabase]);
+
+  // Log settings changes
+  useEffect(() => {
+    debug('Settings state changed', { settings, loading });
+  }, [settings, loading]);
 
   return (
-    <SettingsContext.Provider
-      value={{
-        settings,
-        loading,
-        error,
-        updateSettings: saveSettings,
-      }}
-    >
+    <SettingsContext.Provider value={{ settings, updateSettings, loading }}>
       {children}
     </SettingsContext.Provider>
   );

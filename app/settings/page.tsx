@@ -10,11 +10,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Save } from "lucide-react";
 import { useSettings } from "@/hooks/use-settings";
-import type { Settings } from "@/hooks/use-settings";
+import type { Settings, FontOption } from "@/hooks/use-settings";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
+import { FONT_OPTIONS } from "@/lib/fonts";
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -23,6 +24,7 @@ export default function SettingsPage() {
   const { toast } = useToast();
 
   const [appLanguage, setAppLanguage] = useState<string>("en");
+  const [cardFont, setCardFont] = useState<FontOption>("default");
   const [masteryThreshold, setMasteryThreshold] = useState<number>(3);
   const [languageDialects, setLanguageDialects] = useState<Settings['languageDialects']>({
     en: 'en-GB',
@@ -37,6 +39,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (!settingsLoading && settings) {
       setAppLanguage(settings.appLanguage || "en");
+      setCardFont(settings.cardFont || "default");
       setMasteryThreshold(settings.masteryThreshold || 3);
       setLanguageDialects(settings.languageDialects || {
         en: 'en-GB',
@@ -76,6 +79,18 @@ export default function SettingsPage() {
   const handleLanguageChange = async (value: string) => {
     setAppLanguage(value);
     await handleSettingChange({ appLanguage: value });
+  };
+
+  // Handle font change
+  const handleFontChange = async (value: FontOption) => {
+    setCardFont(value);
+    try {
+      await updateSettings({ cardFont: value });
+    } catch (error) {
+      console.error('Failed to update font:', error);
+      // Revert to previous value if update fails
+      setCardFont(settings?.cardFont || "default");
+    }
   };
 
   if (settingsLoading) {
@@ -127,6 +142,32 @@ export default function SettingsPage() {
               </div>
 
               <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="cardFont" className="text-right">
+                  Card Font
+                </Label>
+                <Select value={cardFont} onValueChange={handleFontChange}>
+                  <SelectTrigger id="cardFont" className="col-span-3">
+                    <SelectValue placeholder="Select font" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.entries(FONT_OPTIONS) as [FontOption, typeof FONT_OPTIONS[keyof typeof FONT_OPTIONS]][]).map(([key, font]) => (
+                      <SelectItem 
+                        key={key} 
+                        value={key}
+                        style={{ 
+                          fontFamily: key === 'default' ? 'var(--font-sans)' : 
+                            key === 'opendyslexic' ? "'OpenDyslexic', system-ui, sans-serif" : 
+                            "'Atkinson Hyperlegible', system-ui, sans-serif"
+                        }}
+                      >
+                        {font.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="masteryThreshold" className="text-right">
                   Mastery Threshold
                 </Label>
@@ -136,11 +177,10 @@ export default function SettingsPage() {
                     type="number"
                     min={1}
                     max={10}
-                    value={masteryThreshold}
+                    value={settings?.masteryThreshold ?? 3}
                     onChange={(e) => {
                       const value = parseInt(e.target.value);
                       if (value >= 1 && value <= 10) {
-                        setMasteryThreshold(value);
                         handleSettingChange({ masteryThreshold: value });
                       }
                     }}

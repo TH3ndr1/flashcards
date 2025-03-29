@@ -2,6 +2,57 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Import custom fonts */
+@font-face {
+  font-family: 'OpenDyslexic';
+  src: url('/fonts/OpenDyslexic-Regular.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Atkinson Hyperlegible';
+  src: url('/fonts/AtkinsonHyperlegible-Regular.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Font classes */
+.font-opendyslexic {
+  font-family: 'OpenDyslexic', sans-serif;
+}
+
+.font-atkinson {
+  font-family: 'Atkinson Hyperlegible', sans-serif;
+}
+
+.font-sans {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* Ensure fonts are loaded before use */
+.fonts-loaded .font-opendyslexic,
+.fonts-loaded .font-atkinson {
+  opacity: 1;
+  transition: opacity 0.1s ease-in;
+}
+
+.fonts-loading .font-opendyslexic,
+.fonts-loading .font-atkinson {
+  opacity: 0;
+}
+
+/* Debug styles to force font application */
+[style*="OpenDyslexic"] {
+  font-family: OpenDyslexic, -apple-system, BlinkMacSystemFont, system-ui, sans-serif !important;
+}
+
+[style*="Atkinson"] {
+  font-family: "Atkinson Hyperlegible", -apple-system, BlinkMacSystemFont, system-ui, sans-serif !important;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

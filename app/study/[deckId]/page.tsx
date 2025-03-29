@@ -3,20 +3,24 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, ThumbsUp, ThumbsDown } from "lucide-react" // Only icons used directly here
+import { ArrowLeft, ThumbsUp, ThumbsDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-// UI Components (Assuming they are in standard UI folder)
+// UI Components
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress" // Progress is used here too for loading/empty states
+import { Progress } from "@/components/ui/progress"
 
 // Custom Hooks & Types
 import { useDecks } from "@/hooks/use-decks"
 import type { Deck, FlashCard } from "@/types/deck"
 import { useTTS } from "@/hooks/use-tts"
-import { useSettings } from "@/hooks/use-settings"
+import { useSettings } from "@/hooks/use-settings" // Assumed settings hook
 import { useToast } from "@/hooks/use-toast"
+
+// --- 1. Import getFontClass ---
+import { getFontClass } from "@/lib/fonts";
+// ---
 
 // Extracted Utils & Constants
 import {
@@ -29,14 +33,13 @@ import {
   DECK_LOAD_RETRY_DELAY_MS,
   MAX_DECK_LOAD_RETRIES,
   FLIP_ANIMATION_MIDPOINT_MS,
-  FLIP_ANIMATION_DURATION_MS,
+  // FLIP_ANIMATION_DURATION_MS, // Not used directly?
 } from "@/lib/study-utils";
 
 // Extracted Study Components
 import { DeckHeader } from "@/components/deck-header";
 import { StudyProgress } from "@/components/study-progress";
 import { DifficultyIndicator, EASY_CUTOFF} from "@/components/difficulty-indicator"
-
 
 // --- Component ---
 
@@ -45,11 +48,13 @@ export default function StudyDeckPage() {
   const { deckId } = useParams<{ deckId: string }>()
   const router = useRouter()
   const { getDeck, updateDeck } = useDecks()
-  const { settings } = useSettings()
+  // --- Settings Hook ---
+  const { settings } = useSettings() // Make sure 'settings' object contains the font preference, e.g., settings.cardFont
   const { toast } = useToast()
   const { speak, setLanguage } = useTTS()
 
   // --- State ---
+  // ... (rest of state remains the same)
   const [deck, setDeck] = useState<Deck | null>(null)
   const [studyCards, setStudyCards] = useState<FlashCard[]>([])
   const [currentCardIndex, setCurrentCardIndex] = useState(0)
@@ -58,39 +63,50 @@ export default function StudyDeckPage() {
   const [error, setError] = useState<string | null>(null)
   const [isTransitioning, setIsTransitioning] = useState(false)
 
+
   // --- Refs ---
+  // ... (rest of refs remain the same)
   const retryCountRef = useRef(0)
   const hasLoadedInitiallyRef = useRef(false)
 
+
   // --- Derived State ---
+  // ... (rest of derived state remains the same)
   const totalCards = useMemo(() => deck?.cards?.length ?? 0, [deck])
   const masteredCount = useMemo(() => calculateMasteredCount(deck?.cards ?? [], settings), [deck, settings])
   const currentStudyCard = useMemo(() => studyCards?.[currentCardIndex], [studyCards, currentCardIndex])
   const currentDeckCard = useMemo(() => deck?.cards.find(card => card.id === currentStudyCard?.id), [deck, currentStudyCard])
   const currentCardCorrectCount = useMemo(() => currentDeckCard?.correctCount || 0, [currentDeckCard])
 
+
+  // --- 2. Calculate Font Class ---
+  // Ensure settings.cardFont is the correct key for your font preference ('default', 'opendyslexic', 'atkinson')
+  const fontClass = useMemo(() => getFontClass(settings?.cardFont), [settings?.cardFont]);
+
+
   // Progress Calculations
-  const masteryThreshold = settings?.masteryThreshold ?? DEFAULT_MASTERY_THRESHOLD;
-  const totalRequiredCorrectAnswers = useMemo(() => totalCards * masteryThreshold, [totalCards, masteryThreshold]);
-  const totalAchievedCorrectAnswers = useMemo(() =>
-    deck?.cards?.reduce((sum, card) => sum + (card.correctCount || 0), 0) ?? 0,
-    [deck]
-  );
-  const overallProgressPercent = useMemo(() =>
-    totalRequiredCorrectAnswers > 0
-      ? Math.round((totalAchievedCorrectAnswers / totalRequiredCorrectAnswers) * 100)
-      : 0,
-    [totalAchievedCorrectAnswers, totalRequiredCorrectAnswers]
-  );
-  const masteryProgressPercent = useMemo(() =>
-    totalCards > 0 ? Math.round((masteredCount / totalCards) * 100) : 0,
-    [masteredCount, totalCards]
-  );
+  // ... (rest of calculations remain the same)
+   const masteryThreshold = settings?.masteryThreshold ?? DEFAULT_MASTERY_THRESHOLD;
+   const totalRequiredCorrectAnswers = useMemo(() => totalCards * masteryThreshold, [totalCards, masteryThreshold]);
+   const totalAchievedCorrectAnswers = useMemo(() =>
+     deck?.cards?.reduce((sum, card) => sum + (card.correctCount || 0), 0) ?? 0,
+     [deck]
+   );
+   const overallProgressPercent = useMemo(() =>
+     totalRequiredCorrectAnswers > 0
+       ? Math.round((totalAchievedCorrectAnswers / totalRequiredCorrectAnswers) * 100)
+       : 0,
+     [totalAchievedCorrectAnswers, totalRequiredCorrectAnswers]
+   );
+   const masteryProgressPercent = useMemo(() =>
+     totalCards > 0 ? Math.round((masteredCount / totalCards) * 100) : 0,
+     [masteredCount, totalCards]
+   );
 
 
   // --- Effects ---
-
-  // Effect: Load deck data
+  // ... (rest of effects remain the same)
+    // Effect: Load deck data
   useEffect(() => {
     let isMounted = true
     const loadDeckData = async () => {
@@ -195,7 +211,7 @@ export default function StudyDeckPage() {
 
 
   // --- Callbacks ---
-
+  // ... (rest of callbacks remain the same)
   // Callback: Handle flipping the card
   const handleFlip = useCallback(() => {
     if (isTransitioning || !currentStudyCard?.answer || !deck) return
@@ -372,7 +388,8 @@ export default function StudyDeckPage() {
 
   // Loading State
   if (isLoading) {
-    return (
+    // ... (loading state remains the same)
+     return (
       <div className="flex justify-center items-center h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
         <span className="ml-4 text-muted-foreground">Loading Deck...</span>
@@ -382,7 +399,8 @@ export default function StudyDeckPage() {
 
   // Error State
   if (error && !deck) {
-    return (
+    // ... (error state remains the same)
+     return (
       <div className="container mx-auto px-4 py-8 text-center">
         <h2 className="text-xl font-semibold text-destructive mb-4">Error Loading Deck</h2>
         <p className="text-muted-foreground mb-6">{error}</p>
@@ -393,7 +411,8 @@ export default function StudyDeckPage() {
 
   // Deck Not Found State
   if (!deck) {
-     return (
+    // ... (deck not found state remains the same)
+      return (
       <div className="container mx-auto px-4 py-8 text-center">
         <h2 className="text-xl font-semibold mb-4">Deck Not Found</h2>
         <p className="text-muted-foreground mb-6">
@@ -406,7 +425,8 @@ export default function StudyDeckPage() {
 
   // Empty Deck State
   if (totalCards === 0) {
-    return (
+    // ... (empty deck state remains the same)
+      return (
       <main className="container mx-auto px-4 py-8">
         {/* Use Extracted Component */}
         <DeckHeader deckName={deck.name} onReset={handleResetProgress} showReset={false} />
@@ -424,7 +444,9 @@ export default function StudyDeckPage() {
 
   // All Cards Mastered State or Difficult Cards Completed State
   if (studyCards.length === 0 && totalCards > 0) {
-    // If we were studying difficult cards, show the difficult cards completion screen
+     // ... (all cards mastered state remains the same)
+
+       // If we were studying difficult cards, show the difficult cards completion screen
     if (deck.progress?.studyingDifficult) {
       // Check if there are still difficult cards after this session
       const remainingDifficultCards = deck.cards.filter(card => (card.difficultyScore ?? 0) >= EASY_CUTOFF);
@@ -436,7 +458,7 @@ export default function StudyDeckPage() {
         // Prepare difficult cards for study using the new function
         const difficultStudyCards = prepareDifficultCards(remainingDifficultCards);
         console.log("Difficult study cards prepared:", difficultStudyCards);
-        
+
         if (difficultStudyCards.length === 0) {
           console.error("No study cards were prepared");
           return;
@@ -504,13 +526,13 @@ export default function StudyDeckPage() {
             <CardContent className="flex flex-col items-center justify-center p-6 py-10 text-center">
               <h2 className="text-xl font-semibold mb-2">Well Done! 🍪</h2>
               <p className="text-muted-foreground mb-6">
-                {remainingDifficultCount > 0 
+                {remainingDifficultCount > 0
                   ? `You've mastered this set of difficult cards! However, there are still ${remainingDifficultCount} difficult ${remainingDifficultCount === 1 ? 'card' : 'cards'} to practice.`
                   : "You've mastered all the difficult cards! Each card has been answered correctly 3 times."}
               </p>
               <div className="flex flex-col gap-3 w-full max-w-sm">
                 {remainingDifficultCount > 0 && (
-                  <Button 
+                  <Button
                     variant="outline"
                     onClick={handlePracticeDifficult}
                     className="w-full border-amber-500 text-amber-700 hover:bg-amber-500/10 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300"
@@ -518,8 +540,8 @@ export default function StudyDeckPage() {
                     Practice {remainingDifficultCount} Remaining Difficult {remainingDifficultCount === 1 ? 'Card' : 'Cards'} 🍪
                   </Button>
                 )}
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={handleResetProgress}
                   className="w-full"
                 >
@@ -548,7 +570,7 @@ export default function StudyDeckPage() {
       // Prepare difficult cards for study using the new function
       const difficultStudyCards = prepareDifficultCards(difficultCards);
       console.log("Difficult study cards prepared:", difficultStudyCards);
-      
+
       if (difficultStudyCards.length === 0) {
         console.error("No study cards were prepared");
         return;
@@ -619,15 +641,15 @@ export default function StudyDeckPage() {
               You've mastered all {totalCards} cards in this deck!
             </p>
             <div className="flex flex-col gap-3 w-full max-w-sm">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={handleResetProgress}
                 className="w-full"
               >
                 Practice All Cards
               </Button>
               {difficultCardsCount > 0 && (
-                <Button 
+                <Button
                   variant="outline"
                   onClick={handlePracticeDifficult}
                   className="w-full border-amber-500 text-amber-700 hover:bg-amber-500/10 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300"
@@ -645,25 +667,30 @@ export default function StudyDeckPage() {
         </Card>
       </main>
     )
+
   }
 
   // Active Studying State
   if (!currentStudyCard) {
-     return (
+     // ... (active studying state error remains the same)
+       return (
        <div className="container mx-auto px-4 py-8 text-center">
          <p className="text-muted-foreground">Error: Cannot display current card.</p>
        </div>
      )
   }
 
+  // ... (card progress text calculation remains the same)
   const remainingCount = masteryThreshold - currentCardCorrectCount;
   const cardProgressText = `${currentCardCorrectCount} / ${masteryThreshold} correct${
     currentCardCorrectCount >= masteryThreshold ? ' (Mastered!)' : ''
   }`;
 
+
   return (
     <main className="container mx-auto px-4 py-8">
       {/* Use Extracted Components */}
+      {/* ... (Header and Progress remain the same) */}
       <DeckHeader deckName={deck.name} onReset={handleResetProgress} showReset={true} />
       <StudyProgress
         totalCorrect={totalAchievedCorrectAnswers}
@@ -674,7 +701,8 @@ export default function StudyDeckPage() {
         masteryPercent={masteryProgressPercent}
       />
 
-      {/* Flashcard Section (Remains largely the same) */}
+
+      {/* Flashcard Section */}
       <div className="max-w-2xl mx-auto">
         <div
           className={`flip-card ${isFlipped ? "flipped" : ""} w-full h-80 cursor-pointer`}
@@ -687,20 +715,25 @@ export default function StudyDeckPage() {
           <div className="flip-card-inner relative w-full h-full">
             {/* Front */}
             <div className="flip-card-front absolute w-full h-full">
-              <Card className={cn("w-full h-full flex flex-col", 
-                deck.progress?.studyingDifficult && "border-amber-500"
+              {/* --- 3. Apply fontClass to Card --- */}
+              <Card className={cn(
+                "w-full h-full flex flex-col",
+                deck.progress?.studyingDifficult && "border-amber-500",
+                fontClass // Apply the dynamic font class here
               )}>
                 <CardHeader className="text-center text-sm text-muted-foreground bg-muted/50 border-b py-3">
-                  <div className="flex justify-between items-center">
+                  {/* ... (CardHeader content remains the same) */}
+                   <div className="flex justify-between items-center">
                     <div className="text-xs font-medium">Card {currentCardIndex + 1} of {studyCards.length}</div>
                     <div className="text-xs font-medium">{cardProgressText}</div>
                     {settings?.showDifficulty && (
-                      <DifficultyIndicator 
-                        difficultyScore={currentStudyCard.difficultyScore ?? null} 
+                      <DifficultyIndicator
+                        difficultyScore={currentStudyCard.difficultyScore ?? null}
                       />
                     )}
                   </div>
                 </CardHeader>
+                {/* The <p> tag below will inherit the font from the parent Card */}
                 <CardContent className="flex-grow flex items-center justify-center p-6 text-center">
                   <p className="text-xl md:text-2xl">{currentStudyCard.question}</p>
                 </CardContent>
@@ -711,25 +744,31 @@ export default function StudyDeckPage() {
             </div>
             {/* Back */}
             <div className="flip-card-back absolute w-full h-full">
-              <Card className={cn("w-full h-full flex flex-col",
-                deck.progress?.studyingDifficult && "border-amber-500"
+              {/* --- 3. Apply fontClass to Card --- */}
+              <Card className={cn(
+                "w-full h-full flex flex-col",
+                deck.progress?.studyingDifficult && "border-amber-500",
+                fontClass // Apply the dynamic font class here
               )}>
                 <CardHeader className="text-center text-sm text-muted-foreground bg-muted/50 border-b py-3">
-                  <div className="flex justify-between items-center">
+                  {/* ... (CardHeader content remains the same) */}
+                    <div className="flex justify-between items-center">
                     <div className="text-xs font-medium">Card {currentCardIndex + 1} of {studyCards.length}</div>
                     <div className="text-xs font-medium">{cardProgressText}</div>
                     {settings?.showDifficulty && (
-                      <DifficultyIndicator 
-                        difficultyScore={currentStudyCard.difficultyScore ?? null} 
+                      <DifficultyIndicator
+                        difficultyScore={currentStudyCard.difficultyScore ?? null}
                       />
                     )}
                   </div>
                 </CardHeader>
+                 {/* The <p> tag below will inherit the font from the parent Card */}
                 <CardContent className="flex-grow flex items-center justify-center p-6 text-center">
                   <p className="text-xl md:text-2xl">{currentStudyCard.answer}</p>
                 </CardContent>
                 <CardFooter className="text-center text-sm text-muted-foreground bg-muted/50 border-t py-3 space-x-4">
-                  <Button
+                  {/* ... (CardFooter buttons remain the same) */}
+                     <Button
                     variant="outline"
                     className="flex-1 border-red-500 text-red-700 hover:bg-red-500/10 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 active:scale-95 transition-all duration-150"
                     onClick={(e) => { e.stopPropagation(); handleAnswer(false); }}

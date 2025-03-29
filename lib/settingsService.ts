@@ -1,7 +1,7 @@
 // File: lib/settingsService.ts
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Settings } from '@/providers/settings-provider';
+import type { Settings, FontOption } from '@/providers/settings-provider';
 import { DEFAULT_MASTERY_THRESHOLD } from '@/lib/study-utils';
 
 /**
@@ -34,6 +34,7 @@ export async function fetchSettings(
     ttsEnabled: data.tts_enabled ?? true,
     showDifficulty: data.show_difficulty ?? true,
     masteryThreshold: data.mastery_threshold ?? DEFAULT_MASTERY_THRESHOLD,
+    cardFont: (data.card_font as FontOption) ?? 'default',
   };
 
   return transformedData;
@@ -56,6 +57,7 @@ export async function updateSettings(
     tts_enabled: settings.ttsEnabled,
     show_difficulty: settings.showDifficulty,
     mastery_threshold: settings.masteryThreshold,
+    card_font: settings.cardFont,
     id: settings.id,
   };
 
@@ -85,6 +87,7 @@ export async function updateSettings(
     ttsEnabled: (data as any).tts_enabled ?? true,
     showDifficulty: (data as any).show_difficulty ?? true,
     masteryThreshold: (data as any).mastery_threshold ?? DEFAULT_MASTERY_THRESHOLD,
+    cardFont: (data as any).card_font ?? 'default',
   };
 
   return transformedData;
