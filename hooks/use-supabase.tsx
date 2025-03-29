@@ -1,61 +1,33 @@
 "use client";
 
-import { createClient } from "@supabase/supabase-js";
-import { useEffect, useState, useRef } from "react";
+import { createBrowserClient } from "@supabase/ssr";
+import { useState } from "react";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+/**
+ * Custom hook to provide a memoized Supabase client instance for use in client components.
+ * Uses `createBrowserClient` from `@supabase/ssr` to ensure compatibility with middleware
+ * and server-side Supabase handling.
+ *
+ * @returns {{ supabase: SupabaseClient }} An object containing the Supabase client instance.
+ */
+export function useSupabase() {
+  const [supabase] = useState(() => {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  if (process.env.NODE_ENV === "development") {
-    console.warn("Missing Supabase URL or anon key in environment variables.");
-  }
-  // Optionally, throw an error or fallback to a safe default
-}
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error("Missing Supabase URL or Anon Key for client-side client.");
+    }
 
-// Create a single instance for the entire application
-let clientInstance: ReturnType<typeof createClient> | null = null;
-
-const getSupabaseClient = () => {
-  if (clientInstance) return clientInstance;
-
-  clientInstance = createClient(supabaseUrl!, supabaseAnonKey!, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-      flowType: "pkce",
-      debug: process.env.NODE_ENV === "development",
-      storage: {
-        getItem: (key) => {
-          if (typeof window === "undefined") return null;
-          return window.localStorage.getItem(key);
-        },
-        setItem: (key, value) => {
-          if (typeof window === "undefined") return;
-          window.localStorage.setItem(key, value);
-        },
-        removeItem: (key) => {
-          if (typeof window === "undefined") return;
-          window.localStorage.removeItem(key);
-        },
-      },
-    },
+    return createBrowserClient<Database>(supabaseUrl!, supabaseAnonKey!);
   });
 
-  return clientInstance;
-};
-
-export function useSupabase() {
-  const [initialized, setInitialized] = useState(false);
-  const supabaseRef = useRef(getSupabaseClient());
-
-  useEffect(() => {
-    setInitialized(true);
-  }, []);
-
-  return {
-    supabase: supabaseRef.current,
-    initialized,
-  };
+  return { supabase };
 }
+
+// Optional: Define Database type based on Supabase schema
+// You can generate this using: npx supabase gen types typescript --project-id <your-project-id> > types/supabase.ts
+// Then import it here: import type { Database } from '@/types/supabase';
+// If you don't have it, use generic SupabaseClient type or remove <Database> generic
+type Database = any; // Replace with your actual Database type if generated

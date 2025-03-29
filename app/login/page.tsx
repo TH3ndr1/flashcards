@@ -2,8 +2,8 @@
 
 import type React from "react"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,55 +12,92 @@ import { Label } from "@/components/ui/label"
 import { useAuth } from "@/hooks/use-auth"
 import { useToast } from "@/hooks/use-toast"
 
+/**
+ * Renders the login page component.
+ * Allows users to sign in using their email and password.
+ * Displays feedback messages from auth callbacks (e.g., email confirmation).
+ * Redirects authenticated users to the home page.
+ */
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [loading, setLoading] = useState(false)
-  const { signIn } = useAuth()
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const { signIn, user, loading: authLoading } = useAuth()
   const { toast } = useToast()
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  useEffect(() => {
+    const message = searchParams.get('message')
+    const error = searchParams.get('error')
+
+    if (message === 'email_already_confirmed_or_link_invalid') {
+      toast({
+        title: "Email Confirmation Info",
+        description: "Your email may already be confirmed, or the link was invalid/expired. Please try logging in.",
+        duration: 7000,
+      })
+    } else if (error === 'confirmation_failed') {
+      toast({
+        title: "Email Confirmation Failed",
+        description: "Could not confirm your email. Please try the link again or sign up if needed.",
+        variant: "destructive",
+        duration: 7000,
+      })
+    } else if (error === 'missing_confirmation_code') {
+      toast({
+        title: "Invalid Link",
+        description: "The confirmation link is missing necessary information. Please use the link from your email.",
+        variant: "destructive",
+        duration: 7000,
+      })
+    }
+  }, [searchParams, toast, router])
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.push("/")
+    }
+  }, [user, authLoading, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setIsSubmitting(true)
 
     if (!email || !password) {
       toast({
-        title: "Error",
-        description: "Please enter both email and password",
+        title: "Missing Information",
+        description: "Please enter both email and password.",
         variant: "destructive",
       })
+      setIsSubmitting(false)
       return
     }
 
     try {
-      setLoading(true)
       const { error } = await signIn(email, password)
 
       if (error) {
         toast({
-          title: "Login failed",
-          description: error.message || "Invalid email or password",
+          title: "Login Failed",
+          description: error.message || "Invalid credentials. Please try again.",
           variant: "destructive",
         })
-        return
       }
-
-      toast({
-        title: "Login successful",
-        description: "Welcome back!",
-      })
-
-      // Let the signIn function handle the navigation
     } catch (error) {
-      console.error("Login error:", error)
+      console.error("Login submit error:", error)
       toast({
-        title: "Login failed",
-        description: "An unexpected error occurred. Please try again.",
+        title: "Login Failed",
+        description: "An unexpected error occurred. Please try again later.",
         variant: "destructive",
       })
     } finally {
-      setLoading(false)
+      setIsSubmitting(false)
     }
+  }
+
+  if (authLoading || user) {
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>
   }
 
   return (
@@ -81,12 +118,13 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                disabled={isSubmitting}
               />
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">Password</Label>
-                <Link href="/forgot-password" className="text-sm text-primary hover:underline">
+                <Link href="/auth/forgot-password" className="text-sm text-primary hover:underline">
                   Forgot password?
                 </Link>
               </div>
@@ -96,12 +134,13 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                disabled={isSubmitting}
               />
             </div>
           </CardContent>
           <CardFooter>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Signing in..." : "Sign in"}
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
+              {isSubmitting ? "Signing in..." : "Sign in"}
             </Button>
           </CardFooter>
         </form>

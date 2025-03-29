@@ -1,8 +1,7 @@
 "use client"
 
 import type React from "react"
-
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -12,22 +11,34 @@ import { Label } from "@/components/ui/label"
 import { useAuth } from "@/hooks/use-auth"
 import { useToast } from "@/hooks/use-toast"
 
+/**
+ * Renders the sign-up page component.
+ * Allows new users to create an account with email and password.
+ * Requires email confirmation after submission.
+ * Redirects authenticated users away from this page.
+ */
 export default function SignupPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
-  const [loading, setLoading] = useState(false)
-  const { signUp, signIn } = useAuth()
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const { signUp, user, loading: authLoading } = useAuth()
   const { toast } = useToast()
   const router = useRouter()
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.push("/")
+    }
+  }, [user, authLoading, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (!email || !password || !confirmPassword) {
       toast({
-        title: "Error",
-        description: "Please fill in all fields",
+        title: "Missing Information",
+        description: "Please fill in all fields.",
         variant: "destructive",
       })
       return
@@ -35,8 +46,8 @@ export default function SignupPage() {
 
     if (password !== confirmPassword) {
       toast({
-        title: "Error",
-        description: "Passwords do not match",
+        title: "Password Mismatch",
+        description: "The passwords entered do not match.",
         variant: "destructive",
       })
       return
@@ -44,45 +55,54 @@ export default function SignupPage() {
 
     if (password.length < 6) {
       toast({
-        title: "Error",
-        description: "Password must be at least 6 characters",
+        title: "Password Too Short",
+        description: "Password must be at least 6 characters long.",
         variant: "destructive",
       })
       return
     }
 
+    setIsSubmitting(true)
+
     try {
-      setLoading(true)
       const { error, data } = await signUp(email, password)
 
       if (error) {
         toast({
-          title: "Sign up failed",
-          description: error.message || "Could not create account",
+          title: "Sign Up Failed",
+          description: error.message || "Could not create your account. Please try again.",
           variant: "destructive",
         })
-        return
+      } else if (data) {
+        toast({
+          title: "Account Created - Confirmation Needed",
+          description: "Please check your email for a confirmation link to activate your account.",
+          duration: 9000,
+        })
+        setEmail("")
+        setPassword("")
+        setConfirmPassword("")
+      } else {
+        toast({
+          title: "Sign Up Issue",
+          description: "Something went wrong during sign up. Please try again.",
+          variant: "destructive",
+        })
       }
-
+    } catch (err) {
+      console.error("Signup submit error:", err)
       toast({
-        title: "Account created",
-        description: "Your account has been created successfully. You can now sign in.",
-      })
-
-      // Automatically sign in after successful signup
-      await signIn(email, password)
-
-      // Let the signIn function handle the navigation
-    } catch (error) {
-      console.error("Signup error:", error)
-      toast({
-        title: "Sign up failed",
-        description: "An unexpected error occurred. Please try again.",
+        title: "Sign Up Failed",
+        description: "An unexpected error occurred. Please try again later.",
         variant: "destructive",
       })
     } finally {
-      setLoading(false)
+      setIsSubmitting(false)
     }
+  }
+
+  if (authLoading || user) {
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>
   }
 
   return (
@@ -103,6 +123,7 @@ export default function SignupPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                disabled={isSubmitting}
               />
             </div>
             <div className="space-y-2">
@@ -113,6 +134,7 @@ export default function SignupPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                disabled={isSubmitting}
               />
             </div>
             <div className="space-y-2">
@@ -123,12 +145,13 @@ export default function SignupPage() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
+                disabled={isSubmitting}
               />
             </div>
           </CardContent>
           <CardFooter>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Creating account..." : "Sign up"}
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
+              {isSubmitting ? "Creating account..." : "Sign up"}
             </Button>
           </CardFooter>
         </form>
