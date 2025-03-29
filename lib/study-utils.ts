@@ -21,6 +21,8 @@ export const DIFFICULTY_WEIGHTS = {
 export const DAYS_FOR_MAX_FORGETFULNESS = 5; // Time window for forgetting
 export const ATTEMPTS_NORMALIZATION_FACTOR = 5; // Constant C for attempt normalization
 
+export const DIFFICULTY_THRESHOLD = 0.55; // Score above which a card is considered difficult
+
 // --- Helper Functions ---
 
 /**
@@ -106,16 +108,26 @@ export const calculateDifficultyScore = (card: FlashCard): number => {
   return Math.min(1, Math.max(0, score)); // Ensure score is between 0 and 1
 };
 
+/**
+ * @returns {FlashCard[]} An array of flashcards considered difficult, sorted by difficulty.
+ */
 export const prepareDifficultCards = (cards: FlashCard[]): FlashCard[] => {
   if (!Array.isArray(cards)) return [];
 
-  // For difficult cards, we don't filter by mastery status
-  const weightedCards = cards.map((card) => {
-    const difficultyWeight = card.difficultyScore || 0;
+  // 1. Filter cards that meet the difficulty threshold
+  const difficultCards = cards.filter(card => (card.difficultyScore || 0) >= DIFFICULTY_THRESHOLD);
+
+  if (difficultCards.length === 0) {
+    return []; // Return early if no cards meet the threshold
+  }
+
+  // 2. Assign weights based on score for sorting
+  const weightedCards = difficultCards.map((card) => {
+    const difficultyWeight = card.difficultyScore || 0; // Already filtered, so score >= threshold
     return { card, weight: difficultyWeight };
   });
 
-  // Sort by difficulty weight (descending), with slight randomization
+  // 3. Sort the filtered cards by difficulty weight (descending), with slight randomization
   weightedCards.sort((a, b) => {
     const weightDiff = b.weight - a.weight;
     // If weights are close, introduce random shuffling
@@ -125,5 +137,6 @@ export const prepareDifficultCards = (cards: FlashCard[]): FlashCard[] => {
     return weightDiff;
   });
 
-  return weightedCards.map((wc) => wc.card);
+  const result = weightedCards.map((wc) => wc.card);
+  return result;
 };

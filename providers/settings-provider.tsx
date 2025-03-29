@@ -29,6 +29,7 @@ export interface Settings {
   showDifficulty: boolean;
   masteryThreshold: number;
   ttsEnabled: boolean;
+  removeMasteredCards?: boolean;
   languageDialects: {
     en: string;
     nl: string;
@@ -51,6 +52,7 @@ export const DEFAULT_SETTINGS: Settings = {
   showDifficulty: true,
   masteryThreshold: 3,
   ttsEnabled: true,
+  removeMasteredCards: false,
   languageDialects: {
     en: "en-GB",
     nl: "nl-NL",

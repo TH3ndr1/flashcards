@@ -35,7 +35,7 @@ Improve code structure, maintainability, type safety, and error handling across 
   - [x] `hooks/use-supabase.tsx` (Reviewed - OK)
   - [x] `hooks/use-mobile.tsx` (Reviewed - OK)
 
-### Stage 4: Components (`components/`, `app/` page components) (Partially Complete)
+### Stage 4: Components (`components/`, `app/` page components) (Complete)
 - [x] Review shared UI components (`components/ui/`)
   - [x] Mostly library components (Shadcn UI assumed) - OK.
   - [x] Reviewed `sidebar.tsx` - OK.
@@ -57,10 +57,12 @@ Improve code structure, maintainability, type safety, and error handling across 
   - [x] `app/edit/[deckId]/page.tsx`: Reviewed, cleaned effect dependency, added TSDoc. Fixed loading flash issue & syntax errors. OK.
   - [x] `app/study/[deckId]/page.tsx`: 
     - [x] Initial review & safety refactor complete.
-    - [x] Per-card persistence logic implemented (implicitly via `updateDeck` in `handleAnswer`).
+    - [x] Per-card persistence logic implemented.
     - [x] Extracted `StudyFlashcardView` component.
     - [x] Fixed font application issue in `StudyFlashcardView`.
-    - [ ] Next: Further review for potential hook extraction (`useStudySession`?) or other simplifications.
+    - [x] Extracted core logic into `useStudySession` hook.
+    - [x] Page component simplified to use hook.
+    - [x] Resolved complex bugs related to completion screen rendering (mastered decks) and difficult mode state persistence/resumption.
 
 ### Stage 5: API Routes (`app/api/`)
 - [ ] Review API route handlers.
@@ -136,26 +138,31 @@ Improve code structure, maintainability, type safety, and error handling across 
         - Refactored `updateSettings` callback to return a structured `Promise<{ success: boolean; error?: PostgrestError | Error | null }>`, handle errors from `updateSettingsInDb`, show toasts, and manage preconditions.
         - Corrected `PostgrestError` import.
         - Modified `debug` function to be conditional based on `process.env.NODE_ENV`.
+    - **`hooks/use-study-session.ts`** (✅ Completed):
+        - Extracted core study logic from `StudyDeckPage`.
+        - Implemented per-card persistence.
+        - Refactored state logic for difficult mode completion (`isDifficultSessionComplete`).
+        - Debugged and fixed state persistence issues related to `studyingDifficult` flag.
+        - Corrected logic for handling mastered deck loading.
 - **Next Steps**:
     - Review other custom hooks (e.g., `useSupabase`, `useAuth`, `useToast`, `useStudySession` if applicable) for consistency, error handling, and potential improvements.
     - Evaluate if a dedicated state management library (Zustand, Jotai) is beneficial or if the current context-based approach is sufficient.
 
-## Stage 4: Component Structure & UI
+## Stage 4: Component Structure & UI (✅ Completed)
 
 - **Goal**: Review components for clarity, reusability, adherence to SOLID principles, and proper use of hooks and state.
 - **Work Done**:
   - Reviewed shared UI (`components/ui`), theme provider, header, deck list, create dialog, basic study components, and editors (✅ Completed).
   - Reviewed page-level components:
     - `app/layout.tsx`, `app/page.tsx`, `app/login/page.tsx`, `app/signup/page.tsx`, `app/edit/[deckId]/page.tsx` (✅ Completed - Minor cleanup, TSDoc added).
-    - `app/study/[deckId]/page.tsx` (✅ Component Extraction Done, Font Fix Applied):
+    - `app/study/[deckId]/page.tsx` (✅ Refactoring Complete):
       - Added TSDoc comment.
-      - Removed unused `handleNextCard` function.
-      - Wrapped `updateDeck` call in `handleAnswer` with `try...catch` for error handling.
-      - Corrected dependencies for `handleAnswer` callback.
-      - **Identified Issues (Partially Addressed)**: High complexity (reduced by component extraction), potentially inefficient persistence strategy (Addressed - using per-card update logic via `updateDeck`), lack of component separation (Addressed - `StudyFlashcardView` extracted).
-      - Applied font setting fix to extracted `StudyFlashcardView`.
-- **Next Steps**:
-  - Refactor `app/study/[deckId]/page.tsx` further (Optional - Consider custom hook `useStudySession` to encapsulate logic?).
+      - Initial safety refactors done.
+      - Persistence logic reviewed/confirmed.
+      - Extracted `StudyFlashcardView` component.
+      - Applied font setting fix.
+      - Extracted core logic into `useStudySession` hook, simplifying the page component significantly.
+- **Next Steps**: Proceed to Stage 5: API Routes.
 
 ## Stage 5: Testing
 

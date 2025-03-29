@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useDecks } from "./use-decks";
+import { useTTS } from "./use-tts";
 import type { Deck, FlashCard } from "@/types/deck";
 import type { Settings } from "@/providers/settings-provider"; // Assuming Settings type is exported
 import { toast } from "sonner";
@@ -14,38 +15,73 @@ import {
   MAX_DECK_LOAD_RETRIES,
   DEFAULT_MASTERY_THRESHOLD,
   FLIP_ANIMATION_MIDPOINT_MS, // Needed for transition timing
+  TTS_DELAY_MS, // Needed for TTS timing
 } from "@/lib/study-utils";
 
+/**
+ * Props for the useStudySession hook.
+ */
 interface UseStudySessionProps {
+  /** The ID of the deck to study. */
   deckId: string | undefined;
+  /** User settings that affect the study session (e.g., mastery threshold, TTS). */
   settings: Settings | null;
 }
 
-// Define the shape of the object returned by the hook
+/**
+ * The state and actions returned by the useStudySession hook.
+ */
 interface StudySessionState {
+  // Core State
   deck: Deck | null;
   currentStudyCard: FlashCard | undefined;
   isFlipped: boolean;
   isLoading: boolean;
   error: string | null;
   isTransitioning: boolean;
+  isFullDeckMastered: boolean;
+  isDifficultSessionComplete: boolean;
+
+  // Derived Information
   totalCards: number;
   masteredCount: number;
-  currentCardIndex: number;
-  studyCardsCount: number;
+  currentCardIndex: number; // Index within the current studyCards array
+  studyCardsCount: number; // Count of cards currently in the study session
+  overallProgressPercent: number;
+  masteryProgressPercent: number;
+  totalAchievedCorrectAnswers: number;
+  totalRequiredCorrectAnswers: number;
+  difficultCardsCount: number;
+  isDifficultMode: boolean;
+  cardProgressText: string;
+
   // Action Functions
+  /** Flips the current card between question and answer. */
   flipCard: () => void;
-  markCorrect: () => void;
-  markIncorrect: () => void;
-  restartDifficult: () => void;
-  resetProgress: () => Promise<void>;
+  /** Marks the current card as correct and moves to the next. */
+  answerCardCorrect: () => void;
+  /** Marks the current card as incorrect and moves to the next. */
+  answerCardIncorrect: () => void;
+  /** Restarts the study session focusing only on difficult cards. */
+  practiceDifficultCards: () => void;
+  /** Resets all progress statistics for the current deck. */
+  resetDeckProgress: () => Promise<void>;
 }
 
+/**
+ * Custom hook to manage the state and logic for a flashcard study session.
+ * Encapsulates deck loading, card progression, state updates, TTS, and persistence logic.
+ *
+ * @param deckId The ID of the deck to study.
+ * @param settings User settings affecting the session.
+ * @returns {StudySessionState} An object containing the session state and action functions.
+ */
 export function useStudySession({
   deckId,
   settings,
 }: UseStudySessionProps): StudySessionState {
-  const { getDeck, updateDeck } = useDecks(); // Keep data fetching hooks here
+  const { getDeck, updateDeck, loading: useDecksLoading } = useDecks();
+  const { speak, setLanguage } = useTTS();
 
   // --- State Migration --- 
   const [deck, setDeck] = useState<Deck | null>(null);
@@ -57,12 +93,41 @@ export function useStudySession({
   const [isTransitioning, setIsTransitioning] = useState(false);
   const retryCountRef = useRef(0);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null); // For debounced saving
+  const isMountedRef = useRef(true);
 
   // --- Derived State Migration ---
   const totalCards = useMemo(() => deck?.cards?.length ?? 0, [deck]);
   const masteredCount = useMemo(() => calculateMasteredCount(deck?.cards ?? [], settings), [deck, settings]);
   const currentStudyCard = useMemo(() => studyCards?.[currentCardIndex], [studyCards, currentCardIndex]);
   const studyCardsCount = useMemo(() => studyCards.length, [studyCards]);
+  const currentDeckCard = useMemo(() => deck?.cards.find(card => card.id === currentStudyCard?.id), [deck, currentStudyCard]);
+  const currentCardCorrectCount = useMemo(() => currentDeckCard?.correctCount || 0, [currentDeckCard]);
+  const masteryThreshold = settings?.masteryThreshold ?? DEFAULT_MASTERY_THRESHOLD;
+  const totalRequiredCorrectAnswers = useMemo(() => totalCards * masteryThreshold, [totalCards, masteryThreshold]);
+  const totalAchievedCorrectAnswers = useMemo(() => deck?.cards?.reduce((sum, card) => sum + (card.correctCount || 0), 0) ?? 0, [deck]);
+  const overallProgressPercent = useMemo(() => totalRequiredCorrectAnswers > 0 ? Math.round((totalAchievedCorrectAnswers / totalRequiredCorrectAnswers) * 100) : 0, [totalAchievedCorrectAnswers, totalRequiredCorrectAnswers]);
+  const masteryProgressPercent = useMemo(() => totalCards > 0 ? Math.round((masteredCount / totalCards) * 100) : 0, [masteredCount, totalCards]);
+  const difficultCardsCount = useMemo(() => {
+    if (!deck?.cards) return 0;
+    // Rely on the same logic used for practicing them
+    return prepareDifficultCards(deck.cards).length;
+  }, [deck?.cards]);
+  const isDifficultMode = useMemo(() => deck?.progress?.studyingDifficult ?? false, [deck]);
+  const cardProgressText = useMemo(() => `${currentCardCorrectCount} / ${masteryThreshold} correct${currentCardCorrectCount >= masteryThreshold ? ' (Mastered!)' : ''}`, [currentCardCorrectCount, masteryThreshold]);
+  const isFullDeckMastered = useMemo(() => {
+    return !isLoading && totalCards > 0 && masteredCount >= totalCards;
+  }, [isLoading, totalCards, masteredCount]);
+  const isDifficultSessionComplete = useMemo(() => {
+    if (!isDifficultMode || !deck || studyCards.length === 0) {
+      return false; // Not in difficult mode or no cards to check
+    }
+    // Check if *every* card currently in the study list meets mastery in the main deck state
+    return studyCards.every(studyCard => {
+      const mainCardData = deck.cards.find(card => card.id === studyCard.id);
+      // Ensure card exists and its correct count meets the threshold
+      return mainCardData && (mainCardData.correctCount || 0) >= masteryThreshold;
+    });
+  }, [isDifficultMode, deck, studyCards, masteryThreshold]);
 
   // --- Deck Loading Effect (Moved from component) ---
   useEffect(() => {
@@ -78,6 +143,13 @@ export function useStudySession({
         }
         return;
       }
+      // --- Crucial Check: Wait for useDecks (and thus Supabase client) to be ready --- 
+      if (useDecksLoading) {
+        console.log("useStudySession: Waiting for useDecks to finish loading...");
+        // We don't set isLoading to false here, just wait for the next effect run
+        return;
+      }
+
       setIsLoading(true);
       setError(null);
       setDeck(null); // Reset deck state on new load attempt
@@ -149,7 +221,14 @@ export function useStudySession({
     attemptLoad();
 
     return () => { isMounted = false; };
-  }, [deckId, settings, getDeck]); // Include settings as dependency for prepareStudyCards
+  }, [deckId, settings, getDeck, useDecksLoading]);
+
+  // --- TTS Effects ---
+  // Effect: Speak question
+  useEffect(() => {
+    // ... speak question logic placeholder ...
+    console.log("Placeholder: TTS effect runs");
+  }, [currentStudyCard, isFlipped, isLoading, isTransitioning, settings?.ttsEnabled, deck, setLanguage, speak]);
 
   // --- Action: Flip Card ---
   const flipCard = useCallback(() => {
@@ -171,7 +250,6 @@ export function useStudySession({
         const newCorrectCount = isCorrect ? (card.correctCount || 0) + 1 : (card.correctCount || 0);
         const newIncorrectCount = !isCorrect ? (card.incorrectCount || 0) + 1 : (card.incorrectCount || 0);
         const newAttemptCount = (card.attemptCount || 0) + 1;
-        const newLastStudied = new Date().toISOString();
 
         // Create a temporary card object with updated stats to calculate the new score
         const tempUpdatedCard: FlashCard = {
@@ -179,7 +257,7 @@ export function useStudySession({
           correctCount: newCorrectCount,
           incorrectCount: newIncorrectCount,
           attemptCount: newAttemptCount,
-          lastStudied: newLastStudied, // Pass string here for score calc
+          lastStudied: new Date(), // Use Date object for score calc
         };
         const newDifficultyScore = calculateDifficultyScore(tempUpdatedCard);
 
@@ -189,7 +267,7 @@ export function useStudySession({
           correctCount: newCorrectCount,
           incorrectCount: newIncorrectCount,
           attemptCount: newAttemptCount,
-          lastStudied: newLastStudied,
+          lastStudied: new Date(), // Use Date object
           difficultyScore: newDifficultyScore, // Include the updated score
         };
         return updatedCard;
@@ -197,10 +275,10 @@ export function useStudySession({
       return card;
     });
 
-    if (!updatedCard) { 
+    if (!updatedCard) {
       console.error("useStudySession: Could not find card to update locally.");
       setIsTransitioning(false);
-      return; 
+      return;
     }
 
     const updatedDeck = { ...deck, cards: updatedCards };
@@ -210,7 +288,12 @@ export function useStudySession({
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(async () => {
       console.log("useStudySession: Saving updated deck...");
-      const saveResult = await updateDeck(updatedDeck);
+      // --- Modification START ---
+      // Create a version of the deck specifically for saving,
+      // ensuring studyingDifficult is NOT persisted as true.
+      // Revert: Save the actual updatedDeck state, including studyingDifficult status
+      const saveResult = await updateDeck(updatedDeck); // Use the actual updatedDeck
+      // --- Modification END ---
       if (saveResult.error) {
         console.error("useStudySession: Failed to save deck updates:", saveResult.error);
         toast.error("Save Error", { description: "Could not save study progress." });
@@ -218,18 +301,26 @@ export function useStudySession({
     }, 1500);
 
     // 3. Session Logic: Determine next card index correctly
-    const masteryThreshold = settings?.masteryThreshold ?? DEFAULT_MASTERY_THRESHOLD;
-    const cardJustMastered = isCorrect && (updatedCard.correctCount ?? 0) >= masteryThreshold;
     const shouldRemoveMastered = settings?.removeMasteredCards ?? false;
 
     let nextStudyCards = [...studyCards];
     let nextIndex = currentCardIndex;
+    let cardJustMastered = false; // Flag to track if the current action mastered the card
 
-    if (cardJustMastered && shouldRemoveMastered) {
+    // Check if the *updated* card meets the mastery threshold
+    if (updatedCard && (updatedCard as FlashCard).correctCount >= masteryThreshold) {
+      cardJustMastered = true;
+    }
+
+    if (shouldRemoveMastered && cardJustMastered) {
       console.log(`useStudySession: Card ${currentStudyCard.id} mastered and will be removed.`);
+      // Filter based on the ID of the card that was just answered
       nextStudyCards = studyCards.filter(card => card.id !== currentStudyCard.id);
-      nextIndex = Math.min(currentCardIndex, nextStudyCards.length - 1);
+      // Adjust index: stay at current index if it's still valid, otherwise wrap or go to 0
+      nextIndex = Math.min(currentCardIndex, nextStudyCards.length - 1); // If cards removed, index might need adjustment
+      if (nextIndex < 0) nextIndex = 0; // Handle empty list case
     } else {
+      // Standard progression: Move to the next card, wrapping around
       if (studyCards.length > 0) {
          nextIndex = (currentCardIndex + 1) % studyCards.length;
       }
@@ -237,41 +328,23 @@ export function useStudySession({
 
     // 4. Transition to next card state
     setTimeout(() => {
-      if (cardJustMastered && shouldRemoveMastered) {
-         setStudyCards(nextStudyCards); 
+      // Only update studyCards state if a card was actually removed
+      if (shouldRemoveMastered && cardJustMastered) {
+         setStudyCards(nextStudyCards);
       }
-      setCurrentCardIndex(nextIndex); 
+      setCurrentCardIndex(nextIndex);
       setIsFlipped(false);
       setIsTransitioning(false);
       console.log(`useStudySession: Moving to card index ${nextIndex} in study list of length ${nextStudyCards.length}`);
-    }, FLIP_ANIMATION_MIDPOINT_MS); 
+    }, FLIP_ANIMATION_MIDPOINT_MS);
 
   }, [currentStudyCard, deck, isTransitioning, updateDeck, studyCards, settings, currentCardIndex]);
 
-  const markCorrect = useCallback(() => handleAnswer(true), [handleAnswer]);
-  const markIncorrect = useCallback(() => handleAnswer(false), [handleAnswer]);
-
-  // --- Action: Restart with Difficult Cards ---
-  const restartDifficult = useCallback(() => {
-    if (!deck) return;
-
-    const difficultCards = prepareDifficultCards(deck.cards, settings);
-    if (difficultCards.length === 0) {
-      toast.info("No difficult cards found to practice!");
-      return;
-    }
-
-    console.log("useStudySession: Restarting with difficult cards.");
-    setStudyCards(difficultCards);
-    setCurrentCardIndex(0);
-    setIsFlipped(false);
-    setIsTransitioning(false); // Ensure transition state is reset
-    setError(null);
-    
-  }, [deck, settings]);
+  const answerCardCorrect = useCallback(() => handleAnswer(true), [handleAnswer]);
+  const answerCardIncorrect = useCallback(() => handleAnswer(false), [handleAnswer]);
 
   // --- Action: Reset Progress for the Deck ---
-  const resetProgress = useCallback(async () => {
+  const resetDeckProgress = useCallback(async () => {
     if (!deck) {
       toast.error("Cannot reset progress: Deck not loaded.");
       return;
@@ -283,12 +356,14 @@ export function useStudySession({
       correctCount: 0,
       incorrectCount: 0,
       lastStudied: null, // Reset last studied time
-      // Reset other stats if necessary (e.g., attemptCount, difficultyScore)
+      attemptCount: 0, // Reset attempt count
+      difficultyScore: 0, // Reset difficulty score to initial/neutral
     }));
 
     const resetDeck: Deck = {
       ...deck,
       cards: resetCards,
+      progress: { ...deck.progress, studyingDifficult: false } // Ensure difficult mode is reset
     };
 
     // Optimistic UI update
@@ -321,7 +396,57 @@ export function useStudySession({
       });
       // TODO: Consider reverting optimistic update
     }
-  }, [deck, updateDeck, settings]);
+  }, [deck, updateDeck, settings, setDeck]); // Added setDeck dependency
+
+  // --- Action: Restart with Difficult Cards ---
+  const practiceDifficultCards = useCallback(() => {
+    if (!deck) return;
+
+    const difficultCards = prepareDifficultCards(deck.cards);
+    if (difficultCards.length === 0) {
+      toast.info("No difficult cards found to practice!");
+      return;
+    }
+
+    // --- Reset progress ONLY for the difficult cards --- 
+    const difficultCardIds = new Set(difficultCards.map(card => card.id));
+    const partiallyResetCards = deck.cards.map(card => {
+      if (difficultCardIds.has(card.id)) {
+        // Reset progress for this difficult card
+        return {
+          ...card,
+          correctCount: 0,
+          incorrectCount: 0,
+          lastStudied: null,
+          attemptCount: 0,
+          difficultyScore: 0, // Reset score as well
+        };
+      }
+      return card; // Keep non-difficult cards as they are
+    });
+
+    // Explicitly mark the deck state as studying difficult cards
+    // Use the partially reset card list for the main deck state update
+    const updatedDeck = {
+      ...deck,
+      cards: partiallyResetCards, // Use the cards with difficult ones reset
+      progress: { ...deck.progress, studyingDifficult: true }
+    };
+
+    console.log("useStudySession: Restarting with difficult cards.");
+    setDeck(updatedDeck); // Update the main deck state to reflect difficult mode & reset progress
+    // Set the studyCards state with the list of difficult cards (before reset)
+    // The view will get the actual card data (with reset progress) via currentFullCardData lookup
+    setStudyCards(difficultCards); 
+    setCurrentCardIndex(0);
+    setIsFlipped(false);
+    setIsTransitioning(false); // Ensure transition state is reset
+    setError(null);
+    
+    // Note: We are NOT persisting the studyingDifficult flag here, treating it as session-only.
+    // If persistence is desired, an updateDeck call could be added.
+
+  }, [deck, setDeck, settings]); // Add settings dependency for prepareStudyCards consistency
 
   // --- Return Hook State and Actions ---
   return {
@@ -331,15 +456,24 @@ export function useStudySession({
     isLoading,
     error,
     isTransitioning,
+    isFullDeckMastered,
+    isDifficultSessionComplete,
     totalCards,
     masteredCount,
     currentCardIndex,
     studyCardsCount,
+    overallProgressPercent,
+    masteryProgressPercent,
+    totalAchievedCorrectAnswers,
+    totalRequiredCorrectAnswers,
+    difficultCardsCount,
+    isDifficultMode,
+    cardProgressText,
     // Actions
     flipCard,
-    markCorrect,
-    markIncorrect,
-    restartDifficult,
-    resetProgress,
+    answerCardCorrect,
+    answerCardIncorrect,
+    practiceDifficultCards,
+    resetDeckProgress,
   };
 } 

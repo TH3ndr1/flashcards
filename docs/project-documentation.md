@@ -563,5 +563,9 @@ Key aspects include:
     - Corrected syntax errors (unexpected `\\n` characters and code duplication) introduced during previous refactoring steps within the main `useEffect` hook and associated functions.
 
 ### [Current Date - e.g., YYYY-MM-DD] - Study Page Refactor
-- **Refactor (`app/study/[deckId]/page.tsx`)**: Extracted the flashcard rendering logic into a new reusable component (`components/study-flashcard-view.tsx`) to improve separation of concerns and reduce the complexity of the main study page component. Added TSDoc documentation to the new component.
-- **Fix (`components/study-flashcard-view.tsx`)**: Corrected an issue where the user-selected card font (from settings) was not being applied. Integrated `getFontClass` utility to dynamically apply the correct Tailwind font class. 
+- **Refactor (`app/study/[deckId]/page.tsx`)**: Extracted the flashcard rendering logic into a new reusable component (`components/study-flashcard-view.tsx`).
+- **Fix (`components/study-flashcard-view.tsx`)**: Corrected issue where user-selected card font was not being applied.
+
+### [Current Date - e.g., YYYY-MM-DD] - Study Logic Extraction
+- **Refactor (`app/study/[deckId]/page.tsx`)**: Extracted core study session state management, effects (deck loading, TTS), derived state calculations, and user actions (flip, answer, reset, practice difficult) into a new custom hook (`hooks/use-study-session.ts`). This significantly simplifies the page component, making it primarily responsible for rendering UI based on the hook's state.
+- **TSDoc**: Added comprehensive documentation to the `useStudySession` hook. 
