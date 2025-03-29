@@ -2,6 +2,7 @@
 
 import type { Deck, Card } from "@/types/deck";
 import type { SupabaseClient, PostgrestError } from "@supabase/supabase-js";
+import { calculateDifficultyScore } from "@/lib/study-utils"; // Import needed function
 
 // --- Helper Type for raw Supabase query result (replace with generated types if possible) ---
 // This reflects the snake_case structure returned by the query
@@ -483,4 +484,121 @@ export async function deleteDeckService(
   // 3. Success
   console.log(`Deck deleted successfully (ID: ${deckId})`);
   return { error: null };
+}
+
+/**
+ * Updates the study statistics for a single flashcard.
+ *
+ * Fetches the current card state, calculates new counts and difficulty score based
+ * on the result (`isCorrect`), and updates the card record in the database.
+ *
+ * @param {SupabaseClient} supabase - The Supabase client instance.
+ * @param {string} userId - The ID of the user performing the action (for RLS/logging).
+ * @param {string} deckId - The ID of the deck the card belongs to (for context/RLS).
+ * @param {string} cardId - The ID of the card to update.
+ * @param {boolean | null} isCorrect - True if answered correctly, false if incorrect, null if skipped (counts not updated).
+ * @returns {Promise<{ data: Card | null; error: PostgrestError | null }>} 
+ *          An object containing the updated card data on success,
+ *          or an error object if the update fails.
+ */
+export async function updateCardResultService(
+  supabase: SupabaseClient,
+  userId: string, // For RLS/logging
+  deckId: string, // For context/RLS
+  cardId: string,
+  isCorrect: boolean | null // null indicates 'skip'
+): Promise<{ data: Card | null; error: PostgrestError | null }> {
+
+  // 1. Fetch current card data
+  const { data: currentCardData, error: fetchError } = await supabase
+    .from('cards')
+    .select('correct_count, incorrect_count, attempt_count, difficulty_score')
+    .eq('id', cardId)
+    // RLS should ideally handle ownership, but adding deckId check can be safer if needed
+    // .eq('deck_id', deckId) 
+    .single<Pick<RawCardQueryResult, 'correct_count' | 'incorrect_count' | 'attempt_count' | 'difficulty_score'>>();
+
+  if (fetchError || !currentCardData) {
+    console.error(`Error fetching card ${cardId} for update:`, fetchError);
+    return { data: null, error: fetchError || { message: "Card not found", details: "Failed to fetch card before update", hint: "", code: "FETCH_FAILED" } };
+  }
+
+  // 2. Calculate new values
+  const now = new Date();
+  let newCorrectCount = currentCardData.correct_count ?? 0;
+  let newIncorrectCount = currentCardData.incorrect_count ?? 0;
+  let newAttemptCount = currentCardData.attempt_count ?? 0;
+
+  if (isCorrect !== null) { // Only update counts if not skipped
+    newAttemptCount += 1;
+    if (isCorrect) {
+      newCorrectCount += 1;
+    } else {
+      newIncorrectCount += 1;
+    }
+  }
+
+  // 3. Calculate new difficulty score
+  const tempCardForScore: Card = {
+      id: cardId,
+      question: '', // Not needed for score calc
+      answer: '',   // Not needed for score calc
+      correctCount: newCorrectCount,
+      incorrectCount: newIncorrectCount,
+      attemptCount: newAttemptCount,
+      lastStudied: now, 
+      difficultyScore: currentCardData.difficulty_score ?? 0
+  };
+  const newDifficultyScore = calculateDifficultyScore(tempCardForScore);
+
+  // 4. Perform the update
+  const { data: updatedRawCard, error: updateError } = await supabase
+    .from('cards')
+    .update({
+      correct_count: newCorrectCount,
+      incorrect_count: newIncorrectCount,
+      attempt_count: newAttemptCount,
+      last_studied: now.toISOString(),
+      difficulty_score: newDifficultyScore,
+    })
+    .eq('id', cardId)
+    .select(`
+        id,
+        question,
+        answer,
+        correct_count,
+        incorrect_count,
+        last_studied,
+        attempt_count,
+        difficulty_score
+      `) // Select necessary fields to reconstruct the Card type
+    .single<RawCardQueryResult>(); 
+
+  if (updateError) {
+    console.error(`Error updating card ${cardId}:`, updateError);
+    return { data: null, error: updateError };
+  }
+
+  if (!updatedRawCard) {
+      console.error("No data returned from Supabase after updating card, though no error reported.");
+      return { data: null, error: { message: "Failed to retrieve updated card data", details: "", hint: "", code: "FETCH_AFTER_UPDATE_FAILED" } };
+  }
+
+  // 5. Transform and return
+  try {
+    const updatedCard: Card = {
+        id: updatedRawCard.id,
+        question: updatedRawCard.question,
+        answer: updatedRawCard.answer,
+        correctCount: updatedRawCard.correct_count ?? 0,
+        incorrectCount: updatedRawCard.incorrect_count ?? 0,
+        lastStudied: updatedRawCard.last_studied ? new Date(updatedRawCard.last_studied) : undefined,
+        attemptCount: updatedRawCard.attempt_count ?? 0,
+        difficultyScore: updatedRawCard.difficulty_score ?? 0
+    };
+    return { data: updatedCard, error: null };
+  } catch (transformError) {
+     console.error("Error transforming updated card data:", transformError);
+     return { data: null, error: { message: "Failed to process updated card data", details: String(transformError), hint: "", code: "TRANSFORM_ERROR" } };
+  }
 }

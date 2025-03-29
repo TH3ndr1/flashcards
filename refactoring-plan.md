@@ -54,8 +54,13 @@ Improve code structure, maintainability, type safety, and error handling across 
   - [x] `app/page.tsx`: Reviewed, added TSDoc. OK.
   - [x] `app/login/page.tsx`: Reviewed, added TSDoc. OK.
   - [x] `app/signup/page.tsx`: Reviewed, removed unused state, added TSDoc. OK.
-  - [x] `app/edit/[deckId]/page.tsx`: Reviewed, cleaned effect dependency, added TSDoc. OK.
-  - [ ] `app/study/[deckId]/page.tsx`: Initial review & safety refactor complete. Next: Decide persistence strategy & extract components.
+  - [x] `app/edit/[deckId]/page.tsx`: Reviewed, cleaned effect dependency, added TSDoc. Fixed loading flash issue & syntax errors. OK.
+  - [x] `app/study/[deckId]/page.tsx`: 
+    - [x] Initial review & safety refactor complete.
+    - [x] Per-card persistence logic implemented (implicitly via `updateDeck` in `handleAnswer`).
+    - [x] Extracted `StudyFlashcardView` component.
+    - [x] Fixed font application issue in `StudyFlashcardView`.
+    - [ ] Next: Further review for potential hook extraction (`useStudySession`?) or other simplifications.
 
 ### Stage 5: API Routes (`app/api/`)
 - [ ] Review API route handlers.
@@ -142,16 +147,15 @@ Improve code structure, maintainability, type safety, and error handling across 
   - Reviewed shared UI (`components/ui`), theme provider, header, deck list, create dialog, basic study components, and editors (✅ Completed).
   - Reviewed page-level components:
     - `app/layout.tsx`, `app/page.tsx`, `app/login/page.tsx`, `app/signup/page.tsx`, `app/edit/[deckId]/page.tsx` (✅ Completed - Minor cleanup, TSDoc added).
-    - `app/study/[deckId]/page.tsx` (✅ Initial Review & Safety Refactor Completed):
+    - `app/study/[deckId]/page.tsx` (✅ Component Extraction Done, Font Fix Applied):
       - Added TSDoc comment.
       - Removed unused `handleNextCard` function.
       - Wrapped `updateDeck` call in `handleAnswer` with `try...catch` for error handling.
       - Corrected dependencies for `handleAnswer` callback.
-      - **Identified Issues**: High complexity, potentially inefficient persistence strategy (saving full deck on every answer), lack of component separation.
+      - **Identified Issues (Partially Addressed)**: High complexity (reduced by component extraction), potentially inefficient persistence strategy (Addressed - using per-card update logic via `updateDeck`), lack of component separation (Addressed - `StudyFlashcardView` extracted).
+      - Applied font setting fix to extracted `StudyFlashcardView`.
 - **Next Steps**:
-  - Refactor `app/study/[deckId]/page.tsx`:
-    - **Persistence Strategy:** Confirm decision (Option A: Per-Card Save recommended) and implement. This might involve changes to `useDecks` or related services/backend calls if `updateCardResult` needs adjustments.
-    - **Component Extraction:** Extract `StudyCardView`, `StudyControls`, and `StudyCompletionScreen` to reduce complexity.
+  - Refactor `app/study/[deckId]/page.tsx` further (Optional - Consider custom hook `useStudySession` to encapsulate logic?).
 
 ## Stage 5: Testing
 

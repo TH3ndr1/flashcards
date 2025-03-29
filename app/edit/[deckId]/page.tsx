@@ -92,12 +92,18 @@ export default function EditDeckPage() {
           setError("Deck not found");
           setDeck(null);
         }
+        // Set loading false AFTER state is updated
+        if (isMounted) setLoading(false);
       } catch (error) {
         // Catch unexpected errors outside the getDeck promise flow
         console.error("Unexpected error loading deck:", error);
-         if (isMounted) setError(`Unexpected error: ${error instanceof Error ? error.message : String(error)}`);
+         if (isMounted) {
+            setError(`Unexpected error: ${error instanceof Error ? error.message : String(error)}`);
+            // Set loading false in catch as well
+            setLoading(false);
+         }
       } finally {
-        if (isMounted) setLoading(false);
+        // Ensure finally block is clean, loading state is handled in try/catch
       }
     };
 
@@ -106,7 +112,7 @@ export default function EditDeckPage() {
     // Cleanup function
     return () => { isMounted = false; };
 
-  }, [deckId, getDeck, useDecksLoading]); // Dependencies (removed router)
+  }, [deckId, getDeck, useDecksLoading]); // Dependencies
 
   const handleNameChange = (newName: string) => {
     if (!deck) return

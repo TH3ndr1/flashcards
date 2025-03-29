@@ -40,6 +40,8 @@ import {
 import { DeckHeader } from "@/components/deck-header";
 import { StudyProgress } from "@/components/study-progress";
 import { DifficultyIndicator, EASY_CUTOFF} from "@/components/difficulty-indicator"
+import { StudyCompletionScreen } from '@/components/study-completion-screen'; // Import the component
+import { StudyFlashcardView } from '@/components/study-flashcard-view'; // Import the new component
 
 // --- Component ---
 
@@ -99,29 +101,34 @@ export default function StudyDeckPage() {
   const currentCardCorrectCount = useMemo(() => currentDeckCard?.correctCount || 0, [currentDeckCard])
 
 
+  // Progress Calculations (MUST be defined before use in handleAnswer and completion screen)
+  const masteryThreshold = settings?.masteryThreshold ?? DEFAULT_MASTERY_THRESHOLD;
+  const totalRequiredCorrectAnswers = useMemo(() => totalCards * masteryThreshold, [totalCards, masteryThreshold]);
+  const totalAchievedCorrectAnswers = useMemo(() =>
+    deck?.cards?.reduce((sum, card) => sum + (card.correctCount || 0), 0) ?? 0,
+    [deck]
+  );
+  const overallProgressPercent = useMemo(() =>
+    totalRequiredCorrectAnswers > 0
+      ? Math.round((totalAchievedCorrectAnswers / totalRequiredCorrectAnswers) * 100)
+      : 0,
+    [totalAchievedCorrectAnswers, totalRequiredCorrectAnswers]
+  );
+  const masteryProgressPercent = useMemo(() =>
+    totalCards > 0 ? Math.round((masteredCount / totalCards) * 100) : 0,
+    [masteredCount, totalCards]
+  );
+
+  // Calculate difficult cards count (Moved Higher, needed for completion screen)
+  const difficultCardsCount = useMemo(() => {
+    if (!deck?.cards) return 0;
+    // Use EASY_CUTOFF from DifficultyIndicator imports
+    return deck.cards.filter(card => (card.difficultyScore ?? 0) >= EASY_CUTOFF).length;
+  }, [deck?.cards]);
+
   // --- 2. Calculate Font Class ---
   // Ensure settings.cardFont is the correct key for your font preference ('default', 'opendyslexic', 'atkinson')
-  const fontClass = useMemo(() => getFontClass(settings?.cardFont), [settings?.cardFont]);
-
-
-  // Progress Calculations
-  // ... (rest of calculations remain the same)
-   const masteryThreshold = settings?.masteryThreshold ?? DEFAULT_MASTERY_THRESHOLD;
-   const totalRequiredCorrectAnswers = useMemo(() => totalCards * masteryThreshold, [totalCards, masteryThreshold]);
-   const totalAchievedCorrectAnswers = useMemo(() =>
-     deck?.cards?.reduce((sum, card) => sum + (card.correctCount || 0), 0) ?? 0,
-     [deck]
-   );
-   const overallProgressPercent = useMemo(() =>
-     totalRequiredCorrectAnswers > 0
-       ? Math.round((totalAchievedCorrectAnswers / totalRequiredCorrectAnswers) * 100)
-       : 0,
-     [totalAchievedCorrectAnswers, totalRequiredCorrectAnswers]
-   );
-   const masteryProgressPercent = useMemo(() =>
-     totalCards > 0 ? Math.round((masteredCount / totalCards) * 100) : 0,
-     [masteredCount, totalCards]
-   );
+  // const fontClass = useMemo(() => getFontClass(settings?.cardFont), [settings?.cardFont]);
 
 
   // --- Effects ---
@@ -454,6 +461,75 @@ export default function StudyDeckPage() {
     }
   }, [deck, updateDeck, toast, settings])
 
+  // Callback: Start practicing only difficult cards (Moved Higher, needed for completion screen)
+  const handlePracticeDifficult = useCallback(() => {
+      const difficultCards = deck?.cards.filter(card => (card.difficultyScore ?? 0) >= EASY_CUTOFF);
+      if (!deck || !difficultCards || difficultCards.length === 0) {
+        toast.info("No Difficult Cards", { description: "There are no cards marked as difficult to practice." });
+        return;
+      }
+
+      // Prepare difficult cards for study using the utility function
+      const difficultStudyCards = prepareDifficultCards(difficultCards);
+      console.log("Difficult study cards prepared:", difficultStudyCards);
+
+      if (difficultStudyCards.length === 0) {
+        console.error("No study cards were prepared from difficult cards list.");
+        toast.error("Preparation Error", { description: "Could not prepare difficult cards for studying." });
+        return;
+      }
+
+      // Reset statistics ONLY for the difficult cards being practiced
+      const updatedCards = deck.cards.map(card => {
+        if ((card.difficultyScore ?? 0) >= EASY_CUTOFF) {
+          return {
+            ...card,
+            correctCount: 0,
+            incorrectCount: 0,
+            attemptCount: 0,
+            lastStudied: null,
+          };
+        }
+        return card;
+      });
+
+      const updatedDeck = {
+        ...deck,
+        cards: updatedCards,
+        progress: {
+          ...deck.progress,
+          studyingDifficult: true, // Mark that we are now studying difficult cards
+        },
+      };
+
+      // Update state optimistically
+      setDeck(updatedDeck);
+      setStudyCards(difficultStudyCards);
+      setCurrentCardIndex(0);
+      setIsFlipped(false);
+
+      // Persist the deck changes (reset stats for difficult cards, set flag)
+      updateDeck(updatedDeck).then(result => {
+         if (result.error) {
+            console.error("Error updating deck state for difficult practice:", result.error);
+            toast.error("Error Starting Difficult Practice", {
+                description: `Failed to save state: ${result.error.message}`,
+            });
+            // Consider reverting optimistic update here if needed
+         }
+      }).catch(err => {
+        console.error("Unexpected error persisting deck state for difficult practice:", err);
+        toast.error("Error Starting Difficult Practice", {
+            description: "An unexpected error occurred while saving state.",
+        });
+      });
+
+      // Show feedback to user
+      toast.info("Practicing Difficult Cards", {
+        description: `Starting practice with ${difficultCards.length} difficult ${difficultCards.length === 1 ? 'card' : 'cards'}.`,
+      });
+  }, [deck, updateDeck, settings]);
+
 
   // --- Render Logic ---
 
@@ -515,224 +591,23 @@ export default function StudyDeckPage() {
 
   // All Cards Mastered State or Difficult Cards Completed State
   if (studyCards.length === 0 && totalCards > 0) {
-     // ... (all cards mastered state remains the same)
-
-       // If we were studying difficult cards, show the difficult cards completion screen
-    if (deck.progress?.studyingDifficult) {
-      // Check if there are still difficult cards after this session
-      const remainingDifficultCards = deck.cards.filter(card => (card.difficultyScore ?? 0) >= EASY_CUTOFF);
-      const remainingDifficultCount = remainingDifficultCards.length;
-
-      const handlePracticeDifficult = () => {
-        if (remainingDifficultCount === 0) return;
-
-        // Prepare difficult cards for study using the new function
-        const difficultStudyCards = prepareDifficultCards(remainingDifficultCards);
-        console.log("Difficult study cards prepared:", difficultStudyCards);
-
-        if (difficultStudyCards.length === 0) {
-          console.error("No study cards were prepared");
-          return;
-        }
-
-        // Reset statistics for difficult cards and update the deck
-        const updatedCards = deck.cards.map(card => {
-          if ((card.difficultyScore ?? 0) >= EASY_CUTOFF) {
-            // Reset stats only for difficult cards
-            return {
-              ...card,
-              correctCount: 0,
-              incorrectCount: 0,
-              attemptCount: 0,
-              lastStudied: null,
-            };
-          }
-          return card;
-        });
-
-        const updatedDeck = {
-          ...deck,
-          cards: updatedCards,
-          progress: {
-            ...deck.progress,
-            studyingDifficult: true,
-          },
-        };
-
-        // Update all necessary state and persist changes
-        setDeck(updatedDeck);
-        setStudyCards(difficultStudyCards);
-        setCurrentCardIndex(0);
-        setIsFlipped(false);
-
-        // Persist the changes to storage
-        updateDeck(updatedDeck).catch(err => {
-          console.error("Error updating deck:", err);
-          toast.error("Error Starting Difficult Practice", {
-            description: "Could not save deck state. Please try again.",
-          });
-        });
-
-        // Show feedback to user
-        toast.info("Practicing Difficult Cards", {
-          description: `Starting practice with ${remainingDifficultCount} difficult ${remainingDifficultCount === 1 ? 'card' : 'cards'}.`,
-        });
-      };
-
-      return (
-        <main className="container mx-auto px-4 py-8">
-          <DeckHeader deckName={deck.name} onReset={handleResetProgress} showReset={true} />
-          <StudyProgress
-            totalCorrect={totalAchievedCorrectAnswers}
-            totalRequired={totalRequiredCorrectAnswers}
-            overallPercent={overallProgressPercent}
-            masteredCount={masteredCount}
-            totalCards={totalCards}
-            masteryPercent={masteryProgressPercent}
-          />
-          <Card className="max-w-md mx-auto mt-8">
-            <CardContent className="flex flex-col items-center justify-center p-6 py-10 text-center">
-              <h2 className="text-xl font-semibold mb-2">Well Done! 🍪</h2>
-              <p className="text-muted-foreground mb-6">
-                {remainingDifficultCount > 0
-                  ? `You've mastered this set of difficult cards! However, there are still ${remainingDifficultCount} difficult ${remainingDifficultCount === 1 ? 'card' : 'cards'} to practice.`
-                  : "You've mastered all the difficult cards! Each card has been answered correctly 3 times."}
-              </p>
-              <div className="flex flex-col gap-3 w-full max-w-sm">
-                {remainingDifficultCount > 0 && (
-                  <Button
-                    variant="outline"
-                    onClick={handlePracticeDifficult}
-                    className="w-full border-amber-500 text-amber-700 hover:bg-amber-500/10 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300"
-                  >
-                    Practice {remainingDifficultCount} Remaining Difficult {remainingDifficultCount === 1 ? 'Card' : 'Cards'} 🍪
-                  </Button>
-                )}
-                <Button
-                  variant="outline"
-                  onClick={handleResetProgress}
-                  className="w-full"
-                >
-                  Practice All Cards
-                </Button>
-                <Link href="/" passHref className="w-full">
-                  <Button className="w-full">
-                    <ArrowLeft className="mr-2 h-4 w-4"/> Back to Decks
-                  </Button>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
-        </main>
-      );
-    }
-
-    // Regular completion screen for all cards mastered
-    // Calculate number of difficult cards
-    const difficultCards = deck.cards.filter(card => (card.difficultyScore ?? 0) >= EASY_CUTOFF);
-    const difficultCardsCount = difficultCards.length;
-
-    const handlePracticeDifficult = () => {
-      if (difficultCardsCount === 0) return;
-
-      // Prepare difficult cards for study using the new function
-      const difficultStudyCards = prepareDifficultCards(difficultCards);
-      console.log("Difficult study cards prepared:", difficultStudyCards);
-
-      if (difficultStudyCards.length === 0) {
-        console.error("No study cards were prepared");
-        return;
-      }
-
-      // Reset statistics for difficult cards and update the deck
-      const updatedCards = deck.cards.map(card => {
-        if ((card.difficultyScore ?? 0) >= EASY_CUTOFF) {
-          // Reset stats only for difficult cards
-          return {
-            ...card,
-            correctCount: 0,
-            incorrectCount: 0,
-            attemptCount: 0,
-            lastStudied: null,
-          };
-        }
-        return card;
-      });
-
-      const updatedDeck = {
-        ...deck,
-        cards: updatedCards,
-        progress: {
-          ...deck.progress,
-          studyingDifficult: true,
-        },
-      };
-
-      // Update all necessary state and persist changes
-      setDeck(updatedDeck);
-      setStudyCards(difficultStudyCards);
-      setCurrentCardIndex(0);
-      setIsFlipped(false);
-
-      // Persist the changes to storage
-      updateDeck(updatedDeck).catch(err => {
-        console.error("Error updating deck:", err);
-        toast.error("Error Starting Difficult Practice", {
-          description: "Could not save deck state. Please try again.",
-        });
-      });
-
-      // Show feedback to user
-      toast.info("Practicing Difficult Cards", {
-        description: `Starting practice with ${difficultCardsCount} difficult ${difficultCardsCount === 1 ? 'card' : 'cards'}.`,
-      });
-    };
+    const isDifficultModeCompletion = deck.progress?.studyingDifficult ?? false;
 
     return (
-      <main className="container mx-auto px-4 py-8">
-        <DeckHeader deckName={deck.name} onReset={handleResetProgress} showReset={true} />
-        <StudyProgress
-            totalCorrect={totalAchievedCorrectAnswers}
-            totalRequired={totalRequiredCorrectAnswers}
-            overallPercent={overallProgressPercent}
-            masteredCount={masteredCount}
-            totalCards={totalCards}
-            masteryPercent={masteryProgressPercent}
-        />
-        <Card className="max-w-md mx-auto mt-8">
-          <CardContent className="flex flex-col items-center justify-center p-6 py-10 text-center">
-            <h2 className="text-xl font-semibold mb-2">Congratulations! 🎉</h2>
-            <p className="text-muted-foreground mb-6">
-              You've mastered all {totalCards} cards in this deck!
-            </p>
-            <div className="flex flex-col gap-3 w-full max-w-sm">
-              <Button
-                variant="outline"
-                onClick={handleResetProgress}
-                className="w-full"
-              >
-                Practice All Cards
-              </Button>
-              {difficultCardsCount > 0 && (
-                <Button
-                  variant="outline"
-                  onClick={handlePracticeDifficult}
-                  className="w-full border-amber-500 text-amber-700 hover:bg-amber-500/10 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300"
-                >
-                  Practice {difficultCardsCount} Difficult {difficultCardsCount === 1 ? 'Card' : 'Cards'} 🍪
-                </Button>
-              )}
-              <Link href="/" passHref className="w-full">
-                <Button className="w-full">
-                  <ArrowLeft className="mr-2 h-4 w-4"/> Back to Decks
-                </Button>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
-      </main>
+       <StudyCompletionScreen
+         deckName={deck.name}
+         totalCards={totalCards}
+         masteredCount={masteredCount}
+         totalAchievedCorrectAnswers={totalAchievedCorrectAnswers}
+         totalRequiredCorrectAnswers={totalRequiredCorrectAnswers}
+         overallProgressPercent={overallProgressPercent}
+         masteryProgressPercent={masteryProgressPercent}
+         onResetProgress={handleResetProgress} // Pass the existing callback
+         onPracticeDifficult={handlePracticeDifficult} // Pass the new callback
+         difficultCardsCount={difficultCardsCount} // Pass the calculated count
+         isDifficultModeCompletion={isDifficultModeCompletion}
+       />
     )
-
   }
 
   // Active Studying State
@@ -745,17 +620,19 @@ export default function StudyDeckPage() {
      )
   }
 
-  // ... (card progress text calculation remains the same)
-  const remainingCount = masteryThreshold - currentCardCorrectCount;
+  // --- Card progress text calculation (remains the same) ---
   const cardProgressText = `${currentCardCorrectCount} / ${masteryThreshold} correct${
     currentCardCorrectCount >= masteryThreshold ? ' (Mastered!)' : ''
   }`;
+  // --- End card progress text calculation ---
 
+  // --- Determine if in difficult mode (for prop) ---
+  const isDifficultMode = deck?.progress?.studyingDifficult ?? false;
+  // ---
 
   return (
     <main className="container mx-auto px-4 py-8">
-      {/* Use Extracted Components */}
-      {/* ... (Header and Progress remain the same) */}
+      {/* Header and Progress (remain the same) */}
       <DeckHeader deckName={deck.name} onReset={handleResetProgress} showReset={true} />
       <StudyProgress
         totalCorrect={totalAchievedCorrectAnswers}
@@ -766,97 +643,21 @@ export default function StudyDeckPage() {
         masteryPercent={masteryProgressPercent}
       />
 
-
-      {/* Flashcard Section */}
-      <div className="max-w-2xl mx-auto">
-        <div
-          className={`flip-card ${isFlipped ? "flipped" : ""} w-full h-80 cursor-pointer`}
-          onClick={handleFlip}
-          role="button"
-          aria-label={isFlipped ? "Flip to question" : "Flip to answer"}
-          tabIndex={0}
-          onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') handleFlip() }}
-        >
-          <div className="flip-card-inner relative w-full h-full">
-            {/* Front */}
-            <div className="flip-card-front absolute w-full h-full">
-              {/* --- 3. Apply fontClass to Card --- */}
-              <Card className={cn(
-                "w-full h-full flex flex-col",
-                deck.progress?.studyingDifficult && "border-amber-500",
-                fontClass // Apply the dynamic font class here
-              )}>
-                <CardHeader className="text-center text-sm text-muted-foreground bg-muted/50 border-b py-3">
-                  {/* ... (CardHeader content remains the same) */}
-                   <div className="flex justify-between items-center">
-                    <div className="text-xs font-medium">Card {currentCardIndex + 1} of {studyCards.length}</div>
-                    <div className="text-xs font-medium">{cardProgressText}</div>
-                    {settings?.showDifficulty && (
-                      <DifficultyIndicator
-                        difficultyScore={currentStudyCard.difficultyScore ?? null}
-                      />
-                    )}
-                  </div>
-                </CardHeader>
-                {/* The <p> tag below will inherit the font from the parent Card */}
-                <CardContent className="flex-grow flex items-center justify-center p-6 text-center">
-                  <p className="text-xl md:text-2xl">{currentStudyCard.question}</p>
-                </CardContent>
-                <CardFooter className="justify-center text-sm text-muted-foreground bg-muted/50 border-t py-3 min-h-[52px]">
-                  Click card to reveal answer
-                </CardFooter>
-              </Card>
-            </div>
-            {/* Back */}
-            <div className="flip-card-back absolute w-full h-full">
-              {/* --- 3. Apply fontClass to Card --- */}
-              <Card className={cn(
-                "w-full h-full flex flex-col",
-                deck.progress?.studyingDifficult && "border-amber-500",
-                fontClass // Apply the dynamic font class here
-              )}>
-                <CardHeader className="text-center text-sm text-muted-foreground bg-muted/50 border-b py-3">
-                  {/* ... (CardHeader content remains the same) */}
-                    <div className="flex justify-between items-center">
-                    <div className="text-xs font-medium">Card {currentCardIndex + 1} of {studyCards.length}</div>
-                    <div className="text-xs font-medium">{cardProgressText}</div>
-                    {settings?.showDifficulty && (
-                      <DifficultyIndicator
-                        difficultyScore={currentStudyCard.difficultyScore ?? null}
-                      />
-                    )}
-                  </div>
-                </CardHeader>
-                 {/* The <p> tag below will inherit the font from the parent Card */}
-                <CardContent className="flex-grow flex items-center justify-center p-6 text-center">
-                  <p className="text-xl md:text-2xl">{currentStudyCard.answer}</p>
-                </CardContent>
-                <CardFooter className="text-center text-sm text-muted-foreground bg-muted/50 border-t py-3 space-x-4">
-                  {/* ... (CardFooter buttons remain the same) */}
-                     <Button
-                    variant="outline"
-                    className="flex-1 border-red-500 text-red-700 hover:bg-red-500/10 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 active:scale-95 transition-all duration-150"
-                    onClick={(e) => { e.stopPropagation(); handleAnswer(false); }}
-                    disabled={isTransitioning}
-                    aria-label="Mark as incorrect"
-                  >
-                    <ThumbsDown className="mr-2 h-4 w-4" /> Incorrect
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="flex-1 border-green-500 text-green-700 hover:bg-green-500/10 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 active:scale-95 transition-all duration-150"
-                    onClick={(e) => { e.stopPropagation(); handleAnswer(true); }}
-                    disabled={isTransitioning}
-                    aria-label="Mark as correct"
-                  >
-                    <ThumbsUp className="mr-2 h-4 w-4" /> Correct
-                  </Button>
-                </CardFooter>
-              </Card>
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* --- Use the Extracted Flashcard Component --- */}
+      <StudyFlashcardView
+        card={currentStudyCard} // Pass the current card
+        isFlipped={isFlipped}
+        isTransitioning={isTransitioning}
+        onFlip={handleFlip}
+        onAnswer={handleAnswer} // Pass the correct handleAnswer callback
+        settings={settings}
+        cardProgressText={cardProgressText}
+        currentCardIndex={currentCardIndex}
+        totalStudyCards={studyCards.length} // Pass the length of the current study set
+        isDifficultMode={isDifficultMode}
+        // fontClass={fontClass} // Pass font class if needed
+      />
+      {/* --- End Extracted Flashcard Component Usage --- */}
     </main>
   )
 }

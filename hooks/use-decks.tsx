@@ -12,6 +12,7 @@ import {
   getDeckService,
   updateDeckService,
   deleteDeckService,
+  updateCardResultService,
 } from "@/lib/deckService";
 import { getDecksFromLocalStorage, saveDecksToLocalStorage } from "@/lib/localStorageUtils";
 
@@ -244,6 +245,51 @@ export function useDecks() {
     [user, supabase] // Dependencies remain user and supabase
   );
 
+  const updateCardResult = useCallback(
+    async (deckId: string, cardId: string, isCorrect: boolean | null) => {
+      // Guard clauses for user and supabase
+      if (!user) {
+        logDecksError("updateCardResult failed: User not authenticated.");
+        return { data: null, error: new Error("User not authenticated") };
+      }
+      if (!supabase) {
+        logDecksError("updateCardResult failed: Supabase client not available.");
+        return { data: null, error: new Error("Database connection not ready.") };
+      }
+      if (!deckId || !cardId) {
+        logDecksError("updateCardResult called without deckId or cardId.");
+        return { data: null, error: new Error("Deck ID and Card ID are required") };
+      }
+      
+      try {
+        logDecks("Calling updateCardResultService for Card ID:", cardId, "in Deck ID:", deckId);
+        // Call the service function
+        const { data: updatedCard, error } = await updateCardResultService(
+          supabase,
+          user.id,
+          deckId,
+          cardId,
+          isCorrect
+        );
+
+        if (error) {
+          logDecksError("Error updating card result:", error);
+          return { data: null, error }; // Return error from service
+        }
+
+        // Note: We do NOT update the global 'decks' state here.
+        // The component using this (StudyDeckPage) manages its own local state during the session.
+        logDecks("updateCardResultService successful.");
+        return { data: updatedCard, error: null }; // Return the updated card data
+
+      } catch (error) {
+        logDecksError("Unexpected error in updateCardResult:", error);
+        return { data: null, error: error instanceof Error ? error : new Error("An unexpected error occurred") };
+      }
+    },
+    [user, supabase] // Dependencies remain user and supabase
+  );
+
   // Return type needs adjustment based on new callback signatures
   return {
     decks,
@@ -252,5 +298,6 @@ export function useDecks() {
     createDeck, // Now returns Promise<{ data: Deck | null, error: ...}>
     updateDeck, // Now returns Promise<{ data: Deck | null, error: ...}>
     deleteDeck, // Now returns Promise<{ success: boolean, error: ...}>
+    updateCardResult, // Export the new function
   };
 }

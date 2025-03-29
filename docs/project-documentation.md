@@ -560,4 +560,8 @@ Key aspects include:
 - **Study Page (`/app/study/[deckId]/page.tsx`)**: Resolved a `ReferenceError` related to progress calculation variables by ensuring definitions (`difficultCardsCount`, `handlePracticeDifficult`) were correctly placed before usage.
 - **Edit Page (`/app/edit/[deckId]/page.tsx`)**:
     - Fixed an issue causing a brief "Deck not found" message to appear upon loading by adjusting the `useEffect` hook to set the loading state to `false` only after deck data or an error has been confirmed.
-    - Corrected syntax errors (unexpected `\\n` characters and code duplication) introduced during previous refactoring steps within the main `useEffect` hook and associated functions. 
+    - Corrected syntax errors (unexpected `\\n` characters and code duplication) introduced during previous refactoring steps within the main `useEffect` hook and associated functions.
+
+### [Current Date - e.g., YYYY-MM-DD] - Study Page Refactor
+- **Refactor (`app/study/[deckId]/page.tsx`)**: Extracted the flashcard rendering logic into a new reusable component (`components/study-flashcard-view.tsx`) to improve separation of concerns and reduce the complexity of the main study page component. Added TSDoc documentation to the new component.
+- **Fix (`components/study-flashcard-view.tsx`)**: Corrected an issue where the user-selected card font (from settings) was not being applied. Integrated `getFontClass` utility to dynamically apply the correct Tailwind font class. 
