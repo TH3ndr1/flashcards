@@ -56,51 +56,80 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    logAuth("Auth useEffect running...")
+    logAuth("Auth useEffect triggered...");
+
+    // --- Guard Clause ---
+    // Only proceed if the Supabase client is initialized.
+    if (!supabase) {
+      logAuth("Supabase client not ready yet, waiting...");
+      // Keep loading true until supabase client is available.
+      // Note: If supabase NEVER becomes available (e.g., missing env vars caught in useSupabase),
+      // loading might stay true indefinitely. Consider adding a timeout or error state if needed.
+      setLoading(true); 
+      return; 
+    }
+    // --- End Guard Clause ---
+
+    logAuth("Supabase client is ready. Proceeding with auth checks.");
+    setLoading(true); // Ensure loading is true while we check the session
+
+    let initialSessionFetched = false; // Flag to track if initial fetch completed
+
     const getSession = async () => {
-      logAuth("Attempting to get session...")
+      logAuth("Attempting to get session...");
       try {
-        if (!supabase) {
-          logAuthError("Supabase client not available in getSession")
-          setLoading(false)
-          return
-        }
-        const { data: { session: currentSession }, error } = await supabase.auth.getSession()
+        // Supabase client is guaranteed to be non-null here
+        const { data: { session: currentSession }, error } = await supabase.auth.getSession();
 
         if (error) {
-          logAuthError("Error getting session in useEffect:", error)
+          logAuthError("Error getting session in useEffect:", error);
         }
-        logAuth("getSession result:", currentSession ? "Session found" : "No session")
-        setSession(currentSession)
-        setUser(currentSession?.user ?? null)
+        logAuth("getSession result:", currentSession ? "Session found" : "No session");
+        setSession(currentSession);
+        setUser(currentSession?.user ?? null);
       } catch (error) {
-        logAuthError("Unexpected error during getSession:", error)
+        logAuthError("Unexpected error during getSession:", error);
+        setSession(null); // Ensure clean state on error
+        setUser(null);
       } finally {
-        logAuth("getSession finally block: setting loading false")
-        setLoading(false)
+        initialSessionFetched = true;
+        // Only set loading false if the listener is also set (or failed to set)
+        // This check prevents flicker if onAuthStateChange runs immediately after getSession
+        if (authListener) { 
+            logAuth("getSession finally block: setting loading false (listener ready).");
+            setLoading(false);
+        } else {
+            logAuth("getSession finally block: listener not ready yet, keeping loading true.");
+        }
       }
-    }
+    };
 
-    getSession()
+    getSession(); // Call getSession now that supabase is confirmed
 
-    if (!supabase) {
-       logAuthError("Supabase client not available for onAuthStateChange")
-       return
-    }
+    logAuth("Setting up onAuthStateChange listener...");
+    const { data: { subscription: authListener } } = supabase.auth.onAuthStateChange((event, newSession) => {
+      logAuth("onAuthStateChange triggered:", event, newSession ? "Session found" : "No session");
+      setSession(newSession);
+      setUser(newSession?.user ?? null);
+      // Set loading to false once the listener provides an update OR
+      // if the initial getSession has already finished. This handles cases
+      // where the listener fires very quickly or after the initial check.
+      if (!loading || initialSessionFetched) {
+          logAuth("onAuthStateChange: setting loading false.");
+          setLoading(false);
+      }
+    });
 
-    logAuth("Setting up onAuthStateChange listener...")
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
-      logAuth("onAuthStateChange triggered:", event, newSession ? "Session found" : "No session")
-      setSession(newSession)
-      setUser(newSession?.user ?? null)
-      setLoading(false)
-    })
-
+    // Cleanup function
     return () => {
-      logAuth("Cleaning up auth useEffect: Unsubscribing...")
-      subscription?.unsubscribe()
-    }
-  }, [supabase])
+      logAuth("Cleaning up auth useEffect: Unsubscribing...");
+      authListener?.unsubscribe();
+    };
+
+    // This effect depends only on the supabase client instance.
+    // It runs once when supabase is null (returns early),
+    // and again when supabase becomes non-null.
+  }, [supabase]);
 
   /**
    * Signs in a user using email and password.
@@ -108,14 +137,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    */
   const signIn = useCallback(
     async (email: string, password: string): Promise<{ error: AuthError | Error | null }> => {
-      setLoading(true)
-      let errorResult: AuthError | Error | null = null
+      // Add guard clause for supabase availability
+      if (!supabase) {
+        logAuthError("Sign in failed: Supabase client not available.");
+        return { error: new Error("Authentication service not ready.") };
+      }
+      setLoading(true);
+      let errorResult: AuthError | Error | null = null;
       try {
         const { error } = await supabase.auth.signInWithPassword({ email, password })
         errorResult = error
         if (errorResult) {
           logAuthError("Sign in error:", errorResult)
-          setLoading(false)
         } else {
           logAuth("Sign in successful (state update via listener)")
         }
@@ -134,8 +167,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    */
   const signUp = useCallback(
     async (email: string, password: string): Promise<{ data: any | null; error: AuthError | Error | null }> => {
-      setLoading(true)
-      let errorResult: AuthError | Error | null = null
+      // Add guard clause for supabase availability
+      if (!supabase) {
+        logAuthError("Sign up failed: Supabase client not available.");
+        return { data: null, error: new Error("Authentication service not ready.") };
+      }
+      setLoading(true);
+      let errorResult: AuthError | Error | null = null;
       try {
         const emailRedirectTo = typeof window !== "undefined"
             ? `${window.location.origin}/auth/callback`
@@ -169,22 +207,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * Navigates the user to the login page upon successful sign out.
    */
   const signOut = useCallback(async (): Promise<{ error: AuthError | Error | null }> => {
-    setLoading(true)
-    let errorResult: AuthError | Error | null = null
+    // Add guard clause for supabase availability
+    if (!supabase) {
+      logAuthError("Sign out failed: Supabase client not available.");
+      // Still attempt navigation? Or return error? Let's return error for consistency.
+      return { error: new Error("Authentication service not ready.") };
+    }
+    setLoading(true);
+    let errorResult: AuthError | Error | null = null;
     try {
       const { error: signOutError } = await supabase.auth.signOut()
       errorResult = signOutError
       if (errorResult) {
         logAuthError("Error during sign out:", errorResult)
-        setLoading(false)
       } else {
         logAuth("Sign out successful - redirecting")
         router.push("/login")
-        setLoading(false)
       }
     } catch (err) {
       logAuthError("Unexpected error during sign out:", err)
-      setLoading(false)
       errorResult = err instanceof Error ? err : new Error("An unexpected error occurred during sign out")
     }
     return { error: errorResult }
@@ -195,7 +236,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    */
   const resetPassword = useCallback(
     async (email: string): Promise<{ error: AuthError | Error | null }> => {
-      let errorResult: AuthError | Error | null = null
+      // Add guard clause for supabase availability
+      if (!supabase) {
+        logAuthError("Password reset failed: Supabase client not available.");
+        return { error: new Error("Authentication service not ready.") };
+      }
+      let errorResult: AuthError | Error | null = null;
       try {
         const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/auth/update-password` : undefined
         const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })

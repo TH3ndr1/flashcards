@@ -42,12 +42,18 @@ export function useDecks() {
 
   useEffect(() => {
     const loadDecks = async () => {
-      if (!user) {
-        logDecks("No user, skipping deck load.")
-        setLoading(false);
-        setDecks([]); // Ensure decks are empty if no user
+      // --- Guard Clause ---
+      // Wait for both user authentication and supabase client initialization
+      if (!user || !supabase) {
+        logDecks("User or Supabase client not ready yet, skipping deck load.", { hasUser: !!user, hasSupabase: !!supabase });
+        // Keep loading true until both are ready, unless there's definitely no user
+        if (!user) { 
+          setDecks([]); // Ensure decks are empty if no user
+          setLoading(false); 
+        }
         return;
       }
+      // --- End Guard Clause ---
 
       logDecks("Initiating deck loading for user:", user.id);
       setLoading(true);
@@ -76,7 +82,8 @@ export function useDecks() {
           saveDecksToLocalStorage(decksToSet);
         }
       } catch (error) { // Catch unexpected errors during the fetch process
-        logDecksError("Unexpected error during loadDecks:", error);
+        // Improved logging: Log the actual error object
+        logDecksError("Unexpected error during loadDecks API call:", error);
         // Keep current state, don't crash
       } finally {
         logDecks("Deck loading process finished.");
@@ -88,11 +95,16 @@ export function useDecks() {
 
   const createDeck = useCallback(
     async (params: CreateDeckParams) => {
+      // Guard clauses for user and supabase
       if (!user) {
-          logDecksError("createDeck called without authenticated user.");
-          // Returning error instead of throwing
-          return { data: null, error: new Error("User not authenticated") }; 
+        logDecksError("createDeck failed: User not authenticated.");
+        return { data: null, error: new Error("User not authenticated") };
       }
+      if (!supabase) {
+        logDecksError("createDeck failed: Supabase client not available.");
+        return { data: null, error: new Error("Database connection not ready.") };
+      }
+
       try {
         logDecks("Calling createDeckService", params);
         const { data: newDeck, error } = await createDeckService(supabase, user.id, params);
@@ -113,18 +125,23 @@ export function useDecks() {
         return { data: null, error: error instanceof Error ? error : new Error("An unexpected error occurred") };
       }
     },
-    [user, supabase, logDecks, logDecksError] // Added loggers
+    [user, supabase] // Dependencies remain user and supabase
   );
 
   const getDeck = useCallback(
     async (id: string) => {
+      // Guard clauses for user and supabase
       if (!user) {
-          logDecksError("getDeck called without authenticated user.");
-          return { data: null, error: new Error("User not authenticated") };
+        logDecksError("getDeck failed: User not authenticated.");
+        return { data: null, error: new Error("User not authenticated") };
+      }
+       if (!supabase) {
+        logDecksError("getDeck failed: Supabase client not available.");
+        return { data: null, error: new Error("Database connection not ready.") };
       }
       if (!id) {
-          logDecksError("getDeck called without deck ID.");
-          return { data: null, error: new Error("Deck ID is required") };
+        logDecksError("getDeck called without deck ID.");
+        return { data: null, error: new Error("Deck ID is required") };
       }
       try {
         logDecks("Calling getDeckService for ID:", id);
@@ -143,18 +160,23 @@ export function useDecks() {
         return { data: null, error: error instanceof Error ? error : new Error("An unexpected error occurred") };
       }
     },
-    [user, supabase, logDecks, logDecksError] // Added loggers
+    [user, supabase] // Dependencies remain user and supabase
   );
 
   const updateDeck = useCallback(
     async (updatedDeck: Deck) => {
-       if (!user) {
-          logDecksError("updateDeck called without authenticated user.");
-          return { data: null, error: new Error("User not authenticated") };
+      // Guard clauses for user and supabase
+      if (!user) {
+        logDecksError("updateDeck failed: User not authenticated.");
+        return { data: null, error: new Error("User not authenticated") };
+      }
+      if (!supabase) {
+        logDecksError("updateDeck failed: Supabase client not available.");
+        return { data: null, error: new Error("Database connection not ready.") };
       }
       if (!updatedDeck || !updatedDeck.id) {
-          logDecksError("updateDeck called without valid deck data.");
-          return { data: null, error: new Error("Valid deck data with ID is required") };
+        logDecksError("updateDeck called without valid deck data.");
+        return { data: null, error: new Error("Valid deck data with ID is required") };
       }
       try {
         logDecks("Calling updateDeckService for ID:", updatedDeck.id);
@@ -179,19 +201,24 @@ export function useDecks() {
         return { data: null, error: error instanceof Error ? error : new Error("An unexpected error occurred") };
       }
     },
-    [user, supabase, logDecks, logDecksError] // Added loggers
+    [user, supabase] // Dependencies remain user and supabase
   );
 
   const deleteDeck = useCallback(
     async (id: string) => {
-       if (!user) {
-          logDecksError("deleteDeck called without authenticated user.");
-          return { success: false, error: new Error("User not authenticated") };
-       }
-       if (!id) {
-          logDecksError("deleteDeck called without deck ID.");
-          return { success: false, error: new Error("Deck ID is required") };
-       }
+      // Guard clauses for user and supabase
+      if (!user) {
+        logDecksError("deleteDeck failed: User not authenticated.");
+        return { success: false, error: new Error("User not authenticated") };
+      }
+      if (!supabase) {
+        logDecksError("deleteDeck failed: Supabase client not available.");
+        return { success: false, error: new Error("Database connection not ready.") };
+      }
+      if (!id) {
+        logDecksError("deleteDeck called without deck ID.");
+        return { success: false, error: new Error("Deck ID is required") };
+      }
       try {
         logDecks("Calling deleteDeckService for ID:", id);
         const { error } = await deleteDeckService(supabase, user.id, id);
@@ -214,7 +241,7 @@ export function useDecks() {
         return { success: false, error: error instanceof Error ? error : new Error("An unexpected error occurred") };
       }
     },
-    [user, supabase, logDecks, logDecksError] // Added loggers
+    [user, supabase] // Dependencies remain user and supabase
   );
 
   // Return type needs adjustment based on new callback signatures

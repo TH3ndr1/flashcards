@@ -47,7 +47,7 @@ export default function StudyDeckPage() {
   // --- Hooks ---
   const { deckId } = useParams<{ deckId: string }>()
   const router = useRouter()
-  const { getDeck, updateDeck } = useDecks()
+  const { getDeck, updateDeck, loading: useDecksLoading } = useDecks()
   // --- Settings Hook ---
   const { settings } = useSettings()
   const { speak, setLanguage } = useTTS()
@@ -108,68 +108,70 @@ export default function StudyDeckPage() {
     // Effect: Load deck data
   useEffect(() => {
     let isMounted = true
-    // --- Declare result outside try block --- 
-    let result: { data: Deck | null; error: Error | null } | null = null; 
+    let result: { data: Deck | null; error: Error | null } | null = null;
 
     const attemptLoad = async () => {
-      if (!deckId) {
-          console.error("No deck ID provided.");
-          if (isMounted) {
-              setError("No deck ID found in URL.");
-              setIsLoading(false);
-          }
-          return; 
+      // --- Ensure useDecks has finished its initial load AND we have a deckId ---
+      if (useDecksLoading || !deckId) {
+        console.log("Waiting for useDecks to finish loading or deckId to be available.", { useDecksLoading, hasDeckId: !!deckId });
+        // Set page loading to true while waiting for useDecks
+        if (useDecksLoading && isMounted) {
+           setIsLoading(true);
+           setError(null); // Clear previous errors while waiting
+        } else if (!deckId && isMounted) {
+           console.error("No deck ID provided.");
+           setError("No deck ID found in URL.");
+           setIsLoading(false); // No deckId, stop loading
+        }
+        return;
       }
-      setIsLoading(true);
+      // --- End Guard Clause ---
+
+      setIsLoading(true); // Start page-specific loading
       setError(null);
-      // Removed hasLoadedInitiallyRef logic as it was causing confusion
       console.log("Attempting to load deck:", deckId, `Retry: ${retryCountRef.current}`);
 
       try {
-        // --- Assign to outer result variable --- 
-        result = await getDeck(deckId);
+        result = await getDeck(deckId); // getDeck should now be safe to call
 
         if (!isMounted) return;
 
         if (result.error) {
           console.error("Failed to load deck:", result.error);
-          // --- Use sonner toast format --- 
           toast.error("Error Loading Deck", {
             description: result.error.message || "Could not load the requested deck.",
           });
-          // --- Set deck to null --- 
           setDeck(null);
           setStudyCards([]);
           setError(result.error.message || "Could not load deck.");
         } else if (result.data) {
-          console.log("Deck loaded successfully:", result.data.name); // Use result.data.name
+          console.log("Deck loaded successfully:", result.data.name);
           if (!Array.isArray(result.data.cards)) {
              throw new Error("Invalid deck data: 'cards' is not an array.");
           }
-          const initialStudyCards = prepareStudyCards(result.data.cards, settings); // Use result.data.cards
+          const initialStudyCards = prepareStudyCards(result.data.cards, settings);
           if (isMounted) {
-            setDeck(result.data); // Use result.data
+            setDeck(result.data);
             setStudyCards(initialStudyCards);
             setCurrentCardIndex(0);
             setIsFlipped(false);
             setError(null);
-            retryCountRef.current = 0; // Reset retry count on success
+            retryCountRef.current = 0;
           }
         } else {
-          // Handle case where data is null but no error (deck not found)
+          // Handle deck not found case (result.data is null, no error)
           if (retryCountRef.current < MAX_DECK_LOAD_RETRIES) {
             retryCountRef.current++;
-            console.log(`Deck ${deckId} not found. Retrying (${retryCountRef.current}/${MAX_DECK_LOAD_RETRIES})...`);
+            console.log(`Deck ${deckId} not found or not ready. Retrying (${retryCountRef.current}/${MAX_DECK_LOAD_RETRIES})...`);
             setTimeout(() => { if (isMounted) attemptLoad(); }, DECK_LOAD_RETRY_DELAY_MS);
-            return; // Don't set loading false yet, we are retrying
+            return; // Don't set loading false yet
           } else {
-             console.error(`Deck with ID "${deckId}" not found after ${MAX_DECK_LOAD_RETRIES} retries.`);
+             console.error(`Deck with ID \"${deckId}\" not found after ${MAX_DECK_LOAD_RETRIES} retries.`);
              if (isMounted) {
-                // --- Use sonner toast format --- 
                 toast.error("Deck Not Found", {
                    description: "The requested deck could not be found.",
                 });
-                setDeck(null); // Set null if not found after retries
+                setDeck(null);
                 setStudyCards([]);
                 setError("Deck not found.");
              }
@@ -178,7 +180,6 @@ export default function StudyDeckPage() {
       } catch (err) {
         console.error("Unexpected error during deck loading sequence:", err);
         if (isMounted) {
-            // --- Use sonner toast format --- 
             toast.error("Loading Error", {
                 description: err instanceof Error ? err.message : "An unexpected error occurred.",
             });
@@ -187,7 +188,7 @@ export default function StudyDeckPage() {
             setError(err instanceof Error ? err.message : "An unknown error occurred.");
         }
       } finally {
-        // --- Check outer result variable --- 
+        // Only set page loading false if the operation completed (success, final error, max retries)
         if (isMounted && (result?.data || result?.error || retryCountRef.current >= MAX_DECK_LOAD_RETRIES)) {
           setIsLoading(false);
           console.log("Deck loading process finished (success, final error, or max retries).")
@@ -195,10 +196,12 @@ export default function StudyDeckPage() {
       }
     };
 
+    // --- Call attemptLoad directly - the guard clause handles the waiting ---
     attemptLoad();
 
-    return () => { isMounted = false; console.log("StudyDeckPage unmounting or deckId changed."); };
-  }, [deckId, getDeck, settings]);
+    return () => { isMounted = false; console.log("StudyDeckPage unmounting or dependencies changed."); };
+    // --- Add useDecksLoading to dependency array ---
+  }, [deckId, getDeck, settings, useDecksLoading]);
 
 
   // Effect: Speak question

@@ -21,7 +21,7 @@ export default function EditDeckPage() {
   const params = useParams<{ deckId: string }>()
   const deckId = params?.deckId
   const router = useRouter()
-  const { getDeck, updateDeck, deleteDeck } = useDecks()
+  const { getDeck, updateDeck, deleteDeck, loading: useDecksLoading } = useDecks()
   const [deck, setDeck] = useState<Deck | null>(null)
   const [activeTab, setActiveTab] = useState("cards")
   const [loading, setLoading] = useState(true)
@@ -33,23 +33,30 @@ export default function EditDeckPage() {
     let isMounted = true; // Track mount status
     const loadDeck = async () => {
       try {
-        if (!deckId) {
-          console.error("No deck ID provided");
-          if (isMounted) setError("No deck ID provided");
-          router.push("/");
-          return;
+        if (useDecksLoading || !deckId) {
+          console.log("EditDeckPage: Waiting for useDecks or deckId", { useDecksLoading, hasDeckId: !!deckId });
+          if (useDecksLoading && isMounted) {
+             setLoading(true); // Keep page loading while useDecks loads
+             setError(null);
+          } else if (!deckId && isMounted) {
+             console.error("EditDeckPage: No deck ID provided");
+             setError("No deck ID provided");
+             setLoading(false); // Stop loading if no ID
+             // Optionally redirect earlier if no ID
+             // router.push("/");
+          }
+          return; // Wait for dependencies
         }
 
-        console.log("Loading deck with ID:", deckId);
+        console.log("EditDeckPage: Loading deck with ID:", deckId);
         if (isMounted) {
-             setLoading(true);
+             setLoading(true); // Set page-specific loading
              setError(null);
         }
 
-        // --- Refactor: Handle { data, error } from getDeck --- 
         const result = await getDeck(deckId);
 
-        if (!isMounted) return; // Exit if component unmounted during fetch
+        if (!isMounted) return;
 
         if (result.error) {
           console.error("Error fetching deck:", result.error);
@@ -65,8 +72,6 @@ export default function EditDeckPage() {
           setError("Deck not found");
           setDeck(null);
         }
-        // --- End Refactor ---
-
       } catch (error) {
         // Catch unexpected errors outside the getDeck promise flow
         console.error("Unexpected error loading deck:", error);
@@ -81,7 +86,7 @@ export default function EditDeckPage() {
     // Cleanup function
     return () => { isMounted = false; };
 
-  }, [deckId, getDeck, router]); // Dependencies
+  }, [deckId, getDeck, router, useDecksLoading]); // Dependencies
 
   const handleNameChange = (newName: string) => {
     if (!deck) return

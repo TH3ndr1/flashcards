@@ -1,7 +1,7 @@
 "use client";
 
 import { createBrowserClient } from "@supabase/ssr";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 // Assume Database type is defined elsewhere or use 'any'
@@ -10,32 +10,39 @@ type Database = any; // Replace with your actual Database type if generated
 
 /**
  * Custom hook to provide a memoized Supabase client instance for use in client components.
- * Uses `createBrowserClient` from `@supabase/ssr` to ensure compatibility with middleware
- * and server-side Supabase handling.
+ * Initializes the client only after component mount to avoid issues during SSR/build.
  *
- * @returns {{ supabase: SupabaseClient }}
+ * @returns {{ supabase: SupabaseClient<Database> | null }} An object containing the Supabase client instance (null initially).
  */
 export function useSupabase() {
-  // Initialize the state with a function to ensure the client is created only once.
-  const [supabase] = useState(() => {
+  // Initialize state to null. Client will be created after mount.
+  const [supabase, setSupabase] = useState<SupabaseClient<Database> | null>(null);
+
+  useEffect(() => {
+    // Create the client only on the client side after initial render.
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-    // Robust check for environment variables during initialization.
-    // This is crucial because this code can run during the build process (SSR/SSG).
+    // Robust check for environment variables.
     if (!supabaseUrl || supabaseUrl.trim() === '' || !supabaseAnonKey || supabaseAnonKey.trim() === '') {
-      // Throw an error if the keys are missing or empty.
-      // This provides a clear error during build if env vars are not configured correctly.
-      throw new Error(
-        "Supabase URL or Anon Key is missing or empty in useSupabase hook. " +
-        "Ensure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY environment variables are set correctly in your Vercel project."
+      // Log error or handle appropriately. Maybe set an error state?
+      console.error(
+        "Supabase URL or Anon Key is missing or empty in useSupabase hook. Cannot create client."
       );
+      // Optionally throw or set an error state here if needed.
+      // For now, we just prevent client creation.
+      return; // Don't attempt to create client if keys are missing
     }
 
-    // If the checks pass, create and return the Supabase client.
-    return createBrowserClient<Database>(supabaseUrl, supabaseAnonKey);
-  });
+    // Create and set the Supabase client instance.
+    const client = createBrowserClient<Database>(supabaseUrl, supabaseAnonKey);
+    setSupabase(client);
 
+    // No cleanup needed for the client itself, Supabase handles connections.
+    // If there were listeners setup here, we'd return a cleanup function.
+  }, []); // Empty dependency array ensures this runs once on mount
+
+  // Return the client state. Components using this hook must handle the initial null value.
   return { supabase };
 }
 

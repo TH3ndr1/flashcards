@@ -68,8 +68,10 @@ export const SettingsContext = createContext<SettingsContextType>({
 });
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
-  debug('SettingsProvider initializing'); // Initial debug log
+  debug('SettingsProvider initializing');
 
+  // Call useSupabase at the top level again.
+  // It will initially return { supabase: null }
   const { supabase } = useSupabase();
   const { user } = useAuth();
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -82,20 +84,26 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    debug('Settings effect triggered', { user: user?.id });
+    debug('Settings load effect triggered', { user: user?.id, hasSupabase: !!supabase });
     
-    const loadSettings = async () => {
+    // Wait for both user and supabase client to be available
+    if (!user || !supabase) {
+      debug('No user or supabase client yet, skipping settings load');
+      // If there's no user, settings should be null and loading finished.
+      // If there IS a user but no supabase client yet, keep loading until supabase is ready.
       if (!user) {
-        debug('No user, skipping settings load');
-        setLoading(false);
-        setSettings(null); // Ensure settings are null if no user
-        return;
+        setSettings(null); 
+        setLoading(false); 
       }
+      return;
+    }
 
+    const loadSettings = async () => {
       setLoading(true); // Set loading true when starting fetch for a user
       try {
         debug('Loading settings for user', user.id);
-        const { data: userSettings, error } = await fetchSettings(supabase, user.id);
+        // supabase is guaranteed to be non-null here due to the check above
+        const { data: userSettings, error } = await fetchSettings(supabase, user.id); 
 
         if (error) {
           console.error("Failed to load settings:", error);
@@ -109,13 +117,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
           setSettings(userSettings);
         } else {
           debug('No settings found, using defaults', DEFAULT_SETTINGS);
-          // No error, but no settings saved yet for this user
           setSettings(DEFAULT_SETTINGS);
-          // Optionally, could trigger an initial save here if desired:
-          // await updateSettingsInDb(supabase, user.id, DEFAULT_SETTINGS);
         }
       } catch (unexpectedError) {
-        // Catch errors not originating from fetchSettings itself (e.g., programming errors)
         console.error("Unexpected error during settings load:", unexpectedError);
         debug('Unexpected error, using defaults', DEFAULT_SETTINGS);
          toast.error("Error", {
@@ -128,34 +132,40 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     };
 
     loadSettings();
+    // Add supabase to dependency array as the effect depends on it being initialized.
   }, [user, supabase]);
 
   const updateSettings = useCallback(async (
     updates: Partial<Settings>
   ): Promise<{ success: boolean; error?: PostgrestError | Error | null }> => {
-    debug('Updating settings', { current: settings, updates });
-    if (!settings || !user) {
-      debug('Cannot update settings - no current settings or user');
-      // Indicate failure, no specific error object needed
-      return { success: false, error: null };
+    
+    debug('Updating settings', { current: settings, updates, hasSupabase: !!supabase });
+    // Ensure supabase client is available before attempting update
+    if (!settings || !user || !supabase) {
+      debug('Cannot update settings - missing settings, user, or supabase client');
+      toast.warning("Cannot save settings", { description: "Connection not ready. Please try again shortly." });
+      return { success: false, error: new Error("Supabase client not available") };
     }
     
-    // Optimistically update local state
     const updatedSettings = { ...settings, ...updates };
-    setSettings(updatedSettings);
+    setSettings(updatedSettings); // Optimistic update
     
     try {
+      // supabase is guaranteed to be non-null here
       const { data: savedData, error } = await updateSettingsInDb(supabase, user.id, updatedSettings);
 
-      if (error) { // This is a PostgrestError
+      if (error) {
         console.error("Failed to update settings in DB:", error);
         debug('Settings update failed', { error });
         toast.error("Error Saving Settings", {
           description: error.message || "Could not save your settings changes.",
         });
-        return { success: false, error }; // Return the PostgrestError
+        // Revert optimistic update on DB error
+        setSettings(settings); 
+        return { success: false, error };
       } else {
         debug('Settings updated successfully in DB', savedData);
+        // Optional: toast.success("Settings saved!");
         return { success: true };
       }
     } catch (unexpectedError) {
@@ -164,15 +174,17 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       toast.error("Error", {
         description: "An unexpected error occurred while saving settings.",
       });
-      // Return a standard Error object
+      // Revert optimistic update on unexpected error
+      setSettings(settings);
       return { success: false, error: new Error("An unexpected error occurred while saving settings.") };
     }
+    // Add supabase to dependency array as the callback depends on it.
   }, [settings, user, supabase]);
 
   // Log settings changes
   useEffect(() => {
-    debug('Settings state changed', { settings, loading });
-  }, [settings, loading]);
+    debug('Settings state changed', { settings, loading, hasSupabase: !!supabase });
+  }, [settings, loading, supabase]);
 
   return (
     <SettingsContext.Provider value={{ settings, updateSettings, loading }}>
