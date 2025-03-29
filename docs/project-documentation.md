@@ -549,3 +549,15 @@ Key aspects include:
 - **Auth Provider (`hooks/use-auth.tsx`):** A context provider (`AuthProvider`) and hook (`useAuth`) that leverages `useSupabase` to manage authentication state (user, session, loading) and provides functions (`signIn`, `signUp`, `signOut`, `resetPassword`) for components.
 - **Email Confirmation (`app/auth/callback/route.ts`):** A server-side Route Handler processes the email confirmation link clicked by the user. It securely exchanges the confirmation code for a session using the server client and redirects the user appropriately (to the app on success, or to the login page with feedback messages on failure or if already confirmed).
 - **Login/Signup Pages:** Client components (`app/login/page.tsx`, `app/signup/page.tsx`) use the `useAuth` hook for sign-in/sign-up operations and reactively handle redirects based on authentication state. They also display feedback messages (e.g., from email confirmation redirects) using toasts. 
+
+## 10. Glossary of Terms
+*(Existing glossary content...)*
+
+
+## 11. Changelog
+
+### [Current Date - e.g., YYYY-MM-DD] - Bug Fixes and Refinements
+- **Study Page (`/app/study/[deckId]/page.tsx`)**: Resolved a `ReferenceError` related to progress calculation variables by ensuring definitions (`difficultCardsCount`, `handlePracticeDifficult`) were correctly placed before usage.
+- **Edit Page (`/app/edit/[deckId]/page.tsx`)**:
+    - Fixed an issue causing a brief "Deck not found" message to appear upon loading by adjusting the `useEffect` hook to set the loading state to `false` only after deck data or an error has been confirmed.
+    - Corrected syntax errors (unexpected `\\n` characters and code duplication) introduced during previous refactoring steps within the main `useEffect` hook and associated functions. 
