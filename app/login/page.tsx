@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -15,11 +15,19 @@ import type { AuthError } from '@supabase/supabase-js'
 
 /**
  * Renders the login page component.
- * Allows users to sign in using their email and password.
- * Displays feedback messages from auth callbacks (e.g., email confirmation).
- * Redirects authenticated users to the home page.
+ * Wraps the client-side logic in a Suspense boundary.
  */
 export default function LoginPage() {
+  // The main export wraps LoginContent in Suspense
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading Page...</div>}>
+      <LoginContent />
+    </Suspense>
+  )
+}
+
+// --- Define the inner component containing the client logic ---
+function LoginContent() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -78,7 +86,8 @@ export default function LoginPage() {
         }
       } else {
         toast.success("Sign in successful! Redirecting...")
-        router.push("/")
+        // Let the useEffect handle redirection
+        // router.push("/") 
       }
     } catch (error) {
       console.error("Login submit error:", error)
@@ -91,9 +100,14 @@ export default function LoginPage() {
   }
 
   if (authLoading || user) {
-    return <div className="flex items-center justify-center min-h-screen">Loading...</div>
+    return (
+        <div className="flex items-center justify-center min-h-screen bg-background">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        </div>
+      )
   }
 
+  // The actual JSX for the login form
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">
       <Card className="w-full max-w-md">
@@ -150,4 +164,5 @@ export default function LoginPage() {
     </div>
   )
 }
+// --- End of LoginContent component ---
 
