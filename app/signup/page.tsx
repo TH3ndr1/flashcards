@@ -13,11 +13,13 @@ import { toast } from "sonner"
 import type { AuthError } from '@supabase/supabase-js'
 
 /**
- * Renders the sign-up page component.
- * Wraps the client-side logic in a Suspense boundary.
- * Allows new users to create an account with email and password.
- * Requires email confirmation after submission.
- * Redirects authenticated users away from this page.
+ * Sign-up Page component.
+ *
+ * This component acts as the entry point for the sign-up route.
+ * It wraps the main `SignupContent` component in a React Suspense
+ * boundary to correctly handle client-side hooks like `useSearchParams`.
+ *
+ * @returns {JSX.Element} The Sign-up Page UI wrapped in Suspense.
  */
 export default function SignupPage() {
   // The main export wraps SignupContent in Suspense
@@ -28,13 +30,25 @@ export default function SignupPage() {
   )
 }
 
+/**
+ * Renders the sign-up form and manages the sign-up process.
+ *
+ * This client component handles user input for email and password,
+ * performs client-side validation (password match, length),
+ * interacts with the `useAuth` hook to call the `signUp` function,
+ * displays loading states and feedback messages (success/error) using toasts,
+ * handles redirection based on authentication state or server feedback
+ * (e.g., after email confirmation request), and prevents access if the user
+ * is already logged in.
+ *
+ * @returns {JSX.Element} The Sign-up form UI or a loading spinner.
+ */
 // --- Define the inner component containing the client logic ---
 function SignupContent() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [signupInitiated, setSignupInitiated] = useState(false)
   const { signUp, user, loading: authLoading } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -52,7 +66,6 @@ function SignupContent() {
       toast.success("Confirmation Email Sent", {
         description: "Please check your email to confirm your account."
       })
-      setSignupInitiated(true)
     }
     if (error) {
       toast.error("Signup Error", { description: error })

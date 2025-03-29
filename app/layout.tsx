@@ -34,6 +34,17 @@ const fontSans = Inter({
 });
 // --- End of font configuration ---
 
+/**
+ * Root layout component for the application.
+ *
+ * Sets up the HTML structure, applies global styles and fonts,
+ * configures metadata, and wraps content with essential providers
+ * (Theme, Auth, Settings).
+ *
+ * @param {object} props - Component props.
+ * @param {React.ReactNode} props.children - The child components to render within the layout.
+ * @returns {JSX.Element} The root layout structure.
+ */
 export default function RootLayout({
   children,
 }: Readonly<{

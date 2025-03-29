@@ -17,6 +17,26 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 
+/**
+ * Edit Deck Page Component.
+ *
+ * This page allows users to edit an existing deck, including its name
+ * and associated flashcards. It fetches the deck data based on the `deckId`
+ * route parameter, provides UI for modifications (using `TableEditor` and
+ * `CardEditor`), and handles saving changes or deleting the deck using the
+ * `useDecks` hook.
+ *
+ * Features:
+ * - Fetches deck data on load.
+ * - Displays loading states and error messages.
+ * - Allows editing deck name.
+ * - Allows adding, updating, and deleting cards within the deck.
+ * - Persists changes via `updateDeck`.
+ * - Allows deleting the entire deck via `deleteDeck`.
+ * - Provides user feedback through toasts.
+ *
+ * @returns {JSX.Element} The UI for editing a deck, or loading/error states.
+ */
 export default function EditDeckPage() {
   const params = useParams<{ deckId: string }>()
   const deckId = params?.deckId
@@ -86,7 +106,7 @@ export default function EditDeckPage() {
     // Cleanup function
     return () => { isMounted = false; };
 
-  }, [deckId, getDeck, router, useDecksLoading]); // Dependencies
+  }, [deckId, getDeck, useDecksLoading]); // Dependencies (removed router)
 
   const handleNameChange = (newName: string) => {
     if (!deck) return
