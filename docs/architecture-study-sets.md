@@ -482,6 +482,164 @@ graph TD
         end
     ```
 
+## 4.2 SRS Calculation Utilities (`lib/srs.ts`)
+
+This file contains the core logic for calculating Spaced Repetition System (SRS) intervals and states based on user performance. Initially, it implements the SM-2 algorithm.
+
+### `calculateSm2State` Function
+
+This function implements the SM-2 algorithm to determine the next review date and updated SRS parameters for a card after a user review.
+
+**Purpose:** To take the card's current SM-2 state and the user's review grade, and return the calculated next state according to the SM-2 rules.
+
+**Inputs & Outputs (Type Definitions):**
+
+```typescript
+/**
+ * Represents the relevant SRS state of a card before a review.
+ * Matches fields from the 'cards' table data model.
+ */
+interface Sm2InputCardState {
+  srsLevel: number;           // Current repetition count (n)
+  easinessFactor: number | null; // Current Easiness Factor (EF)
+  intervalDays: number | null;    // Interval used to schedule *this* review (I(n-1))
+}
+
+/**
+ * Represents the grade given by the user after reviewing a card.
+ * Maps to buttons like: 1: Again, 2: Hard, 3: Good, 4: Easy
+ */
+type ReviewGrade = 1 | 2 | 3 | 4;
+
+/**
+ * Represents the data payload needed to update the card's SRS state
+ * in the database via the `progressActions.updateCardProgress` action.
+ */
+interface Sm2UpdatePayload {
+  srsLevel: number;           // The new repetition count (n')
+  easinessFactor: number;     // The new Easiness Factor (EF')
+  intervalDays: number;       // The new interval in days (I(n'))
+  nextReviewDue: Date;        // The calculated next review date
+  lastReviewGrade: ReviewGrade; // The grade that led to this update
+  // Note: progressActions.updateCardProgress should also update 'last_reviewed_at'
+}
+
+// --- Constants Used ---
+const MIN_EASINESS_FACTOR = 1.3;
+const DEFAULT_EASINESS_FACTOR = 2.5;
+const FIRST_INTERVAL = 1; // days
+const SECOND_INTERVAL = 6; // days
+```
+
+**Implementation:**
+
+```typescript
+import { addDays, startOfDay } from 'date-fns'; // Using date-fns for reliable date math
+
+/**
+ * Calculates the next SM-2 state for a card based on the user's review grade.
+ *
+ * @param current The current SRS state of the card before review.
+ * @param grade The user's assessment of recall difficulty (1=Again, 2=Hard, 3=Good, 4=Easy).
+ * @returns An object containing the updated SRS fields (Sm2UpdatePayload) ready for saving.
+ */
+export function calculateSm2State(
+  current: Sm2InputCardState,
+  grade: ReviewGrade
+): Sm2UpdatePayload {
+  // Initialize values from input or defaults if first review
+  const currentSrsLevel = current.srsLevel;
+  const currentEasinessFactor = current.easinessFactor ?? DEFAULT_EASINESS_FACTOR;
+  // If intervalDays is null/0 (e.g., first review or lapse), treat the previous interval as 0 for calculation purposes.
+  const previousIntervalDays = current.intervalDays ?? 0;
+
+  let newSrsLevel: number;
+  let newEasinessFactor: number;
+  let newIntervalDays: number;
+
+  // --- Grade Handling ---
+
+  // Case 1: Failed Recall (Grade 1: Again)
+  if (grade < 3) {
+    // Reset repetition count
+    newSrsLevel = 0;
+    // Interval resets to the first interval
+    newIntervalDays = FIRST_INTERVAL;
+    // Keep the easiness factor the same (standard SM-2).
+    // Ensure EF doesn't go below minimum if it was already low.
+    newEasinessFactor = Math.max(MIN_EASINESS_FACTOR, currentEasinessFactor);
+  }
+  // Case 2: Successful Recall (Grade 2: Hard, 3: Good, 4: Easy)
+  else {
+    // Increment repetition count
+    newSrsLevel = currentSrsLevel + 1;
+
+    // Calculate new Easiness Factor (EF')
+    // Map our 1-4 grade to the formula's conceptual 0-5 quality (q):
+    // Grade 2 (Hard) -> q=3
+    // Grade 3 (Good) -> q=4
+    // Grade 4 (Easy) -> q=5
+    const quality = grade + 1; // Map 2->3, 3->4, 4->5
+    // Standard SM-2 formula: EF' = EF + (0.1 - (5-q)*(0.08 + (5-q)*0.02))
+    const efAdjustment = 0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02);
+    newEasinessFactor = Math.max(MIN_EASINESS_FACTOR, currentEasinessFactor + efAdjustment);
+
+    // Calculate new Interval (I(n'))
+    if (newSrsLevel === 1) {
+      newIntervalDays = FIRST_INTERVAL;
+    } else if (newSrsLevel === 2) {
+      newIntervalDays = SECOND_INTERVAL;
+    } else {
+      // I(n) = I(n-1) * EF'
+      // Use the interval that *led* to this review (previousIntervalDays)
+      newIntervalDays = Math.ceil(previousIntervalDays * newEasinessFactor);
+    }
+  }
+
+  // --- Calculate Next Review Date ---
+  // Add the new interval (in days) to today's date (at the start of the day).
+  const reviewDate = startOfDay(new Date());
+  const nextReviewDue = addDays(reviewDate, newIntervalDays);
+
+  // --- Return Payload ---
+  return {
+    srsLevel: newSrsLevel,
+    easinessFactor: newEasinessFactor,
+    intervalDays: newIntervalDays,
+    nextReviewDue: nextReviewDue,
+    lastReviewGrade: grade,
+  };
+}
+```
+
+**How it Works (Explanation):**
+
+1.  **Initialization:** Takes the card's current `srsLevel`, `easinessFactor` (defaulting to 2.5 if null), and `intervalDays` (defaulting to 0 if null).
+2.  **Failure (Grade 1 - "Again"):**
+    *   Resets `srsLevel` to 0 (starts the learning process over).
+    *   Sets the `intervalDays` to the `FIRST_INTERVAL` (1 day).
+    *   Keeps the `easinessFactor` the same (clamped at minimum 1.3).
+3.  **Success (Grades 2, 3, 4 - "Hard", "Good", "Easy"):**
+    *   Increments `srsLevel`.
+    *   Calculates the `newEasinessFactor` based on the grade using the standard SM-2 formula. "Easy" increases EF, "Good" slightly adjusts it, "Hard" decreases it more significantly. EF is clamped at 1.3 minimum.
+    *   Calculates `newIntervalDays`:
+        *   Uses fixed intervals (1 day, 6 days) for the first two successful recalls (`newSrsLevel` 1 and 2).
+        *   For subsequent recalls, multiplies the *previous* interval by the *new* `easinessFactor` and rounds up (`Math.ceil`).
+4.  **Next Review Date:** Calculates the `nextReviewDue` timestamp by adding the `newIntervalDays` to the start of the current day using `date-fns`.
+5.  **Output:** Returns the `Sm2UpdatePayload` object containing all the calculated values needed to update the card record in the database.
+
+**Integration:**
+
+*   This function is called by the `useStudySession` hook.
+*   The hook retrieves the current card's state and the user's selected `srs_algorithm` (from `useSettings`).
+*   If the algorithm is `'sm2'`, it calls `calculateSm2State(cardState, userGrade)`.
+*   The resulting `Sm2UpdatePayload` is then passed (likely debounced) to the `progressActions.updateCardProgress` Server Action, along with the `cardId`, to persist the changes to the `cards` table. The action should also update the `last_reviewed_at` timestamp.
+
+**Dependencies:**
+
+*   `date-fns` library (for reliable date calculations like `addDays`, `startOfDay`). You'll need to install it (`npm install date-fns` or `yarn add date-fns`).
+
+
 ## 5. Component Breakdown
 *(Existing components + New)*
 - `StudySetBuilder`: Form for creating/editing study sets.
