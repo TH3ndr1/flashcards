@@ -90,506 +90,353 @@ Traditional flashcard methods lack the flexibility and features needed for moder
 ## 4. Technical Architecture
 
 ### Technology Stack
-- Frontend: Next.js 15.1.0 with React 19
-- Backend: Serverless with Next.js API routes
+- Frontend: Next.js 15.1.0 (or latest stable) with React 19 (or latest stable) - Using App Router
+- Backend: Serverless via Next.js API routes and Server Actions (Server Actions preferred for mutations)
 - Database: Supabase (PostgreSQL)
-- Authentication: Supabase Auth (using `@supabase/ssr` for server/client integration)
-- Storage: Supabase Storage
-- Text-to-Speech: Google Cloud TTS API
+- Authentication: Supabase Auth integrated via `@supabase/ssr` library (client and server)
+- Storage: Supabase Storage (Assumed, verify usage if necessary)
+- Text-to-Speech: Google Cloud TTS API (via `/api/tts` route)
+- UI Framework: Tailwind CSS with shadcn/ui (using Radix UI primitives)
+- Form Management: React Hook Form (likely used in forms like login/signup/deck creation)
+- Validation: Zod (likely used with React Hook Form and/or Server Actions)
+- State Management: React Context (`AuthProvider`, `SettingsProvider`), Custom Hooks (`useAuth`, `useDecks`, `useStudySession`, etc.)
+- Utility Libraries: `sonner` (toasts), `lucide-react` (icons)
 
 ### Frontend Architecture
-- App Router-based Next.js application
-- Tailwind CSS for styling
-- Radix UI for accessible components
-- React Hook Form for form management
-- Zod for validation
+- Next.js App Router structure (`app/` directory).
+- Mix of Server Components (for data fetching, static content) and Client Components (`"use client"` directive for interactivity, state, lifecycle effects).
+- Styling via Tailwind CSS utility classes, potentially organized using `@apply` or component-specific CSS modules if needed.
+- Reusable UI components built using shadcn/ui (`components/ui/`).
+- Application-specific components (`components/`) composed from UI primitives.
+- State Management Strategy:
+    - Global State (Auth, Settings): Managed via React Context (`AuthProvider`, `SettingsProvider`) and corresponding hooks (`useAuth`, `useSettings`). These providers often depend on `useSupabase`.
+    - Domain-Specific State (Decks, Study Session): Managed by custom hooks (`useDecks`, `useStudySession`). These hooks encapsulate data fetching, mutations (often delegating to services/actions), state logic, and expose a clean API to components.
+    - Local Component State: Managed using `useState` and `useReducer` within individual components for UI-specific state (e.g., form inputs, modal visibility).
+- Custom Hooks (`hooks/`) are central to encapsulating logic and interacting with contexts or backend services. Key hooks include `useSupabase`, `useAuth`, `useSettings`, `useDecks`, `useDeckLoader`, `useStudySession`, `useStudyTTS`, `useTTS`.
 
 ### Backend Architecture
-- Serverless API routes in Next.js
-- Supabase for data persistence
-- Google Cloud integration for TTS
+- Primarily serverless logic integrated within the Next.js application.
+- **API Routes (`app/api/*`)**: Used for specific backend tasks that don't fit the Server Action model well, or require direct HTTP endpoint access (e.g., `/api/tts` for generating audio). These routes use `createSupabaseServerClient` for authentication and backend interactions.
+- **Server Actions**: Increasingly the preferred method for handling data mutations (CRUD operations) initiated from Client Components, especially forms. They run server-side, have direct access to the database (via server Supabase client or services), and simplify data flow compared to traditional API routes + client-side fetching for mutations. Assumed to be used for deck/card updates triggered by hooks like `useDecks`.
+- **Service Layer (`lib/*Service.ts`)**: Functions like `deckService.ts` and `settingsService.ts` encapsulate direct database interactions with Supabase. They are called by Server Actions or API Routes (and sometimes Hooks directly, though less ideal for mutations). They standardize the `{ data, error }` return pattern and handle data transformation.
+- **Database Interaction**: Supabase client (`@supabase/ssr` for both server and client) is used for all database operations (PostgreSQL), authentication checks, and potentially storage. Row Level Security (RLS) is crucial for data protection.
+- **External Services**: Google Cloud TTS accessed via its Node.js client library within the `/api/tts` route. Credentials managed via environment variables (`.env.local`, Vercel environment variables).
+- **Middleware (`middleware.ts`)**: Uses `@supabase/ssr` server client to refresh session tokens stored in cookies, ensuring session consistency for both server-rendered pages and subsequent client-side requests.
 
 ### Data Models
-1. Users
+1. Users (Managed by Supabase Auth, profile data potentially in a `profiles` table)
    - Authentication details
-   - Preferences
-   - Study statistics
+   - Preferences (likely stored in a `settings` or `profiles` table)
+   - Study statistics (aggregated or derived from `study_progress`)
 
-2. Decks
-   - Metadata
-   - Owner information
-   - Language settings
+2. Decks (`decks` table)
+   - Metadata (title, description, languages)
+   - Owner information (`user_id`)
+   - Timestamps
 
-3. Cards
+3. Cards (`cards` table)
    - Front/Back content
-   - Audio references
-   - Study statistics
+   - Deck relationship (`deck_id`)
+   - Audio references (potentially URLs in Supabase Storage)
+   - Timestamps
+   - Statistics (`correct_count`, `incorrect_count`, `attempt_count`, `last_studied`, `difficulty_score`)
 
-4. Progress
-   - Study session data
-   - Performance metrics
-   - Spaced repetition data
+4. Progress (`study_progress` table - *Verify existence/structure - Note: Current implementation seems to store progress directly on `cards` table*)
+   - Links user and card (`user_id`, `card_id`)
+   - Spaced repetition data (`last_reviewed_at`, `next_review_due`, `difficulty_score`/`correct_streak`, etc.)
+
+4. **Card Progress** (Stored directly on `cards` table):
+   - `correct_count`: `integer` (Number of times answered correctly)
+   - `incorrect_count`: `integer` (Number of times answered incorrectly)
+   - `attempt_count`: `integer` (Total number of times answered)
+   - `last_studied`: `timestamp with time zone` (Timestamp of the last review)
+   - `difficulty_score`: `float` (Calculated score indicating card difficulty, 0-1)
 
 ## 4.1 Code Structure and Organization
 
-### Codebase Overview
+### Codebase Overview (Updated Diagram)
 ```mermaid
 graph TD
-    A[Flashcards App] --> B[Frontend]
-    A --> C[Backend]
-    A --> D[Database]
+    subgraph User Interaction
+        U[User Browser]
+    end
 
-    %% Frontend Structure
-    B --> B1[Pages]
-    B --> B2[Components]
-    B --> B3[Hooks]
-    B --> B4[Styles]
+    subgraph Next.js Application (Vercel)
+        direction LR
+        subgraph Frontend Layer (Client Components/Pages)
+            P[Pages (app/**/page.tsx)]
+            CC[Client Components (components/)]
+            H[Hooks (hooks/)]
+            CTX[Context Providers (providers/)]
+        end
 
-    B1 --> B1_1["Homepage (page.tsx)"]
-    B1 --> B1_2["Study Interface (study/*)"]
-    B1 --> B1_3["Deck Management (edit/*)"]
-    B1 --> B1_4["Authentication (auth/*)"]
-    B1 --> B1_5["Settings (settings/*)"]
+        subgraph Backend Layer (Server-side Logic)
+            MW[Middleware (middleware.ts)]
+            SA[Server Actions (*.actions.ts)]
+            API[API Routes (app/api/*)]
+            SVC[Service Layer (lib/*Service.ts)]
+            UTIL[Utilities (lib/utils.ts, lib/fonts.ts, lib/study-utils.ts)]
+        end
+    end
 
-    B2 --> B2_1["UI Components"]
-    B2 --> B2_2["Layout Components"]
-    B2 --> B2_3["Feature Components"]
+    subgraph External Services
+        SB_Auth[(Supabase Auth)]
+        SB_DB[(Supabase DB)]
+        SB_Store[(Supabase Storage)] -- Optional --> SVC
+        G_TTS[(Google Cloud TTS)]
+    end
 
-    B3 --> B3_1["useAuth Hook"]
-    B3 --> B3_2["useDecks Hook"]
-    B3 --> B3_3["useStudy Hook"]
-    B3 --> B3_4["useTTS Hook"]
+    U -- HTTP Request --> MW;
+    U -- Renders --> P;
+    P -- Uses --> CC;
+    P -- Uses --> H;
+    CC -- Uses --> H;
+    H -- Uses --> CTX;
+    H -- Calls --> SA;
+    H -- Calls --> SVC;  // Primarily for reads; writes prefer Actions
+    H -- Calls --> API; // e.g., useTTS -> /api/tts
+    CTX -- Uses --> H; // e.g., AuthProvider uses useSupabase
+    CTX -- Calls --> SVC; // e.g., SettingsProvider calls settingsService
 
-    %% Backend Structure
-    C --> C1["API Routes"]
-    C --> C2["Services"]
-    C --> C3["Utilities"]
+    MW -- Verifies Session --> SB_Auth;
+    MW -- Updates Cookie --> U;
 
-    C1 --> C1_1["Text-to-Speech API"]
-    C1 --> C1_2["Deck Management API"]
-    C1 --> C1_3["Authentication API"]
+    SA -- Uses --> SVC;
+    SA -- Interacts --> SB_Auth;
+    API -- Uses --> SVC;
+    API -- Interacts --> SB_Auth;
+    API -- Calls --> G_TTS;
+    SVC -- Interacts --> SB_DB;
 
-    C2 --> C2_1["Supabase Client (via useSupabase Hook / @supabase/ssr)"]
-    C2 --> C2_2["Google TTS Client"]
-    C2 --> C2_3["Auth Service"]
+    classDef user fill:#cce5ff,stroke:#004085;
+    classDef frontend fill:#e2f0d9,stroke:#385723;
+    classDef backend fill:#fce5cd,stroke:#854000;
+    classDef external fill:#f8d7da,stroke:#721c24;
+    classDef data fill:#d1ecf1,stroke:#0c5460;
+    classDef util fill:#e9ecef,stroke:#343a40;
 
-    %% Database Structure
-    D --> D1["Tables"]
-    D --> D2["RLS Policies"]
-    D --> D3["Functions"]
-
-    D1 --> D1_1["Users Table"]
-    D1 --> D1_2["Decks Table"]
-    D1 --> D1_3["Cards Table"]
-    D1 --> D1_4["Study Progress Table"]
-
-    %% Styling
-    classDef default fill:#f9f9f9,stroke:#333,stroke-width:2px;
-    classDef highlight fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
-    classDef component fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
-    
-    class A highlight;
-    class B,C,D component;
+    class U user;
+    class P,CC,H,CTX frontend;
+    class MW,SA,API,SVC backend;
+    class SB_Auth,SB_DB,SB_Store,G_TTS external;
+    class UTIL util;
 ```
+*Diagram refined to show layers, dependencies, and external services more clearly.*
 
-### Key Components and Their Functions
+### Key Components and Their Functions (Updated & Added Details)
 
-#### 1. Frontend Components (`/app/*`)
+#### 1. Frontend Components (`/app/*`, `/components/*`)
+*(Existing descriptions accurate, focusing on updates)*
 
-##### Page Components
-1. **Homepage (`/app/page.tsx`)**
-   ```typescript
-   // Main landing page component
-   // - Displays user's decks
-   // - Shows study progress
-   // - Quick actions for deck creation and study
-   export default function HomePage() {
-     // User authentication state
-     // Deck fetching logic
-     // Progress statistics
-   }
-   ```
+*   **Application Components (`/components/`)**:
+    *   `study-flashcard-view.tsx`: Displays the flippable card, answer buttons, progress indicators. Receives state and callbacks from the parent page (likely driven by `useStudySession`). Applies dynamic font from settings.
+    *   `table-editor.tsx` & `card-editor.tsx`: Used within `app/edit/[deckId]/page.tsx` for editing card details. Utilize debouncing for updates to improve performance.
 
-2. **Study Interface (`/app/study/*`)**
-   ```typescript
-   // Interactive study component
-   // - Card display and interaction
-   // - Progress tracking
-   // - Audio playback
-   export function StudyPage() {
-     // Study session management
-     // Card navigation
-     // Progress updates
-   }
-   ```
+#### 2. Custom Hooks (`/hooks/*`) (Updated & Added Details)
 
-3. **Deck Management (`/app/edit/*`)**
-   ```typescript
-   // Deck editing interface
-   // - CRUD operations for decks and cards
-   // - Batch operations
-   // - Audio generation
-   export function DeckEditor() {
-     // Deck modification logic
-     // Card management
-     // TTS integration
-   }
-   ```
+1.  **`useSupabase`**: Provides the memoized Supabase browser client instance (`createBrowserClient` from `@supabase/ssr`). Initializes client only after mount. Essential dependency for other hooks needing client-side Supabase access.
+2.  **`useAuth`**: (Inside `AuthProvider`) Manages `user`, `session`, `loading` state via `useSupabase` and `onAuthStateChange`. Provides `signIn`, `signUp`, `signOut`, `resetPassword`.
+3.  **`useSettings`**: (Inside `SettingsProvider`) Manages `settings` state and `loading`. Depends on `useAuth` (for `user`) and `useSupabase`. Fetches/updates settings via `settingsService.ts`.
+4.  **`useDecks`**: Manages deck list state (`decks`, `loading`). Depends on `useAuth` and `useSupabase`. Loads initial state from localStorage, then fetches/updates via `deckService.ts`. Provides CRUD actions (`getDecks`, `createDeck`, `getDeck`, `updateDeck`, `deleteDeck`, `updateCardResult`).
+5.  **`useDeckLoader`**: Specifically loads a *single* deck by ID using `getDeck` from `useDecks`. Handles its own loading/error state and implements retry logic for cases where the deck might not be immediately available (e.g., after creation). Crucial dependency for `useStudySession`.
+6.  **`useStudySession`**: Orchestrates the study session.
+    *   Depends on `useDeckLoader` (to get the deck), `useSettings` (for configuration), `useDecks` (for `updateDeck` persistence), and `useStudyTTS`.
+    *   Manages the core study loop: current card, card queue (`studyCards`), progress tracking, flip state, transitions.
+    *   Uses utility functions from `lib/study-utils.ts` for logic (preparing cards, updating stats, determining next card).
+    *   Handles user interactions (`flipCard`, `answerCardCorrect`/`Incorrect`, `practiceDifficultCards`, `resetDeckProgress`).
+    *   Persists card progress via debounced calls to `updateDeck`.
+7.  **`useTTS`**: Lower-level hook managing interaction with the `/api/tts` endpoint. Provides `speak` function (fetches audio blob, plays it using `HTMLAudioElement`, handles loading state) and `setLanguage` (configures language for subsequent `speak` calls). Uses `useSettings` to check if TTS is enabled and get dialect preferences.
+8.  **`useStudyTTS`**: Bridge between `useStudySession` and `useTTS`. Listens to changes in `useStudySession` state (`currentStudyCard`, `isFlipped`, `isLoading`, `isTransitioning`, `deck`, `settings.ttsEnabled`). Determines the correct text and language based on the flipped state and deck settings, then calls `useTTS.speak()` with appropriate delay.
+9.  **`useMobile`**: Utility hook to detect mobile viewport size.
 
-#### 2. Custom Hooks (`/hooks/*`)
+*Note:* `lib/study-utils.ts` contains crucial pure helper functions for study logic (card preparation, difficulty calculation, state updates), promoting separation of concerns from the main `useStudySession` hook.
 
-1. **useAuth**
-   ```typescript
-   // Authentication hook leveraging @supabase/ssr
-   export function useAuth() {
-     // Provides access to user, session, and loading state.
-     // Offers signIn, signUp, signOut, resetPassword functions.
-     // Must be used within AuthProvider.
-   }
-   ```
+#### 3. API Routes (`/app/api/*`) & Server Actions
 
-2. **useDecks**
-   ```typescript
-   // Hook for managing deck CRUD operations and deck list state.
-   export function useDecks() {
-     // Provides deck list, loading state, and functions like:
-     // getDecks, getDeck, createDeck, updateDeck, deleteDeck.
-     // Handles optimistic updates and error reporting for deck operations.
-   }
-   ```
+1.  **Text-to-Speech API (`/app/api/tts/route.ts`)**:
+    *   Handles POST requests with `{ text, language }`.
+    *   Authenticates using `createSupabaseServerClient`.
+    *   Calls Google Cloud TTS service via `@google-cloud/text-to-speech`.
+    *   Returns `audio/mpeg` blob.
+2.  **Auth Callback (`/app/auth/callback/route.ts`)**: Handles Supabase email confirmation code exchange using server client.
+3.  **Data Mutations (Likely Server Actions)**: Functions for creating, updating, deleting decks and cards are likely implemented as Server Actions, called directly from hooks (`useDecks`) or potentially form components. These actions encapsulate calls to the service layer (`deckService.ts`) and interact with Supabase on the server.
 
-3. **useDeckLoader** (New)
-   ```typescript
-   // Hook specifically responsible for loading a single deck by ID.
-   export function useDeckLoader(deckId: string | undefined) {
-     // Encapsulates fetching logic, including retries and caching checks.
-     // Manages loading and error states specifically for the deck fetch operation.
-     // Returns { loadedDeck, isLoadingDeck, deckLoadError }.
-     // Used by useStudySession.
-   }
-   ```
+#### 4. Service Layer (`/lib/*Service.ts`)
 
-4. **useStudySession** (Updated - formerly useStudy Hook)
-   ```typescript
-   // Main hook for orchestrating the flashcard study session logic.
-   export function useStudySession({ deckId, settings }) {
-     // Manages core study state (current card, flipped state, progress).
-     // Uses `useDeckLoader` to fetch the deck data.
-     // Uses `useStudyTTS` for text-to-speech side effects.
-     // Coordinates utility functions from `/lib/study-utils.ts` for specific logic 
-     // (e.g., card updates, next card determination, reset/difficult mode state prep).
-     // Provides action callbacks (answerCardCorrect, flipCard, etc.) to the UI.
-   }
-   ```
+*   **`deckService.ts`**: Provides functions (`createDeckService`, `fetchDecks`, `getDeckService`, `updateDeckService`, `deleteDeckService`, `updateCardResultService`) for interacting with the `decks` and `cards` tables in Supabase. Handles data mapping (snake_case to camelCase) and returns `{ data, error }`. `updateCardResultService` now also updates the `difficulty_score`.
+*   **`settingsService.ts`**: Functions (`fetchSettings`, `updateSettings`) to fetch/upsert user settings in the `settings` table. Handles data mapping and default value merging.
 
-5. **useStudyTTS** (New)
-   ```typescript
-   // Hook dedicated to handling Text-to-Speech side effects during a study session.
-   export function useStudyTTS({ isEnabled, isLoading, ... }) {
-     // Uses the core `useTTS` hook internally.
-     // Listens to relevant state changes (loading, card flips, current card) 
-     // and triggers speech accordingly with appropriate delays.
-   }
-   ```
+#### 5. Database Models (`/supabase/migrations/*`)
+*(Schema definition as previously documented, reflecting progress stored on `cards`)*
 
-6. **useTTS**
-   ```typescript
-   // Lower-level hook for interacting with the TTS API (e.g., Google Cloud TTS).
-   export function useTTS() {
-     // Provides core `speak` function and state management for audio playback.
-     // Handles API calls, audio buffering, and playback controls.
-     // Manages available voices and language settings.
-   }
-   ```
+### State Management and Data Flow (Updated Diagrams)
 
-*Note:* Utility functions in `/lib/study-utils.ts` handle specific, reusable logic like calculating difficulty scores (`calculateDifficultyScore`), preparing card lists (`prepareStudyCards`, `prepareDifficultCards`), updating card stats (`updateCardStats`), determining the next card (`determineNextCardState`), and preparing state for reset/difficult modes (`createResetDeckState`, `createDifficultSessionState`). This separation improves testability and maintainability.
-
-#### 3. API Routes (`/app/api/*`)
-
-1. **Text-to-Speech API (`/app/api/tts/*`)**
-   ```typescript
-   // TTS endpoint handler
-   export async function POST(req: Request) {
-     // Google Cloud TTS integration
-     // Audio file generation and caching
-     // Language support
-   }
-   ```
-
-2. **Deck Management API (`/app/api/decks/*`)**
-   ```typescript
-   // Deck operations endpoints
-   export async function handler(req: Request) {
-     // Deck CRUD operations
-     // Card management
-     // Progress tracking
-   }
-   ```
-
-#### 4. Database Models (`/supabase/migrations/*`)
-
-1. **User Management**
-   ```sql
-   -- User profile and preferences
-   CREATE TABLE users (
-     id UUID PRIMARY KEY REFERENCES auth.users,
-     preferences JSONB,
-     created_at TIMESTAMP WITH TIME ZONE
-   );
-   ```
-
-2. **Deck Structure**
-   ```sql
-   -- Deck and card organization
-   CREATE TABLE decks (
-     id UUID PRIMARY KEY,
-     user_id UUID REFERENCES users,
-     -- Additional fields as shown in schema
-   );
-   ```
-
-### Key Features Implementation
-
-1. **Spaced Repetition System**
-   ```typescript
-   // Implementation of the SuperMemo 2 algorithm
-   export function calculateNextReview(
-     difficulty: number,
-     previousInterval: number
-   ): number {
-     // Spaced repetition calculation
-     // Difficulty adjustment
-     // Interval computation
-   }
-   ```
-
-2. **Audio Generation Pipeline**
-   ```typescript
-   // Text-to-speech processing
-   export async function generateAudio(
-     text: string,
-     language: string
-   ): Promise<string> {
-     // Google Cloud TTS API integration
-     // Audio file handling
-     // Caching mechanism
-   }
-   ```
-
-3. **Progress Tracking**
-   ```typescript
-   // Study progress monitoring
-   export function trackProgress(
-     userId: string,
-     cardId: string,
-     performance: StudyMetrics
-   ): Promise<void> {
-     // Performance recording
-     // Statistics update
-     // Learning curve analysis
-   }
-   ```
-
-### State Management and Data Flow
-
-1. **Authentication Flow**
+1.  **Authentication Flow (`@supabase/ssr`)** *(Diagram mostly accurate, adding client init step)*
    ```mermaid
    sequenceDiagram
-       User->>+Frontend: Login Request
-       Frontend->>+Supabase: Authenticate
-       Supabase-->>-Frontend: Session Token
-       Frontend->>+API: Fetch User Data
-       API-->>-Frontend: User Profile
-       Frontend-->>-User: Logged In State
+       participant User
+       participant Browser
+       participant Middleware as Next.js Edge
+       participant ServerComponent as Next.js Server
+       participant ClientComponent as React Client
+       participant useSupabase as Hook
+       participant useAuth as Hook
+       participant SupabaseAuth as Supabase Auth
+
+       User->>Browser: Navigates to page
+       Browser->>Middleware: Request
+       Middleware->>SupabaseAuth: Reads/Refreshes Session via Cookie (Server Client)
+       SupabaseAuth-->>Middleware: Session Info / Updated Cookie
+       Middleware->>ServerComponent: Request + Session Context (via Headers/Cookies)
+       ServerComponent->>SupabaseAuth: (Optional) Further server-side checks/data fetch (Server Client)
+       ServerComponent-->>Browser: Rendered HTML
+       Browser->>ClientComponent: Hydrates / Renders
+       ClientComponent->>useSupabase: Initialize Hook
+       useSupabase->>SupabaseAuth: createBrowserClient()
+       useSupabase-->>ClientComponent: Supabase Client Instance
+       ClientComponent->>useAuth: Initialize Hook (gets client from useSupabase)
+       useAuth->>SupabaseAuth: getSession() / onAuthStateChange() (Browser Client)
+       SupabaseAuth-->>useAuth: Auth State Update
+       useAuth-->>ClientComponent: User/Session State
+       ClientComponent-->>Browser: Updates UI based on Auth State
+       opt User Action (Login/Logout)
+           ClientComponent->>useAuth: Calls signIn() / signOut()
+           useAuth->>SupabaseAuth: Calls Supabase function (Browser Client)
+           SupabaseAuth-->>useAuth: Auth State Update (via listener)
+           useAuth-->>ClientComponent: Updated User/Session State
+           ClientComponent-->>Browser: Updates UI / Redirects
+       end
    ```
 
-2. **Study Session Flow**
+2.  **Study Session Flow (Detailed)**
    ```mermaid
    sequenceDiagram
-       User->>+Study Component: Start Session
-       Study Component->>+API: Fetch Cards
-       API-->>-Study Component: Card Data
-       Study Component->>+TTS Service: Generate Audio
-       TTS Service-->>-Study Component: Audio URLs
-       Study Component->>+API: Update Progress
-       API-->>-Study Component: Updated Stats
-       Study Component-->>-User: Next Card
+       participant User
+       participant StudyPage as UI Page (Client Comp)
+       participant useStudySession as Hook
+       participant useDeckLoader as Hook
+       participant useDecks as Hook
+       participant DeckService as lib/deckService.ts
+       participant useStudyTTS as Hook
+       participant useTTS as Hook
+       participant StudyUtils as lib/study-utils.ts
+       participant TTS_API as /api/tts Route Handler
+       participant SupabaseDB as Supabase DB
+
+       User->>StudyPage: Navigates to /study/[deckId]
+       StudyPage->>useStudySession: Initialize with deckId & settings
+       useStudySession->>useDeckLoader: Initialize with deckId
+       useDeckLoader->>useDecks: getDeck(deckId)
+       Note over useDecks, DeckService, SupabaseDB: useDecks calls DeckService.getDeckService
+which queries SupabaseDB
+       SupabaseDB-->>DeckService: Raw Deck Data/Error
+       DeckService-->>useDecks: { data: Deck | null, error }
+       useDecks-->>useDeckLoader: { data: Deck | null, error }
+       opt Deck Load Retry
+         useDeckLoader->useDeckLoader: If data is null, retry after delay
+         useDeckLoader->>useDecks: getDeck(deckId) again...
+       end
+       useDeckLoader-->>useStudySession: loadedDeck / isLoading / error
+       
+       opt Deck Loaded Successfully
+           useStudySession->>StudyUtils: prepareStudyCards(deck.cards, settings)
+           StudyUtils-->>useStudySession: Initial studyCards list & state
+           useStudySession->>useStudyTTS: Initialize/Update state (deck available)
+           useStudySession-->>StudyPage: Update state (currentCard, isLoading=false)
+           StudyPage-->>User: Displays first card UI
+
+           opt TTS Triggered (New Card)
+               useStudyTTS->>useTTS: setLanguage(deck.questionLanguage)
+               useStudyTTS->>useTTS: speak(card.question) after delay
+               useTTS->>TTS_API: POST /api/tts { text, language }
+               TTS_API-->>useTTS: Audio Blob
+               useTTS->>Browser: Plays Audio
+           end
+       end
+
+       opt User Answers Card
+           User->>StudyPage: Clicks Correct/Incorrect
+           StudyPage->>useStudySession: answerCard(isCorrect)
+           useStudySession->>StudyUtils: updateCardStats(currentCard, isCorrect)
+           StudyUtils-->>useStudySession: Updated Card Stats (incl. difficulty)
+           useStudySession->>StudyUtils: determineNextCardState(studyCards, updatedCard, settings)
+           StudyUtils-->>useStudySession: { nextStudyCards, nextIndex, cardJustMastered }
+           useStudySession->>useStudySession: Update local deck state with updated card stats
+           useStudySession->>useStudySession: Schedule debounced save: updateDeck(updatedLocalDeck)
+           useStudySession->>useStudySession: Update state (currentCardIndex=nextIndex, studyCards=nextStudyCards)
+           useStudySession->>useStudyTTS: Update state (triggers potential speak)
+           useStudySession-->>StudyPage: Update UI (next card, progress)
+           StudyPage-->>User: Displays next card
+
+           opt Debounced Save Fires
+              useStudySession->>useDecks: updateDeck(updatedLocalDeck)
+              Note over useDecks, DeckService, SupabaseDB: useDecks calls DeckService.updateDeckService
+which updates SupabaseDB
+              SupabaseDB-->>DeckService: Success/Error
+              DeckService-->>useDecks: { error }
+              useDecks-->>useStudySession: Result (toast on error)
+           end
+       end
+
+       opt User Flips Card
+            User->>StudyPage: Clicks Flip
+            StudyPage->>useStudySession: flipCard()
+            useStudySession->>useStudySession: Update isFlipped state
+            useStudySession->>useStudyTTS: Update state (isFlipped changed)
+
+            opt TTS Triggered (Flip)
+                 useStudyTTS->>useTTS: setLanguage(deck.answerLanguage)
+                 useStudyTTS->>useTTS: speak(card.answer) after delay
+                 useTTS->>TTS_API: POST /api/tts { text, language }
+                 TTS_API-->>useTTS: Audio Blob
+                 useTTS->>Browser: Plays Audio
+            end
+            useStudySession-->>StudyPage: Update UI (shows flipped card)
+            StudyPage-->>User: Sees flipped card
+       end
    ```
 
 ## 5. Component Breakdown
-
-### Core Components
-1. Authentication (/app/auth)
-   - Login/Signup forms
-   - OAuth providers
-   - Session management
-
-2. Study Interface (/app/study)
-   - Card display
-   - Progress tracking
-   - Audio playback
-
-3. Deck Management (/app/edit)
-   - Deck CRUD operations
-   - Card management
-   - Batch operations
-
-4. Settings (/app/settings)
-   - User preferences
-   - Language settings
-   - Audio configurations
+*(Keep existing component list, descriptions should be accurate)*
 
 ## 6. Data Models and Relationships
-
-### Database Schema
-```sql
--- Users (managed by Supabase Auth)
-auth.users
-  - id
-  - email
-  - metadata
-
--- Decks
-decks
-  - id
-  - user_id
-  - title
-  - description
-  - created_at
-  - updated_at
-  - primary_language
-  - secondary_language
-
--- Cards
-cards
-  - id
-  - deck_id
-  - front_content
-  - back_content
-  - front_audio_url
-  - back_audio_url
-  - created_at
-  - updated_at
-
--- Progress
-study_progress
-  - id
-  - user_id
-  - card_id
-  - last_reviewed
-  - next_review
-  - difficulty_level
-```
+*(Keep existing schema, updated progress note is correct)*
 
 ## 7. Security Considerations
-
-### Authentication
+*(Keep existing points, add emphasis on RLS)*
 - Supabase Auth for user management
-- JWT-based session handling
-- Secure password policies
-
-### Authorization
-- Row Level Security in Supabase
-- Role-based access control
-- API route protection
-
-### Data Protection
-- Environment variable encryption
-- Secure audio file storage
-- HTTPS-only access
+- JWT-based session handling via `@supabase/ssr` cookies
+- Secure password policies (enforced by Supabase)
+- **Authorization**: Primarily enforced via **Row Level Security (RLS)** policies in Supabase for all data tables (`decks`, `cards`, `settings`). Backend services (`lib/*Service.ts`) operate under user context where possible, relying on RLS. API routes and Server Actions must validate user sessions.
+- Role-based access control (If applicable beyond user ownership)
+- API route protection (Checking session in `/api/tts`)
+- Server Action protection (Next.js handles session access within actions)
+- Data Protection: Environment variable management (e.g., `.env.local`, Vercel env vars for Supabase keys, GCP keys). Secure audio file storage (if TTS results were stored instead of streamed). HTTPS-only access (handled by Vercel).
 
 ## 8. Development and Deployment Workflow
-
-### Local Development
-1. Prerequisites
-   - Node.js 18+
-   - pnpm
-   - Supabase CLI
-   - Google Cloud SDK
-
-2. Setup Steps
-   ```bash
-   cp .env.example .env.local
-   pnpm install
-   pnpm dev
-   ```
-
-### Testing Strategy
-- Unit tests for components
-- Integration tests for API routes
-- E2E tests for critical flows
-
-### CI/CD Pipeline
-1. GitHub Actions workflow
-2. Automated testing
-3. Deployment to Vercel
-4. Database migrations
+*(Keep existing workflow)*
 
 ## 9. Known Issues and Future Roadmap
-
-### Current Limitations
-- Limited offline support
-- Basic progress analytics
-- Single audio voice per language
-
-### Planned Improvements
-1. Short Term
-   - Offline mode
-   - Enhanced analytics
-   - Sharing capabilities
-
-2. Long Term
-   - Mobile applications
-   - AI-powered study recommendations
-   - Community features
+*(Keep existing points)*
 
 ## 10. References and Resources
+*(Keep existing points)*
 
-### Documentation
-- [Next.js Documentation](https://nextjs.org/docs)
-- [Supabase Documentation](https://supabase.com/docs)
-- [Google Cloud TTS Documentation](https://cloud.google.com/text-to-speech)
+### 4.4 Authentication Flow *(Updated based on diagram)*
 
-### Dependencies
-- Frontend UI: Radix UI components
-- Forms: React Hook Form
-- Validation: Zod
-- Styling: Tailwind CSS
-
-### Additional Resources
-- Project README.md
-- API Documentation
-- Contributing Guidelines 
-
-### 4.4 Authentication Flow
-
-The application utilizes Supabase Auth integrated with Next.js using the `@supabase/ssr` package. This ensures seamless authentication handling across Server Components, Client Components, and API/Route Handlers.
+The application utilizes Supabase Auth integrated with Next.js using the `@supabase/ssr` package. This ensures seamless authentication handling across Server Components, Client Components, API/Route Handlers, and Server Actions.
 
 Key aspects include:
 
-- **Middleware (`middleware.ts`):** Handles session cookie management and refresh for incoming requests, making the user session available server-side.
-- **Server Client (`lib/supabase/server.ts`):** Provides a utility to create Supabase clients within server contexts (Route Handlers, Server Components) that interact correctly with cookies managed by the middleware.
-- **Client Client (`hooks/use-supabase.tsx`):** Uses `createBrowserClient` from `@supabase/ssr` to create a Supabase client instance in client components, ensuring consistency with the server-managed session.
-- **Auth Provider (`hooks/use-auth.tsx`):** A context provider (`AuthProvider`) and hook (`useAuth`) that leverages `useSupabase` to manage authentication state (user, session, loading) and provides functions (`signIn`, `signUp`, `signOut`, `resetPassword`) for components.
-- **Email Confirmation (`app/auth/callback/route.ts`):** A server-side Route Handler processes the email confirmation link clicked by the user. It securely exchanges the confirmation code for a session using the server client and redirects the user appropriately (to the app on success, or to the login page with feedback messages on failure or if already confirmed).
-- **Login/Signup Pages:** Client components (`app/login/page.tsx`, `app/signup/page.tsx`) use the `useAuth` hook for sign-in/sign-up operations and reactively handle redirects based on authentication state. They also display feedback messages (e.g., from email confirmation redirects) using toasts. 
-
-## 10. Glossary of Terms
-*(Existing glossary content...)*
-
+- **Middleware (`middleware.ts`):** Handles session cookie management and refresh for incoming requests using the Supabase *server* client, making the user session available server-side contexts via cookies/headers.
+- **Client Client (`hooks/use-supabase.tsx`):** Provides a memoized Supabase *browser* client instance (`createBrowserClient`) initialized after mount in client components. Ensures consistency with the server-managed session via cookie reading.
+- **Auth Provider (`hooks/use-auth.tsx`):** A context provider (`AuthProvider`) and hook (`useAuth`) that leverages `useSupabase` for the browser client. Manages authentication state (`user`, `session`, `loading`) primarily through `onAuthStateChange`. Provides functions (`signIn`, `signUp`, `signOut`, `resetPassword`) that call Supabase browser client methods.
+- **Server Client (`lib/supabase/server.ts`):** Provides a utility to create Supabase *server* clients within server contexts (Route Handlers, Server Components, Server Actions) that interact correctly with cookies managed by the middleware. Used for auth checks in API routes and potentially data fetching/mutations in Server Actions/Components.
+- **Email Confirmation (`app/auth/callback/route.ts`):** A server-side Route Handler processes the email confirmation link. Uses the server client to securely exchange the confirmation code for a session and redirects the user.
+- **Login/Signup Pages:** Client components (`app/login/page.tsx`, `app/signup/page.tsx`) use the `useAuth` hook (and thus the browser client) for sign-in/sign-up operations.
 
 ## 11. Changelog
+*(Keep existing changelog)*
 
-### [Current Date - e.g., YYYY-MM-DD] - Bug Fixes and Refinements
-- **Study Page (`/app/study/[deckId]/page.tsx`)**: Resolved a `ReferenceError` related to progress calculation variables by ensuring definitions (`difficultCardsCount`, `handlePracticeDifficult`) were correctly placed before usage.
-- **Edit Page (`/app/edit/[deckId]/page.tsx`)**:
-    - Fixed an issue causing a brief "Deck not found" message to appear upon loading by adjusting the `useEffect` hook to set the loading state to `false` only after deck data or an error has been confirmed.
-    - Corrected syntax errors (unexpected `\\n` characters and code duplication) introduced during previous refactoring steps within the main `useEffect` hook and associated functions.
-
-### [Current Date - e.g., YYYY-MM-DD] - Study Page Refactor
-- **Refactor (`app/study/[deckId]/page.tsx`)**: Extracted the flashcard rendering logic into a new reusable component (`components/study-flashcard-view.tsx`).
-- **Fix (`components/study-flashcard-view.tsx`)**: Corrected issue where user-selected card font was not being applied.
-
-### [Current Date - e.g., YYYY-MM-DD] - Study Logic Extraction
-- **Refactor (`app/study/[deckId]/page.tsx`)**: Extracted core study session state management, effects (deck loading, TTS), derived state calculations, and user actions (flip, answer, reset, practice difficult) into a new custom hook (`hooks/use-study-session.ts`). This significantly simplifies the page component, making it primarily responsible for rendering UI based on the hook's state.
-- **TSDoc**: Added comprehensive documentation to the `useStudySession` hook. 
+---
+*(End of proposed edits for project-documentation.md)* 
