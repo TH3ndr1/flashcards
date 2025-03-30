@@ -42,15 +42,15 @@ Based on project documentation (`docs/project-documentation.md`, `README.md`) an
 
 ```mermaid
 graph TD
-    subgraph "Flashcards App (Next.js / Vercel)"
+    subgraph "Flashcards App Nextjs Vercel"
         direction LR
-        Frontend[Frontend (React Components, Hooks)]
-        Backend[Backend (Server Actions / API Routes)]
+        Frontend[Frontend Components Hooks]
+        Backend[Backend Server Actions API Routes]
     end
 
     User -- Interacts via Browser --> Frontend
     Frontend -- Calls --> Backend
-    Frontend -- Reads/Writes Cookies (@supabase/ssr) --> User
+    Frontend -- Reads/Writes Supabase SSR Cookies --> User
     Backend -- Reads/Writes --> SupabaseDB[(Supabase DB)]
     Backend -- Manages Session --> SupabaseAuth[(Supabase Auth)]
     Backend -- Generates Audio --> GoogleTTS[Google Cloud TTS]
@@ -217,7 +217,7 @@ erDiagram
 graph TD
     subgraph "Frontend UI"
         direction LR
-        HomePage[Homepage / Study Selection]
+        HomePage[Homepage Study Selection]
         StudySetBuilderUI[Study Set Builder UI]
         StudySetSelectorUI[Study Set Selector UI]
         StudyPage[Study Session Page]
@@ -230,10 +230,10 @@ graph TD
         useAuth[useAuth]
         useStudySets[useStudySets]
         useTags[useTags]
-        useStudySession[useStudySession (Refactored)]
+        useStudySession[useStudySession Refactored]
     end
 
-    subgraph "Backend (Server Actions)"
+    subgraph BackendServerActions
         direction LR
         tagActions[tagActions]
         studySetActions[studySetActions]
@@ -259,9 +259,9 @@ graph TD
     useStudySession --> cardActions
     useStudySession --> progressActions
 
-    %% User Authentication (Implicit via useAuth/middleware)
+    %% User Authentication Implicit via useAuth middleware
     useAuth -- Provides User Context --> Frontend Hooks
-    Backend -- Uses Auth Context --> SupabaseDB[(Supabase)]
+    Backend -- Uses Auth Context --> SupabaseDB
 
     classDef ui fill:#e1f5fe,stroke:#0277bd,stroke-width:1px;
     classDef hook fill:#e8f5e9,stroke:#2e7d32,stroke-width:1px;
