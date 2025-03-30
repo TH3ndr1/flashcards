@@ -27,7 +27,9 @@ Based on project documentation (`docs/project-documentation.md`, `README.md`) an
 *   **Database:** Supabase (PostgreSQL) handling data persistence, authentication (`@supabase/ssr`), and storage. Row Level Security (RLS) is assumed to be in place.
 *   **UI:** Tailwind CSS, Radix UI (via shadcn/ui).
 *   **State Management:** React Context (`AuthProvider`, `SettingsProvider`), custom hooks (`useAuth`, `useDecks`, `useStudySession`).
-*   **Current Study Flow:** Initiated via `/study/[deckId]`, managed by `useStudySession`, which likely fetches all cards for the given `deckId`.
+*   **Current Study Flow:** Initiated via `/study/[deckId]`, managed by `useStudySession`, which uses `useDeckLoader` to fetch all cards for the given `deckId`.
+
+**Note on Refactoring:** Recent refactoring efforts (as detailed in `refactoring-plan.md` and `docs/project-documentation.md`) have improved the structure of hooks (especially `useStudySession`, `useDeckLoader`, `useStudyTTS`), data services (`lib/`), authentication (`@supabase/ssr`), and components. Key improvements relevant here include the isolation of single-deck loading (`useDeckLoader`), isolated TTS logic (`useStudyTTS`), and clearer state management within `useStudySession` (though its persistence logic via `updateDeck` needs changing for this feature). This proposed architecture builds upon that improved foundation.
 
 ## 3. Proposed Architecture
 
@@ -94,22 +96,25 @@ graph TD
 
 **Modified Tables:**
 
-*   **`cards`**: No direct column additions needed if using the `card_tags` join table.
-*   **`study_progress` (or similar):** Need to verify if this table exists and stores card-level progress (`last_reviewed_at`, `correct_streak`, `difficulty_score`, `next_review_due`). If not, these concepts need to be added, likely to the `cards` table or a dedicated progress table linked `user_id`+`card_id`. *Assuming these exist for querying purposes.*
+*   **`cards`**: 
+    *   No direct column additions needed if using the `card_tags` join table.
+    *   **Crucially, card-level progress/statistics (`correct_count`, `incorrect_count`, `attempt_count`, `last_studied`, `difficulty_score`) are stored directly on this table.** The query mechanism will filter based on these existing columns.
+*   ~~**`study_progress` (or similar):** Need to verify if this table exists and stores card-level progress (`last_reviewed_at`, `correct_streak`, `difficulty_score`, `next_review_due`). If not, these concepts need to be added, likely to the `cards` table or a dedicated progress table linked `user_id`+`card_id`. *Assuming these exist for querying purposes.*~~
+    *   *(Self-correction: Progress is confirmed to be stored on the `cards` table. No separate `study_progress` table is needed for the query criteria based on current data.)*
 
-**Entity Relationship Diagram (ERD):**
+**Entity Relationship Diagram (ERD) (Updated):**
 
 ```mermaid
 erDiagram
     USERS ||--o{ DECKS : owns
     USERS ||--o{ TAGS : owns
     USERS ||--o{ STUDY_SETS : owns
-    USERS ||--o{ STUDY_PROGRESS : tracks_progress_for
+    # USERS ||--o{ STUDY_PROGRESS : tracks_progress_for -- Removed
 
     DECKS ||--o{ CARDS : contains
 
     CARDS ||--|{ CARD_TAGS : has
-    CARDS ||--o{ STUDY_PROGRESS : has_progress_for
+    # CARDS ||--o{ STUDY_PROGRESS : has_progress_for -- Removed
 
     TAGS ||--|{ CARD_TAGS : applied_via
 
@@ -143,20 +148,25 @@ erDiagram
         text back_content
         text primary_language
         text secondary_language
-        uuid audio_ref_primary
-        uuid audio_ref_secondary
+        # uuid audio_ref_primary -- Assuming URLs stored directly if used
+        # uuid audio_ref_secondary -- Assuming URLs stored directly if used
+        integer correct_count
+        integer incorrect_count
+        integer attempt_count
+        timestamptz last_studied
+        float difficulty_score
         timestamptz created_at
         timestamptz updated_at
     }
 
-    STUDY_PROGRESS {
-       uuid user_id PK, FK
-       uuid card_id PK, FK
-       integer correct_streak
-       timestamptz last_reviewed_at
-       timestamptz next_review_due
-       float difficulty_score
-    }
+    # STUDY_PROGRESS { -- Removed
+    #    uuid user_id PK, FK
+    #    uuid card_id PK, FK
+    #    integer correct_streak
+    #    timestamptz last_reviewed_at
+    #    timestamptz next_review_due
+    #    float difficulty_score
+    # }
 ```
 
 ### 3.4. Backend Changes (Server Actions Preferred)
@@ -177,10 +187,22 @@ erDiagram
     *   `deleteStudySet(id: string): Promise<void>`
 *   **`studyQueryActions.ts`**:
     *   `resolveStudyQuery(criteria: object | string): Promise<{ cardIds: string[] }>`
-        *   Accepts either a `query_criteria` object (for on-the-fly sessions) or a `studySetId` string.
-        *   Constructs and executes a Supabase SQL query (potentially using a DB function for complexity/performance) based on the criteria.
+        *   Accepts either a `query_criteria` object (for on-the-fly sessions) or a `studySetId` string (fetches criteria from `study_sets` table).
+        *   Constructs and executes a potentially complex Supabase SQL query using the Supabase server client.
+        *   The query must join `cards`, `decks` (if filtering by deck), and `card_tags` (if filtering by tags). It will filter based on criteria like tag IDs, deck IDs, and progress attributes directly on the `cards` table (`last_studied`, `difficulty_score`, etc.), all constrained by `user_id`.
+        *   **Recommendation:** Encapsulate the query logic within a Supabase Database Function (`pl/pgsql`) for complexity management, performance optimization, and easier maintenance. The Server Action would then call this function.
         *   Applies RLS implicitly via Supabase client.
-        *   Returns an array of `card.id`s matching the criteria for the current user. Needs careful indexing on queried columns (`user_id`, `deck_id`, `tags` via join, progress fields).
+        *   Returns an array of `card.id`s matching the criteria for the current user. Needs careful indexing on queried columns (`user_id`, `deck_id`, `last_studied`, `difficulty_score` on `cards`; `user_id`, `tag_id`, `card_id` on `card_tags`).
+*   **`cardActions.ts`**:
+    *   `getCardsByIds(cardIds: string[]): Promise<FlashCard[]>`
+        *   Fetches full card details for a given list of card IDs.
+        *   Ensures RLS is applied (user can only fetch their own cards, though this might be implicit if `cardIds` are resolved correctly).
+        *   Used by `useStudySession` after resolving the query.
+*   **`progressActions.ts`**:
+    *   `updateCardProgress(cardId: string, stats: { correctCount?: number; incorrectCount?: number; attemptCount?: number; lastStudied?: Date; difficultyScore?: number }): Promise<void>`
+        *   Updates only the specified progress fields for a single card.
+        *   Crucial for efficient updates during query-based study sessions, avoiding unnecessary updates to entire decks.
+        *   Performs validation and applies RLS.
 
 ### 3.5. Frontend Changes
 
@@ -207,11 +229,14 @@ erDiagram
 **Modified Hooks:**
 
 *   `hooks/useStudySession.ts`: Major refactoring needed.
-    *   Initialization: Instead of taking `deckId`, takes `queryCriteria` or `studySetId`. Calls `resolveStudyQuery` action to get initial `cardIds`.
-    *   Card Fetching: Fetches full card data only for the resolved `cardIds`.
-    *   State Management: Manages the study flow based on the dynamic list of cards. Progress updates still likely call backend actions per card.
+    *   **Initialization:** Takes `queryCriteria` object or `studySetId` string as input instead of `deckId`.
+    *   **Card ID Resolution:** Calls `studyQueryActions.resolveStudyQuery` to get the initial list of `cardIds` for the session.
+    *   **Card Data Fetching:** Calls the new `cardActions.getCardsByIds` server action to fetch the full `FlashCard` data for the resolved IDs. **It no longer uses `useDeckLoader`.**
+    *   **State Management:** Manages the study flow (current card, card queue, progress) based on the dynamically fetched list of cards. `lib/study-utils.ts` helpers remain relevant.
+    *   **Persistence:** Calls the new `progressActions.updateCardProgress` server action (likely debounced, similar to the current `updateDeck` call) after each card is answered to save the updated statistics for *that specific card*. **It no longer calls `useDecks.updateDeck` for session progress.**
+    *   **Dependencies:** Now depends on `useSettings`, `useStudyTTS`, `studyQueryActions`, `cardActions`, `progressActions`. Dependency on `useDecks` is removed for core session logic (unless needed for other reasons, like accessing deck metadata if required later).
 
-**Component Interaction Diagram (Simplified):**
+**Component Interaction Diagram (Updated):**
 
 ```mermaid
 graph TD
@@ -256,12 +281,12 @@ graph TD
     useStudySets --> studySetActions
     useTags --> tagActions
     useStudySession --> studyQueryActions
-    useStudySession --> cardActions
-    useStudySession --> progressActions
+    useStudySession --> cardActions # To get card data
+    useStudySession --> progressActions # To update card progress
 
     %% User Authentication Implicit via useAuth middleware
     useAuth -- Provides User Context --> Frontend Hooks
-    Backend -- Uses Auth Context --> SupabaseDB
+    Backend -- Uses Auth Context --> SupabaseDB[(Supabase DB)]
 
     classDef ui fill:#e1f5fe,stroke:#0277bd,stroke-width:1px;
     classDef hook fill:#e8f5e9,stroke:#2e7d32,stroke-width:1px;
@@ -274,7 +299,7 @@ graph TD
 
 ### 3.6. Key Interaction Flows (Sequence Diagrams)
 
-**1. Starting a Study Session (Saved Study Set):**
+**1. Starting a Study Session (Saved Study Set) (Updated):**
 
 ```mermaid
 sequenceDiagram
@@ -285,7 +310,7 @@ sequenceDiagram
     participant studySetActions as Action
     participant useStudySession as Hook
     participant studyQueryActions as Action
-    participant CardDataFetcher as Util/Action
+    participant cardActions as Action
     participant StudyPage as UI: Study Page
 
     User ->> HomePage: Selects "Study"
@@ -299,8 +324,8 @@ sequenceDiagram
     Selector ->> useStudySession: initiateSession({ studySetId: "set123" })
     useStudySession ->> studyQueryActions: resolveStudyQuery("set123")
     studyQueryActions -->> useStudySession: Returns { cardIds: ["c1", "c5", "c8"] }
-    useStudySession ->> CardDataFetcher: fetchCards(["c1", "c5", "c8"])
-    CardDataFetcher -->> useStudySession: Returns Card Details
+    useStudySession ->> cardActions: getCardsByIds(["c1", "c5", "c8"])
+    cardActions -->> useStudySession: Returns FlashCard[] Details
     useStudySession -->> StudyPage: Navigates/Provides initial state (cards, progress)
     StudyPage -->> User: Displays first card ("c1")
 ```
@@ -322,18 +347,47 @@ sequenceDiagram
     TagManagerUI -->> User: Shows "Chapter 5" in the tag list
 ```
 
+**3. Answering a Card (New Sequence Diagram):**
+```mermaid
+sequenceDiagram
+    actor User
+    participant StudyPage as UI: Study Page
+    participant useStudySession as Hook
+    participant StudyUtils as lib/study-utils.ts
+    participant progressActions as Action
+
+    User ->> StudyPage: Clicks "Correct" for current card (ID: "c5")
+    StudyPage ->> useStudySession: answerCardCorrect()
+    useStudySession ->> StudyUtils: updateCardStats(card_c5, isCorrect=true)
+    StudyUtils -->> useStudySession: updatedStats_c5 (incl. new difficulty)
+    useStudySession ->> StudyUtils: determineNextCardState(currentStudyCards, updatedCard_c5, settings)
+    StudyUtils -->> useStudySession: { nextStudyCards, nextIndex, cardJustMastered }
+    useStudySession ->> useStudySession: Update local card state in memory
+    useStudySession ->> useStudySession: Schedule debounced save: updateCardProgress("c5", updatedStats_c5)
+    useStudySession ->> useStudySession: Update state (currentCardIndex=nextIndex, studyCards=nextStudyCards)
+    useStudySession -->> StudyPage: Update UI state (next card, progress)
+    StudyPage -->> User: Displays next card
+
+    opt Debounced Save Fires (Later)
+        useStudySession ->> progressActions: updateCardProgress("c5", updatedStats_c5)
+        progressActions -->> SupabaseDB: UPDATE cards SET ... WHERE id = "c5"
+        SupabaseDB -->> progressActions: Success/Error
+        progressActions -->> useStudySession: Result (toast on error)
+    end
+```
+
 ## 4. Technology Choices
 
 *   **Backend Logic:** Primarily Next.js Server Actions for tight integration with frontend components and simplified auth handling via `@supabase/ssr`.
-*   **Database:** Supabase PostgreSQL. Leverage JSONB for `query_criteria` and potentially DB functions (`pl/pgsql`) for complex query resolution if needed for performance.
-*   **Querying:** Supabase JavaScript client library (`@supabase/supabase-js`) within Server Actions to build and execute queries, respecting RLS.
+*   **Database:** Supabase PostgreSQL. Leverage JSONB for `query_criteria`. **Strongly consider DB functions (`pl/pgsql`) for complex `resolveStudyQuery` logic.**
+*   **Querying:** Supabase JavaScript client library (`@supabase/supabase-js`) within Server Actions to build and execute queries (or call DB functions), respecting RLS.
 *   **Frontend:** React, TypeScript, Tailwind CSS, shadcn/ui (consistent with existing stack).
-*   **State Management:** Continue using custom hooks and React Context where appropriate. `useStudySets`, `useTags` will encapsulate data fetching and state for their domains. `useStudySession` remains central to the active study experience.
+*   **State Management:** Continue using custom hooks and React Context where appropriate. `useStudySets`, `useTags` will encapsulate data fetching and state for their domains. `useStudySession` remains central to the active study experience, adapted for query results.
 
 ## 5. Non-Functional Requirements
 
-*   **Security:** RLS policies must be meticulously defined for `tags`, `card_tags`, and `study_sets` to ensure users can only access/modify their own data. Server Actions should validate inputs.
-*   **Performance:** The `resolveStudyQuery` action is critical. Database queries must be optimized with appropriate indexes on `cards`, `tags`, `card_tags`, and `study_progress` tables, especially on `user_id` and columns used in filters (e.g., `deck_id`, `tag_id`, `last_reviewed_at`). Consider potential performance impact of complex JSONB queries or joins. DB functions might be necessary for optimization.
+*   **Security:** RLS policies must be meticulously defined for `tags`, `card_tags`, and `study_sets` to ensure users can only access/modify their own data. Server Actions (`tagActions`, `studySetActions`, `studyQueryActions`, `cardActions`, `progressActions`) must validate inputs and operate under user context.
+*   **Performance:** The `resolveStudyQuery` action/function is critical. Database queries must be optimized with appropriate indexes on `cards` (especially `user_id`, `deck_id`, `last_studied`, `difficulty_score`) and `card_tags` (`user_id`, `tag_id`, `card_id`). Consider potential performance impact of complex JSONB queries or joins. Using a DB function for the main query resolution is highly recommended for optimization and maintainability.
 *   **Maintainability:** Code should adhere to SOLID principles, be well-typed (TypeScript), follow project conventions (linting, formatting), and include TSDoc documentation. Separate concerns between UI components, hooks, and server actions.
 *   **Testability:** Server Actions should be testable. Hooks should be designed for testability (e.g., using dependency injection for fetching functions if needed). Implement unit and integration tests.
 
@@ -341,17 +395,18 @@ sequenceDiagram
 
 *   **Phased Rollout:**
     1.  Implement the Tagging system first (data model, backend actions, UI in editor).
-    2.  Implement the `StudySet` entity and basic query resolution (e.g., filtering by tags/decks).
-    3.  Refactor `useStudySession` and the study page UI to consume the new query mechanism.
-    4.  Build the UI for creating/managing `StudySets`.
+    2.  Implement the `StudySet` entity and the core query resolution (`resolveStudyQuery` action, potentially with DB function). Test thoroughly.
+    3.  Implement the `cardActions.getCardsByIds` and `progressActions.updateCardProgress` actions.
+    4.  Refactor `useStudySession` and the study page UI to consume the new query mechanism, card fetching, and progress update actions.
+    5.  Build the UI for creating/managing `StudySets` (`StudySetBuilder`, `StudySetSelector`).
 *   **Tagging UI:** Needs careful design for usability within the card editing flow.
 *   **Query Builder UI (`StudySetBuilder`):** Requires a user-friendly interface to construct potentially complex queries without overwhelming the user.
 *   **Data Migration:** No significant data migration is needed for existing cards/decks, but users will need to start adding tags.
+*   **Progress Update Action:** Implementing `progressActions.updateCardProgress` is essential to avoid inefficiently updating entire decks when only a single card's progress changes in a cross-deck study session.
 
 ## 7. Future Considerations
 
 *   Sharing Study Sets between users.
 *   More advanced query operators (e.g., date ranges, regular expressions on content).
 *   System-generated Study Sets (e.g., "Due for Review Today").
-*   Analytics on Study Set usage.
-
+*   Analytics on Study Set usage. 
