@@ -147,10 +147,6 @@ erDiagram
         uuid audio_ref_secondary
         timestamptz created_at
         timestamptz updated_at
-        %% Potential progress fields if not separate:
-        %% date last_reviewed_at
-        %% integer correct_streak
-        %% timestamptz next_review_due
     }
 
     STUDY_PROGRESS {
@@ -159,7 +155,7 @@ erDiagram
        integer correct_streak
        timestamptz last_reviewed_at
        timestamptz next_review_due
-       float difficulty_score %% Example
+       float difficulty_score
     }
 ```
 
@@ -242,17 +238,16 @@ graph TD
         tagActions[tagActions]
         studySetActions[studySetActions]
         studyQueryActions[studyQueryActions]
-        %% Existing Actions (Implied)
-        cardActions[...]
-        progressActions[...]
+        cardActions[cardActions]
+        progressActions[progressActions]
     end
 
     %% UI to Hooks
     HomePage --> useStudySets
-    HomePage --> useStudySession %% To initiate
+    HomePage --> useStudySession
     StudySetBuilderUI --> useStudySets
     StudySetSelectorUI --> useStudySets
-    StudySetSelectorUI --> useStudySession %% To initiate
+    StudySetSelectorUI --> useStudySession
     StudyPage --> useStudySession
     CardEditor --> useTags
     TagManagerUI --> useTags
@@ -260,9 +255,9 @@ graph TD
     %% Hooks to Actions
     useStudySets --> studySetActions
     useTags --> tagActions
-    useStudySession --> studyQueryActions %% To resolve query
-    useStudySession --> cardActions %% To fetch card details
-    useStudySession --> progressActions %% To update progress
+    useStudySession --> studyQueryActions
+    useStudySession --> cardActions
+    useStudySession --> progressActions
 
     %% User Authentication (Implicit via useAuth/middleware)
     useAuth -- Provides User Context --> Frontend Hooks
@@ -358,4 +353,5 @@ sequenceDiagram
 *   Sharing Study Sets between users.
 *   More advanced query operators (e.g., date ranges, regular expressions on content).
 *   System-generated Study Sets (e.g., "Due for Review Today").
-*   Analytics on Study Set usage. 
+*   Analytics on Study Set usage.
+
