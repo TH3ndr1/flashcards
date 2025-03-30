@@ -625,8 +625,3 @@ erDiagram
 ## 11. Changelog
 - **v2.0 (2024-07-26):** Integrated architecture for Tagging, Query-Based Study Sets, and Spaced Repetition System (SRS) with initial SM-2 support. Updated data models, hooks, server actions, and documentation throughout.
 - **v1.0 (Previous Date):** Initial project documentation covering basic deck/card management, authentication, and TTS. (Details from original file would go here).
-<<<<<<< HEAD
-
-```
-=======
->>>>>>> 4cf6262de7fca95428d266f48f258f18c002186d
