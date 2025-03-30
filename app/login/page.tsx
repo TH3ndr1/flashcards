@@ -74,9 +74,18 @@ function LoginContent() {
 
   useEffect(() => {
     if (!authLoading && user) {
-      router.push("/")
+      const callbackUrl = searchParams.get('callbackUrl');
+      // Check if callbackUrl exists and is a non-empty string
+      if (callbackUrl && typeof callbackUrl === 'string' && callbackUrl.trim() !== '') {
+        console.log(`Login successful, redirecting to callbackUrl: ${callbackUrl}`);
+        // Decode the URL in case it contains encoded characters
+        router.push(decodeURIComponent(callbackUrl)); 
+      } else {
+        console.log("Login successful, redirecting to default '/'");
+        router.push("/"); // Default redirect to homepage
+      }
     }
-  }, [user, authLoading, router])
+  }, [user, authLoading, router, searchParams]); // Added searchParams dependency
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -95,10 +104,10 @@ function LoginContent() {
 
       if (error) {
         console.error("Sign in error:", error)
-        if (error instanceof Error) {
-          toast.error(error.message || "An unexpected error occurred during sign in.")
+        if (error && typeof error === 'object' && 'message' in error) {
+          toast.error(String(error.message) || "Invalid login credentials.")
         } else {
-          toast.error(error.message || "Invalid login credentials.")
+          toast.error("An unexpected error occurred during sign in.")
         }
       } else {
         toast.success("Sign in successful! Redirecting...")
@@ -181,4 +190,5 @@ function LoginContent() {
   )
 }
 // --- End of LoginContent component ---
+
 
