@@ -13,4 +13,4 @@ git add .
 git commit -m "$1"
 
 # Push changes to the main branch on the origin remote
-git push origin main
+git push origin refactor

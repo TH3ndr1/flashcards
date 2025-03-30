@@ -46,8 +46,6 @@ export default function StudyDeckPage() {
   const { deckId } = useParams<{ deckId: string }>()
   const router = useRouter()
   const { settings } = useSettings()
-
-  // --- Call the Custom Hook --- 
   const {
     deck,
     currentStudyCard,
@@ -75,6 +73,17 @@ export default function StudyDeckPage() {
     isDifficultSessionComplete,
   } = useStudySession({ deckId, settings });
 
+  // --- Effect for Auth Redirect --- 
+  // Moved to top level to comply with Rules of Hooks
+  useEffect(() => {
+    // Only redirect if loading is complete, deck is missing, AND the error is auth-related
+    if (!isLoading && !deck && error && error.toLowerCase().includes("user not authenticated")) {
+      const callbackUrl = encodeURIComponent(`/study/${deckId}`);
+      console.log("Auth error detected, redirecting to login...");
+      router.push(`/login?callbackUrl=${callbackUrl}`);
+    }
+  }, [isLoading, deck, error, router, deckId]); // Dependencies for the effect
+
   // --- Derived State from Hook Data (MUST be before conditional returns) ---
   const currentFullCardData = useMemo(() => {
     // Ensure dependencies are valid before trying to find the card
@@ -99,13 +108,25 @@ export default function StudyDeckPage() {
 
   // Error State (Handles errors from the hook)
   if (error && !deck) {
-     return (
-      <div className="container mx-auto px-4 py-8 text-center">
-        <h2 className="text-xl font-semibold text-destructive mb-4">Error Loading Deck</h2>
-        <p className="text-muted-foreground mb-6">{error}</p>
-        <Button onClick={() => router.push("/")}><ArrowLeft className="mr-2 h-4 w-4"/> Return to Home</Button>
-      </div>
-    )
+    // Check if the specific error is the auth error to display redirect message
+    if (error.toLowerCase().includes("user not authenticated")) {
+      // Render minimal loading/redirecting message while the useEffect triggers navigation
+      return (
+        <div className="flex justify-center items-center h-screen">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          <span className="ml-4 text-muted-foreground">Redirecting to login...</span>
+        </div>
+      );
+    } else {
+      // Handle other errors as before
+      return (
+        <div className="container mx-auto px-4 py-8 text-center">
+          <h2 className="text-xl font-semibold text-destructive mb-4">Error Loading Deck</h2>
+          <p className="text-muted-foreground mb-6">{error}</p>
+          <Button onClick={() => router.push("/")}><ArrowLeft className="mr-2 h-4 w-4"/> Return to Home</Button>
+        </div>
+      )
+    }
   }
 
   // Deck Not Found State (Hook handles retries, sets error)

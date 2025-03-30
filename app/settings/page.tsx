@@ -18,7 +18,8 @@ import { Input } from "@/components/ui/input";
 import { FONT_OPTIONS } from "@/lib/fonts";
 
 export default function SettingsPage() {
-  const { user } = useAuth();
+  // Get user and auth loading state
+  const { user, loading: authLoading } = useAuth(); 
   const router = useRouter();
   const { settings, updateSettings, loading: settingsLoading } = useSettings();
 
@@ -34,9 +35,23 @@ export default function SettingsPage() {
     it: 'it-IT',
   });
 
-  // Load settings
+  // --- Redirect Effect for Unauthenticated Users ---
   useEffect(() => {
-    if (!settingsLoading && settings) {
+    // Wait until auth check is complete
+    if (!authLoading) {
+      // If no user is found, redirect to login
+      if (!user) {
+        const callbackUrl = encodeURIComponent('/settings');
+        console.log("Settings page: User not authenticated, redirecting to login.");
+        router.push(`/login?callbackUrl=${callbackUrl}`);
+      }
+    }
+  }, [authLoading, user, router]); // Dependencies
+
+  // Load settings (only if user is potentially logged in)
+  useEffect(() => {
+    // Check user exists before loading settings
+    if (!settingsLoading && settings && user) { 
       setAppLanguage(settings.appLanguage || "en");
       setCardFont(settings.cardFont || "default");
       setMasteryThreshold(settings.masteryThreshold || 3);
@@ -49,10 +64,19 @@ export default function SettingsPage() {
         it: 'it-IT',
       });
     }
-  }, [settings, settingsLoading]);
+  }, [settings, settingsLoading, user]); // Added user dependency
 
   // Auto-save settings when they change
   const handleSettingChange = async (updates: Partial<Settings>) => {
+    // Add a check for user before attempting to save
+    if (!user) {
+      toast.error("Authentication Error", {
+        description: "You must be logged in to save settings.",
+      });
+      // Optionally redirect here too, though the top-level effect should handle it
+      // router.push('/login?callbackUrl=/settings'); 
+      return;
+    }
     try {
       await updateSettings(updates);
       toast.success("Settings updated", {
@@ -89,15 +113,32 @@ export default function SettingsPage() {
     }
   };
 
-  if (settingsLoading) {
+  // Combined Loading State Check
+  if (settingsLoading || authLoading) {
     return (
       <div className="container mx-auto py-8">
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-3xl font-bold">Settings</h1>
         </div>
-        <div>Loading...</div>
+        <div>Loading...</div> 
       </div>
     );
+  }
+
+  // --- Post-Loading: If redirect hasn't happened, user must be authenticated --- 
+  // We might still render briefly before the redirect effect kicks in,
+  // or if the user state changes unexpectedly. This check prevents rendering 
+  // the form if the user becomes null after the initial loading state passes.
+  if (!user) {
+     // Render null or a minimal message while the redirect effect runs
+     return (
+      <div className="container mx-auto py-8">
+         <div className="flex items-center justify-between mb-8">
+           <h1 className="text-3xl font-bold">Settings</h1>
+         </div>
+         <div>Redirecting to login...</div> 
+      </div>
+     );
   }
 
   return (

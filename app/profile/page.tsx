@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,12 +11,22 @@ import { toast } from "sonner"
 import type { AuthError } from "@supabase/supabase-js"
 
 export default function ProfilePage() {
-  const { user, signOut } = useAuth()
+  const { user, signOut, loading: authLoading } = useAuth()
   const router = useRouter()
-  const [loading, setLoading] = useState(false)
+  const [signOutLoading, setSignOutLoading] = useState(false)
+
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        const callbackUrl = encodeURIComponent('/profile');
+        console.log("Profile page: User not authenticated, redirecting to login.");
+        router.push(`/login?callbackUrl=${callbackUrl}`);
+      }
+    }
+  }, [authLoading, user, router]);
 
   const handleSignOut = async () => {
-    setLoading(true)
+    setSignOutLoading(true)
     const { error } = await signOut()
 
     if (error) {
@@ -24,16 +34,39 @@ export default function ProfilePage() {
       if (error instanceof Error) {
         toast.error(error.message || "An unexpected error occurred during sign out.")
       } else {
-        toast.error(error.message || "Sign out failed. Please try again.")
+        const errorMessage = (error as AuthError)?.message || "Sign out failed. Please try again.";
+        toast.error(errorMessage)
       }
-      setLoading(false)
+      setSignOutLoading(false)
     } else {
       toast.success("Signed out successfully.")
     }
   }
 
+  if (authLoading) {
+    return (
+      <main className="container mx-auto px-4 py-8">
+        <div className="flex justify-between items-center mb-6">
+           <h1 className="text-2xl font-bold">Profile</h1>
+        </div>
+        <div className="max-w-2xl mx-auto text-center">
+          Loading profile...
+        </div>
+      </main>
+    );
+  }
+
   if (!user) {
-    return null
+    return (
+      <main className="container mx-auto px-4 py-8">
+        <div className="flex justify-between items-center mb-6">
+           <h1 className="text-2xl font-bold">Profile</h1>
+        </div>
+        <div className="max-w-2xl mx-auto text-center">
+          Redirecting to login...
+        </div>
+      </main>
+    );
   }
 
   return (
@@ -70,9 +103,9 @@ export default function ProfilePage() {
             </div>
           </CardContent>
           <CardFooter>
-            <Button variant="destructive" onClick={handleSignOut} disabled={loading}>
+            <Button variant="destructive" onClick={handleSignOut} disabled={signOutLoading}>
               <LogOut className="mr-2 h-4 w-4" />
-              {loading ? "Signing out..." : "Sign Out"}
+              {signOutLoading ? "Signing out..." : "Sign Out"}
             </Button>
           </CardFooter>
         </Card>
