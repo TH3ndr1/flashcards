@@ -32,33 +32,28 @@ async function isCalledFromDynamicRoute(searchPattern = '/study/[') {
  * Uses the resolve_study_query RPC function to determine which cards to study.
  * 
  * @param criteria The query criteria object
- * @param isDynamicRoute Optional flag to indicate if this is called from a dynamic route
  * @returns Promise with array of card IDs and their priorities
  */
 export async function resolveStudyQuery(
-    criteria: StudyQueryCriteria,
-    isDynamicRoute = false
+    criteria: StudyQueryCriteria
 ): Promise<{ data: { cardIds: string[], priorities: number[] } | null, error: Error | null }> {
-    console.log(`[resolveStudyQuery] Using isDynamicRoute=${isDynamicRoute}`);
+    console.log(`[resolveStudyQuery] Processing study query:`, criteria);
     
     try {
-        // Use the appropriate client based on the context
-        const supabase = isDynamicRoute 
-            ? await createDynamicRouteClient() 
-            : createActionClient();
+        // Use the standard action client - must await
+        const supabase = await createActionClient();
         
-        // Fetch user directly using the client
+        // Fetch user for authentication check
         const { data: { user }, error: authError } = await supabase.auth.getUser();
 
         if (authError || !user) {
-            console.error("resolveStudyQuery: Auth error or no user", authError);
+            console.error("[resolveStudyQuery] Auth error or no user", authError);
             return { data: null, error: authError || new Error("User not authenticated") };
         }
 
         // If deckId is undefined or empty string, remove it from criteria
         const cleanedCriteria = {
-            ...criteria,
-            deckId: criteria.deckId || undefined
+            ...criteria
         };
 
         // Validate criteria using Zod

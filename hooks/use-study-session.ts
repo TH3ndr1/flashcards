@@ -103,7 +103,7 @@ export function useStudySession({
     // Define the function to be debounced
     const saveFunction = async (cardId: string, payload: CardProgressUpdate) => {
       console.log(`[Debounced Save] Saving progress for card: ${cardId}`);
-      const { error: saveError } = await updateCardProgress(cardId, payload, true);
+      const { error: saveError } = await updateCardProgress(cardId, payload);
       if (saveError) {
         console.error("[Debounced Save] Failed to save progress:", saveError);
         toast.error("Save Error", { description: "Could not save study progress. Changes may be lost." });
@@ -145,7 +145,7 @@ export function useStudySession({
 
       try {
         // 1. Resolve card IDs (still using Server Action)
-        const { data: resolveData, error: resolveError } = await resolveStudyQuery(currentCriteria, true);
+        const { data: resolveData, error: resolveError } = await resolveStudyQuery(currentCriteria);
         if (resolveError || !resolveData) {
           throw resolveError || new Error("Failed to resolve study query.");
         }
@@ -160,9 +160,9 @@ export function useStudySession({
           return; 
         }
 
-        // 2. Fetch card details VIA API ROUTE
-        console.log(`[useStudySession] Fetching card details via API for IDs:`, resolveData.cardIds);
-        const { data: fetchedCardsData, error: fetchError } = await getCardsByIds(resolveData.cardIds, true);
+        // 2. Fetch card details
+        console.log(`[useStudySession] Fetching card details for IDs:`, resolveData.cardIds);
+        const { data: fetchedCardsData, error: fetchError } = await getCardsByIds(resolveData.cardIds);
         
         console.log("[useStudySession] Fetch cards action result:", { fetchedCardsData, fetchError });
         

@@ -267,8 +267,6 @@ export function useLocalStorage(key, initialValue) {
 }
 ```
 
-
-
 ## 18. Supabase Best Practices
 
 When integrating Supabase into your Next.js projects, it's crucial to adhere to certain best practices to enhance security, maintainability, and performance.
@@ -428,7 +426,7 @@ Following these practices will help you leverage Supabase effectively, maintaini
 
 # Best Practice in Next.js: Separating Presentation, Business Logic, and Data Layer
 
-Separating concerns into **presentation**, **business logic**, and **data layers** is widely considered a **best practice** in Next.js and modern frontend development. The extent to which this separation is applied depends on your app’s **complexity**, **team size**, and **long-term goals**.
+Separating concerns into **presentation**, **business logic**, and **data layers** is widely considered a **best practice** in Next.js and modern frontend development. The extent to which this separation is applied depends on your app's **complexity**, **team size**, and **long-term goals**.
 
 ---
 
@@ -532,3 +530,64 @@ For **scalable**, **maintainable**, and **testable** Next.js applications, separ
 ---
 
 Let me know if you want a code-based example or a GitHub folder template!
+
+## 25. Authentication in Dynamic Routes (Next.js App Router)
+
+When handling authentication in Next.js applications, especially with dynamic routes like `/study/[deckId]`, follow these best practices:
+
+### Using `@supabase/ssr` Package
+
+The official `@supabase/ssr` package is recommended over `auth-helpers-nextjs` due to better handling of cookie formats, especially the Supabase `base64-` prefixed cookies.
+
+```typescript
+// lib/supabase/server.ts
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+
+export function createServerClient() {
+  // Implementation details...
+}
+```
+
+### Proper Async Cookie Handling
+
+Always make cookie handling fully asynchronous in dynamic routes to avoid Next.js warnings. Await the `cookies()` function itself:
+
+```typescript
+// Correct pattern - fully async
+async get(name: string) {
+  try {
+    const cookieStore = await cookies()
+    return cookieStore.get(name)?.value
+  } catch (error) {
+    console.error(`Error accessing cookie: ${error}`)
+    return undefined
+  }
+}
+```
+
+### Middleware Configuration
+
+Configure middleware to handle session refresh while excluding static assets and API routes that don't need authentication:
+
+```typescript
+// middleware.ts
+export const config = {
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|public).*)',
+  ],
+}
+```
+
+### Client Functions for Different Contexts
+
+Create distinct client functions for different contexts to maintain clear separation of concerns:
+
+```typescript
+// lib/supabase/server.ts
+export function createServerClient() { /* For Server Components */ }
+export function createActionClient() { /* For Server Actions */ }
+export function createBrowserClient() { /* For Client Components */ }
+```
+
+By following these best practices, you'll ensure consistent and secure authentication handling across all parts of your Next.js application, including dynamic routes.

@@ -422,18 +422,27 @@ which updates SupabaseDB
 ## 10. References and Resources
 *(Keep existing points)*
 
-### 4.4 Authentication Flow *(Updated based on diagram)*
+### 4.4 Authentication Flow
 
-The application utilizes Supabase Auth integrated with Next.js using the `@supabase/ssr` package. This ensures seamless authentication handling across Server Components, Client Components, API/Route Handlers, and Server Actions.
+The application utilizes Supabase Auth integrated with Next.js using the `@supabase/ssr` package. This ensures seamless authentication handling across all contexts, including Server Components, Client Components, API/Route Handlers, Server Actions, and importantly, dynamic routes like `/study/[deckId]`.
 
 Key aspects include:
 
-- **Middleware (`middleware.ts`):** Handles session cookie management and refresh for incoming requests using the Supabase *server* client, making the user session available server-side contexts via cookies/headers.
-- **Client Client (`hooks/use-supabase.tsx`):** Provides a memoized Supabase *browser* client instance (`createBrowserClient`) initialized after mount in client components. Ensures consistency with the server-managed session via cookie reading.
-- **Auth Provider (`hooks/use-auth.tsx`):** A context provider (`AuthProvider`) and hook (`useAuth`) that leverages `useSupabase` for the browser client. Manages authentication state (`user`, `session`, `loading`) primarily through `onAuthStateChange`. Provides functions (`signIn`, `signUp`, `signOut`, `resetPassword`) that call Supabase browser client methods.
-- **Server Client (`lib/supabase/server.ts`):** Provides a utility to create Supabase *server* clients within server contexts (Route Handlers, Server Components, Server Actions) that interact correctly with cookies managed by the middleware. Used for auth checks in API routes and potentially data fetching/mutations in Server Actions/Components.
-- **Email Confirmation (`app/auth/callback/route.ts`):** A server-side Route Handler processes the email confirmation link. Uses the server client to securely exchange the confirmation code for a session and redirects the user.
-- **Login/Signup Pages:** Client components (`app/login/page.tsx`, `app/signup/page.tsx`) use the `useAuth` hook (and thus the browser client) for sign-in/sign-up operations.
+- **Middleware (`middleware.ts`):** Handles session cookie management and refresh for incoming requests using the Supabase server client from `@supabase/ssr`. The middleware intercepts requests, refreshes expired sessions, and ensures that authentication state is consistently available across the application.
+
+- **Server Clients (`lib/supabase/server.ts`):** Provides utility functions to create Supabase server clients with proper async cookie handling:
+  - `createServerClient()`: For Server Components, with full async cookie handling for both regular and dynamic routes
+  - `createActionClient()`: For Server Actions, with the same robust cookie handling
+  - `createDynamicRouteClient()`: For backward compatibility, now using the standard pattern
+  - `createAnonymousClient()`: For unauthenticated requests
+
+  Each client implementation properly awaits the `cookies()` function to avoid warnings in dynamic routes and ensures secure authentication handling.
+
+- **Client Client (`useSupabase` hook):** A hook that provides the browser client instance using `createBrowserClient` from `@supabase/ssr`. The browser client automatically reads and manages cookies set by the server.
+
+- **Auth Provider (`AuthProvider`):** A context provider that leverages the browser client to manage auth state and provide auth-related functions to the application.
+
+This implementation allows seamless authentication across all parts of the application, including dynamic routes which have special cookie handling requirements in Next.js. By properly handling async cookie access and using the standard `@supabase/ssr` package, the application maintains a secure and consistent authentication state without custom workarounds.
 
 ## 11. Changelog
 *(Keep existing changelog)*

@@ -66,26 +66,22 @@ function mapDbCardToFlashCard(
  * Get details for multiple cards by their IDs
  * 
  * @param cardIds Array of card UUIDs to fetch
- * @param isDynamicRoute Optional flag to indicate if this is called from a dynamic route
  * @returns Promise with array of cards or error
  */
 export async function getCardsByIds(
-    cardIds: string[],
-    isDynamicRoute = false
+    cardIds: string[]
 ): Promise<{ data: FlashCard[] | null, error: Error | null }> {
-    console.log(`[getCardsByIds] Action started for ${cardIds.length} cards, isDynamicRoute=${isDynamicRoute}`);
+    console.log(`[getCardsByIds] Action started for ${cardIds.length} cards`);
     
     if (!cardIds.length) {
         return { data: [], error: null };
     }
     
     try {
-        // Use the appropriate client based on the context
-        const supabase = isDynamicRoute 
-            ? await createDynamicRouteClient() 
-            : createActionClient();
+        // Use the standard action client - must await
+        const supabase = await createActionClient();
         
-        // Fetch user directly using the client
+        // Fetch user for authentication check
         const { data: { user }, error: authError } = await supabase.auth.getUser();
 
         if (authError || !user) {
@@ -188,10 +184,8 @@ export async function getCardById(
     cardId: string,
     isDynamicRoute = false
 ): Promise<{ data: FlashCard | null, error: Error | null }> {
-    // Use the appropriate client based on the context
-    const supabase = isDynamicRoute 
-        ? createDynamicRouteClient() 
-        : createActionClient();
+    // Use the standard client - must await
+    const supabase = await createActionClient();
      
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 

@@ -90,7 +90,7 @@ export default function StudyDeckPage() {
   // --- Effect to Set Deck Name --- 
   useEffect(() => {
     if (deckId) {
-      getDeckName(deckId, true).then(({ data, error }) => {
+      getDeckName(deckId).then(({ data, error }) => {
         if (error) {
           console.error("Error fetching deck name (Action):", error);
           setDeckName("Unknown Deck");

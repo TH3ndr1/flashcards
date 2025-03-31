@@ -6,19 +6,15 @@ import { createActionClient, createDynamicRouteClient } from "@/lib/supabase/ser
  * Get the name of a deck by its ID
  * 
  * @param deckId The deck UUID to fetch
- * @param isDynamicRoute Optional flag to indicate if this is called from a dynamic route
  */
 export async function getDeckName(
-    deckId: string,
-    isDynamicRoute = false
+    deckId: string
 ): Promise<{ data: string | null, error: Error | null }> {
     console.log("[getDeckName] Action started for deckId:", deckId);
     
     try {
-        // Use the appropriate client based on the context
-        const supabase = isDynamicRoute 
-            ? await createDynamicRouteClient() 
-            : createActionClient();
+        // Use the standard action client - must await
+        const supabase = await createActionClient();
         
         const { data: { user }, error: authError } = await supabase.auth.getUser();
 
