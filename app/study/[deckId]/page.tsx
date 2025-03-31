@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
@@ -10,107 +10,234 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 
 // Custom Hooks & Types
-import type { Deck, FlashCard } from "@/types/deck"
+import type { FlashCard } from "@/types/deck"
 import { useSettings } from "@/providers/settings-provider"
 import { useStudySession } from "@/hooks/use-study-session"
+import type { ReviewGrade } from "@/lib/srs"
+import type { StudyQueryCriteria, SrsProgression } from "@/types/study"
 
 // Extracted Study Components
-import { DeckHeader } from "@/components/deck-header";
-import { StudyProgress } from "@/components/study-progress";
-import { StudyCompletionScreen } from '@/components/study-completion-screen';
-import { StudyFlashcardView } from '@/components/study-flashcard-view';
+import { DeckHeader } from "@/components/deck-header"
+import { StudyProgress } from "@/components/study-progress"
+import { StudyCompletionScreen } from '@/components/study-completion-screen'
+import { StudyFlashcardView } from '@/components/study-flashcard-view'
+
+// Restore getDeckName server action import
+import { getDeckName } from "@/lib/actions/deckActions";
 
 /**
- * Study Deck Page Component.
+ * Study Deck Page Component (Refactored for Query-Based Study Session).
  *
- * This component orchestrates the flashcard study session for a specific deck.
- * It fetches the deck, manages the sequence of cards to study (including difficult ones),
- * handles user interactions (flipping, marking correct/incorrect/skip),
- * updates card statistics, provides Text-to-Speech (TTS) functionality,
- * tracks progress, and displays loading, error, study, and completion states.
+ * This component orchestrates the flashcard study session for cards belonging
+ * to a specific deck ID passed in the route.
+ * It uses the refactored `useStudySession` hook, initializing it with criteria
+ * to select cards from the specified deck.
  *
- * Key Features:
- * - Fetches deck data with retry logic.
- * - Prepares study card sequence based on settings and difficulty.
- * - Renders the current card with question and answer sides.
- * - Handles card flipping animations and state.
- * - Processes user answers, updates card stats locally, and attempts immediate persistence per card.
- * - Provides TTS for questions and answers based on deck language and settings.
- * - Calculates and displays overall deck mastery and progress.
- * - Allows saving progress and exiting, practicing difficult cards, or restarting the session.
+ * Key Changes:
+ * - Uses query criteria `{ includeDecks: [deckId] }` to load cards.
+ * - Relies on `useStudySession` for card fetching, SRS logic, and state management.
+ * - UI adapted to work with the state provided by the new hook.
+ * - Answer buttons mapped to SRS grades (1-4).
  *
  * @returns {JSX.Element} The study session UI, loading indicator, error message, or completion screen.
  */
 export default function StudyDeckPage() {
-  // --- Hooks ---
+  // Log when component mounts/re-renders
+  console.log("[StudyDeckPage] Component rendered/mounted.");
+
+  // --- Hooks --- 
   const { deckId } = useParams<{ deckId: string }>()
   const router = useRouter()
-  const { settings } = useSettings()
+  const { settings } = useSettings() // Restore settings for font support
+
+  // --- State --- 
+  // State to potentially hold deck name fetched separately for the header
+  const [deckName, setDeckName] = useState<string | null>(null);
+  
+  // Add SRS level tracking
+  const [srsLevels, setSrsLevels] = useState({
+    new: 0,
+    learning: 0,
+    review: 0
+  });
+  
+  // Add SRS progression tracking
+  const [srsProgression, setSrsProgression] = useState<SrsProgression>({
+    newToLearning: 0,
+    learningToReview: 0,
+    stayedInLearning: 0,
+    droppedToLearning: 0
+  });
+
+  // Create study criteria using useMemo instead of useState
+  const studyCriteria = useMemo<StudyQueryCriteria | undefined>(() => {
+    // Log the raw param value *inside* useMemo
+    console.log("[StudyDeckPage useMemo] deckId from useParams:", deckId);
+    if (!deckId || typeof deckId !== 'string' || deckId.includes('Unknown')) { // Add extra check
+       console.warn("[StudyDeckPage useMemo] Invalid deckId detected:", deckId);
+       return undefined;
+    }
+    
+    return {
+      deckId,
+      includeNew: true,
+      includeReview: true,
+      includeLearning: true,
+      limit: 50
+    };
+  }, [deckId]);
+  
+  // --- Effect to Set Deck Name --- 
+  useEffect(() => {
+    // Revert to using the server action
+    if (deckId && typeof deckId === 'string' && !deckId.includes('Unknown')) {
+      console.log(`[StudyDeckPage useEffect] Calling getDeckName for deckId: ${deckId}`);
+      getDeckName(deckId).then(({ data, error }) => {
+        if (error) {
+          console.error("Error fetching deck name (Action):", error);
+          setDeckName("Error Loading Name"); // More specific error state
+        } else {
+          console.log("[StudyDeckPage useEffect] Received deck name data:", data);
+          setDeckName(data || "Unknown Deck");
+        }
+      });
+    } else if (deckId) {
+       console.warn("StudyDeckPage useEffect: Invalid deckId detected:", deckId);
+       setDeckName("Invalid Deck ID");
+    } else {
+      console.error("StudyDeckPage: deckId is missing!");
+      setDeckName("Unknown Deck"); // Or Invalid Deck ID?
+    }
+  }, [deckId]); // Re-run only if deckId changes
+
+  // Log the criteria being passed to the hook
+  console.log("[StudyDeckPage] Rendering with criteria:", studyCriteria);
+
+  // --- Instantiate the Refactored Study Session Hook --- 
   const {
-    deck,
+    studyCards,
     currentStudyCard,
     isFlipped,
     isLoading,
     error,
     isTransitioning,
-    totalCards,
-    masteredCount,
+    isSessionInitialized,
+    isSessionComplete,
     currentCardIndex,
-    studyCardsCount,
-    overallProgressPercent,
-    masteryProgressPercent,
-    totalAchievedCorrectAnswers,
-    totalRequiredCorrectAnswers,
-    difficultCardsCount,
-    isDifficultMode,
-    cardProgressText,
+    studyQueueCount,
+    startSession,
     flipCard,
-    answerCardCorrect,
-    answerCardIncorrect,
-    practiceDifficultCards,
-    resetDeckProgress,
-    isFullDeckMastered,
-    isDifficultSessionComplete,
-  } = useStudySession({ deckId, settings });
+    answerCard,
+  } = useStudySession({ criteria: studyCriteria });
 
-  // --- Effect for Auth Redirect --- 
-  // Moved to top level to comply with Rules of Hooks
+  // Update useEffect to calculate initial SRS levels
   useEffect(() => {
-    // Only redirect if loading is complete, deck is missing, AND the error is auth-related
-    if (!isLoading && !deck && error && error.toLowerCase().includes("user not authenticated")) {
+    if (studyCards) {
+      const levels = studyCards.reduce((acc, card) => {
+        if (!card.srs_level || card.srs_level === 0) {
+          acc.new++;
+        } else if (card.srs_level < 4) {
+          acc.learning++;
+        } else {
+          acc.review++;
+        }
+        return acc;
+      }, { new: 0, learning: 0, review: 0 });
+      setSrsLevels(levels);
+    }
+  }, [studyCards]);
+
+  // --- Effect for Auth Redirect (If session hook throws auth error) --- 
+  useEffect(() => {
+    if (!isLoading && !isSessionInitialized && error && error.toLowerCase().includes("user not authenticated")) {
       const callbackUrl = encodeURIComponent(`/study/${deckId}`);
       console.log("Auth error detected, redirecting to login...");
       router.push(`/login?callbackUrl=${callbackUrl}`);
     }
-  }, [isLoading, deck, error, router, deckId]); // Dependencies for the effect
+  }, [isLoading, isSessionInitialized, error, router, deckId]); // Dependencies for the effect
 
-  // --- Derived State from Hook Data (MUST be before conditional returns) ---
-  const currentFullCardData = useMemo(() => {
-    // Ensure dependencies are valid before trying to find the card
-    if (!deck || !currentStudyCard) return undefined;
-    return deck.cards.find(card => card.id === currentStudyCard.id);
-  }, [deck, currentStudyCard]);
+  // Update onAnswer to use the hook's answerCard directly
+  const onAnswer = async (grade: ReviewGrade) => {
+    if (!currentStudyCard) return;
 
-  // --- Render Logic ---
+    // Track SRS level changes before answering
+    const oldLevel = currentStudyCard.srs_level ?? 0;
+    
+    // Call the hook's answerCard function
+    answerCard(grade);
 
-  // Loading State
-  if (isLoading) {
+    // Update SRS levels based on the grade
+    setSrsLevels(prev => {
+      const newLevels = { ...prev };
+      
+      // Remove from previous category
+      if (!currentStudyCard.srs_level || currentStudyCard.srs_level === 0) {
+        newLevels.new--;
+      } else if (currentStudyCard.srs_level < 4) {
+        newLevels.learning--;
+      } else {
+        newLevels.review--;
+      }
+
+      // Add to new category based on grade
+      if (grade === 1) { // Again
+        newLevels.learning++;
+      } else if (grade === 2) { // Hard
+        newLevels.learning++;
+      } else if (grade >= 3) { // Good or Easy
+        newLevels.review++;
+      }
+
+      return newLevels;
+    });
+
+    // Update progression stats
+    setSrsProgression(prev => {
+      const updated = { ...prev };
+      
+      // Calculate new level based on grade
+      let newLevel: number;
+      if (grade === 1) { // Again
+        newLevel = Math.max(0, oldLevel - 1);
+      } else if (grade === 2) { // Hard
+        newLevel = oldLevel;
+      } else if (grade === 3) { // Good
+        newLevel = oldLevel + 1;
+      } else { // Easy
+        newLevel = oldLevel + 2;
+      }
+      
+      if (oldLevel === 0) { // Was New
+        if (newLevel > 0) updated.newToLearning++;
+      } else if (oldLevel < 4) { // Was Learning
+        if (newLevel >= 4) updated.learningToReview++;
+        else if (newLevel > 0) updated.stayedInLearning++;
+      } else { // Was Review
+        if (newLevel < 4) updated.droppedToLearning++;
+      }
+      
+      return updated;
+    });
+  };
+
+  // --- Render Logic --- 
+
+  // Loading State (Waiting for initial card resolution and fetch)
+  if (!studyCriteria || isLoading || !isSessionInitialized && !error) {
      return (
       <div className="flex justify-center items-center h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-        <span className="ml-4 text-muted-foreground">Loading Deck...</span>
+        <span className="ml-4 text-muted-foreground">Loading Study Session...</span>
       </div>
     )
   }
 
   // --- Post-Loading Checks --- 
-  // Order: Error -> Not Found -> Empty -> **Completed** -> Active Card Error -> Active Card Render
 
-  // Error State (Handles errors from the hook)
-  if (error && !deck) {
-    // Check if the specific error is the auth error to display redirect message
+  // Error State (Handles errors from the hook during initialization)
+  if (error) {
+    // Specific check for auth error (already handled by useEffect, but keep UI consistent)
     if (error.toLowerCase().includes("user not authenticated")) {
-      // Render minimal loading/redirecting message while the useEffect triggers navigation
       return (
         <div className="flex justify-center items-center h-screen">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -118,10 +245,10 @@ export default function StudyDeckPage() {
         </div>
       );
     } else {
-      // Handle other errors as before
+      // Handle other initialization errors
       return (
         <div className="container mx-auto px-4 py-8 text-center">
-          <h2 className="text-xl font-semibold text-destructive mb-4">Error Loading Deck</h2>
+          <h2 className="text-xl font-semibold text-destructive mb-4">Error Starting Session</h2>
           <p className="text-muted-foreground mb-6">{error}</p>
           <Button onClick={() => router.push("/")}><ArrowLeft className="mr-2 h-4 w-4"/> Return to Home</Button>
         </div>
@@ -129,117 +256,126 @@ export default function StudyDeckPage() {
     }
   }
 
-  // Deck Not Found State (Hook handles retries, sets error)
-  // This state might be covered by the error state above if the hook sets error correctly.
-  // If not, a specific check for !deck && !isLoading && !error might be needed.
-  if (!deck && !isLoading) { // Check isLoading to avoid flashing this while loading
-      return (
-      <div className="container mx-auto px-4 py-8 text-center">
-        <h2 className="text-xl font-semibold mb-4">Deck Not Found</h2>
-        <p className="text-muted-foreground mb-6">
-          The requested deck could not be found or loaded.
-        </p>
-        <Button onClick={() => router.push("/")}><ArrowLeft className="mr-2 h-4 w-4"/> Return to Home</Button>
-      </div>
-    )
-  }
-
-  // Empty Deck State
-  if (totalCards === 0 && deck) { // Add deck check to ensure it's loaded
+  // Session Initialized but Empty State (No cards matched the criteria)
+  if (isSessionInitialized && studyQueueCount === 0) {
       return (
       <main className="container mx-auto px-4 py-8">
-        <DeckHeader deckName={deck.name} onReset={resetDeckProgress} showReset={false} />
+        {/* Use placeholder/fetched name */}
+        <DeckHeader 
+          deckName={deckName || "Study Session"} 
+          showReset={false}
+          onReset={() => {}} // Empty function since showReset is false
+        /> 
         <Card className="max-w-md mx-auto mt-8">
           <CardContent className="flex flex-col items-center justify-center p-6 py-10 text-center">
-            <p className="text-muted-foreground mb-4">This deck has no cards.</p>
-            <Link href={`/edit/${deckId}`} passHref>
-              <Button>Add Cards</Button>
+            <p className="text-muted-foreground mb-4">No cards found for this study session.</p>
+            {/* Link back home or to deck edit page? */} 
+            <Link href={`/`} passHref>
+              <Button variant="outline">Go Home</Button>
             </Link>
+             {deckId && <Link href={`/edit/${deckId}`} passHref className="ml-2">
+              <Button>Edit Deck</Button>
+            </Link>}
           </CardContent>
         </Card>
       </main>
     )
   }
 
-  // --- Simplified Completion Checks ---
-
-  // Scenario 1: Deck is fully mastered on load (and not in difficult mode)
-  if (!isLoading && isFullDeckMastered && !isDifficultMode && deck) {
-    console.log("Rendering completion screen: Full deck mastered.");
+  // --- Session Complete State --- 
+  if (isSessionComplete) {
+    console.log("Rendering completion screen: Study queue finished.");
+    
+    // Ensure deckId is valid before rendering completion screen
+    if (!deckId || typeof deckId !== 'string' || deckId.includes('Unknown')) {
+      console.error("Cannot render completion screen: Invalid deckId", deckId);
+      // Optionally redirect or show a generic error
       return (
-       <StudyCompletionScreen
-         deckName={deck.name}
-         totalCards={totalCards}
-            masteredCount={masteredCount}
-         totalAchievedCorrectAnswers={totalAchievedCorrectAnswers}
-         totalRequiredCorrectAnswers={totalRequiredCorrectAnswers}
-         overallProgressPercent={overallProgressPercent}
-         masteryProgressPercent={masteryProgressPercent}
-         onResetProgress={resetDeckProgress}
-         onPracticeDifficult={practiceDifficultCards}
-         difficultCardsCount={difficultCardsCount}
-         isDifficultModeCompletion={false}
-      />
-    )
-  }
-
-  // Scenario 2: Just completed a difficult card session
-  if (!isLoading && isDifficultSessionComplete && deck) {
-    console.log("Rendering completion screen: Difficult session complete.");
+        <div className="container mx-auto px-4 py-8 text-center">
+          <p className="text-destructive">Error: Invalid session state. Cannot determine deck.</p>
+          <Button onClick={() => router.push("/")}><ArrowLeft className="mr-2 h-4 w-4"/> Return to Home</Button>
+        </div>
+      );
+    }
+    
+    // Define handler to restart session with original criteria
+    const handleStudyAgain = () => {
+      console.log("--- [StudyDeckPage] handleStudyAgain CLICKED --- Criteria:", studyCriteria);
+      if (studyCriteria) { // Ensure criteria exist before restarting
+        startSession(studyCriteria); 
+      } else {
+        console.error("--- [StudyDeckPage] handleStudyAgain - studyCriteria is undefined! Cannot restart. ---");
+      }
+    };
+    
     return (
-       <StudyCompletionScreen
-         deckName={deck.name}
-         totalCards={totalCards}
-            masteredCount={masteredCount}
-         totalAchievedCorrectAnswers={totalAchievedCorrectAnswers}
-         totalRequiredCorrectAnswers={totalRequiredCorrectAnswers}
-         overallProgressPercent={overallProgressPercent}
-         masteryProgressPercent={masteryProgressPercent}
-         onResetProgress={resetDeckProgress}
-         onPracticeDifficult={practiceDifficultCards}
-         difficultCardsCount={difficultCardsCount}
-         isDifficultModeCompletion={true}
+      <StudyCompletionScreen
+        // Deck Info
+        deckId={deckId}
+        deckName={deckName || "Study Session"} 
+        totalCards={studyQueueCount} 
+        cardsReviewedCount={studyQueueCount}
+
+        // Progress Info (simplified for SRS-based system)
+        masteredCount={srsLevels.review}
+        totalAchievedCorrectAnswers={studyQueueCount} // All cards were answered
+        totalRequiredCorrectAnswers={studyQueueCount}
+        overallProgressPercent={100} // Session is complete
+        masteryProgressPercent={(srsLevels.review / studyQueueCount) * 100}
+
+        // Action Handlers (simplified for now)
+        onResetProgress={() => router.push('/')}
+        onPracticeDifficult={() => router.push('/')}
+        onStudyAgain={handleStudyAgain}
+
+        // Context
+        difficultCardsCount={srsLevels.learning} // Cards still in learning state
+        isDifficultModeCompletion={false}
+        
+        // SRS Progression
+        srsProgression={srsProgression}
       />
     )
   }
 
-  // --- Final Active Session Guard ---
-  // If we reach here, isLoading is false, session is not complete.
-  // We expect deck and currentFullCardData to be defined for the active view.
-  // This guard handles unexpected states and satisfies TypeScript.
-  if (!deck || !currentFullCardData) {
-      console.error("StudyDeckPage: Reached final render block with null deck or card data. This shouldn't happen.");
+  // --- Active Session Guard --- 
+  // If we reach here, session is active and currentStudyCard should exist.
+  if (!currentStudyCard) {
+      console.error("StudyDeckPage: Reached active render block but currentStudyCard is missing. This shouldn't happen.");
        return (
        <div className="container mx-auto px-4 py-8 text-center">
           <p className="text-destructive">Error: Cannot display current card data.</p>
+          <Button onClick={() => router.push("/")}><ArrowLeft className="mr-2 h-4 w-4"/> Return to Home</Button>
        </div>
       );
   }
 
-  // Now TypeScript knows deck and currentFullCardData are non-null
+  // --- Active Study Session Render --- 
   return (
     <main className="container mx-auto px-4 py-8">
-      <DeckHeader deckName={deck.name} onReset={resetDeckProgress} showReset={true} />
-      <StudyProgress
-        totalCorrect={totalAchievedCorrectAnswers}
-        totalRequired={totalRequiredCorrectAnswers}
-        overallPercent={overallProgressPercent}
-        masteredCount={masteredCount}
-        totalCards={totalCards}
-        masteryPercent={masteryProgressPercent}
+      <DeckHeader 
+        deckName={deckName || `Studying...`} 
+        showReset={false}
+        onReset={() => {}} // Empty function since showReset is false
       />
+      
+      <StudyProgress
+        currentCardInQueue={currentCardIndex + 1}
+        totalCardsInQueue={studyQueueCount}
+        srsLevels={srsLevels}
+      />
+
       <StudyFlashcardView
-        card={currentFullCardData}
+        card={currentStudyCard}
         isFlipped={isFlipped}
         isTransitioning={isTransitioning}
-        onFlip={flipCard} // Use action from hook
-        // Pass the specific answer actions from hook
-        onAnswer={(isCorrect) => isCorrect ? answerCardCorrect() : answerCardIncorrect()}
+        onFlip={flipCard}
+        onAnswer={(grade) => onAnswer(grade as ReviewGrade)}
         settings={settings}
-        cardProgressText={cardProgressText}
+        cardProgressText={`SRS Level: ${currentStudyCard?.srs_level ?? 0}`}
         currentCardIndex={currentCardIndex}
-        totalStudyCards={studyCardsCount} // Use count from hook
-        isDifficultMode={isDifficultMode}
+        totalStudyCards={studyQueueCount}
+        isDifficultMode={false}
       />
     </main>
   )

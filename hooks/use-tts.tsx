@@ -104,7 +104,7 @@ export function useTTS() {
         },
         body: JSON.stringify({
           text,
-          language: mappedLanguage,
+          languageCode: mappedLanguage,
         }),
       })
 
@@ -114,8 +114,26 @@ export function useTTS() {
         throw new Error(`Failed to generate speech. Status: ${response.status}`);
       }
 
-      const audioBlob = await response.blob()
-      audioUrl = URL.createObjectURL(audioBlob)
+      // --- Corrected Blob Handling ---
+      const data = await response.json(); // 1. Parse the JSON response
+      if (!data.audioContent) {
+        logTTSError('TTS API response missing audioContent.');
+        throw new Error('TTS API response missing audioContent.');
+      }
+
+      // 2. Decode Base64 to binary string
+      const binaryString = window.atob(data.audioContent);
+      // 3. Convert binary string to byte array
+      const len = binaryString.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+      }
+      // 4. Create Blob with correct MIME type
+      const audioBlob = new Blob([bytes], { type: 'audio/mpeg' });
+      // --- End Corrected Blob Handling ---
+
+      audioUrl = URL.createObjectURL(audioBlob) // 5. Create Object URL
       audio = new Audio(audioUrl)
 
       return new Promise((resolve) => {

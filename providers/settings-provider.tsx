@@ -30,6 +30,7 @@ export interface Settings {
   masteryThreshold: number;
   ttsEnabled: boolean;
   removeMasteredCards?: boolean;
+  srs_algorithm: 'sm2' | 'fsrs';
   languageDialects: {
     en: string;
     nl: string;
@@ -53,6 +54,7 @@ export const DEFAULT_SETTINGS: Settings = {
   masteryThreshold: 3,
   ttsEnabled: true,
   removeMasteredCards: false,
+  srs_algorithm: 'sm2',
   languageDialects: {
     en: "en-GB",
     nl: "nl-NL",

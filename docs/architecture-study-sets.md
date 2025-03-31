@@ -367,22 +367,22 @@ graph TD
 #### 3. API Routes (`/app/api/*`) & Server Actions (`*.actions.ts`)
 1.  **API: `/app/api/tts/route.ts`**: Handles TTS generation via Google Cloud.
 2.  **API: `/app/auth/callback/route.ts`**: Handles Supabase email confirmation.
-3.  **Actions (`tagActions.ts`)**: CRUD for tags and card-tag links.
-4.  **Actions (`studySetActions.ts`)**: CRUD for study sets.
-5.  **Actions (`studyQueryActions.ts`)**: `resolveStudyQuery` - critical action, likely calls DB function.
-6.  **Actions (`cardActions.ts`)**: `getCardsByIds`, potentially other card CRUD ops.
-7.  **Actions (`progressActions.ts`)**: `updateCardProgress` - saves SRS state for one card.
-8.  **Actions (`settingsActions.ts`)**: Get/Update user settings.
-9.  **Actions (`deckActions.ts`)**: CRUD for decks (if refactored).
+3.  **Actions (`tagActions.ts`)**: CRUD for tags and card-tag links. (**Status: Placeholder**)
+4.  **Actions (`studySetActions.ts`)**: CRUD for study sets. (**Status: Placeholder**)
+5.  **Actions (`studyQueryActions.ts`)**: `resolveStudyQuery` - critical action, likely calls DB function. (**Status: Partially Implemented - Structure OK, RPC pending**)
+6.  **Actions (`cardActions.ts`)**: `getCardsByIds`, `getCardById`. (**Status: Implemented**)
+7.  **Actions (`progressActions.ts`)**: `updateCardProgress` - saves SRS state for one card. (**Status: Implemented**)
+8.  **Actions (`settingsActions.ts`)**: Get/Update user settings. (**Status: Implemented**)
+9.  **Actions (`deckActions.ts`)**: CRUD for decks (if refactored). *(Note: Card creation/update might move fully to `cardActions`)*
 
 #### 4. Service Layer (`/lib/*Service.ts`) & Utilities (`/lib/*`)
 *   Service layer potentially reduced in scope; actions may call Supabase directly or via DB functions.
-*   **(New)** `lib/srs.ts` (or in `study-utils.ts`): Contains `calculateNextSrsState`, `calculateSm2State`, etc. **Pure functions with SRS logic.**
+*   **(New)** `lib/srs.ts` (or in `study-utils.ts`): Contains `calculateNextSrsState`, `calculateSm2State`, etc. **Pure functions with SRS logic.** (**Status: Implemented**) Depends on `date-fns`.
 *   `lib/utils.ts`: General utility functions (debouncing, formatting, etc.).
 
 #### 5. Database Models (`/supabase/migrations/*`)
-*   Migrations define the schema described in section 4, Data Models.
-*   **(New)** Consider DB function definition for `resolve_study_query(user_id, criteria_jsonb)`.
+*   Migrations define the schema described in section 4, Data Models. (**Note:** Migration `YYYYMMDDHHMMSS_add_srs_study_sets.sql` created).
+*   **(New)** Consider DB function definition for `resolve_study_query(user_id, criteria_jsonb)`. (**Status: Definition Pending**)
 
 ### State Management and Data Flow (Updated Diagrams)
 
@@ -749,27 +749,32 @@ erDiagram
 ## 8. Development and Deployment Workflow
 - Git workflow (feature branches, PRs, code reviews).
 - Local development using Next.js dev server and Supabase local dev environment.
+- **(New)** Run Supabase migrations (`supabase migration up`) to apply schema changes locally and before deployment.
 - Linting (ESLint), Formatting (Prettier), Type Checking (TypeScript).
 - **(New)** Database migrations managed via Supabase CLI (`supabase/migrations`).
 - Automated testing (Unit tests for SRS utils, integration tests for actions/hooks).
 - Deployment via Vercel (connected to Git repository). Environment variables managed in Vercel.
 
 ## 9. Known Issues and Future Roadmap
-- **(New)** Need to backfill SRS default values for existing cards upon deployment.
+- **(New)** Need to backfill SRS default values and `user_id` for existing cards upon deployment (see migration script comments).
 - **(New)** Initial FSRS implementation will use default parameters; user-specific tuning is a future enhancement.
-- Performance of `resolveStudyQuery` needs monitoring, especially with large datasets.
+- **(Update)** **Implementation of `resolve_study_query` database function (RPC) is required** for performant and reliable query resolution. Performance of direct Supabase queries for complex criteria will likely be inadequate.
+- **(Add)** TTS language determination in `useStudyTTS` needs refactoring as `useStudySession` no longer loads the full Deck object directly. Potential solutions: add language fields to `FlashCard` type/fetch, use defaults, or pass contextually.
+- **(Update)** Study Page UI (`app/study/[deckId]/page.tsx`) has been initially refactored to use the new `useStudySession` hook and deckId-based criteria. **Further work needed:** Fetching deck name separately for header, adapting progress display, implementing 4-grade answer input in `StudyFlashcardView`.
+- **(Add)** UI components for selecting study criteria/sets (`StudySetBuilder`, `StudySetSelector`, `TagManager`, `CardTagEditor`) need implementation.
+- **(Add)** Implementation of placeholder functions in `tagActions.ts` and `studySetActions.ts` is pending.
 - TTS costs for Google Cloud need monitoring.
 - Limited offline support (current architecture relies heavily on server connection).
 - **Future Roadmap:**
     - **(New)** Implement FSRS algorithm alongside SM-2.
     - **(New)** Implement FSRS parameter optimization based on user review history.
     - **(New)** Allow sharing of Decks and/or Study Sets.
-    - **(New)** Add more advanced query operators/UI for Study Sets.
-    - **(New)** Implement system-generated Study Sets (e.g., "Hardest Cards", "Most Recent Lapses").
-    - Enhanced analytics and visualizations.
-    - Card import/export improvements.
-    - Rich text editing for cards.
-    - Mobile app development (potentially PWA or native).
+    *   **(New)** Add more advanced query operators/UI for Study Sets.
+    *   **(New)** Implement system-generated Study Sets (e.g., "Hardest Cards", "Most Recent Lapses").
+    *   Enhanced analytics and visualizations.
+    *   Card import/export improvements.
+    *   Rich text editing for cards.
+    *   Mobile app development (potentially PWA or native).
 
 ## 10. References and Resources
 - Next.js Documentation
@@ -783,3 +788,85 @@ erDiagram
 ## 11. Changelog
 - **v2.0 (2024-07-26):** Integrated architecture for Tagging, Query-Based Study Sets, and Spaced Repetition System (SRS) with initial SM-2 support. Updated data models, hooks, server actions, and documentation throughout.
 - **v1.0 (Previous Date):** Initial project documentation covering basic deck/card management, authentication, and TTS. (Details from original file would go here).
+
+## 12. Implementation Plan & Status (v2.0 Refactor)
+
+### Phase 1: Data Model & Core Backend Setup (Completed)
+*   [x] Generate SQL migration for new/updated tables (`settings`, `tags`, `card_tags`, `study_sets`, updated `cards` with SRS fields). (`YYYYMMDDHHMMSS_add_srs_study_sets.sql`)
+*   [x] Define corresponding TypeScript types (`types/database.ts`, `types/deck.ts`).
+*   [x] Implement core SM-2 logic (`lib/srs.ts` - `calculateSm2State`).
+*   [x] Implement `settingsActions.ts` (`getUserSettings`, `updateUserSettings`).
+*   [x] Implement `progressActions.ts` (`updateCardProgress`).
+*   [x] Implement `cardActions.ts` (`getCardsByIds`, `getCardById`).
+*   [x] Implement `studyQueryActions.ts` structure (`resolveStudyQuery` - **RPC function pending**).
+*   [x] Create placeholders for `tagActions.ts` and `studySetActions.ts`.
+
+### Phase 2: Study Session Hook Refactoring (Completed)
+*   [x] Refactor `useStudySession` hook:
+    *   [x] Change input to `criteria`.
+    *   [x] Remove `useDeckLoader` dependency.
+    *   [x] Integrate `resolveStudyQuery`, `getCardsByIds`.
+    *   [x] Integrate `calculateNextSrsState`.
+    *   [x] Integrate debounced `updateCardProgress`.
+    *   [x] Update internal state management.
+    *   [ ] **TODO:** Address TTS language determination (`useStudyTTS`).
+
+### Phase 3: UI Adaptation & New Features (Current Focus)
+*   [✓] **Update Study Page UI:**
+    *   Refactor `app/study/[deckId]/page.tsx` (or create new route like `app/study/session/page.tsx`) to:
+        *   [✓] Use the refactored `useStudySession` hook.
+        *   [✓] Handle session initialization based on criteria derived from `deckId`.
+        *   [✓] Adapt UI elements (header, completion screen) to work with new hook state.
+        *   [✓] Implement basic UI for session completion/empty states.
+        *   [✓] Map existing 2-button answer input to grades (1 and 3).
+        *   [✓] Fetch deck name separately for `DeckHeader`.
+        *   [✓] Re-implement or adapt `StudyProgress` component based on session queue data.
+        *   [✓] Modify `StudyFlashcardView` to accept 4 grades (Again, Hard, Good, Easy).
+        *   [✓] Add tooltips to explain SRS levels and grading system.
+        *   [✓] Add keyboard shortcuts for grading (1-4).
+        *   [✓] Add study session summary showing SRS progression.
+*   [ ] **Implement Study Initiation UI:**
+    *   Create `StudySetSelector` component (UI to choose Deck, Tag, Study Set, or dynamic query).
+    *   Create pages/modals to host `StudySetSelector`.
+    *   Integrate `StudySetSelector` to call `useStudySession.startSession` with selected criteria.
+*   [ ] **Implement Tag Management UI:**
+    *   Create `TagManager` component (CRUD UI for tags).
+    *   Create `CardTagEditor` component (assign/remove tags from cards in edit view).
+    *   Integrate components into relevant pages (e.g., settings, card edit).
+*   [ ] **Implement Study Set Management UI:**
+    *   Create `StudySetBuilder` component (UI form to define `query_criteria`).
+    *   Integrate `StudySetBuilder` into pages for creating/editing study sets.
+
+### Phase 4: Backend Implementation (Current)
+
+#### Completed:
+- ✅ Implemented `resolve_study_query` PostgreSQL function with:
+  - User-specific card filtering
+  - Tag-based filtering
+  - Study set integration
+  - SRS state categorization (new, learning, review)
+  - Priority-based ordering
+  - Configurable limits and inclusion flags
+- ✅ Refined `studyQueryActions.ts` with:
+  - Zod schema validation for query criteria
+  - Type-safe RPC function calls
+  - Proper error handling and logging
+  - Priority information in response
+
+#### Remaining Backend Tasks:
+1. Test the `resolve_study_query` function with various criteria combinations
+2. Add indexes if needed for query performance
+3. Consider adding more sophisticated ordering options within priority groups
+4. Add study set criteria evaluation in the query (currently a TODO in the function)
+
+### Known Issues and Future Roadmap
+
+#### Current Issues:
+1. Study set criteria evaluation is not yet implemented in `resolve_study_query`
+2. Need to verify performance with large card sets
+3. Consider adding card difficulty tracking for more sophisticated ordering
+
+#### Planned Enhancements:
+1. Add more sophisticated ordering options within priority groups
+2. Implement study statistics tracking
+3. Add support for custom study algorithms beyond basic SRS

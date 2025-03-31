@@ -2,16 +2,18 @@
 "use client";
 
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
+import { ArrowLeft, Trophy } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { StudyProgress } from '@/components/study-progress'; // Assuming this path is correct
 import { DeckHeader } from '@/components/deck-header'; // Assuming this path is correct
 
 interface StudyCompletionScreenProps {
   // Deck Info
+  deckId: string;
   deckName: string;
   totalCards: number;
+  cardsReviewedCount: number;
 
   // Progress Info
   masteredCount: number;
@@ -23,15 +25,25 @@ interface StudyCompletionScreenProps {
   // Action Handlers
   onResetProgress: () => void; // Practice all
   onPracticeDifficult: () => void;
+  onStudyAgain: () => void; // <-- Add handler for Study Again
 
   // Context
   difficultCardsCount: number;
   isDifficultModeCompletion: boolean; // True if completing a "difficult cards only" session
+
+  srsProgression: {
+    newToLearning: number;
+    learningToReview: number;
+    stayedInLearning: number;
+    droppedToLearning: number;
+  };
 }
 
 export function StudyCompletionScreen({
+  deckId,
   deckName,
   totalCards,
+  cardsReviewedCount,
   masteredCount,
   totalAchievedCorrectAnswers,
   totalRequiredCorrectAnswers,
@@ -39,8 +51,10 @@ export function StudyCompletionScreen({
   masteryProgressPercent,
   onResetProgress,
   onPracticeDifficult,
+  onStudyAgain, // <-- Destructure handler
   difficultCardsCount,
   isDifficultModeCompletion,
+  srsProgression,
 }: StudyCompletionScreenProps) {
 
   const hasRemainingDifficult = difficultCardsCount > 0;
@@ -57,49 +71,74 @@ export function StudyCompletionScreen({
   }
 
   return (
-    <main className="container mx-auto px-4 py-8">
-      <DeckHeader deckName={deckName} onReset={onResetProgress} showReset={true} />
-      <StudyProgress
-        totalCorrect={totalAchievedCorrectAnswers}
-        totalRequired={totalRequiredCorrectAnswers}
-        overallPercent={overallProgressPercent}
-        masteredCount={masteredCount}
-        totalCards={totalCards}
-        masteryPercent={masteryProgressPercent}
-      />
-      <Card className="max-w-md mx-auto mt-8">
-        <CardContent className="flex flex-col items-center justify-center p-6 py-10 text-center">
-          <h2 className="text-xl font-semibold mb-2">{title}</h2>
-          <p className="text-muted-foreground mb-6">{message}</p>
-          <div className="flex flex-col gap-3 w-full max-w-sm">
-            {/* Always show "Practice All" button after any completion */}
-            <Button
-              variant="outline"
-              onClick={onResetProgress} // Renamed handler for clarity
-              className="w-full"
-            >
-              Practice All Cards Again
-            </Button>
+    <div className="container mx-auto px-4 py-8">
+      <Card className="max-w-2xl mx-auto">
+        <CardHeader className="text-center">
+          <div className="mx-auto mb-4 h-12 w-12 text-primary">
+            <Trophy className="h-12 w-12" />
+          </div>
+          <CardTitle className="text-2xl">Session Complete!</CardTitle>
+          <CardDescription>
+            You've completed your study session for {deckName}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Session Statistics */}
+          <div className="rounded-lg bg-muted p-6">
+            <h3 className="text-lg font-semibold mb-4">Session Summary</h3>
+            <div className="grid gap-4 text-sm">
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Cards Reviewed:</span>
+                <span className="font-medium">{cardsReviewedCount}</span>
+              </div>
+              
+              {/* SRS Progression */}
+              <div className="border-t pt-4 mt-2">
+                <h4 className="font-medium mb-3">SRS Level Changes:</h4>
+                <div className="space-y-2">
+                  {srsProgression.newToLearning > 0 && (
+                    <div className="flex justify-between items-center text-blue-500">
+                      <span>New → Learning:</span>
+                      <span>+{srsProgression.newToLearning}</span>
+                    </div>
+                  )}
+                  {srsProgression.learningToReview > 0 && (
+                    <div className="flex justify-between items-center text-green-500">
+                      <span>Learning → Review:</span>
+                      <span>+{srsProgression.learningToReview}</span>
+                    </div>
+                  )}
+                  {srsProgression.stayedInLearning > 0 && (
+                    <div className="flex justify-between items-center text-amber-500">
+                      <span>Stayed in Learning:</span>
+                      <span>{srsProgression.stayedInLearning}</span>
+                    </div>
+                  )}
+                  {srsProgression.droppedToLearning > 0 && (
+                    <div className="flex justify-between items-center text-red-500">
+                      <span>Dropped to Learning:</span>
+                      <span>{srsProgression.droppedToLearning}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
 
-            {/* Show "Practice Difficult" if there are difficult cards */}
-            {hasRemainingDifficult && (
-              <Button
-                variant="outline"
-                onClick={onPracticeDifficult} // Renamed handler
-                className="w-full border-amber-500 text-amber-700 hover:bg-amber-500/10 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300"
-              >
-                Practice {difficultCardsCount} Difficult {difficultCardsCount === 1 ? 'Card' : 'Cards'} 🍪
-              </Button>
-            )}
-
-            <Link href="/" passHref className="w-full">
-              <Button className="w-full">
-                <ArrowLeft className="mr-2 h-4 w-4" /> Back to Decks
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row gap-3 justify-center pt-4">
+            <Link href="/" passHref>
+              <Button variant="outline" className="w-full sm:w-auto">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Return Home
               </Button>
             </Link>
+            <Button className="w-full sm:w-auto" onClick={onStudyAgain}>
+              Study Again
+            </Button>
           </div>
         </CardContent>
       </Card>
-    </main>
+    </div>
   );
 }

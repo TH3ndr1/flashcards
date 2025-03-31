@@ -6,6 +6,7 @@ import type { Deck } from "@/types/deck";
 // --- Constants ---
 // Default value, but actual threshold comes from settings
 export const DEFAULT_MASTERY_THRESHOLD = 3;
+export const STUDY_SAVE_DEBOUNCE_MS = 2000; // Debounce delay for saving study progress
 export const TTS_DELAY_MS = 100;
 export const DECK_LOAD_RETRY_DELAY_MS = 500;
 export const MAX_DECK_LOAD_RETRIES = 5;
