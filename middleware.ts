@@ -8,14 +8,17 @@ import { NextResponse, type NextRequest } from 'next/server'
  * 1. Refreshing the user's session cookie if it has expired.
  * 2. Making the session available to server-side rendering contexts.
  * 3. Handling authentication state consistently across client and server.
+ * 4. Setting auth token in custom header for dynamic routes
  * 
  * @param {NextRequest} request The incoming request.
  * @returns {Promise<NextResponse>} The response, potentially with updated cookies.
  */
 export async function middleware(request: NextRequest) {
+  // Create a new headers object from the request headers
+  const requestHeaders = new Headers(request.headers)
   let response = NextResponse.next({
     request: {
-      headers: request.headers,
+      headers: requestHeaders,
     },
   })
 
@@ -28,6 +31,31 @@ export async function middleware(request: NextRequest) {
     // Potentially redirect to an error page or return early
     // For now, we'll proceed but auth might not work correctly
     return response 
+  }
+  
+  // Get auth token cookie name
+  const tokenName = `sb-${supabaseUrl.split('//')[1].split('.')[0]}-auth-token`
+  const authToken = request.cookies.get(tokenName)?.value
+  
+  // Pass the auth token via headers to server components
+  if (authToken) {
+    try {
+      // The auth token cookie is in a specific format that needs careful handling
+      // Log the first few characters to help diagnose issues (without exposing secrets)
+      const previewLength = Math.min(authToken.length, 20);
+      console.log(`[middleware] Auth token found (first ${previewLength} chars): ${authToken.substring(0, previewLength)}...`);
+      
+      // Add the raw token to the request headers - server will handle proper extraction
+      requestHeaders.set('x-supabase-auth-token', authToken)
+      response = NextResponse.next({
+        request: {
+          headers: requestHeaders,
+        },
+      })
+      console.log('[middleware] Auth token added to request headers for dynamic routes')
+    } catch (error) {
+      console.error('[middleware] Error handling auth token:', error)
+    }
   }
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
@@ -45,7 +73,7 @@ export async function middleware(request: NextRequest) {
         // Also update the response to set the cookie in the browser.
         response = NextResponse.next({
           request: {
-            headers: request.headers,
+            headers: requestHeaders,
           },
         })
         response.cookies.set({
@@ -64,7 +92,7 @@ export async function middleware(request: NextRequest) {
         // Also update the response to remove the cookie in the browser.
         response = NextResponse.next({
           request: {
-            headers: request.headers,
+            headers: requestHeaders,
           },
         })
         response.cookies.set({
@@ -80,7 +108,7 @@ export async function middleware(request: NextRequest) {
   // Adjust the matcher in `config` below as needed.
   try {
     // Refresh session if expired - this will automatically handle cookie updates.
-    await supabase.auth.getUser() 
+    await supabase.auth.getSession()
   } catch (error) {
     console.error('Error refreshing session in middleware:', error);
     // Handle error appropriately, maybe redirect or log

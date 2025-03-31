@@ -1,47 +1,63 @@
 'use server';
 
-import { createActionClient } from "@/lib/supabase/server";
+import { createActionClient, createDynamicRouteClient } from "@/lib/supabase/server";
 
 /**
  * Get the name of a deck by its ID
+ * 
+ * @param deckId The deck UUID to fetch
+ * @param isDynamicRoute Optional flag to indicate if this is called from a dynamic route
  */
-export async function getDeckName(deckId: string): Promise<{ data: string | null, error: Error | null }> {
+export async function getDeckName(
+    deckId: string,
+    isDynamicRoute = false
+): Promise<{ data: string | null, error: Error | null }> {
     console.log("[getDeckName] Action started for deckId:", deckId);
-    const supabase = createActionClient();
     
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-        console.error('[getDeckName] Auth error or no user:', authError);
-        return { data: null, error: new Error('Not authenticated') };
-    }
-    
-    console.log("[getDeckName] User authenticated:", user.id);
-
     try {
-        console.log(`[getDeckName] Querying decks table for id: ${deckId} and user_id: ${user.id}`);
-        const { data, error } = await supabase
-            .from('decks')
-            .select('name')
-            .eq('id', deckId)
-            .eq('user_id', user.id)
-            .single();
-            
-        // Log result immediately
-        console.log("[getDeckName] Supabase query result:", { data, error });
+        // Use the appropriate client based on the context
+        const supabase = isDynamicRoute 
+            ? await createDynamicRouteClient() 
+            : createActionClient();
+        
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-        if (error) {
-           console.error("[getDeckName] Supabase query failed:", error);
-           // Throw the original Supabase error if possible
-           throw error;
+        if (authError || !user) {
+            console.error('[getDeckName] Auth error or no user:', authError);
+            return { data: null, error: new Error('Not authenticated') };
         }
         
-        console.log("[getDeckName] Successfully fetched name:", data?.name);
-        return { data: data?.name ?? null, error: null };
-        
+        console.log("[getDeckName] User authenticated:", user.id);
+
+        try {
+            console.log(`[getDeckName] Querying decks table for id: ${deckId} and user_id: ${user.id}`);
+            const { data, error } = await supabase
+                .from('decks')
+                .select('name')
+                .eq('id', deckId)
+                .eq('user_id', user.id)
+                .single();
+            
+            // Log result immediately
+            console.log("[getDeckName] Supabase query result:", { data, error });
+
+            if (error) {
+               console.error("[getDeckName] Supabase query failed:", error);
+               // Throw the original Supabase error if possible
+               throw error;
+            }
+            
+            console.log("[getDeckName] Successfully fetched name:", data?.name);
+            return { data: data?.name ?? null, error: null };
+            
+        } catch (error) {
+            // Log the caught error more specifically before returning generic one
+            console.error('[getDeckName] Caught error during query execution:', error);
+            return { data: null, error: error instanceof Error ? error : new Error('Unknown error fetching deck name') };
+        }
     } catch (error) {
         // Log the caught error more specifically before returning generic one
-        console.error('[getDeckName] Caught error during query execution:', error);
+        console.error('[getDeckName] Caught error during client selection:', error);
         return { data: null, error: error instanceof Error ? error : new Error('Unknown error fetching deck name') };
     }
 } 

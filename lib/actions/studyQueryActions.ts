@@ -1,35 +1,60 @@
 "use server";
 
-import { createActionClient } from "@/lib/supabase/server";
+import { createActionClient, createDynamicRouteClient } from "@/lib/supabase/server";
 // import { cookies } from "next/headers";
 import type { DbStudySet } from "@/types/database";
 import { studyQueryCriteriaSchema, type StudyQueryCriteria } from "@/types/study";
 import { z } from "zod";
 // Import getStudySet if it's implemented in studySetActions and preferred
 // import { getStudySet } from "./studySetActions"; 
+import { headers } from "next/headers";
+
+/**
+ * Detects if we're being called from a dynamic route by checking the referer header
+ * This helps optimize client creation based on the calling context
+ */
+async function isCalledFromDynamicRoute(searchPattern = '/study/[') {
+  try {
+    // In Next.js, this can be determined in various ways
+    // Here we use a simple string search pattern since all dynamic study routes
+    // will contain '/study/' followed by a parameter
+    const headerStore = headers();
+    const referer = headerStore.get('referer') || '';
+    return referer.includes('/study/') && referer.match(/\/study\/[a-zA-Z0-9-]+/);
+  } catch (e) {
+    // Default to false in case of errors
+    return false;
+  }
+}
 
 /**
  * Resolves a study query based on provided criteria or a saved study set ID.
  * Uses the resolve_study_query RPC function to determine which cards to study.
  * 
  * @param criteria The query criteria object
+ * @param isDynamicRoute Optional flag to indicate if this is called from a dynamic route
  * @returns Promise with array of card IDs and their priorities
  */
 export async function resolveStudyQuery(
-    criteria: StudyQueryCriteria
+    criteria: StudyQueryCriteria,
+    isDynamicRoute = false
 ): Promise<{ data: { cardIds: string[], priorities: number[] } | null, error: Error | null }> {
-    // const cookieStore = cookies();
-    const supabase = createActionClient();
+    console.log(`[resolveStudyQuery] Using isDynamicRoute=${isDynamicRoute}`);
     
-    // Fetch user directly using the action client
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-        console.error("resolveStudyQuery: Auth error or no user", authError);
-        return { data: null, error: authError || new Error("User not authenticated") };
-    }
-
     try {
+        // Use the appropriate client based on the context
+        const supabase = isDynamicRoute 
+            ? await createDynamicRouteClient() 
+            : createActionClient();
+        
+        // Fetch user directly using the client
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+        if (authError || !user) {
+            console.error("resolveStudyQuery: Auth error or no user", authError);
+            return { data: null, error: authError || new Error("User not authenticated") };
+        }
+
         // If deckId is undefined or empty string, remove it from criteria
         const cleanedCriteria = {
             ...criteria,

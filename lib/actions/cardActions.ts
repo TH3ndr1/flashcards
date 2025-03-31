@@ -1,9 +1,24 @@
 "use server";
 
-import { createActionClient } from "@/lib/supabase/server";
+import { createActionClient, createDynamicRouteClient } from "@/lib/supabase/server";
 // import { cookies } from "next/headers";
 import type { DbCard } from "@/types/database";
 import type { FlashCard } from "@/types/deck"; // Assuming FlashCard is the frontend type
+import { headers } from "next/headers";
+import { mapDbCardToFlashCard } from "@/lib/cardMappers";
+
+/**
+ * Detects if we're being called from a dynamic route by checking the referer header
+ */
+async function isCalledFromDynamicRoute(searchPattern = '/study/[') {
+  try {
+    const headerStore = headers();
+    const referer = headerStore.get('referer') || '';
+    return referer.includes('/study/') && referer.match(/\/study\/[a-zA-Z0-9-]+/);
+  } catch (e) {
+    return false;
+  }
+}
 
 /**
  * Maps a card object from the database (snake_case) to the frontend FlashCard type (camelCase).
@@ -48,94 +63,137 @@ function mapDbCardToFlashCard(
 }
 
 /**
- * Fetches multiple cards by their IDs for the authenticated user.
+ * Get details for multiple cards by their IDs
  * 
- * @param cardIds An array of card UUIDs to fetch.
- * @returns Promise<{ data: FlashCard[] | null, error: Error | null }>
+ * @param cardIds Array of card UUIDs to fetch
+ * @param isDynamicRoute Optional flag to indicate if this is called from a dynamic route
+ * @returns Promise with array of cards or error
  */
-export async function getCardsByIds(cardIds: string[]): Promise<{ data: FlashCard[] | null, error: Error | null }> {
-    console.log(`[getCardsByIds] Action started for ${cardIds.length} card IDs:`, cardIds);
-    if (!cardIds || cardIds.length === 0) {
+export async function getCardsByIds(
+    cardIds: string[],
+    isDynamicRoute = false
+): Promise<{ data: FlashCard[] | null, error: Error | null }> {
+    console.log(`[getCardsByIds] Action started for ${cardIds.length} cards, isDynamicRoute=${isDynamicRoute}`);
+    
+    if (!cardIds.length) {
         return { data: [], error: null };
     }
     
-    const supabase = createActionClient();
-    
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-        console.error("[getCardsByIds] Auth error or no user", authError);
-        return { data: null, error: authError || new Error("User not authenticated") };
-    }
-    console.log("[getCardsByIds] User authenticated:", user.id);
-
     try {
-        console.log(`[getCardsByIds] Fetching ${cardIds.length} cards for user: ${user.id}`);
-        // Step 1: Fetch only card data
-        const { data: dbCards, error: fetchCardsError } = await supabase
-            .from('cards')
-            .select(`*`) // Select only card columns
-            .in('id', cardIds)
-            .returns<DbCard[]>(); // Add type hint for return
+        // Use the appropriate client based on the context
+        const supabase = isDynamicRoute 
+            ? await createDynamicRouteClient() 
+            : createActionClient();
+        
+        // Fetch user directly using the client
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-        console.log("[getCardsByIds] Supabase card fetch result:", { dbCards, fetchCardsError });
-
-        if (fetchCardsError) {
-            console.error("[getCardsByIds] Supabase card fetch error:", fetchCardsError);
-            throw fetchCardsError;
+        if (authError || !user) {
+            console.error('[getCardsByIds] Auth error or no user:', authError);
+            return { data: null, error: authError || new Error('Not authenticated') };
         }
+        
+        console.log(`[getCardsByIds] User authenticated: ${user.id}, fetching ${cardIds.length} cards`);
 
-        if (!dbCards || dbCards.length === 0) {
-             console.warn("[getCardsByIds] No cards found for the given IDs.");
+        // Ensure all UUIDs are valid to prevent DB errors
+        const validCardIds = cardIds.filter(id => {
+            const isValid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+            if (!isValid) {
+                console.warn(`[getCardsByIds] Invalid UUID format: ${id}`);
+            }
+            return isValid;
+        });
+
+        if (validCardIds.length === 0) {
+            console.warn('[getCardsByIds] No valid card IDs provided');
             return { data: [], error: null };
         }
 
-        // Step 2: Fetch deck languages separately
-        const uniqueDeckIds = [...new Set(dbCards.map(card => card.deck_id))];
-        console.log("[getCardsByIds] Fetching languages for unique deck IDs:", uniqueDeckIds);
-        
-        const { data: deckLanguagesData, error: fetchDecksError } = await supabase
-            .from('decks')
-            .select('id, question_language, answer_language') // Use correct column names
-            .in('id', uniqueDeckIds);
-            
-        console.log("[getCardsByIds] Supabase deck languages fetch result:", { deckLanguagesData, fetchDecksError });
+        // Query all valid card IDs at once, filtering by user access through decks they own
+        const { data: dbCards, error: dbError } = await supabase
+            .from('cards')
+            .select(`
+                id,
+                question,
+                answer,
+                deck_id,
+                created_at,
+                updated_at,
+                last_reviewed_at,
+                difficulty_score,
+                srs_level,
+                correct_count,
+                incorrect_count,
+                attempt_count,
+                decks!inner (
+                    id,
+                    name,
+                    question_language,
+                    answer_language,
+                    is_bilingual,
+                    user_id
+                )
+            `)
+            .in('id', validCardIds)
+            .eq('decks.user_id', user.id);
 
-        if (fetchDecksError) {
-            console.error("[getCardsByIds] Supabase deck languages fetch error:", fetchDecksError);
-            // Decide if this is critical - maybe proceed without deck languages?
-            // For now, let's treat it as an error that prevents mapping.
-            throw fetchDecksError; 
+        if (dbError) {
+            console.error('[getCardsByIds] Database error:', dbError);
+            return { data: null, error: dbError };
         }
 
-        // Create a map for easy lookup: deckId -> { questionLang, answerLang }
-        const deckLanguagesMap = new Map<string, { questionLang: string | null, answerLang: string | null }>();
-        deckLanguagesData?.forEach(deck => {
-            deckLanguagesMap.set(deck.id, { 
-                questionLang: deck.question_language,
-                answerLang: deck.answer_language 
+        if (!dbCards || !dbCards.length) {
+            console.log('[getCardsByIds] No cards found or user does not have access');
+            return { data: [], error: null };
+        }
+
+        // Map DB cards to FlashCard format
+        const flashCards = dbCards.map(dbCard => {
+            // Each dbCard has a 'decks' property with deck info due to the join
+            const deckInfo = dbCard.decks;
+            
+            // Create a proper Map with deck language info
+            const deckLanguagesMap = new Map();
+            deckLanguagesMap.set(dbCard.deck_id, { 
+                questionLang: deckInfo.question_language,
+                answerLang: deckInfo.answer_language
             });
+            
+            // Create FlashCard with deck info
+            return mapDbCardToFlashCard(dbCard as DbCard, deckLanguagesMap);
         });
-        console.log("[getCardsByIds] Created deck languages map:", deckLanguagesMap);
 
-        // Step 3: Map cards using the fetched languages
-        const flashCards = dbCards.map(card => mapDbCardToFlashCard(card, deckLanguagesMap));
-        console.log(`[getCardsByIds] Successfully fetched and mapped ${flashCards.length} cards.`);
-        
+        console.log(`[getCardsByIds] Successfully fetched and mapped ${flashCards.length} cards`);
         return { data: flashCards, error: null };
-
+        
     } catch (error) {
-        console.error("[getCardsByIds] Caught error:", error);
-        return { data: null, error: error instanceof Error ? error : new Error("Failed to fetch card details") };
+        console.error('[getCardsByIds] Caught error:', error);
+        return { 
+            data: null, 
+            error: error instanceof Error 
+                ? error 
+                : new Error('Unknown error fetching cards') 
+        };
     }
 }
 
-// TODO: Implement function to get a single card by ID (if needed elsewhere)
-// This can be refactored to use the same mapping logic
-export async function getCardById(cardId: string): Promise<{ data: FlashCard | null, error: Error | null }> {
-     const supabase = createActionClient();
+/**
+ * Fetches a single card by its ID
+ * 
+ * @param cardId The card UUID to fetch
+ * @param isDynamicRoute Optional flag to indicate if this is called from a dynamic route
+ * @returns Promise<{ data: FlashCard | null, error: Error | null }>
+ */
+export async function getCardById(
+    cardId: string,
+    isDynamicRoute = false
+): Promise<{ data: FlashCard | null, error: Error | null }> {
+    // Use the appropriate client based on the context
+    const supabase = isDynamicRoute 
+        ? createDynamicRouteClient() 
+        : createActionClient();
      
-     const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
         console.error("getCardById: Auth error or no user", authError);

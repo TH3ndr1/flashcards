@@ -89,26 +89,20 @@ export default function StudyDeckPage() {
   
   // --- Effect to Set Deck Name --- 
   useEffect(() => {
-    // Revert to using the server action
-    if (deckId && typeof deckId === 'string' && !deckId.includes('Unknown')) {
-      console.log(`[StudyDeckPage useEffect] Calling getDeckName for deckId: ${deckId}`);
-      getDeckName(deckId).then(({ data, error }) => {
+    if (deckId) {
+      getDeckName(deckId, true).then(({ data, error }) => {
         if (error) {
           console.error("Error fetching deck name (Action):", error);
-          setDeckName("Error Loading Name"); // More specific error state
+          setDeckName("Unknown Deck");
         } else {
-          console.log("[StudyDeckPage useEffect] Received deck name data:", data);
           setDeckName(data || "Unknown Deck");
         }
       });
-    } else if (deckId) {
-       console.warn("StudyDeckPage useEffect: Invalid deckId detected:", deckId);
-       setDeckName("Invalid Deck ID");
     } else {
       console.error("StudyDeckPage: deckId is missing!");
-      setDeckName("Unknown Deck"); // Or Invalid Deck ID?
+      setDeckName("Unknown Deck");
     }
-  }, [deckId]); // Re-run only if deckId changes
+  }, [deckId]);
 
   // Log the criteria being passed to the hook
   console.log("[StudyDeckPage] Rendering with criteria:", studyCriteria);

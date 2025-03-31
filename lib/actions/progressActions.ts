@@ -1,6 +1,6 @@
 "use server";
 
-import { createActionClient } from "@/lib/supabase/server";
+import { createActionClient, createDynamicRouteClient } from "@/lib/supabase/server";
 // import { cookies } from "next/headers";
 import type { DbCard } from "@/types/database";
 
@@ -55,38 +55,46 @@ function convertPayloadToSnakeCase(payload: Record<string, any>): Record<string,
  * @param cardId The UUID of the card to update.
  * @param progressUpdate The SRS and stat updates calculated after a review. 
  *                       Expected keys are camelCase (e.g., nextReviewDue, srsLevel).
+ * @param isDynamicRoute Optional flag to indicate if this is called from a dynamic route
  * @returns Promise<{ error: Error | null }>
  */
-export async function updateCardProgress(cardId: string, progressUpdate: CardProgressUpdate): Promise<{ error: Error | null }> {
+export async function updateCardProgress(
+    cardId: string, 
+    progressUpdate: CardProgressUpdate,
+    isDynamicRoute = false
+): Promise<{ error: Error | null }> {
     console.log(`[updateCardProgress] Action started for cardId: ${cardId}`, { progressUpdate });
-    // const cookieStore = cookies();
-    const supabase = createActionClient();
     
-    // Fetch user directly using the action client
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-        console.error("[updateCardProgress] Auth error or no user", authError);
-        return { error: authError || new Error("User not authenticated") };
-    }
-    console.log("[updateCardProgress] User authenticated:", user.id);
-
-    if (!cardId) {
-        console.error("[updateCardProgress] Card ID is required.");
-        return { error: new Error("Card ID is required to update progress.") };
-    }
-    
-    // Ensure we have last_reviewed_at
-    const updatedProgress = {
-        ...progressUpdate,
-        last_reviewed_at: progressUpdate.last_reviewed_at || new Date()
-    };
-    
-    // Convert payload keys to snake_case for DB and handle Date conversion
-    const dbUpdatePayload = convertPayloadToSnakeCase(updatedProgress);
-    console.log("[updateCardProgress] DB update payload prepared:", dbUpdatePayload);
-
     try {
+        // Use the appropriate client based on the context
+        const supabase = isDynamicRoute 
+            ? await createDynamicRouteClient() 
+            : createActionClient();
+        
+        // Fetch user directly using the client
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+        if (authError || !user) {
+            console.error("[updateCardProgress] Auth error or no user", authError);
+            return { error: authError || new Error("User not authenticated") };
+        }
+        console.log("[updateCardProgress] User authenticated:", user.id);
+
+        if (!cardId) {
+            console.error("[updateCardProgress] Card ID is required.");
+            return { error: new Error("Card ID is required to update progress.") };
+        }
+        
+        // Ensure we have last_reviewed_at
+        const updatedProgress = {
+            ...progressUpdate,
+            last_reviewed_at: progressUpdate.last_reviewed_at || new Date()
+        };
+        
+        // Convert payload keys to snake_case for DB and handle Date conversion
+        const dbUpdatePayload = convertPayloadToSnakeCase(updatedProgress);
+        console.log("[updateCardProgress] DB update payload prepared:", dbUpdatePayload);
+
         // First verify the card belongs to a deck owned by the user
         console.log(`[updateCardProgress] Verifying ownership for card: ${cardId}`);
         const { data: card, error: cardError } = await supabase
