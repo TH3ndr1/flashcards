@@ -37,6 +37,8 @@ export function useStudyTTS({
 }: UseStudyTTSProps): void { // This hook performs side effects, doesn't return state
   const { speak, setLanguage } = useTTS();
   const speakTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Add a ref to hold the timeout ID
+  const initialRenderRef = useRef(true); // Track first render to prevent double TTS
+  const prevCardIdRef = useRef<string | null>(null); // Track previous card ID
 
   useEffect(() => {
     // --- Clear previous timeout --- 
@@ -52,9 +54,21 @@ export function useStudyTTS({
       return;
     }
 
+    // Check if this is the first time seeing this card
+    const isNewCard = prevCardIdRef.current !== currentStudyCard.id;
+    // Update the previous card ID ref
+    prevCardIdRef.current = currentStudyCard.id;
+
     // --- Add Entry Log ---
-    console.log(`[useStudyTTS useEffect Run] isEnabled=${isEnabled}, isLoading=${isLoading}, isTransitioning=${isTransitioning}, cardId=${currentStudyCard?.id}, isFlipped=${isFlipped}`);
+    console.log(`[useStudyTTS useEffect Run] isEnabled=${isEnabled}, isLoading=${isLoading}, isTransitioning=${isTransitioning}, cardId=${currentStudyCard?.id}, isFlipped=${isFlipped}, initialRender=${initialRenderRef.current}, isNewCard=${isNewCard}`);
     // --- End Entry Log ---
+
+    // Skip the first render to prevent double voice command for the first question
+    if (initialRenderRef.current && !isFlipped && isNewCard) {
+      console.log('[useStudyTTS] Skipping initial render to prevent duplicate speech');
+      initialRenderRef.current = false;
+      return;
+    }
 
     // Determine the text and language code based on the card's flipped state
     const textToSpeak = isFlipped ? currentStudyCard.answer : currentStudyCard.question;

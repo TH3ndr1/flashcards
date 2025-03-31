@@ -640,6 +640,60 @@ export function calculateSm2State(
 *   `date-fns` library (for reliable date calculations like `addDays`, `startOfDay`). You'll need to install it (`npm install date-fns` or `yarn add date-fns`).
 
 
+## 4.3 SRS-Driven Study Session Flow (Initial Implementation)
+
+This section describes the primary workflow for initiating a study session that leverages the Spaced Repetition System (SRS) data, specifically focusing on studying cards that are due for review. This contrasts with the previous method of simply loading all cards from a selected deck.
+
+**Goal:** To provide the user with the most relevant cards needing review across their entire collection (or within a specified scope like a deck) based on their SRS status (`next_review_due`), ensuring maximum learning efficiency.
+
+**Typical Flow ("Study Due Cards"):**
+
+1.  **User Initiation:**
+    *   The user typically clicks a dedicated button like "Study Due Cards" or selects an option that implies studying due items (e.g., selecting a deck might eventually offer "Study Due Cards from this Deck").
+    *   The system might apply a default limit (e.g., study the 20 most overdue cards).
+
+2.  **Query Definition (Frontend):**
+    *   The UI interaction triggers the `useStudySession` hook (specifically, its `startSession` or similar initiation function).
+    *   The hook translates the user's intent into a `queryCriteria` object. For the "Study Due Cards" case, this would be simple:
+        ```typescript
+        const criteria = { isDue: true, limit: 20 }; // Example
+        ```
+
+3.  **Backend: Resolve Card IDs (`studyQueryActions.resolveStudyQuery`):**
+    *   `useStudySession` calls the `resolveStudyQuery` Server Action, passing the `criteria` object.
+    *   This action (or the Database Function/RPC it calls, e.g., `resolve_study_query`) executes a database query against the `cards` table. The core logic is:
+        *   Filter by the current `user_id`.
+        *   Filter where `next_review_due <= now()` (or the start of the current day, depending on desired precision). This selects only due cards.
+        *   **Order by `next_review_due ASC`**: This is crucial to prioritize studying the *most overdue* cards first.
+        *   Apply the specified `limit` (e.g., 20).
+    *   **Result:** The action returns an array containing only the `id`s of the cards that meet these criteria, ordered by urgency (e.g., `["cardId_most_overdue", "cardId_next_most_overdue", ...]`). The database index on `(user_id, next_review_due)` is essential for performance here.
+
+4.  **Backend: Fetch Card Data (`cardActions.getCardsByIds`):**
+    *   `useStudySession` receives the ordered array of `cardIds`.
+    *   It then calls the `getCardsByIds` Server Action, passing this array.
+    *   This action fetches the *full details* (content, current SRS state like `srsLevel`, `easinessFactor`, etc.) for *only these specific card IDs* from the `cards` table.
+
+5.  **Session Initialization (Frontend):**
+    *   `useStudySession` receives the array of fully populated `FlashCard` objects (with their SRS data) in the order determined by the query.
+    *   It initializes its internal study queue (`studyCards` state) with this specific, prioritized list of cards.
+    *   The hook updates its state to indicate loading is complete and the session is ready (`isLoading = false`, `currentCardIndex = 0`).
+
+6.  **Study Loop Begins:**
+    *   The UI (`StudyPage` / `StudyFlashcardView`) renders the first card from the `studyCards` queue (the most overdue one).
+    *   The user reviews the card, answers (Again/Hard/Good/Easy), and the `useStudySession` hook proceeds as described previously:
+        *   Calls `calculateSm2State` (or other selected algorithm).
+        *   Schedules the debounced `updateCardProgress` action to save the new SRS state for *that specific card*.
+        *   Advances to the next card in the queue.
+
+**Benefits of this Flow:**
+
+*   **Efficiency:** Users only study cards that the SRS algorithm deems necessary for review, avoiding wasted time on well-remembered items.
+*   **Effectiveness:** Prioritizes cards most at risk of being forgotten, maximizing retention.
+*   **Scalability:** Handles large numbers of cards across many decks, as only the relevant subset is loaded for a session.
+*   **Foundation:** This query mechanism provides the basis for later adding more complex filters like tags or study set criteria.
+
+**(End of inserted section)**
+
 ## 5. Component Breakdown
 *(Existing components + New)*
 - `StudySetBuilder`: Form for creating/editing study sets.

@@ -6946,6 +6946,476 @@ Read file: README.md
 
 ---
 
+Read file: docs/project-documentation.md
+
+---
+
+Read file: docs/project-documentation.md
+
+---
+
+Read file: docs/best-practices.md
+
+---
+
+```diff
+       - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Your Supabase anonymous key
+  
+-      > **Note:** The application uses the `@supabase/ssr` package for seamless integration between server and client components. This requires the environment variables above and relies on the `middleware.ts` file for session management.
++      > **Note:** The application uses the `@supabase/ssr` package for authentication across server and client components. This implementation properly handles authentication in both regular and dynamic routes with fully async cookie handling. The middleware in `middleware.ts` manages session refresh while `lib/supabase/server.ts` provides optimized Supabase clients for different contexts.
+  
+     - **Google Cloud Configuration**:
+```
+
+---
+
+```diff
+  *(Keep existing points)*
+  
+- ### 4.4 Authentication Flow *(Updated based on diagram)*
++ ### 4.4 Authentication Flow
+  
+- The application utilizes Supabase Auth integrated with Next.js using the `@supabase/ssr` package. This ensures seamless authentication handling across Server Components, Client Components, API/Route Handlers, and Server Actions.
++ The application utilizes Supabase Auth integrated with Next.js using the `@supabase/ssr` package. This ensures seamless authentication handling across all contexts, including Server Components, Client Components, API/Route Handlers, Server Actions, and importantly, dynamic routes like `/study/[deckId]`.
+  
+  Key aspects include:
+  
+- - **Middleware (`middleware.ts`):** Handles session cookie management and refresh for incoming requests using the Supabase *server* client, making the user session available server-side contexts via cookies/headers.
+- - **Client Client (`hooks/use-supabase.tsx`):** Provides a memoized Supabase *browser* client instance (`createBrowserClient`) initialized after mount in client components. Ensures consistency with the server-managed session via cookie reading.
+- - **Auth Provider (`hooks/use-auth.tsx`):** A context provider (`AuthProvider`) and hook (`useAuth`) that leverages `useSupabase` for the browser client. Manages authentication state (`user`, `session`, `loading`) primarily through `onAuthStateChange`. Provides functions (`signIn`, `signUp`, `signOut`, `resetPassword`) that call Supabase browser client methods.
+- - **Server Client (`lib/supabase/server.ts`):** Provides a utility to create Supabase *server* clients within server contexts (Route Handlers, Server Components, Server Actions) that interact correctly with cookies managed by the middleware. Used for auth checks in API routes and potentially data fetching/mutations in Server Actions/Components.
+- - **Email Confirmation (`app/auth/callback/route.ts`):** A server-side Route Handler processes the email confirmation link. Uses the server client to securely exchange the confirmation code for a session and redirects the user.
+- - **Login/Signup Pages:** Client components (`app/login/page.tsx`, `app/signup/page.tsx`) use the `useAuth` hook (and thus the browser client) for sign-in/sign-up operations.
++ - **Middleware (`middleware.ts`):** Handles session cookie management and refresh for incoming requests using the Supabase server client from `@supabase/ssr`. The middleware intercepts requests, refreshes expired sessions, and ensures that authentication state is consistently available across the application.
++ 
++ - **Server Clients (`lib/supabase/server.ts`):** Provides utility functions to create Supabase server clients with proper async cookie handling:
++   - `createServerClient()`: For Server Components, with full async cookie handling for both regular and dynamic routes
++   - `createActionClient()`: For Server Actions, with the same robust cookie handling
++   - `createDynamicRouteClient()`: For backward compatibility, now using the standard pattern
++   - `createAnonymousClient()`: For unauthenticated requests
++ 
++   Each client implementation properly awaits the `cookies()` function to avoid warnings in dynamic routes and ensures secure authentication handling.
++ 
++ - **Client Client (`useSupabase` hook):** A hook that provides the browser client instance using `createBrowserClient` from `@supabase/ssr`. The browser client automatically reads and manages cookies set by the server.
++ 
++ - **Auth Provider (`AuthProvider`):** A context provider that leverages the browser client to manage auth state and provide auth-related functions to the application.
++ 
++ This implementation allows seamless authentication across all parts of the application, including dynamic routes which have special cookie handling requirements in Next.js. By properly handling async cookie access and using the standard `@supabase/ssr` package, the application maintains a secure and consistent authentication state without custom workarounds.
+  
+  ## 11. Changelog
+```
+
+---
+
+```diff
+  }
+  ```
+- 
+- 
+  
+  ## 18. Supabase Best Practices
+  # Best Practice in Next.js: Separating Presentation, Business Logic, and Data Layer
+  
+- Separating concerns into **presentation**, **business logic**, and **data layers** is widely considered a **best practice** in Next.js and modern frontend development. The extent to which this separation is applied depends on your app’s **complexity**, **team size**, and **long-term goals**.
++ Separating concerns into **presentation**, **business logic**, and **data layers** is widely considered a **best practice** in Next.js and modern frontend development. The extent to which this separation is applied depends on your app's **complexity**, **team size**, and **long-term goals**.
+  
+  ---
+  
+  Let me know if you want a code-based example or a GitHub folder template!
++ 
++ ## 25. Authentication in Dynamic Routes (Next.js App Router)
++ 
++ When handling authentication in Next.js applications, especially with dynamic routes like `/study/[deckId]`, follow these best practices:
++ 
++ ### Using `@supabase/ssr` Package
++ 
++ The official `@supabase/ssr` package is recommended over `auth-helpers-nextjs` due to better handling of cookie formats, especially the Supabase `base64-` prefixed cookies.
++ 
++ ```typescript
++ // lib/supabase/server.ts
++ import { createServerClient } from '@supabase/ssr'
++ import { cookies } from 'next/headers'
++ 
++ export function createServerClient() {
++   // Implementation details...
++ }
++ ```
++ 
++ ### Proper Async Cookie Handling
++ 
++ Always make cookie handling fully asynchronous in dynamic routes to avoid Next.js warnings. Await the `cookies()` function itself:
++ 
++ ```typescript
++ // Correct pattern - fully async
++ async get(name: string) {
++   try {
++     const cookieStore = await cookies()
++     return cookieStore.get(name)?.value
++   } catch (error) {
++     console.error(`Error accessing cookie: ${error}`)
++     return undefined
++   }
++ }
++ ```
++ 
++ ### Middleware Configuration
++ 
++ Configure middleware to handle session refresh while excluding static assets and API routes that don't need authentication:
++ 
++ ```typescript
++ // middleware.ts
++ export const config = {
++   matcher: [
++     '/((?!_next/static|_next/image|favicon.ico|public).*)',
++   ],
++ }
++ ```
++ 
++ ### Client Functions for Different Contexts
++ 
++ Create distinct client functions for different contexts to maintain clear separation of concerns:
++ 
++ ```typescript
++ // lib/supabase/server.ts
++ export function createServerClient() { /* For Server Components */ }
++ export function createActionClient() { /* For Server Actions */ }
++ export function createBrowserClient() { /* For Client Components */ }
++ ```
++ 
++ By following these best practices, you'll ensure consistent and secure authentication handling across all parts of your Next.js application, including dynamic routes.
+```
+
+---
+
+```bash
+cd /Users/tom/dev/flashcards && git add README.md docs/project-documentation.md docs/best-practices.md
+```
+
+```
+tom@MacBook-Pro-van-Tom flashcards % 
+
+```
+
+---
+
+```bash
+cd /Users/tom/dev/flashcards && git commit -m "Update documentation with improved @supabase/ssr authentication implementation"
+```
+
+```
+<ched to @supabase/ssr authentication implementation"
+[refactor-auth-to-standard 2e11f45] Switched to @supabase/ssr authentication implementation
+ 12 files changed, 2313 insertions(+), 342 deletions(-)
+tom@MacBook-Pro-van-Tom flashcards %
+```
+
+---
+
+```bash
+cd /Users/tom/dev/flashcards && git push --set-upstream origin refactor-auth-to-standard
+```
+
+```
+tom@MacBook-Pro-van-Tom flashcards % cd /Users/tom/dev/flashcards && git push --set-upstream origin refactor
+-auth-to-standard                    cd /Users/tom/dev/flashcards && git push --set-upstream origin refactor
+-auth-to-standard
+Enumerating objects: 47, done.
+Counting objects: 100% (47/47), done.
+Delta compression using up to 8 threads
+Compressing objects: 100% (22/22), done.
+Writing objects: 100% (24/24), 16.45 KiB | 4.11 MiB/s, done.
+Total 24 (delta 18), reused 0 (delta 0), pack-reused 0
+remote: Resolving deltas: 100% (18/18), completed with 18 local objects.
+remote: 
+remote: Create a pull request for 'refactor-auth-to-standard' on GitHub by visiting:
+remote:      https://github.com/TH3ndr1/flashcards/pull/new/refactor-auth-to-standard
+remote: 
+To https://github.com/TH3ndr1/flashcards.git
+ * [new branch]      refactor-auth-to-standard -> refactor-auth-to-standard
+branch 'refactor-auth-to-standard' set up to track 'origin/refactor-auth-to-standard'.
+tom@MacBook-Pro-van-Tom flashcards %
+```
+
+---
+
+I've successfully updated all the relevant documentation to reflect our improved authentication implementation:
+
+1. **README.md**: Updated the note about Supabase authentication to highlight our proper handling of dynamic routes with async cookie access.
+
+2. **project-documentation.md**: Completely rewrote the Authentication Flow section (4.4) to describe:
+   - Our use of the standard `@supabase/ssr` package
+   - The different client functions for various contexts
+   - The proper async cookie handling pattern
+   - How this implementation works seamlessly across all contexts, including dynamic routes
+
+3. **best-practices.md**: Added a new section (25) specifically about Authentication in Dynamic Routes with:
+   - Recommendation to use `@supabase/ssr` over `auth-helpers-nextjs`
+   - Code examples for proper async cookie handling
+   - Tips for middleware configuration
+   - Guidelines for creating specialized client functions
+
+All changes have been committed and pushed to the new branch `refactor-auth-to-standard`, which is now available on GitHub. You can create a pull request for this branch using the link provided in the output.
+
+The documentation now provides clear guidance on the standard approach we've implemented for authentication that works in all contexts, including dynamic routes.
+
+---
+
+_**User**_
+
+can you still fix the double voice command that only happens with the first question after starting the study session?
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+Let me fix the double voice command issue. First, I need to examine the relevant hooks that handle TTS in study sessions.
+
+---
+
+<details>
+            <summary>Searched codebase "useStudyTTS implementation" • **25** results</summary>
+        
+| File | Lines |
+|------|-------|
+| `hooks/useStudyTTS.ts` | L70-127 |
+| `lib/study-utils.ts` | L9-10 |
+| `hooks/useStudyTTS.ts` | L1-23 |
+| `hooks/useStudyTTS.ts` | L23-70 |
+| `.specstory/history/2025-03-29_15-50-refactoring-plan-and-documentation-guidelines.md` | L10586-10632 |
+| `components/study-flashcard-view.tsx` | L41-90 |
+| `components/study-flashcard-view.tsx` | L205-229 |
+| `.specstory/history/2025-03-30_13-03-flashcards-app-refactoring-database-and-types.md` | L3006-3069 |
+| `hooks/use-study-session.ts` | L189-233 |
+| `.specstory/history/2025-03-29_15-50-refactoring-plan-and-documentation-guidelines.md` | L10466-10586 |
+| `.specstory/history/2025-03-29_15-50-refactoring-plan-and-documentation-guidelines.md` | L10264-10314 |
+| `.specstory/history/2025-03-29_10-01-refactoring-code-base-component-review.md` | L3305-3406 |
+| `.specstory/history/2025-03-29_15-50-refactoring-plan-and-documentation-guidelines.md` | L10156-10264 |
+| `components/study-flashcard-view.tsx` | L157-188 |
+| `.specstory/history/2025-03-29_10-01-refactoring-code-base-component-review.md` | L1245-1343 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L8454-8507 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L8190-8245 |
+| `.specstory/history/2025-03-31_11-50-app-architecture-redesign-and-bug-review.md` | L9164-9198 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L9196-9313 |
+| `.specstory/history/2025-03-29_10-01-refactoring-code-base-component-review.md` | L4384-4447 |
+| `.specstory/history/2025-03-31_11-50-app-architecture-redesign-and-bug-review.md` | L7097-7150 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L8827-8958 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L2865-2925 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L2557-2624 |
+| `.specstory/history/2025-03-29_15-50-refactoring-plan-and-documentation-guidelines.md` | L3942-3999 |
+
+</details>
+
+---
+
+Now, let me examine the `useTTS` hook to understand how it's triggering the speech:
+
+---
+
+<details>
+            <summary>Searched codebase "useTTS hook implementation" • **25** results</summary>
+        
+| File | Lines |
+|------|-------|
+| `hooks/use-tts.tsx` | L60-81 |
+| `hooks/use-tts.ts` | L14-21 |
+| `hooks/use-tts.ts` | L27-71 |
+| `.specstory/history/2025-03-29_06-35-codebase-refactoring-and-best-practices.md` | L6998-7050 |
+| `hooks/use-tts.ts` | L71-119 |
+| `hooks/use-tts.ts` | L1-12 |
+| `hooks/use-tts.tsx` | L81-133 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L181-378 |
+| `hooks/use-tts.tsx` | L133-178 |
+| `hooks/use-tts.tsx` | L1-55 |
+| `hooks/use-tts.tsx` | L178-189 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L1173-1252 |
+| `hooks/useStudyTTS.ts` | L70-127 |
+| `.specstory/history/2025-03-31_09-22-app-architecture-redesign-and-bug-review.md` | L11737-11777 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L10419-10525 |
+| `hooks/useStudyTTS.ts` | L1-23 |
+| `hooks/useStudyTTS.ts` | L23-70 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L2072-2166 |
+| `hooks/use-tts.ts` | L12-14 |
+| `hooks/use-tts.tsx` | L55-60 |
+| `hooks/use-tts.ts` | L21-27 |
+| `.specstory/history/2025-03-25_17-06-integrating-google-cloud-tts-into-app.md` | L10525-10585 |
+| `.specstory/history/2025-03-31_09-22-app-architecture-redesign-and-bug-review.md` | L11688-11737 |
+| `.specstory/history/2025-03-31_09-22-app-architecture-redesign-and-bug-review.md` | L11777-11823 |
+| `.specstory/history/2025-03-26_16-31-fixing-settingsservice-test-ts-script-errors.md` | L2756-2814 |
+
+</details>
+
+---
+
+Now, let me check the study session page component to understand the full context of how the session is initialized and the voice command is triggered:
+
+---
+
+<details>
+            <summary>Searched codebase "study session page component" • **25** results</summary>
+        
+| File | Lines |
+|------|-------|
+| `app/study/[deckId]/page.tsx` | L277-303 |
+| `app/study/[deckId]/page.tsx` | L303-345 |
+| `app/study/[deckId]/page.tsx` | L26-70 |
+| `app/study/[deckId]/page.tsx` | L345-376 |
+| `app/study/[deckId]/page.tsx` | L186-227 |
+| `app/study/[deckId]/page.tsx` | L227-277 |
+| `app/study/[deckId]/page.tsx` | L1-26 |
+| `hooks/use-study-session.ts` | L1-34 |
+| `hooks/use-study-session.ts` | L312-349 |
+| `hooks/use-study-session.ts` | L189-233 |
+| `hooks/use-study-session.ts` | L76-115 |
+| `hooks/use-study-session.ts` | L34-44 |
+| `hooks/use-study-session.ts` | L44-76 |
+| `components/study-completion-screen.tsx` | L71-95 |
+| `.specstory/history/2025-03-30_13-03-flashcards-app-refactoring-database-and-types.md` | L3843-3878 |
+| `hooks/use-study-session.ts` | L144-189 |
+| `.specstory/history/2025-03-29_15-50-refactoring-plan-and-documentation-guidelines.md` | L3652-3713 |
+| `.specstory/history/2025-03-30_07-11-session-expiration-redirect-improvement.md` | L3954-3990 |
+| `lib/study-utils.ts` | L253-305 |
+| `.specstory/history/2025-03-30_13-03-flashcards-app-refactoring-database-and-types.md` | L2768-2816 |
+| `.specstory/history/2025-03-29_10-01-refactoring-code-base-component-review.md` | L2016-2062 |
+| `hooks/use-study-session.ts` | L115-144 |
+| `.specstory/history/2025-03-30_13-03-flashcards-app-refactoring-database-and-types.md` | L3643-3701 |
+| `docs/project-documentation.md` | L311-331 |
+| `components/study-completion-screen.tsx` | L1-40 |
+
+</details>
+
+---
+
+Now I need to dive into the `useStudyTTS` hook to fix the double voice issue:
+
+---
+
+Read file: hooks/useStudyTTS.ts
+
+---
+
+Based on my analysis, I understand the issue now. The problem is that when a study session starts, the voice command is being triggered twice for the first question. Let me fix this by adding a flag to track the first question and prevent the duplicate TTS.
+
+---
+
+```diff
+    const { speak, setLanguage } = useTTS();
+    const speakTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Add a ref to hold the timeout ID
++   const spokenCardsRef = useRef<Set<string>>(new Set()); // Track cards we've already spoken
+  
+    useEffect(() => {
+        return;
+      }
++ 
++     // Create a unique ID for this card and its state (flipped or not)
++     const cardStateId = `${currentStudyCard.id}:${isFlipped ? 'answer' : 'question'}`;
++     
++     // Check if we've already spoken this card in this state
++     const alreadySpoken = spokenCardsRef.current.has(cardStateId);
+  
+      // --- Add Entry Log ---
+-     console.log(`[useStudyTTS useEffect Run] isEnabled=${isEnabled}, isLoading=${isLoading}, isTransitioning=${isTransitioning}, cardId=${currentStudyCard?.id}, isFlipped=${isFlipped}`);
++     console.log(`[useStudyTTS useEffect Run] isEnabled=${isEnabled}, isLoading=${isLoading}, isTransitioning=${isTransitioning}, cardId=${currentStudyCard?.id}, isFlipped=${isFlipped}, alreadySpoken=${alreadySpoken}`);
+      // --- End Entry Log ---
++ 
++     // If we've already spoken this card in this state, don't speak it again
++     // This prevents double speech on first card
++     if (alreadySpoken) {
++       console.log(`[useStudyTTS] Skipping duplicate speech for ${cardStateId}`);
++       return;
++     }
+  
+      // Determine the text and language code based on the card's flipped state
+      // but keeping it might be useful if useTTS relies on currentLanguage state internally.
+      setLanguage(effectiveLangCode);
++ 
++     // Mark this card state as spoken
++     spokenCardsRef.current.add(cardStateId);
+  
+      // Speak the text after a configured delay (allows for transitions)
+```
+
+---
+
+Let's test the changes by starting the development server:
+
+---
+
+Cancelled
+
+---
+
+
+
+---
+
+_**User**_
+
+I did not accept your previous edit because it stopped the text to speach for all questions and answers unless there was explicitely clikced on the speaker button on the card
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+Let me fix the approach. Instead of tracking all spoken cards, I'll specifically address the duplicate speech issue for the first question only:
+
+---
+
+```diff
+    const { speak, setLanguage } = useTTS();
+    const speakTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Add a ref to hold the timeout ID
++   const initialRenderRef = useRef(true); // Track first render to prevent double TTS
++   const prevCardIdRef = useRef<string | null>(null); // Track previous card ID
+  
+    useEffect(() => {
+        return;
+      }
++ 
++     // Check if this is the first time seeing this card
++     const isNewCard = prevCardIdRef.current !== currentStudyCard.id;
++     // Update the previous card ID ref
++     prevCardIdRef.current = currentStudyCard.id;
+  
+      // --- Add Entry Log ---
+-     console.log(`[useStudyTTS useEffect Run] isEnabled=${isEnabled}, isLoading=${isLoading}, isTransitioning=${isTransitioning}, cardId=${currentStudyCard?.id}, isFlipped=${isFlipped}`);
++     console.log(`[useStudyTTS useEffect Run] isEnabled=${isEnabled}, isLoading=${isLoading}, isTransitioning=${isTransitioning}, cardId=${currentStudyCard?.id}, isFlipped=${isFlipped}, initialRender=${initialRenderRef.current}, isNewCard=${isNewCard}`);
+      // --- End Entry Log ---
++ 
++     // Skip the first render to prevent double voice command for the first question
++     if (initialRenderRef.current && !isFlipped && isNewCard) {
++       console.log('[useStudyTTS] Skipping initial render to prevent duplicate speech');
++       initialRenderRef.current = false;
++       return;
++     }
+  
+      // Determine the text and language code based on the card's flipped state
+```
+
+---
+
+Let's test this with the development server:
+
+---
+
+Cancelled
+
+---
+
+_**User**_
+
+thanks, let's push to git and then call it a day
+
+---
+
+_**Assistant**_
+
 
 
 ---
