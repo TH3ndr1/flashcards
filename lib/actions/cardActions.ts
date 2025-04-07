@@ -2,17 +2,26 @@
 
 import { createActionClient, createDynamicRouteClient } from "@/lib/supabase/server";
 // import { cookies } from "next/headers";
-import type { DbCard } from "@/types/database";
-import type { FlashCard } from "@/types/deck"; // Assuming FlashCard is the frontend type
+import type { DbCard, Database, Tables } from "@/types/database";
+import type { DbDeck } from "@/types/database"; // Import Tables helper
 import { headers } from "next/headers";
-import { mapDbCardToFlashCard } from "@/lib/cardMappers";
+import { z } from 'zod'; // Make sure Zod is imported
+import { revalidatePath } from 'next/cache';
+
+/**
+ * Reusable ActionResult type defined locally.
+ */
+interface ActionResult<T> {
+  data: T | null;
+  error: Error | null;
+}
 
 /**
  * Detects if we're being called from a dynamic route by checking the referer header
  */
 async function isCalledFromDynamicRoute(searchPattern = '/study/[') {
   try {
-    const headerStore = headers();
+    const headerStore = await headers();
     const referer = headerStore.get('referer') || '';
     return referer.includes('/study/') && referer.match(/\/study\/[a-zA-Z0-9-]+/);
   } catch (e) {
@@ -21,154 +30,81 @@ async function isCalledFromDynamicRoute(searchPattern = '/study/[') {
 }
 
 /**
- * Maps a card object from the database (snake_case) to the frontend FlashCard type (camelCase).
- * Converts timestamp strings to Date objects.
- * 
- * @param dbCard The card object fetched from the database.
- * @returns The mapped FlashCard object.
- */
-function mapDbCardToFlashCard(
-    dbCard: DbCard, 
-    deckLanguagesMap: Map<string, { questionLang: string | null, answerLang: string | null }>
-): FlashCard {
-    // Get languages from the map using the card's deck_id
-    const deckLangs = deckLanguagesMap.get(dbCard.deck_id) || { questionLang: null, answerLang: null };
-    const deckQuestionLanguage = deckLangs.questionLang;
-    const deckAnswerLanguage = deckLangs.answerLang;
-
-    const flashCard: FlashCard = {
-        id: dbCard.id,
-        deck_id: dbCard.deck_id,
-        question: dbCard.question,
-        answer: dbCard.answer,
-        // Assign deck languages using correct names
-        deckQuestionLanguage: deckQuestionLanguage, // Renamed field
-        deckAnswerLanguage: deckAnswerLanguage,   // Renamed field
-        // Keep original card-specific languages if they exist (might be overrides)
-        questionLanguage: dbCard.questionLanguage ?? null,
-        answerLanguage: dbCard.answerLanguage ?? null,
-        correctCount: dbCard.correct_count ?? 0,
-        incorrectCount: dbCard.incorrect_count ?? 0,
-        attemptCount: (dbCard.correct_count ?? 0) + (dbCard.incorrect_count ?? 0),
-        last_reviewed_at: dbCard.last_reviewed_at,
-        next_review_due: dbCard.next_review_due,
-        srs_level: dbCard.srs_level ?? 0,
-        easiness_factor: dbCard.easiness_factor,
-        interval_days: dbCard.interval_days,
-        stability: dbCard.stability,
-        difficulty: dbCard.difficulty,
-        last_review_grade: dbCard.last_review_grade,
-    };
-    return flashCard;
-}
-
-/**
- * Get details for multiple cards by their IDs
+ * Get details for multiple cards by their IDs, including deck languages.
  * 
  * @param cardIds Array of card UUIDs to fetch
- * @returns Promise with array of cards or error
+ * @returns Promise with array of DbCard objects (with nested decks languages) or error
  */
 export async function getCardsByIds(
     cardIds: string[]
-): Promise<{ data: FlashCard[] | null, error: Error | null }> {
+): Promise<ActionResult<DbCard[]>> {
     console.log(`[getCardsByIds] Action started for ${cardIds.length} cards`);
     
-    if (!cardIds.length) {
+    if (!cardIds || cardIds.length === 0) {
+        console.log("[getCardsByIds] No card IDs provided.");
         return { data: [], error: null };
     }
     
     try {
-        // Use the standard action client - must await
         const supabase = await createActionClient();
-        
-        // Fetch user for authentication check
         const { data: { user }, error: authError } = await supabase.auth.getUser();
 
         if (authError || !user) {
             console.error('[getCardsByIds] Auth error or no user:', authError);
-            return { data: null, error: authError || new Error('Not authenticated') };
+            // Return a standard Error object
+            return { data: null, error: new Error(authError?.message || 'Not authenticated') };
         }
         
         console.log(`[getCardsByIds] User authenticated: ${user.id}, fetching ${cardIds.length} cards`);
 
-        // Ensure all UUIDs are valid to prevent DB errors
-        const validCardIds = cardIds.filter(id => {
-            const isValid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-            if (!isValid) {
-                console.warn(`[getCardsByIds] Invalid UUID format: ${id}`);
-            }
-            return isValid;
-        });
-
+        // Filter out invalid UUIDs (optional but good practice)
+        const validCardIds = cardIds.filter(id => /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(id));
+        if (validCardIds.length !== cardIds.length) {
+             console.warn("[getCardsByIds] Some invalid UUIDs were filtered out.");
+        }
         if (validCardIds.length === 0) {
-            console.warn('[getCardsByIds] No valid card IDs provided');
+             console.log("[getCardsByIds] No valid card IDs remaining after filtering.");
             return { data: [], error: null };
         }
 
-        // Query all valid card IDs at once, filtering by user access through decks they own
+        // Select all card fields AND specific language fields from the related deck
         const { data: dbCards, error: dbError } = await supabase
             .from('cards')
             .select(`
-                id,
-                question,
-                answer,
-                deck_id,
-                created_at,
-                updated_at,
-                last_reviewed_at,
-                difficulty_score,
-                srs_level,
-                correct_count,
-                incorrect_count,
-                attempt_count,
-                decks!inner (
-                    id,
-                    name,
-                    question_language,
-                    answer_language,
-                    is_bilingual,
-                    user_id
-                )
+                *, 
+                decks ( primary_language, secondary_language ) 
             `)
             .in('id', validCardIds)
-            .eq('decks.user_id', user.id);
+            // Ensure the user owns the card via the related deck
+            // This requires RLS on decks table for user_id
+            // Or implicitly handled if the query only returns cards whose deck_id matches a deck user owns
+            // If RLS on cards checks user_id directly, the join might not be needed for security,
+            // but it IS needed here to fetch deck languages.
+             .eq('user_id', user.id); // Assuming RLS on cards checks user_id directly is sufficient for security
+            // If RLS relies ONLY on deck ownership, you might need the join filter back:
+            // .eq('decks.user_id', user.id);
 
         if (dbError) {
             console.error('[getCardsByIds] Database error:', dbError);
-            return { data: null, error: dbError };
+             // Return a standard Error object
+            return { data: null, error: new Error(dbError.message || 'Database query failed') };
         }
 
-        if (!dbCards || !dbCards.length) {
+        if (!dbCards || dbCards.length === 0) {
             console.log('[getCardsByIds] No cards found or user does not have access');
             return { data: [], error: null };
         }
-
-        // Map DB cards to FlashCard format
-        const flashCards = dbCards.map(dbCard => {
-            // Each dbCard has a 'decks' property with deck info due to the join
-            const deckInfo = dbCard.decks;
-            
-            // Create a proper Map with deck language info
-            const deckLanguagesMap = new Map();
-            deckLanguagesMap.set(dbCard.deck_id, { 
-                questionLang: deckInfo.question_language,
-                answerLang: deckInfo.answer_language
-            });
-            
-            // Create FlashCard with deck info
-            return mapDbCardToFlashCard(dbCard as DbCard, deckLanguagesMap);
-        });
-
-        console.log(`[getCardsByIds] Successfully fetched and mapped ${flashCards.length} cards`);
-        return { data: flashCards, error: null };
+        
+        console.log(`[getCardsByIds] Successfully fetched ${dbCards.length} cards`);
+        // Type assertion might be needed if Supabase client types aren't perfect
+        return { data: dbCards as DbCard[], error: null }; 
         
     } catch (error) {
         console.error('[getCardsByIds] Caught error:', error);
         return { 
             data: null, 
-            error: error instanceof Error 
-                ? error 
-                : new Error('Unknown error fetching cards') 
+            // Ensure a standard Error object is returned
+            error: error instanceof Error ? error : new Error('Unknown error fetching cards') 
         };
     }
 }
@@ -183,7 +119,7 @@ export async function getCardsByIds(
 export async function getCardById(
     cardId: string,
     isDynamicRoute = false
-): Promise<{ data: FlashCard | null, error: Error | null }> {
+): Promise<{ data: DbCard | null, error: Error | null }> {
     // Use the standard client - must await
     const supabase = await createActionClient();
      
@@ -214,9 +150,7 @@ export async function getCardById(
             return { data: null, error: null }; // Not an error, just not found
         }
 
-        const mappedCard = mapDbCardToFlashCard(dbCard, new Map<string, { questionLang: string | null, answerLang: string | null }>());
-        console.log("getCardById: Successfully fetched and mapped card:", cardId);
-        return { data: mappedCard, error: null };
+        return { data: dbCard, error: null };
 
     } catch (error) {
          console.error("getCardById: Unexpected error:", cardId, error);
@@ -227,41 +161,86 @@ export async function getCardById(
 // Add other card-related actions if necessary (e.g., create, update, delete)
 // These might overlap with deckService.ts initially; decide on final location/structure.
 
-// --- Add other card CRUD actions if needed (Create, Update, Delete) ---
-// Placeholder for potential future actions like creating/updating/deleting single cards
-// outside the deckService context, although deckService might still be suitable.
+// --- Zod Schema for Card Creation ---
+const createCardSchema = z.object({
+    question: z.string().trim().min(1, "Question cannot be empty."),
+    answer: z.string().trim().min(1, "Answer cannot be empty."),
+    // Add optional language fields if needed
+});
+type CreateCardInput = z.infer<typeof createCardSchema>;
 
-// Example: Create a single card (maybe useful for quick add?)
-/*
-export async function createCard(deckId: string, cardData: Omit<FlashCard, 'id' | 'user_id' | 'deck_id' | 'created_at' | 'updated_at' | 'srs_level' | 'easiness_factor' | 'interval_days' | 'last_reviewed_at' | 'next_review_due' | 'last_review_grade'>):
-    Promise<{ data: FlashCard | null, error: Error | null }> {
+// --- Card CRUD Actions ---
 
-    const supabase = createSupabaseServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-        return { data: null, error: new Error("User not authenticated.") };
-    }
-
-    // Optional: Check if user owns the deckId first
+/**
+ * Creates a single new card within a specified deck for the authenticated user.
+ */
+export async function createCard(
+    deckId: string,
+    inputData: CreateCardInput
+): Promise<ActionResult<DbCard>> { 
+    console.log(`[createCard] Action started for deckId: ${deckId}`);
+    if (!deckId) return { data: null, error: new Error('Deck ID is required.') };
 
     try {
-        const { data, error } = await supabase
+        const supabase = createActionClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+        if (authError || !user) {
+             console.error('[createCard] Auth error:', authError);
+             return { data: null, error: new Error(authError?.message || 'Not authenticated') };
+        }
+
+        const validation = createCardSchema.safeParse(inputData);
+        if (!validation.success) {
+             console.warn("[createCard] Validation failed:", validation.error.errors);
+             return { data: null, error: new Error(validation.error.errors[0].message) };
+        }
+        const { question, answer } = validation.data;
+
+        // Verify user owns the target deck
+        const { count: deckCount, error: deckCheckError } = await supabase
+            .from('decks')
+            .select('id', { count: 'exact', head: true })
+            .eq('id', deckId)
+            .eq('user_id', user.id);
+
+        if (deckCheckError || deckCount === 0) {
+             console.error('[createCard] Deck ownership check failed:', deckCheckError);
+             return { data: null, error: new Error('Target deck not found or access denied.') };
+        }
+        
+        console.log(`[createCard] User: ${user.id}, Creating card in deck ${deckId}`);
+
+        // Insert the new card
+        const { data: newCard, error: insertError } = await supabase
             .from('cards')
             .insert({
-                ...cardData,
-                deck_id: deckId,
-                user_id: user.id,
-                // Default SRS values are set by DB
+                user_id: user.id, 
+                deck_id: deckId,   
+                question: question,
+                answer: answer,
             })
-            .select("*")
+            .select('*, decks(primary_language, secondary_language)') // Select new card data + deck langs
             .single();
 
-        if (error) throw error;
-        return { data, error: null };
+        if (insertError) {
+            console.error('[createCard] Insert error:', insertError);
+            return { data: null, error: new Error(insertError.message || 'Failed to create card.') };
+        }
+
+        if (!newCard) {
+             console.error('[createCard] Insert succeeded but no data returned.');
+             return { data: null, error: new Error('Failed to retrieve created card data.') };
+        }
+
+        console.log(`[createCard] Success, New Card ID: ${newCard.id}`);
+        revalidatePath(`/edit/${deckId}`); 
+        return { data: newCard as DbCard, error: null }; // Return new card data including nested deck langs
+
     } catch (error) {
-        console.error("Error creating card:", error);
-        return { data: null, error: error instanceof Error ? error : new Error("Failed to create card.") };
+        console.error('[createCard] Caught unexpected error:', error);
+        return { data: null, error: error instanceof Error ? error : new Error('Unknown error creating card') };
     }
 }
-*/ 
+
+// TODO: Add updateCard and deleteCard actions here if needed 

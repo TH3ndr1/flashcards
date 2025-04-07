@@ -543,8 +543,8 @@ CREATE TABLE IF NOT EXISTS "public"."decks" (
     "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()),
     "updated_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()),
     "is_bilingual" boolean DEFAULT false NOT NULL,
-    "question_language" "text" DEFAULT 'en'::"text" NOT NULL,
-    "answer_language" "text" DEFAULT 'en'::"text" NOT NULL
+    "primary_language" "text" DEFAULT 'en'::"text" NOT NULL,
+    "secondary_language" "text" DEFAULT 'en'::"text" NOT NULL
 );
 
 

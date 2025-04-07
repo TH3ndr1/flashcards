@@ -1,15 +1,15 @@
 # Project Documentation: Flashcards App
 
-**Version:** 2.0 (Integrated Study Sets & SRS)
-**Date:** 2024-07-26
+**Version:** 2.1 (Consolidated SRS & Study Flow Architecture)
+**Date:** 2025-04-05
 
 ## 1. Executive Summary
 
 ### Purpose and Objectives
 The Flashcards App is a modern, multilingual learning platform designed to help users create and study flashcards efficiently and effectively. The project aims to enhance the learning experience through:
 - Interactive flashcard creation and management.
-- **(New)** Flexible, query-based study sessions using tags, deck affiliation, and review status.
-- **(New)** Implementation of proven Spaced Repetition System (SRS) algorithms (initially SM-2, expandable to FSRS) for optimized long-term retention.
+- Flexible, query-based study sessions using tags, deck affiliation, and other criteria.
+- Implementation of proven Spaced Repetition System (SRS) algorithms (initially SM-2, expandable to FSRS) for optimized long-term retention.
 - Multi-modal learning via integrated Text-to-Speech (TTS) audio support.
 - Progress tracking and user-configurable settings.
 
@@ -18,7 +18,7 @@ The Flashcards App is a modern, multilingual learning platform designed to help 
 - Students studying any subject matter (organizing by chapter tags, studying due cards).
 - Teachers creating and organizing study materials (using decks and tags).
 - Self-learners requiring an organized and efficient study system (using query-based study sets like "difficult items" or "review all due").
-- **(New)** Users with specific learning needs (Dyslexia, ADHD) benefiting from structured SRS, audio, and clear UI (addressed via separate accessibility features).
+- Users with specific learning needs (Dyslexia, ADHD) benefiting from structured SRS, audio, and clear UI (addressed via separate accessibility features).
 
 ### Business Value and Expected Outcomes
 - **Improved Learning Efficiency:** Through optimized SRS scheduling and focused query-based study.
@@ -35,7 +35,7 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
 - Difficulty in tracking granular progress and understanding memory decay.
 - Inflexible study options (often limited to single decks).
 - Lack of robust, evidence-based spaced repetition integrated seamlessly.
-- **(New)** Difficulty studying related concepts across different decks or focusing on specific card types (e.g., only difficult cards, only due cards).
+- Difficulty studying related concepts across different decks or focusing on specific card types (e.g., only difficult cards, only due cards).
 
 ### Key Stakeholders
 - End Users (students, language learners, self-learners)
@@ -46,24 +46,25 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
 ### User Personas
 1. Language Learner
    - Primary need: Vocabulary acquisition with pronunciation and context.
-   - Key features: TTS, bilingual cards, **(New)** tagging ('verbs', 'idioms'), SRS.
+   - Key features: TTS, bilingual cards, tagging ('verbs', 'idioms'), SRS.
 2. Student
    - Primary need: Subject matter revision and long-term retention.
-   - Key features: Progress tracking, deck organization, **(New)** query-based study (due cards, chapter tags), SRS.
+   - Key features: Progress tracking, deck organization, query-based study (due cards, chapter tags), SRS.
 3. Teacher
    - Primary need: Content creation and organization.
-   - Key features: Deck management, multi-language support, **(New)** tagging for structure.
+   - Key features: Deck management, multi-language support, tagging for structure.
 
 ### Business Workflows
 1. User Registration and Authentication
 2. Deck Creation and Management
-3. **(New)** Tag Creation and Management (Assigning tags to cards)
-4. **(New)** Study Set Creation and Management (Defining query criteria)
-5. Study Session Execution (Based on Deck, Tag, Study Set, or dynamic query like "Due Cards")
-6. Card Review and SRS Update (Answering card, system calculates next review)
-7. Progress Tracking and Analytics (Overall stats, card-level SRS state)
-8. User Settings Management (Including SRS algorithm preference)
-9. Content Sharing and Collaboration (Future)
+3. Tag Creation and Management (Assigning tags to cards)
+4. Study Set Creation and Management (Defining query criteria)
+5. **(Revised)** Study Session Initiation (User selects Card Set + Study Mode)
+6. **(Revised)** Study Session Execution (System presents cards based on Mode)
+7. Card Review and SRS Update (Answering card, system calculates next review, saves state)
+8. Progress Tracking and Analytics (Overall stats, card-level SRS state)
+9. User Settings Management (Including SRS algorithm preference)
+10. Content Sharing and Collaboration (Future)
 
 ## 3. Functional Overview
 
@@ -72,54 +73,55 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
    - Sign up/Login, Profile management, OAuth integration.
 2. Deck Management
    - Create/Edit/Delete decks, Import/Export, Categorization.
-3. **(New)** Tag Management
+3. Tag Management
     - Create/Edit/Delete user-specific tags.
     - Assign/Remove tags from cards.
-4. **(New)** Study Set Management
+4. Study Set Management ("Smart Playlists")
     - Create/Edit/Delete named study sets based on query criteria.
-    - Query criteria include tags (include/exclude), decks (include/exclude), SRS status (e.g., is due, difficulty range).
+    - Query criteria include tags (include/exclude), decks (include/exclude), date added/modified, language, etc.
 5. Study System
-   - Interactive study sessions based on decks, tags, study sets, or dynamic queries.
-   - **(New)** Spaced Repetition System (SRS):
+   - Interactive study sessions based on flexible **Card Selections** (Deck, All Cards, Tags, Study Sets) and distinct **Study Modes**.
+   - **Study Modes:**
+        - **Learn Mode:** Comprehensive review of selected cards with session-based completion criteria.
+        - **Review Mode:** SRS-prioritized review focusing only on cards due according to their `next_review_due` date.
+   - **Spaced Repetition System (SRS):**
         - User-selectable algorithm (via Settings), starting with SM-2.
         - Automatic calculation of next review date based on user performance (grade) and chosen algorithm.
-        - Card-level storage of SRS state (e.g., easiness factor, interval, stability, difficulty, next review date).
+        - Card-level storage of SRS state (`next_review_due`, `srs_level`, `easiness_factor`, etc.).
+        - **SRS state updated consistently regardless of Study Mode.**
    - Progress tracking (overall and per card).
    - Flippable card interface.
 6. Audio Support
    - Text-to-speech integration (Google Cloud TTS).
    - Multiple language support & voice customization.
 7. User Settings
-    - General preferences.
-    - **(New)** SRS Algorithm selection ('sm2', 'fsrs' - future).
+    - General preferences (e.g., session completion threshold `X` for Learn Mode).
+    - SRS Algorithm selection ('sm2', 'fsrs' - future).
     - TTS preferences.
 
 ### Key User Interactions
 1. Card Creation/Editing Flow
-   - Enter content, select languages, **(New)** assign/remove tags, generate audio.
+   - Enter content, select languages, assign/remove tags, generate audio.
 2. Tag Management Flow
     - Create new tag (e.g., "Chapter 3").
     - View/Edit/Delete existing tags.
-3. **(New)** Study Set Creation Flow
-    - Name the set (e.g., "Hard Verbs").
-    - Define query criteria using UI (e.g., Tags: include 'verb', Difficulty > 0.7).
+3. Study Set Creation Flow ("Smart Playlist")
+    - Name the set (e.g., "Hard Verbs Chapter 1").
+    - Define query criteria using UI (e.g., Tags: include 'verb', Deck: 'Chapter 1', Added Date: newer than 14 days).
     - Save the Study Set.
-4. Study Session Initiation Flow
-   - Choose a Deck OR
-   - Choose a Tag OR
-   - Choose a saved Study Set OR
-   - Choose a dynamic query (e.g., "Study 20 Due Cards").
-5. Study Session Execution Flow
-   - System resolves query to get list of card IDs.
-   - System fetches card data.
-   - User reviews cards one by one.
-   - User flips card, listens to pronunciation.
-   - User self-assesses (e.g., Again, Hard, Good, Easy).
-   - System calculates next SRS state and schedules debounced save.
-   - System presents next card.
+4. **(Revised)** Study Session Initiation Flow
+   - **Step 1: Select Cards:** Choose a Deck, "All Cards", a Tag, or a saved Study Set/Smart Playlist.
+   - **Step 2: Select Study Mode:** Choose "Learn Mode" or "Review Mode".
+   - Click "Start Studying".
+5. **(Revised)** Study Session Execution Flow (depends on mode)
+   - System resolves query -> gets initial Card IDs.
+   - System fetches full card data.
+   - **If Learn Mode:** Presents cards (e.g., shuffled), tracks session progress per card, removes cards from session queue when session threshold `X` is met.
+   - **If Review Mode:** Filters fetched cards for `isDue`, sorts by due date, presents only due cards.
+   - **In both modes:** User reviews, flips, listens, self-assesses (e.g., Again, Hard, Good, Easy). System calculates *next* SRS state via `calculateSm2State`, schedules debounced save via `progressActions.updateCardProgress`. System presents next card based on mode logic.
 6. Settings Flow
     - Navigate to settings page.
-    - **(New)** Select preferred SRS Algorithm from dropdown.
+    - Select preferred SRS Algorithm. Adjust Learn Mode threshold `X`.
     - Adjust other preferences (TTS, etc.).
     - Save settings.
 
@@ -137,7 +139,7 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
 - Form Management: React Hook Form
 - Validation: Zod
 - State Management: React Context (`AuthProvider`, `SettingsProvider`), Custom Hooks (`useAuth`, `useDecks`, `useStudySession`, `useTags`, `useStudySets`, `useSettings`, etc.)
-- Utility Libraries: `sonner` (toasts), `lucide-react` (icons)
+- Utility Libraries: `sonner` (toasts), `lucide-react` (icons), `date-fns`
 
 ### Frontend Architecture
 - Next.js App Router structure (`app/`).
@@ -151,15 +153,15 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
     - Global State (Auth, Settings): Managed via React Context (`AuthProvider`, `SettingsProvider`) and hooks (`useAuth`, `useSettings`).
     - Domain-Specific State: Managed by custom hooks:
         - `useDecks` (CRUD for decks)
-        - **(New)** `useTags` (CRUD for tags, linking to cards)
-        - **(New)** `useStudySets` (CRUD for study sets)
-        - `useStudySession` (Orchestrates active study, refactored for queries & SRS)
+        - `useTags` (CRUD for tags, linking to cards)
+        - `useStudySets` (CRUD for study sets)
+        - `useStudySession` (Orchestrates active study, refactored for queries & SRS & Modes)
     - Local Component State: `useState`, `useReducer`.
 - Custom Hooks (`hooks/`) are central:
     - `useSupabase`, `useAuth`, `useSettings`.
     - `useDecks`, `useTags`, `useStudySets`.
     - `useDeckLoader` (still useful for viewing/editing a *single* deck's cards, but *not* for study session loading).
-    - `useStudySession` (Refactored: takes query/setID, resolves card IDs via action, fetches cards via action, calculates SRS state via utils, persists progress via `progressActions`).
+    - `useStudySession` (Refactored: takes query/setID, resolves card IDs via action, fetches cards via action, calculates SRS state via utils, persists progress via `progressActions`, manages Learn/Review modes).
     - `useTTS`, `useStudyTTS` (Bridge study session state to TTS).
     - `useMobile`.
 
@@ -167,32 +169,30 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
 - Primarily serverless logic within Next.js.
 - **API Routes (`app/api/*`)**: Specific endpoints like `/api/tts`.
 - **Server Actions (`*.actions.ts`)**: Preferred for data fetching and mutations. Encapsulate business logic and database interaction.
-    - **(New)** `tagActions.ts` (CRUD for tags and card_tags)
-    - **(New)** `studySetActions.ts` (CRUD for study_sets)
-    - **(New)** `studyQueryActions.ts` (`resolveStudyQuery` - takes criteria/setID, executes DB query/function, returns card IDs)
-    - **(New)** `cardActions.ts` (`getCardsByIds` - fetches full card data including SRS state for given IDs)
-    - **(New)** `progressActions.ts` (`updateCardProgress` - saves calculated SRS state and stats for a single card)
-    - **(New)** `settingsActions.ts` (Get/Update user settings including `srs_algorithm`)
-    - Existing actions for deck/card CRUD (may be refactored into `deckActions.ts`, `cardActions.ts`).
-- **Service Layer (`lib/*Service.ts`)**: May still exist for complex reusable logic called by Actions, or Actions might interact directly with Supabase client / DB functions. Less emphasis if Actions handle primary logic.
-- **(New) SRS Logic Utilities (`lib/srs.ts` or `lib/study-utils.ts`)**:
-    - `calculateNextSrsState(card, grade, algorithm)`: Selects correct algorithm implementation.
-    - `calculateSm2State(currentSm2State, grade)`: Pure function implementing SM-2 logic.
-    - `calculateFsrsState(...)`: Placeholder for FSRS.
-    - Returns new SRS state (`nextReviewDue`, `easinessFactor`, `intervalDays`, `srsLevel`, etc.).
-- **Database Interaction**: Supabase client (`@supabase/ssr`), RLS enforced. Consider DB functions for `resolveStudyQuery`. **Indexes are crucial** (esp. on `cards(user_id, next_review_due)`).
+    - `tagActions.ts` (CRUD for tags and card_tags) (**Status: Placeholder**)
+    - `studySetActions.ts` (CRUD for study_sets) (**Status: Placeholder**)
+    - `studyQueryActions.ts` (`resolveStudyQuery` - takes criteria, executes DB query/function, returns card IDs) (**Status: Partially Implemented - Structure OK, RPC pending**)
+    - `cardActions.ts` (`getCardsByIds`, `getCardById`) (**Status: Implemented**)
+    - `progressActions.ts` (`updateCardProgress` - saves calculated SRS state for a single card) (**Status: Implemented**)
+    - `settingsActions.ts` (Get/Update user settings) (**Status: Implemented**)
+    - `deckActions.ts` (CRUD for decks) (**Status: Existing - Needs Review/Refactor**)
+- **Service Layer (`lib/*Service.ts`)**: Potentially reduced role.
+- **SRS Logic Utilities (`lib/srs.ts`)**:
+    - `calculateNextSrsState(card, grade, algorithm)`: Selects algorithm.
+    - `calculateSm2State(currentSm2State, grade)`: SM-2 logic. (**Status: Implemented**)
+    - `calculateFsrsState(...)`: Placeholder.
+- **Database Interaction**: Supabase client (`@supabase/ssr`), RLS enforced. **DB Function (`resolve_study_query`) highly recommended.** **Indexes crucial** (esp. `cards(user_id, next_review_due)`).
 - **External Services**: Google Cloud TTS.
 - **Middleware (`middleware.ts`)**: Manages session cookies via `@supabase/ssr`.
 
 ### Data Models (Supabase PostgreSQL Schema)
-
-**(Note: This replaces the previous data model section entirely)**
 
 1.  **`users`** (Managed by Supabase Auth)
 2.  **`settings`** (User preferences)
     *   `user_id`: `uuid` (PK, FK -> `auth.users.id`, ON DELETE CASCADE)
     *   `srs_algorithm`: `text` (default: 'sm2', not null) - Stores 'sm2' or 'fsrs'.
     *   `fsrs_parameters`: `jsonb` (nullable) - For future user-specific FSRS tuning.
+    *   `learn_mode_success_threshold`: `integer` (default: 3, not null) - 'X' value for Learn Mode.
     *   `created_at`: `timestamptz` (default: `now()`)
     *   `updated_at`: `timestamptz` (default: `now()`)
     *   *... other setting fields (TTS preferences, etc.) ...*
@@ -240,19 +240,19 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
     *   `user_id`: `uuid` (FK -> `auth.users.id`, ON DELETE CASCADE) - Denormalized for RLS.
     *   Primary Key: `(card_id, tag_id)`
     *   *RLS: User can only manage/view links related to their own cards/tags.*
-7.  **`study_sets`**
+7.  **`study_sets`** ("Smart Playlists")
     *   `id`: `uuid` (PK, default: `uuid_generate_v4()`)
     *   `user_id`: `uuid` (FK -> `auth.users.id`, ON DELETE CASCADE)
     *   `name`: `text` (Not null)
     *   `description`: `text` (Nullable)
-    *   `query_criteria`: `jsonb` (Stores filter rules, e.g., `{"includeTags": ["id"], "isDue": true, "limit": 50}`, Not null)
+    *   `query_criteria`: `jsonb` (Stores filter rules, e.g., `{"logic": "AND", "filters": [...] }`, Not null)
     *   `created_at`: `timestamptz` (default: `now()`)
     *   `updated_at`: `timestamptz` (default: `now()`)
     *   *RLS: User can only manage/view their own study sets.*
 
-## 4.1 Code Structure and Organization
+### 4.1 Code Structure and Organization
 
-### Codebase Overview (Updated Diagram)
+*(Diagram and component/hook lists remain as described in previous version v2.0, reflecting the updated structure)*
 
 ```mermaid
 graph TD
@@ -329,170 +329,10 @@ graph TD
     class SB_Auth,SB_DB,SB_Store,G_TTS external;
     class UTIL util;
 ```
-*Diagram updated to emphasize Server Actions, include DB Functions, SRS Utils, and show hook/action dependencies.*
 
-### Key Components and Their Functions (Updated & Added Details)
+### 4.2 SRS Calculation Utilities (`lib/srs.ts`)
 
-#### 1. Frontend Components (`/app/*`, `/components/*`)
-*   **Application Components (`/components/`)**:
-    *   `study-flashcard-view.tsx`: Displays flippable card, answer buttons (Again/Hard/Good/Easy), progress. Driven by `useStudySession`.
-    *   `table-editor.tsx` & `card-editor.tsx`: Used in deck editing page. **(New)** Includes `CardTagEditor` integration.
-    *   **(New)** `StudySetBuilder.tsx`: UI form to define `query_criteria`. Uses `useTags`, `useDecks` (for selection lists). Calls `studySetActions` via `useStudySets`.
-    *   **(New)** `StudySetSelector.tsx`: UI to choose saved `StudySet`, tag, deck, or dynamic query (e.g., "Due Cards"). Uses `useStudySets`, `useTags`, `useDecks`. Initiates study via `useStudySession`.
-    *   **(New)** `TagManager.tsx`: UI for CRUD operations on tags. Uses `useTags`.
-    *   **(New)** `CardTagEditor.tsx`: Integrated into card editing, allows adding/removing tags from a card. Uses `useTags`.
-    *   **(New)** `SrsSelector.tsx`: Dropdown in settings page to select SRS algorithm. Uses `useSettings`.
-
-#### 2. Custom Hooks (`/hooks/*`) (Updated & Added Details)
-1.  `useSupabase`: Provides Supabase browser client.
-2.  `useAuth`: Manages auth state and methods (`AuthProvider`).
-3.  **(Updated)** `useSettings`: Manages settings state (`srs_algorithm`, etc.) and updates via `settingsActions` (`SettingsProvider`).
-4.  `useDecks`: Manages deck list/CRUD via `deckActions`. Used for selection lists.
-5.  **(New)** `useTags`: Manages tag list/CRUD and card-tag links via `tagActions`.
-6.  **(New)** `useStudySets`: Manages study set list/CRUD via `studySetActions`.
-7.  `useDeckLoader`: Loads single deck details (used for editing view). **Not used by `useStudySession` anymore.**
-8.  **(Refactored)** `useStudySession`: Orchestrates the active study session.
-    *   Takes `queryCriteria` or `studySetId` as input.
-    *   Calls `studyQueryActions.resolveStudyQuery` -> gets `cardIds`.
-    *   Calls `cardActions.getCardsByIds` -> gets `FlashCard[]` with SRS state.
-    *   Depends on `useSettings` for `srs_algorithm`.
-    *   Manages study loop state (current card, queue, transitions).
-    *   On `answerCard(grade)`:
-        *   Calls `lib/srs.ts -> calculateNextSrsState(card, grade, algorithm)` -> gets `newSrsState`.
-        *   Schedules debounced call to `progressActions.updateCardProgress(cardId, newSrsState + stats)`.
-    *   Depends on: `useSettings`, `useStudyTTS`, `studyQueryActions`, `cardActions`, `progressActions`. **No longer depends on `useDecks` or `useDeckLoader` for core study logic.**
-9.  `useTTS`, `useStudyTTS`: Handle text-to-speech generation and playback during study.
-10. `useMobile`: Utility hook.
-
-#### 3. API Routes (`/app/api/*`) & Server Actions (`*.actions.ts`)
-1.  **API: `/app/api/tts/route.ts`**: Handles TTS generation via Google Cloud.
-2.  **API: `/app/auth/callback/route.ts`**: Handles Supabase email confirmation.
-3.  **Actions (`tagActions.ts`)**: CRUD for tags and card-tag links. (**Status: Placeholder**)
-4.  **Actions (`studySetActions.ts`)**: CRUD for study sets. (**Status: Placeholder**)
-5.  **Actions (`studyQueryActions.ts`)**: `resolveStudyQuery` - critical action, likely calls DB function. (**Status: Partially Implemented - Structure OK, RPC pending**)
-6.  **Actions (`cardActions.ts`)**: `getCardsByIds`, `getCardById`. (**Status: Implemented**)
-7.  **Actions (`progressActions.ts`)**: `updateCardProgress` - saves SRS state for one card. (**Status: Implemented**)
-8.  **Actions (`settingsActions.ts`)**: Get/Update user settings. (**Status: Implemented**)
-9.  **Actions (`deckActions.ts`)**: CRUD for decks (if refactored). *(Note: Card creation/update might move fully to `cardActions`)*
-
-#### 4. Service Layer (`/lib/*Service.ts`) & Utilities (`/lib/*`)
-*   Service layer potentially reduced in scope; actions may call Supabase directly or via DB functions.
-*   **(New)** `lib/srs.ts` (or in `study-utils.ts`): Contains `calculateNextSrsState`, `calculateSm2State`, etc. **Pure functions with SRS logic.** (**Status: Implemented**) Depends on `date-fns`.
-*   `lib/utils.ts`: General utility functions (debouncing, formatting, etc.).
-
-#### 5. Database Models (`/supabase/migrations/*`)
-*   Migrations define the schema described in section 4, Data Models. (**Note:** Migration `YYYYMMDDHHMMSS_add_srs_study_sets.sql` created).
-*   **(New)** Consider DB function definition for `resolve_study_query(user_id, criteria_jsonb)`. (**Status: Definition Pending**)
-
-### State Management and Data Flow (Updated Diagrams)
-
-1.  **Authentication Flow (`@supabase/ssr`)** *(Diagram remains largely the same as in previous version)*
-   ```mermaid
-   sequenceDiagram
-       participant User
-       participant Browser
-       participant Middleware as Next.js Edge
-       participant ServerComponent as Next.js Server
-       participant ClientComponent as React Client
-       participant useSupabase as Hook
-       participant useAuth as Hook
-       participant SupabaseAuth as Supabase Auth
-
-       User->>Browser: Navigates to page
-       Browser->>Middleware: Request
-       Middleware->>SupabaseAuth: Reads/Refreshes Session via Cookie (Server Client)
-       SupabaseAuth-->>Middleware: Session Info / Updated Cookie
-       Middleware->>ServerComponent: Request + Session Context (via Headers/Cookies)
-       ServerComponent->>SupabaseAuth: (Optional) Further server-side checks/data fetch (Server Client)
-       ServerComponent-->>Browser: Rendered HTML
-       Browser->>ClientComponent: Hydrates / Renders
-       ClientComponent->>useSupabase: Initialize Hook
-       useSupabase->>SupabaseAuth: createBrowserClient()
-       useSupabase-->>ClientComponent: Supabase Client Instance
-       ClientComponent->>useAuth: Initialize Hook (gets client from useSupabase)
-       useAuth->>SupabaseAuth: getSession() / onAuthStateChange() (Browser Client)
-       SupabaseAuth-->>useAuth: Auth State Update
-       useAuth-->>ClientComponent: User/Session State
-       ClientComponent-->>Browser: Updates UI based on Auth State
-       opt User Action (Login/Logout)
-           ClientComponent->>useAuth: Calls signIn() / signOut()
-           useAuth->>SupabaseAuth: Calls Supabase function (Browser Client)
-           SupabaseAuth-->>useAuth: Auth State Update (via listener)
-           useAuth-->>ClientComponent: Updated User/Session State
-           ClientComponent-->>Browser: Updates UI / Redirects
-       end
-   ```
-
-2.  **Study Session Flow (Query-Based with SRS) (Major Update)**
-    ```mermaid
-    sequenceDiagram
-        actor User
-        participant Selector as UI: Study Selector
-        participant useSettings as Hook
-        participant useStudySession as Hook
-        participant studyQueryActions as Action
-        participant cardActions as Action
-        participant StudyPage as UI: Study Page
-        participant srsUtils as lib/srs.ts
-        participant progressActions as Action
-        participant SupabaseDB as Supabase DB
-
-        User->>Selector: Selects "Study Due Cards" (query: {isDue: true, limit: 20})
-        Selector->>useStudySession: initiateSession({ queryCriteria: {isDue: true, limit: 20} })
-
-        %% Resolve Card IDs
-        useStudySession->>studyQueryActions: resolveStudyQuery({isDue: true, limit: 20})
-        note right of studyQueryActions: Calls DB Function/Query: cards WHERE user_id = _user AND next_review_due <= now() LIMIT 20
-        studyQueryActions-->>useStudySession: Returns { cardIds: ["c3", "c7", "c2"] }
-
-        %% Fetch Card Data
-        useStudySession->>cardActions: getCardsByIds(["c3", "c7", "c2"])
-        note right of cardActions: Fetches full card data including current SRS fields
-        cardActions-->>useStudySession: Returns FlashCard[] Details
-
-        %% Initialize Study UI
-        useStudySession-->>StudyPage: Navigates/Provides initial state (cards list, index 0)
-        StudyPage-->>User: Displays first card ("c3")
-
-        %% User Answers
-        User->>StudyPage: Clicks "Good (3)" for card "c3"
-        StudyPage->>useStudySession: answerCard(grade = 3)
-
-        %% Calculate Next SRS State
-        useStudySession->>useSettings: get srs_algorithm (e.g., 'sm2') (from context)
-        useStudySession->>srsUtils: calculateNextSrsState(card_c3, grade=3, algorithm='sm2')
-        srsUtils-->>useStudySession: Returns newSrsState = { nextReviewDue: ..., easinessFactor: ..., ... }
-
-        %% Update State & Schedule Save
-        useStudySession->>useStudySession: Update card_c3 state in memory
-        useStudySession->>useStudySession: Schedule debounced save: updateCardProgress("c3", payload)
-        note right of useStudySession: payload = newSrsState + counts + lastReviewedAt + grade=3
-
-        %% Move to Next Card
-        useStudySession->>useStudySession: Determine next card index (e.g., 1)
-        useStudySession-->>StudyPage: Update UI state (show card "c7", progress bar)
-        StudyPage-->>User: Displays next card ("c7")
-
-        %% Background Save (Later)
-        opt Debounced Save Fires
-            useStudySession->>progressActions: updateCardProgress("c3", payload)
-            progressActions->>SupabaseDB: UPDATE cards SET next_review_due=..., ... WHERE id = "c3" AND user_id = _user
-            SupabaseDB-->>progressActions: Success/Error
-            progressActions-->>useStudySession: Result (toast on error)
-        end
-    ```
-
-## 4.2 SRS Calculation Utilities (`lib/srs.ts`)
-
-This file contains the core logic for calculating Spaced Repetition System (SRS) intervals and states based on user performance. Initially, it implements the SM-2 algorithm.
-
-### `calculateSm2State` Function
-
-This function implements the SM-2 algorithm to determine the next review date and updated SRS parameters for a card after a user review.
-
-**Purpose:** To take the card's current SM-2 state and the user's review grade, and return the calculated next state according to the SM-2 rules.
-
-**Inputs & Outputs (Type Definitions):**
+*(This section details the `calculateSm2State` function, types, constants, implementation, explanation, integration, and dependencies as provided previously. It focuses *only* on the algorithm calculation.)*
 
 ```typescript
 /**
@@ -529,11 +369,7 @@ const MIN_EASINESS_FACTOR = 1.3;
 const DEFAULT_EASINESS_FACTOR = 2.5;
 const FIRST_INTERVAL = 1; // days
 const SECOND_INTERVAL = 6; // days
-```
 
-**Implementation:**
-
-```typescript
 import { addDays, startOfDay } from 'date-fns'; // Using date-fns for reliable date math
 
 /**
@@ -610,317 +446,205 @@ export function calculateSm2State(
     lastReviewGrade: grade,
   };
 }
+
+// Placeholder for future calculateNextSrsState function
+// export function calculateNextSrsState(card: any, grade: ReviewGrade, algorithm: 'sm2' | 'fsrs'): any {
+//   if (algorithm === 'sm2') {
+//     // Map card data to Sm2InputCardState if needed
+//     const sm2Input: Sm2InputCardState = {
+//         srsLevel: card.srs_level,
+//         easinessFactor: card.easiness_factor,
+//         intervalDays: card.interval_days
+//     };
+//     return calculateSm2State(sm2Input, grade);
+//   } else if (algorithm === 'fsrs') {
+//     // Call calculateFsrsState (to be implemented)
+//     // return calculateFsrsState(cardFsrsState, grade);
+//     throw new Error("FSRS algorithm not yet implemented.");
+//   } else {
+//     throw new Error(`Unknown SRS algorithm: ${algorithm}`);
+//   }
+// }
 ```
 
-**How it Works (Explanation):**
+---
 
-1.  **Initialization:** Takes the card's current `srsLevel`, `easinessFactor` (defaulting to 2.5 if null), and `intervalDays` (defaulting to 0 if null).
-2.  **Failure (Grade 1 - "Again"):**
-    *   Resets `srsLevel` to 0 (starts the learning process over).
-    *   Sets the `intervalDays` to the `FIRST_INTERVAL` (1 day).
-    *   Keeps the `easinessFactor` the same (clamped at minimum 1.3).
-3.  **Success (Grades 2, 3, 4 - "Hard", "Good", "Easy"):**
-    *   Increments `srsLevel`.
-    *   Calculates the `newEasinessFactor` based on the grade using the standard SM-2 formula. "Easy" increases EF, "Good" slightly adjusts it, "Hard" decreases it more significantly. EF is clamped at 1.3 minimum.
-    *   Calculates `newIntervalDays`:
-        *   Uses fixed intervals (1 day, 6 days) for the first two successful recalls (`newSrsLevel` 1 and 2).
-        *   For subsequent recalls, multiplies the *previous* interval by the *new* `easinessFactor` and rounds up (`Math.ceil`).
-4.  **Next Review Date:** Calculates the `nextReviewDue` timestamp by adding the `newIntervalDays` to the start of the current day using `date-fns`.
-5.  **Output:** Returns the `Sm2UpdatePayload` object containing all the calculated values needed to update the card record in the database.
+## 5. Study Session Architecture & Flow (v2.1 Target)
 
-**Integration:**
+This section provides the definitive architecture for how study sessions are initiated and executed, incorporating flexible card selection and distinct study modes.
 
-*   This function is called by the `useStudySession` hook.
-*   The hook retrieves the current card's state and the user's selected `srs_algorithm` (from `useSettings`).
-*   If the algorithm is `'sm2'`, it calls `calculateSm2State(cardState, userGrade)`.
-*   The resulting `Sm2UpdatePayload` is then passed (likely debounced) to the `progressActions.updateCardProgress` Server Action, along with the `cardId`, to persist the changes to the `cards` table. The action should also update the `last_reviewed_at` timestamp.
+**Overall Process:** The user first defines *which cards* they want to potentially study (**Card Selection**), and then chooses *how* they want to study that set (**Study Mode**).
 
-**Dependencies:**
+### 5.1 Phase 1: Card Selection
 
-*   `date-fns` library (for reliable date calculations like `addDays`, `startOfDay`). You'll need to install it (`npm install date-fns` or `yarn add date-fns`).
+**Goal:** Determine the initial pool of card IDs the user is interested in, based on their chosen criteria, before considering study mode or SRS due status.
 
+1.  **User Initiation & Criteria Definition:**
+    *   User interacts with UI (`StudySetSelector` or query builder). Options:
+        *   **A) Single Deck:** User selects a deck.
+            *   *Resulting `queryCriteria`:* `{ deckId: "uuid" }`
+        *   **B) All User Cards:** User selects "All Cards".
+            *   *Resulting `queryCriteria`:* `{ allCards: true }` (or `{}`)
+        *   **C) Tag(s):** User selects one or more tags.
+            *   *Resulting `queryCriteria`:* `{ includeTags: ["uuid1", "uuid2"], tagLogic: "ANY" | "ALL" }` (UI determines logic)
+        *   **D) "Smart Playlist" / Study Set:** User selects a saved `Study Set` or builds a dynamic query using criteria like:
+            *   Deck Title (contains)
+            *   Date Added/Modified (relative/absolute)
+            *   Language
+            *   Tags (Include/Exclude, Any/All)
+            *   *(Future)* Specific SRS properties (e.g., low level, high difficulty)
+            *   **Logic:** UI allows AND/OR/NOT combinations.
+            *   *Resulting `queryCriteria`:* Complex JSON object (e.g., `{"logic": "AND", "filters": [...] }`) saved in `study_sets` or generated dynamically.
 
-## 4.3 SRS-Driven Study Session Flow (Initial Implementation)
+2.  **Backend: Resolve Initial Card IDs (`studyQueryActions.resolveStudyQuery`):**
+    *   Frontend (`useStudySession` init) calls `resolveStudyQuery` Server Action with the `queryCriteria` (or `studySetId`).
+    *   Action/RPC translates criteria into a SQL query:
+        *   **Always** filters by `user_id`.
+        *   Applies filters for decks, tags (JOIN `card_tags`), dates, etc. based on criteria.
+        *   **Does NOT filter by `next_review_due` at this stage.**
+    *   **Returns:** Array of all `cardIds` matching the selection criteria.
 
-This section describes the primary workflow for initiating a study session that leverages the Spaced Repetition System (SRS) data, specifically focusing on studying cards that are due for review. This contrasts with the previous method of simply loading all cards from a selected deck.
+### 5.2 Phase 2: Study Mode Execution
 
-**Goal:** To provide the user with the most relevant cards needing review across their entire collection (or within a specified scope like a deck) based on their SRS status (`next_review_due`), ensuring maximum learning efficiency.
+**Goal:** Take the initial list of card IDs, fetch their data, and then execute the study session according to the user's chosen mode.
 
-**Typical Flow ("Study Due Cards"):**
+1.  **User Mode Selection:** User chooses **Mode 1 (Learn)** or **Mode 2 (Review)** in the UI, typically alongside Card Selection.
 
-1.  **User Initiation:**
-    *   The user typically clicks a dedicated button like "Study Due Cards" or selects an option that implies studying due items (e.g., selecting a deck might eventually offer "Study Due Cards from this Deck").
-    *   The system might apply a default limit (e.g., study the 20 most overdue cards).
+2.  **Backend: Fetch Full Card Data (`cardActions.getCardsByIds`):**
+    *   `useStudySession` calls `getCardsByIds` with the `cardIds` array from Phase 1.
+    *   **Returns:** Array of fully populated `FlashCard` objects (content, current SRS state, etc.).
 
-2.  **Query Definition (Frontend):**
-    *   The UI interaction triggers the `useStudySession` hook (specifically, its `startSession` or similar initiation function).
-    *   The hook translates the user's intent into a `queryCriteria` object. For the "Study Due Cards" case, this would be simple:
-        ```typescript
-        const criteria = { isDue: true, limit: 20 }; // Example
-        ```
+3.  **Frontend: Session Preparation & Loop (`useStudySession` Hook Logic):**
+    *   Receives the `FlashCard[]` array.
+    *   Prepares the study queue and manages the loop based on the **selected Study Mode**:
 
-3.  **Backend: Resolve Card IDs (`studyQueryActions.resolveStudyQuery`):**
-    *   `useStudySession` calls the `resolveStudyQuery` Server Action, passing the `criteria` object.
-    *   This action (or the Database Function/RPC it calls, e.g., `resolve_study_query`) executes a database query against the `cards` table. The core logic is:
-        *   Filter by the current `user_id`.
-        *   Filter where `next_review_due <= now()` (or the start of the current day, depending on desired precision). This selects only due cards.
-        *   **Order by `next_review_due ASC`**: This is crucial to prioritize studying the *most overdue* cards first.
-        *   Apply the specified `limit` (e.g., 20).
-    *   **Result:** The action returns an array containing only the `id`s of the cards that meet these criteria, ordered by urgency (e.g., `["cardId_most_overdue", "cardId_next_most_overdue", ...]`). The database index on `(user_id, next_review_due)` is essential for performance here.
+    *   **If Mode 1: Learn Mode (Comprehensive Review):**
+        *   **Queue Init:** Includes **all** fetched cards.
+        *   **Ordering:** Apply shuffling or smart prioritization (e.g., recently failed cards). Define strategy.
+        *   **Goal:** Review each card until session success threshold `X` (from `settings.learn_mode_success_threshold`) is met *for this session*.
+        *   **Progression:**
+            *   Track consecutive correct answers *per card* within session state.
+            *   Increment on correct, reset to 0 on incorrect.
+            *   Remove card from active queue when count reaches `X`.
+            *   Ensure incorrect cards are repeated.
+        *   **SRS Update:** **Crucially, after every answer, calculate the *next* SRS state using `calculateSm2State` (mapping answer to grade 1-4) and schedule a debounced save via `progressActions.updateCardProgress`**.
+        *   **End:** Session ends when active queue is empty.
 
-4.  **Backend: Fetch Card Data (`cardActions.getCardsByIds`):**
-    *   `useStudySession` receives the ordered array of `cardIds`.
-    *   It then calls the `getCardsByIds` Server Action, passing this array.
-    *   This action fetches the *full details* (content, current SRS state like `srsLevel`, `easinessFactor`, etc.) for *only these specific card IDs* from the `cards` table.
+    *   **If Mode 2: Review Mode (SRS-Prioritized):**
+        *   **Filtering:** Filter the fetched `FlashCard[]` array *locally in the hook* to keep only cards where `card.next_review_due <= now()`.
+        *   **Empty Queue Handling:** Notify user if no cards are due from the initial selection.
+        *   **Ordering:** Sort the filtered (due) cards by `next_review_due ASC`.
+        *   **Queue Init:** Includes only the *filtered and sorted due* cards.
+        *   **Goal:** Review all due cards identified.
+        *   **Progression:** Present cards sequentially from the sorted due queue.
+        *   **SRS Update:** After every answer (grade 1-4), calculate the *next* SRS state using `calculateSm2State` and schedule a debounced save via `progressActions.updateCardProgress`.
+        *   **End:** Session ends when the due queue is exhausted.
 
-5.  **Session Initialization (Frontend):**
-    *   `useStudySession` receives the array of fully populated `FlashCard` objects (with their SRS data) in the order determined by the query.
-    *   It initializes its internal study queue (`studyCards` state) with this specific, prioritized list of cards.
-    *   The hook updates its state to indicate loading is complete and the session is ready (`isLoading = false`, `currentCardIndex = 0`).
+### 5.3 Key Considerations & Implementation Notes
 
-6.  **Study Loop Begins:**
-    *   The UI (`StudyPage` / `StudyFlashcardView`) renders the first card from the `studyCards` queue (the most overdue one).
-    *   The user reviews the card, answers (Again/Hard/Good/Easy), and the `useStudySession` hook proceeds as described previously:
-        *   Calls `calculateSm2State` (or other selected algorithm).
-        *   Schedules the debounced `updateCardProgress` action to save the new SRS state for *that specific card*.
-        *   Advances to the next card in the queue.
+*   **UI Clarity:** Clearly separate Card Selection and Study Mode choices. Explain mode differences.
+*   **Backend Query (`resolveStudyQuery`):** Handling complex "Smart Playlist" criteria requires careful SQL/RPC implementation and indexing. Performance is key.
+*   **Frontend Hook (`useStudySession`):** Needs robust state management for both modes, including session-specific tracking for Learn Mode.
+*   **Tagging Integration:** Requires implementing `tagActions`, tag-related UI, and adding tag filtering logic to `resolve_study_query`.
+*   **Consistency:** Ensure SRS state is always calculated and saved correctly in both modes based on user input/grades (map Learn Mode right/wrong to grades 1 & 3 for SRS calc).
 
-**Benefits of this Flow:**
+---
 
-*   **Efficiency:** Users only study cards that the SRS algorithm deems necessary for review, avoiding wasted time on well-remembered items.
-*   **Effectiveness:** Prioritizes cards most at risk of being forgotten, maximizing retention.
-*   **Scalability:** Handles large numbers of cards across many decks, as only the relevant subset is loaded for a session.
-*   **Foundation:** This query mechanism provides the basis for later adding more complex filters like tags or study set criteria.
-
-**(End of inserted section)**
-
-## 5. Component Breakdown
-*(Existing components + New)*
-- `StudySetBuilder`: Form for creating/editing study sets.
-- `StudySetSelector`: Interface to choose how to start studying.
-- `TagManager`: Interface for managing user tags.
-- `CardTagEditor`: Component (likely modal or part of card form) to assign tags to cards.
-- `SrsSelector`: Dropdown in settings for choosing SRS algorithm.
-- `StudyFlashcardView`: Displays the interactive flashcard during study.
-- `DeckList`, `DeckForm`, `CardForm`, `TableEditor`: Components for managing decks and cards directly.
+## 6. Component Breakdown
+*(List remains as described previously)*
+- `StudySetBuilder`
+- `StudySetSelector`
+- `TagManager`
+- `CardTagEditor`
+- `SrsSelector`
+- `StudyFlashcardView`
+- `DeckList`, `DeckForm`, `CardForm`, `TableEditor`
 - Standard UI elements from `shadcn/ui`.
 - Layout components (`Header`, `Sidebar`, `Footer`).
 - Authentication forms (`LoginForm`, `SignupForm`).
 
-## 6. Data Models and Relationships
+## 7. Data Models and Relationships
+*(Schema defined in Section 4 - Data Models remains the source of truth)*
 
-**(Updated ERD reflecting final schema)**
+## 8. Security Considerations
+*(Points remain as described previously)*
+- Supabase Auth, JWT/Cookies (@supabase/ssr)
+- RLS on all tables (`decks`, `cards`, `settings`, `tags`, `card_tags`, `study_sets`)
+- Server Action validation (Session, Input via Zod)
+- API route protection
+- Environment variable security
+- Query parameterization (via Supabase client or DB function)
 
-```mermaid
-erDiagram
-    USERS ||--o{ DECKS : owns
-    USERS ||--o{ TAGS : owns
-    USERS ||--o{ STUDY_SETS : owns
-    USERS ||--|{ CARDS : owns
-    USERS ||--|{ SETTINGS : has
+## 9. Development and Deployment Workflow
+*(Points remain as described previously)*
+- Git workflow
+- Supabase local dev + migrations (`supabase/migrations`)
+- Linting/Formatting/Typing
+- Testing (Unit for SRS utils, Integration for Actions/Hooks)
+- Vercel deployment
 
-    DECKS ||--o{ CARDS : contains
+## 10. Known Issues and Future Roadmap
+*(Updated based on Section 5 architecture)*
+*   Need to implement UI for `StudySetSelector`, `StudySetBuilder`, `TagManager`, `CardTagEditor`.
+*   Need to implement backend logic for `tagActions`, `studySetActions`.
+*   Need to implement complex filtering (tags, dates, languages etc.) in `resolve_study_query` DB function/RPC.
+*   Need to implement the specific card ordering/shuffling strategy for Learn Mode in `useStudySession`.
+*   Need to finalize UI changes for `StudyFlashcardView` (4-grade input) and `StudyPage`.
+*   Need to address TTS language determination in `useStudyTTS` (fetch languages with card data?).
+*   Backfilling SRS/user_id data for existing cards is required (migration script needed).
+*   Performance testing of `resolve_study_query` with large datasets.
+*   **Future Roadmap:**
+    - Implement FSRS algorithm + optimization.
+    - Sharing Decks/Study Sets.
+    - Advanced Query Operators/UI.
+    - System-generated Study Sets ("Hardest", "Recent Lapses").
+    - Enhanced Analytics.
+    - Import/Export improvements.
+    - Rich text editing.
+    - Mobile App / PWA.
 
-    CARDS ||--|{ CARD_TAGS : has
+## 11. References and Resources
+*(List remains as described previously)*
+- Next.js, Supabase (@supabase/ssr, RLS, Functions), React, Tailwind/shadcn/ui Docs
+- SM-2 Algorithm Specification
+- FSRS Algorithm Resources
+- Google Cloud TTS Docs
+- `date-fns` Docs
 
-    TAGS ||--|{ CARD_TAGS : applied_via
+## 12. Changelog
+*   **v2.1 (2024-07-27):** Refactored study session architecture into Section 5. Clarified Card Selection vs. Study Mode execution. Consolidated SRS details. Updated functional overview and workflows. Added `learn_mode_success_threshold` to settings.
+*   **v2.0 (2024-07-26):** Integrated architecture for Tagging, Query-Based Study Sets, and Spaced Repetition System (SRS) with initial SM-2 support. Updated data models, hooks, server actions, and documentation throughout.
+*   **v1.0 (Previous Date):** Initial project documentation covering basic deck/card management, authentication, and TTS.
 
-    SETTINGS {
-        uuid user_id PK, FK
-        text srs_algorithm "Default 'sm2'"
-        jsonb fsrs_parameters "Nullable"
-        timestamptz created_at
-        timestamptz updated_at
-        # ... other settings
-    }
+## 13. Implementation Plan & Status (v2.1 Refactor)
+*(Updated Status based on Section 5)*
+*   **Phase 1: Data Model & Core Backend Setup:** (Largely Completed - Migration `YYYYMMDDHHMMSS_add_srs_study_sets.sql` includes schema, `calculateSm2State` done, core Actions `settings/progress/card` done, Action placeholders created, **Supabase Types Integrated**).
+*   **Phase 2: Study Session Hook Refactoring:** (**Completed** - `useStudySession` refactored for store-based initialization, mode handling, data fetching, and SRS logic).
+*   **Phase 3: UI Adaptation & New Features:** (**Largely Completed for Core Study Loop & Study Set Definition**)
+    *   Implement `StudySetSelector` (Card Selection + Mode Selection UI). **(Largely Completed - Added Study Set Selection)**
+    *   Implement `StudySetBuilder` (Smart Playlist UI): **(Completed)**
+        *   Structure Implemented with Hooks. **(Completed)**
+        *   Implement Full `onSubmit` Criteria Mapping. **(Completed)**
+        *   Implement Multi-Select Combobox UI for Tag selection. **(Completed)**
+        *   Implement Date Picker UI (onDate, betweenDates) for Date filters. **(Completed)**
+        *   Implement SRS Level filter UI. **(Completed)**
+        *   Implement other required filter UIs (updatedDate, lastReviewed, etc.). **(Completed)**
+        *   Update `studySetBuilderSchema` to include fields for all implemented filters. **(Completed)**
+    *   Implement `TagManager`, `CardTagEditor`. **(Completed)**
+    *   Implement `useTags`, `useCardTags`, `useDecks`, `useStudySets` hooks. **(Completed)**
+    *   Update `StudyFlashcardView` for 4-grade input. (**Pending**)
+    *   Implement `app/study/session/page.tsx` Study Page: **(Completed - Core Functionality)**
+        *   Use Settings Context. **(Completed)**
+        *   Implement Flip State Management & `isTransitioning`. **(Completed)**
+        *   Integrate `useStudySession` and `StudyFlashcardView`. **(Completed)**
+        *   Handle Loading/Error/Completion States. **(Completed)**
+    *   Implement `app/study/sets/new/page.tsx` (Create Study Set Page). **(Completed)**
+    *   Implement `app/study/sets/page.tsx` (List/Manage Study Sets Page). **(Completed)**
+    *   Implement `app/study/sets/[setId]/edit/page.tsx` (Edit Study Set Page). **(Completed)**
+*   **Phase 4: Backend Implementation:** (**Largely Completed, StudySet Actions Implemented**)
+    *   Implement complex filtering (tags, dates, etc.) in `resolve_study_query` DB function/RPC. **(Completed)** 
+    *   Implement Server Action `studyQueryActions.resolveStudyQuery` to call the DB function and handle criteria/studySetId input. **(Completed)**
+    *   Implement `tagActions`. **(Completed)**
+    *   Implement `studySetActions`. (**Completed**)
 
-    STUDY_SETS {
-        uuid id PK
-        uuid user_id FK
-        text name
-        text description "Nullable"
-        jsonb query_criteria "Not Null"
-        timestamptz created_at
-        timestamptz updated_at
-    }
-
-    TAGS {
-        uuid id PK
-        uuid user_id FK
-        text name "UNIQUE(user_id, name)"
-        timestamptz created_at
-    }
-
-    CARD_TAGS {
-        uuid card_id PK, FK
-        uuid tag_id PK, FK
-        uuid user_id FK "For RLS"
-    }
-
-    CARDS {
-        uuid id PK
-        uuid deck_id FK
-        uuid user_id FK "Denormalized"
-        text front_content "Not Null"
-        text back_content "Not Null"
-        timestamptz last_reviewed_at "Nullable"
-        timestamptz next_review_due "Nullable, INDEX(user_id, next_review_due)"
-        integer srs_level "Default 0"
-        float easiness_factor "Nullable, Default 2.5"
-        integer interval_days "Nullable, Default 0"
-        float stability "Nullable"
-        float difficulty "Nullable"
-        integer last_review_grade "Nullable"
-        integer correct_count "Default 0"
-        integer incorrect_count "Default 0"
-        timestamptz created_at
-        timestamptz updated_at
-    }
-
-    DECKS {
-       uuid id PK
-       uuid user_id FK
-       text title "Not Null"
-       text description "Nullable"
-       text primary_language "Nullable"
-       text secondary_language "Nullable"
-       timestamptz created_at
-       timestamptz updated_at
-    }
 ```
-*Schema defined in section 4, Data Models.*
-
-## 7. Security Considerations
-- Supabase Auth for user management.
-- JWT-based session handling via `@supabase/ssr` cookies.
-- Secure password policies (enforced by Supabase).
-- **Authorization**: Primarily enforced via **Row Level Security (RLS)** policies in Supabase for all data tables (`decks`, `cards`, `settings`, **(New)** `tags`, `card_tags`, `study_sets`). Backend Server Actions must operate under user context and rely on RLS.
-- **Server Action Protection**: Actions must validate user session and inputs. Zod for input validation.
-- API route protection (Checking session in `/api/tts`).
-- Data Protection: Environment variable management for keys. Secure audio file handling (if stored). HTTPS-only access (Vercel).
-- **(New)** Query Injection prevention in `resolveStudyQuery` (handled by Supabase client parameterization or carefully constructed DB functions).
-
-## 8. Development and Deployment Workflow
-- Git workflow (feature branches, PRs, code reviews).
-- Local development using Next.js dev server and Supabase local dev environment.
-- **(New)** Run Supabase migrations (`supabase migration up`) to apply schema changes locally and before deployment.
-- Linting (ESLint), Formatting (Prettier), Type Checking (TypeScript).
-- **(New)** Database migrations managed via Supabase CLI (`supabase/migrations`).
-- Automated testing (Unit tests for SRS utils, integration tests for actions/hooks).
-- Deployment via Vercel (connected to Git repository). Environment variables managed in Vercel.
-
-## 9. Known Issues and Future Roadmap
-- **(New)** Need to backfill SRS default values and `user_id` for existing cards upon deployment (see migration script comments).
-- **(New)** Initial FSRS implementation will use default parameters; user-specific tuning is a future enhancement.
-- **(Update)** **Implementation of `resolve_study_query` database function (RPC) is required** for performant and reliable query resolution. Performance of direct Supabase queries for complex criteria will likely be inadequate.
-- **(Add)** TTS language determination in `useStudyTTS` needs refactoring as `useStudySession` no longer loads the full Deck object directly. Potential solutions: add language fields to `FlashCard` type/fetch, use defaults, or pass contextually.
-- **(Update)** Study Page UI (`app/study/[deckId]/page.tsx`) has been initially refactored to use the new `useStudySession` hook and deckId-based criteria. **Further work needed:** Fetching deck name separately for header, adapting progress display, implementing 4-grade answer input in `StudyFlashcardView`.
-- **(Add)** UI components for selecting study criteria/sets (`StudySetBuilder`, `StudySetSelector`, `TagManager`, `CardTagEditor`) need implementation.
-- **(Add)** Implementation of placeholder functions in `tagActions.ts` and `studySetActions.ts` is pending.
-- TTS costs for Google Cloud need monitoring.
-- Limited offline support (current architecture relies heavily on server connection).
-- **Future Roadmap:**
-    - **(New)** Implement FSRS algorithm alongside SM-2.
-    - **(New)** Implement FSRS parameter optimization based on user review history.
-    - **(New)** Allow sharing of Decks and/or Study Sets.
-    *   **(New)** Add more advanced query operators/UI for Study Sets.
-    *   **(New)** Implement system-generated Study Sets (e.g., "Hardest Cards", "Most Recent Lapses").
-    *   Enhanced analytics and visualizations.
-    *   Card import/export improvements.
-    *   Rich text editing for cards.
-    *   Mobile app development (potentially PWA or native).
-
-## 10. References and Resources
-- Next.js Documentation
-- Supabase Documentation (`@supabase/ssr`, RLS, DB Functions)
-- React Documentation (Hooks, Context)
-- Tailwind CSS / shadcn/ui Documentation
-- **(New)** SM-2 Algorithm Specification (e.g., via SuperMemo website archives or Anki manual)
-- **(New)** FSRS Algorithm Resources (GitHub repository, related papers/articles)
-- Google Cloud TTS Documentation
-
-## 11. Changelog
-- **v2.0 (2024-07-26):** Integrated architecture for Tagging, Query-Based Study Sets, and Spaced Repetition System (SRS) with initial SM-2 support. Updated data models, hooks, server actions, and documentation throughout.
-- **v1.0 (Previous Date):** Initial project documentation covering basic deck/card management, authentication, and TTS. (Details from original file would go here).
-
-## 12. Implementation Plan & Status (v2.0 Refactor)
-
-### Phase 1: Data Model & Core Backend Setup (Completed)
-*   [x] Generate SQL migration for new/updated tables (`settings`, `tags`, `card_tags`, `study_sets`, updated `cards` with SRS fields). (`YYYYMMDDHHMMSS_add_srs_study_sets.sql`)
-*   [x] Define corresponding TypeScript types (`types/database.ts`, `types/deck.ts`).
-*   [x] Implement core SM-2 logic (`lib/srs.ts` - `calculateSm2State`).
-*   [x] Implement `settingsActions.ts` (`getUserSettings`, `updateUserSettings`).
-*   [x] Implement `progressActions.ts` (`updateCardProgress`).
-*   [x] Implement `cardActions.ts` (`getCardsByIds`, `getCardById`).
-*   [x] Implement `studyQueryActions.ts` structure (`resolveStudyQuery` - **RPC function pending**).
-*   [x] Create placeholders for `tagActions.ts` and `studySetActions.ts`.
-
-### Phase 2: Study Session Hook Refactoring (Completed)
-*   [x] Refactor `useStudySession` hook:
-    *   [x] Change input to `criteria`.
-    *   [x] Remove `useDeckLoader` dependency.
-    *   [x] Integrate `resolveStudyQuery`, `getCardsByIds`.
-    *   [x] Integrate `calculateNextSrsState`.
-    *   [x] Integrate debounced `updateCardProgress`.
-    *   [x] Update internal state management.
-    *   [ ] **TODO:** Address TTS language determination (`useStudyTTS`).
-
-### Phase 3: UI Adaptation & New Features (Current Focus)
-*   [✓] **Update Study Page UI:**
-    *   Refactor `app/study/[deckId]/page.tsx` (or create new route like `app/study/session/page.tsx`) to:
-        *   [✓] Use the refactored `useStudySession` hook.
-        *   [✓] Handle session initialization based on criteria derived from `deckId`.
-        *   [✓] Adapt UI elements (header, completion screen) to work with new hook state.
-        *   [✓] Implement basic UI for session completion/empty states.
-        *   [✓] Map existing 2-button answer input to grades (1 and 3).
-        *   [✓] Fetch deck name separately for `DeckHeader`.
-        *   [✓] Re-implement or adapt `StudyProgress` component based on session queue data.
-        *   [✓] Modify `StudyFlashcardView` to accept 4 grades (Again, Hard, Good, Easy).
-        *   [✓] Add tooltips to explain SRS levels and grading system.
-        *   [✓] Add keyboard shortcuts for grading (1-4).
-        *   [✓] Add study session summary showing SRS progression.
-*   [ ] **Implement Study Initiation UI:**
-    *   Create `StudySetSelector` component (UI to choose Deck, Tag, Study Set, or dynamic query).
-    *   Create pages/modals to host `StudySetSelector`.
-    *   Integrate `StudySetSelector` to call `useStudySession.startSession` with selected criteria.
-*   [ ] **Implement Tag Management UI:**
-    *   Create `TagManager` component (CRUD UI for tags).
-    *   Create `CardTagEditor` component (assign/remove tags from cards in edit view).
-    *   Integrate components into relevant pages (e.g., settings, card edit).
-*   [ ] **Implement Study Set Management UI:**
-    *   Create `StudySetBuilder` component (UI form to define `query_criteria`).
-    *   Integrate `StudySetBuilder` into pages for creating/editing study sets.
-
-### Phase 4: Backend Implementation (Current)
-
-#### Completed:
-- ✅ Implemented `resolve_study_query` PostgreSQL function with:
-  - User-specific card filtering
-  - Tag-based filtering
-  - Study set integration
-  - SRS state categorization (new, learning, review)
-  - Priority-based ordering
-  - Configurable limits and inclusion flags
-- ✅ Refined `studyQueryActions.ts` with:
-  - Zod schema validation for query criteria
-  - Type-safe RPC function calls
-  - Proper error handling and logging
-  - Priority information in response
-
-#### Remaining Backend Tasks:
-1. Test the `resolve_study_query` function with various criteria combinations
-2. Add indexes if needed for query performance
-3. Consider adding more sophisticated ordering options within priority groups
-4. Add study set criteria evaluation in the query (currently a TODO in the function)
-
-### Known Issues and Future Roadmap
-
-#### Current Issues:
-1. Study set criteria evaluation is not yet implemented in `resolve_study_query`
-2. Need to verify performance with large card sets
-3. Consider adding card difficulty tracking for more sophisticated ordering
-
-#### Planned Enhancements:
-1. Add more sophisticated ordering options within priority groups
-2. Implement study statistics tracking
-3. Add support for custom study algorithms beyond basic SRS

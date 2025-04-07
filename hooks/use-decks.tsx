@@ -3,24 +3,39 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react";
-import type { Deck } from "@/types/deck";
 import { useSupabase } from "@/hooks/use-supabase";
 import { useAuth } from "@/hooks/use-auth";
 import {
-  fetchDecks,
-  createDeckService,
-  getDeckService,
-  updateDeckService,
-  deleteDeckService,
-  updateCardResultService,
-} from "@/lib/deckService";
+  getDecks as getDecksAction,
+  getDeck as getDeckAction,
+  createDeck as createDeckAction,
+  updateDeck as updateDeckAction,
+  deleteDeck as deleteDeckAction
+} from "@/lib/actions/deckActions";
 import { getDecksFromLocalStorage, saveDecksToLocalStorage } from "@/lib/localStorageUtils";
+import type { DbDeck, DbCard, Database, Tables } from "@/types/database";
+import type { ActionResult } from "@/lib/actions/types";
+import { toast } from "sonner";
 
-interface CreateDeckParams {
-  name: string;
-  isBilingual: boolean;
-  questionLanguage: string;
-  answerLanguage: string;
+// Type returned by getDeck action
+type DeckWithCards = DbDeck & { cards: DbCard[] };
+
+// Types for create/update actions
+export interface CreateDeckParams extends Pick<DbDeck, 'name' | 'primary_language' | 'secondary_language' | 'is_bilingual'> {}
+export interface UpdateDeckParams extends Partial<Pick<DbDeck, 'name' | 'primary_language' | 'secondary_language' | 'is_bilingual'>> {}
+
+// Type for the list state (removed description)
+type DeckListItem = Pick<DbDeck, 'id' | 'name' | 'primary_language' | 'secondary_language' | 'is_bilingual' | 'updated_at'> & { card_count: number };
+
+// Hook return type definition
+interface UseDecksReturn {
+    decks: DeckListItem[]; // Update state type
+    loading: boolean;
+    getDeck: (id: string) => Promise<ActionResult<DeckWithCards | null>>;
+    createDeck: (params: CreateDeckParams) => Promise<ActionResult<DbDeck>>;
+    updateDeck: (id: string, params: UpdateDeckParams) => Promise<ActionResult<DbDeck>>;
+    deleteDeck: (id: string) => Promise<ActionResult<null>>;
+    refetchDecks: () => Promise<void>;
 }
 
 // Conditional logging helpers
@@ -35,271 +50,131 @@ const logDecksError = (...args: any[]) => {
     }
 };
 
-export function useDecks() {
-  const [decks, setDecks] = useState<Deck[]>([]);
+/**
+ * Hook for managing deck data using Server Actions.
+ */
+export function useDecks(): UseDecksReturn {
+  const [decks, setDecks] = useState<DeckListItem[]>([]); // Update state type
   const [loading, setLoading] = useState(true);
-  const { supabase } = useSupabase();
   const { user } = useAuth();
+  // Supabase client might not be needed directly if all logic is in actions
+  // const { supabase } = useSupabase(); 
 
-  useEffect(() => {
-    const loadDecks = async () => {
-      // --- Guard Clause ---
-      // Wait for both user authentication and supabase client initialization
-      if (!user || !supabase) {
-        logDecks("User or Supabase client not ready yet, skipping deck load.", { hasUser: !!user, hasSupabase: !!supabase });
-        // Keep loading true until both are ready, unless there's definitely no user
-        if (!user) { 
-          setDecks([]); // Ensure decks are empty if no user
-          setLoading(false); 
-        }
-        return;
+  const fetchDeckList = useCallback(async () => {
+      if (!user) {
+           setDecks([]); setLoading(false); return;
       }
-      // --- End Guard Clause ---
-
-      logDecks("Initiating deck loading for user:", user.id);
+      logDecks("Fetching deck list...");
       setLoading(true);
-
-      // 1. Try to load initial state from localStorage
-      const localDecks = getDecksFromLocalStorage();
-      if (localDecks.length > 0) {
-        logDecks("Setting initial state from localStorage", localDecks.length, "decks");
-        setDecks(localDecks);
-      }
-
-      // 2. Fetch from API
       try {
-        logDecks("Fetching decks from API...");
-        const { data: fetchedDecks, error } = await fetchDecks(supabase, user.id);
-
-        if (error) {
-          logDecksError("Error fetching decks from API:", error);
-          // Keep current state (which might be from localStorage or previous fetch)
-          // No explicit fallback needed here with the simplified strategy
-        } else {
-          // API fetch successful
-          const decksToSet = fetchedDecks || [];
-          logDecks("API fetch successful, setting state and saving to localStorage:", decksToSet.length, "decks");
-          setDecks(decksToSet);
-          saveDecksToLocalStorage(decksToSet);
-        }
-      } catch (error) { // Catch unexpected errors during the fetch process
-        // Improved logging: Log the actual error object
-        logDecksError("Unexpected error during loadDecks API call:", error);
-        // Keep current state, don't crash
+          // getDecksAction now returns DeckWithCount[]
+          const result = await getDecksAction(); 
+          if (result.error) {
+              logDecksError("Error fetching deck list:", result.error);
+              toast.error("Failed to load decks", { description: result.error.message });
+          } else {
+              logDecks(`Fetched ${result.data?.length ?? 0} decks.`);
+              // Data structure from action should now match DeckListItem
+              setDecks(result.data || []); 
+          }
+      } catch (error) {
+          logDecksError("Unexpected error fetching deck list:", error);
+          toast.error("Failed to load decks", { description: "An unexpected error occurred." });
       } finally {
-        logDecks("Deck loading process finished.");
-        setLoading(false);
+          setLoading(false);
       }
-    };
-    loadDecks();
-  }, [user, supabase]);
+  }, [user]);
 
-  const createDeck = useCallback(
-    async (params: CreateDeckParams) => {
-      // Guard clauses for user and supabase
-      if (!user) {
-        logDecksError("createDeck failed: User not authenticated.");
-        return { data: null, error: new Error("User not authenticated") };
-      }
-      if (!supabase) {
-        logDecksError("createDeck failed: Supabase client not available.");
-        return { data: null, error: new Error("Database connection not ready.") };
-      }
+  useEffect(() => { fetchDeckList(); }, [fetchDeckList]);
 
-      try {
-        logDecks("Calling createDeckService", params);
-        const { data: newDeck, error } = await createDeckService(supabase, user.id, params);
-        if (error) {
-          // Log the full error object for more detail
-          logDecksError("Error creating deck from createDeckService:", JSON.stringify(error, null, 2));
-          return { data: null, error }; // Return error from service
-        }
-        if (newDeck) {
-          logDecks("Deck created successfully, updating state.", newDeck);
-          setDecks((prev) => [newDeck, ...prev]);
-          return { data: newDeck, error: null };
-        } else {
-          logDecksError("createDeckService returned no data and no error.");
-          return { data: null, error: new Error("Failed to create deck, unexpected result.") };
-        }
-      } catch (error) {
-        logDecksError("Unexpected error in createDeck:", error);
-        return { data: null, error: error instanceof Error ? error : new Error("An unexpected error occurred") };
-      }
-    },
-    [user, supabase] // Dependencies remain user and supabase
-  );
+  // --- Action Wrappers --- 
 
-  const getDeck = useCallback(
-    async (id: string) => {
-      // Guard clauses for user and supabase
-      if (!user) {
-        logDecksError("getDeck failed: User not authenticated.");
-        return { data: null, error: new Error("User not authenticated") };
+  const createDeck = useCallback(async (params: CreateDeckParams): Promise<ActionResult<DbDeck>> => {
+      if (!user) return { data: null, error: new Error("User not authenticated") };
+      const result = await createDeckAction(params);
+      if (!result.error && result.data) {
+          logDecks("Create successful, adding basic info to local state.");
+          // Add the new deck's basic info to the local list state
+          const newDeckItem: DeckListItem = {
+              id: result.data.id,
+              name: result.data.name,
+              primary_language: result.data.primary_language,
+              secondary_language: result.data.secondary_language,
+              is_bilingual: result.data.is_bilingual,
+              updated_at: result.data.updated_at,
+              card_count: 0 // Assume new deck has 0 cards initially
+          };
+          setDecks((prev) => [newDeckItem, ...prev].sort((a,b) => a.name.localeCompare(b.name)));
+          toast.success(`Deck "${newDeckItem.name}" created.`);
       }
-       if (!supabase) {
-        logDecksError("getDeck failed: Supabase client not available.");
-        return { data: null, error: new Error("Database connection not ready.") };
-      }
-      if (!id) {
-        logDecksError("getDeck called without deck ID.");
-        return { data: null, error: new Error("Deck ID is required") };
-      }
-      try {
-        logDecks("Calling getDeckService for ID:", id);
-        const { data: deck, error } = await getDeckService(supabase, user.id, id);
+       if (result.error) {
+            toast.error("Failed to create deck", { description: result.error.message });
+       }
+      return result; 
+  }, [user]);
 
-        if (error) {
-          // Log the full error object for more detail
-          logDecksError("Error fetching deck from getDeckService:", JSON.stringify(error, null, 2));
-          return { data: null, error }; // Return error from service
-        }
-        
-        // deck can be null if not found (not an error)
-        logDecks("getDeckService successful.", deck ? "Deck found." : "Deck not found.");
-        return { data: deck, error: null }; // Return the fetched deck (or null if not found)
-      } catch (error) {
-        logDecksError("Unexpected error in getDeck:", error);
-        return { data: null, error: error instanceof Error ? error : new Error("An unexpected error occurred") };
-      }
-    },
-    [user, supabase] // Dependencies remain user and supabase
-  );
+  const getDeck = useCallback(async (id: string): Promise<ActionResult<DeckWithCards | null>> => {
+       if (!user) return { data: null, error: new Error("User not authenticated") };
+       if (!id) return { data: null, error: new Error("Deck ID required") };
+       // getDeckAction fetches the full deck with cards
+       const result = await getDeckAction(id);
+        if (result.error) {
+            toast.error("Failed to load deck details", { description: result.error.message });
+       }
+       return result; 
+  }, [user]);
 
-  const updateDeck = useCallback(
-    async (updatedDeck: Deck) => {
-      // Guard clauses for user and supabase
-      if (!user) {
-        logDecksError("updateDeck failed: User not authenticated.");
-        return { data: null, error: new Error("User not authenticated") };
-      }
-      if (!supabase) {
-        logDecksError("updateDeck failed: Supabase client not available.");
-        return { data: null, error: new Error("Database connection not ready.") };
-      }
-      if (!updatedDeck || !updatedDeck.id) {
-        logDecksError("updateDeck called without valid deck data.");
-        return { data: null, error: new Error("Valid deck data with ID is required") };
-      }
-      try {
-        logDecks("Calling updateDeckService for ID:", updatedDeck.id);
-        const { error } = await updateDeckService(supabase, user.id, updatedDeck);
-        if (error) {
-          logDecksError("Error updating deck:", error);
-          return { data: null, error }; // Return error from service
-        }
-        
-        logDecks("updateDeckService successful, updating local state.");
-        setDecks((prev) => {
-           if (!Array.isArray(prev)) {
-              logDecksError("prevDecks is not an array in updateDeck! Resetting.");
-              return []; // Or maybe return prev to avoid wiping state?
-           }
-           return prev.map((deck) => (deck.id === updatedDeck.id ? updatedDeck : deck));
-        });
-        return { data: updatedDeck, error: null }; // Return updated deck on success
+  const updateDeck = useCallback(async (id: string, params: UpdateDeckParams): Promise<ActionResult<DbDeck>> => {
+       if (!user) return { data: null, error: new Error("User not authenticated") };
+       if (!id) return { data: null, error: new Error("Deck ID required") };
+       const result = await updateDeckAction(id, params);
+       if (!result.error && result.data) {
+            logDecks("Update successful, updating local list state.");
+            // Update the local list state with potentially changed info
+            setDecks((prev) => prev.map(d => d.id === id ? { 
+                ...d, 
+                ...(params.name && { name: params.name }),
+                ...(params.primary_language !== undefined && { primary_language: params.primary_language }),
+                ...(params.secondary_language !== undefined && { secondary_language: params.secondary_language }),
+                ...(params.is_bilingual !== undefined && { is_bilingual: params.is_bilingual }),
+                updated_at: result.data.updated_at // Use timestamp from result
+            } : d).sort((a,b) => a.name.localeCompare(b.name)) );
+            toast.success(`Deck "${result.data.name}" updated.`);
+       } 
+       if (result.error) {
+            toast.error("Failed to update deck", { description: result.error.message });
+       }
+       return result;
+  }, [user]);
 
-      } catch (error) {
-        logDecksError("Unexpected error in updateDeck:", error);
-        return { data: null, error: error instanceof Error ? error : new Error("An unexpected error occurred") };
-      }
-    },
-    [user, supabase] // Dependencies remain user and supabase
-  );
+  const deleteDeck = useCallback(async (id: string): Promise<ActionResult<null>> => {
+      if (!user) return { data: null, error: new Error("User not authenticated") };
+      if (!id) return { data: null, error: new Error("Deck ID required") };
+      // Optimistic UI: Remove immediately from local state
+      const originalDecks = decks;
+      setDecks((prev) => prev.filter(d => d.id !== id));
+      logDecks("Calling deleteDeck action for ID:", id);
+      const result = await deleteDeckAction(id);
+       if (result.error) {
+            toast.error("Failed to delete deck", { description: result.error.message });
+            // Revert optimistic update on error
+            setDecks(originalDecks);
+            return { data: null, error: result.error };
+       } else {
+            logDecks("Delete successful.");
+            toast.success("Deck deleted.");
+            return { data: null, error: null };
+       }
+  }, [user, decks]); // Include decks in dependency for optimistic revert
 
-  const deleteDeck = useCallback(
-    async (id: string) => {
-      // Guard clauses for user and supabase
-      if (!user) {
-        logDecksError("deleteDeck failed: User not authenticated.");
-        return { success: false, error: new Error("User not authenticated") };
-      }
-      if (!supabase) {
-        logDecksError("deleteDeck failed: Supabase client not available.");
-        return { success: false, error: new Error("Database connection not ready.") };
-      }
-      if (!id) {
-        logDecksError("deleteDeck called without deck ID.");
-        return { success: false, error: new Error("Deck ID is required") };
-      }
-      try {
-        logDecks("Calling deleteDeckService for ID:", id);
-        const { error } = await deleteDeckService(supabase, user.id, id);
-        if (error) {
-          logDecksError("Error deleting deck:", error);
-          return { success: false, error }; // Return error from service
-        }
-        
-        logDecks("deleteDeckService successful, updating local state.");
-        setDecks((prev) => {
-           if (!Array.isArray(prev)) {
-              logDecksError("prevDecks is not an array in deleteDeck! Resetting.");
-              return [];
-           }
-           return prev.filter((deck) => deck.id !== id);
-        });
-        return { success: true, error: null }; // Indicate success
-      } catch (error) {
-        logDecksError("Unexpected error in deleteDeck:", error);
-        return { success: false, error: error instanceof Error ? error : new Error("An unexpected error occurred") };
-      }
-    },
-    [user, supabase] // Dependencies remain user and supabase
-  );
 
-  const updateCardResult = useCallback(
-    async (deckId: string, cardId: string, isCorrect: boolean | null) => {
-      // Guard clauses for user and supabase
-      if (!user) {
-        logDecksError("updateCardResult failed: User not authenticated.");
-        return { data: null, error: new Error("User not authenticated") };
-      }
-      if (!supabase) {
-        logDecksError("updateCardResult failed: Supabase client not available.");
-        return { data: null, error: new Error("Database connection not ready.") };
-      }
-      if (!deckId || !cardId) {
-        logDecksError("updateCardResult called without deckId or cardId.");
-        return { data: null, error: new Error("Deck ID and Card ID are required") };
-      }
-      
-      try {
-        logDecks("Calling updateCardResultService for Card ID:", cardId, "in Deck ID:", deckId);
-        // Call the service function
-        const { data: updatedCard, error } = await updateCardResultService(
-          supabase,
-          user.id,
-          deckId,
-          cardId,
-          isCorrect
-        );
-
-        if (error) {
-          logDecksError("Error updating card result:", error);
-          return { data: null, error }; // Return error from service
-        }
-
-        // Note: We do NOT update the global 'decks' state here.
-        // The component using this (StudyDeckPage) manages its own local state during the session.
-        logDecks("updateCardResultService successful.");
-        return { data: updatedCard, error: null }; // Return the updated card data
-
-      } catch (error) {
-        logDecksError("Unexpected error in updateCardResult:", error);
-        return { data: null, error: error instanceof Error ? error : new Error("An unexpected error occurred") };
-      }
-    },
-    [user, supabase] // Dependencies remain user and supabase
-  );
-
-  // Return type needs adjustment based on new callback signatures
   return {
-    decks,
+    decks, // Now DeckListItem[] without description
     loading,
-    getDeck, // Now returns Promise<{ data: Deck | null, error: ...}>
-    createDeck, // Now returns Promise<{ data: Deck | null, error: ...}>
-    updateDeck, // Now returns Promise<{ data: Deck | null, error: ...}>
-    deleteDeck, // Now returns Promise<{ success: boolean, error: ...}>
-    updateCardResult, // Export the new function
+    getDeck, 
+    createDeck, 
+    updateDeck, 
+    deleteDeck, 
+    refetchDecks: fetchDeckList 
   };
 }

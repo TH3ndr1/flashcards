@@ -8,10 +8,8 @@ import { CreateDeckDialog } from "@/components/create-deck-dialog"
 import { useDecks } from "@/hooks/use-decks"
 import { useRouter } from "next/navigation"
 import { useSettings } from "@/providers/settings-provider"
-import {
-  calculateMasteredCount,
-  DEFAULT_MASTERY_THRESHOLD,
-} from "@/lib/study-utils";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Terminal } from "lucide-react"
 
 export function DeckList() {
   const { decks, loading } = useDecks()
@@ -42,7 +40,8 @@ export function DeckList() {
   }
 
   const handleStudyDeck = (deckId: string) => {
-    router.push(`/study/${deckId}`)
+    console.warn("handleStudyDeck needs update for new study flow");
+    router.push(`/study/${deckId}`);
   }
 
   if (loading) {
@@ -69,58 +68,46 @@ export function DeckList() {
         </Button>
       </div>
 
-      {decks.length === 0 ? (
-        <Card className="border-dashed border-2 cursor-pointer hover:bg-muted/50 transition-colors">
-          <CardContent
-            className="flex flex-col items-center justify-center p-6 h-40"
-            onClick={() => setIsCreateOpen(true)}
-          >
-            <PlusCircle className="h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-muted-foreground text-center">Create your first deck to start studying</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {decks.map((deck) => {
-            const totalCards = deck.cards.length;
-            const threshold = settings?.masteryThreshold ?? DEFAULT_MASTERY_THRESHOLD;
-            const masteredCount = calculateMasteredCount(deck.cards, settings);
-            const masteryProgressPercent = totalCards > 0 
-                ? Math.round((masteredCount / totalCards) * 100) 
-                : 0;
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {loading ? (
+          Array.from({ length: 3 }).map((_, i) => (
+            <Card key={`skel-${i}`}><CardHeader><div className="h-5 w-3/4 bg-muted rounded animate-pulse"/></CardHeader><CardContent><div className="h-4 w-full bg-muted rounded animate-pulse"/></CardContent><CardFooter className="flex justify-between"><div className="h-8 w-16 bg-muted rounded animate-pulse"/><div className="h-8 w-16 bg-muted rounded animate-pulse"/></CardFooter></Card>
+          ))
+        ) : decks.length === 0 ? (
+          <div className="col-span-full text-center text-muted-foreground mt-10">
+            <p>You haven't created any decks yet.</p>
+            <Button onClick={() => setIsCreateOpen(true)} className="mt-4">
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Create Your First Deck
+            </Button>
+          </div>
+        ) : (
+          decks.map((deck) => {
+            const totalCards = deck.card_count ?? 0;
+            let languageDisplay = deck.primary_language || 'Lang not set';
+            if (deck.is_bilingual && deck.secondary_language) {
+                languageDisplay = `${deck.primary_language ?? '?'} / ${deck.secondary_language ?? '?'}`;
+            }
 
             return (
-              <Card key={deck.id} className="hover:shadow-md transition-shadow">
+              <Card key={deck.id} className="hover:shadow-md transition-shadow flex flex-col">
                 <CardHeader>
-                  <CardTitle>{deck.name}</CardTitle>
+                  <CardTitle className="truncate" title={deck.name}>{deck.name}</CardTitle>
                   <CardDescription>
-                    {totalCards} cards • {deck.language}
+                    {totalCards} card{totalCards !== 1 ? 's' : ''} • {languageDisplay}
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-primary rounded-full transition-all duration-300 ease-out"
-                      style={{
-                        width: `${masteryProgressPercent}%`,
-                      }}
-                    ></div>
-                  </div>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    {masteredCount} of {totalCards} cards mastered
-                  </p>
-                </CardContent>
-                <CardFooter className="flex justify-between">
-                  <Button variant="outline" onClick={() => handleEditDeck(deck.id)}>
+                <CardFooter className="flex justify-between mt-auto pt-4">
+                  <Button variant="outline" size="sm" onClick={() => handleEditDeck(deck.id)}>
                     Edit
                   </Button>
-                  <Button onClick={() => handleStudyDeck(deck.id)}>Study</Button>
+                  <Button size="sm" onClick={() => handleStudyDeck(deck.id)}>Study</Button>
                 </CardFooter>
               </Card>
             )
-          })}
-        </div>
-      )}
+          })
+        )}
+      </div>
 
       <CreateDeckDialog open={isCreateOpen} onOpenChange={setIsCreateOpen} />
     </div>

@@ -206,8 +206,8 @@ describe('deckService', () => {
       user_id: userId, // Not in Deck type, but likely in raw data
       language: deckParams.questionLanguage,
       is_bilingual: deckParams.isBilingual,
-      question_language: deckParams.questionLanguage,
-      answer_language: deckParams.answerLanguage,
+      primary_language: deckParams.questionLanguage,
+      secondary_language: deckParams.answerLanguage,
       progress: { correct: 0, total: 0 },
       // created_at handled by DB
     }; 

@@ -3,224 +3,277 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
-import type { DbStudySet } from "@/types/database";
-import type { StudyQueryCriteria } from "./studyQueryActions"; // Import the criteria type
+import { z } from 'zod';
+import { studyQueryCriteriaSchema } from '@/lib/schema/study-query.schema'; // Import the criteria schema
+import type { StudyQueryCriteria } from '@/lib/schema/study-query.schema';
+import type { Database, Tables } from "@/types_db"; // Assuming types_db defines Tables<'study_sets'> 
+
+// Define DbStudySet based on your types_db or manually if needed
+type DbStudySet = Tables<'study_sets'>;
+
+// Define a common ActionResult type
+interface ActionResult<T> {
+    data: T | null;
+    error: string | null;
+}
+
+// Zod schema for creating/updating study sets (validates name, description, criteria)
+const studySetInputSchema = z.object({
+    name: z.string().trim().min(1, 'Study set name is required').max(100),
+    description: z.string().trim().max(500).optional().nullable(),
+    criteria: studyQueryCriteriaSchema, // Validate the criteria object
+});
+
+// Zod schema for partial updates
+const partialStudySetInputSchema = studySetInputSchema.partial(); 
+
+// Helper to get Supabase client and user
+async function getSupabaseAndUser() {
+  const cookieStore = cookies();
+  const supabase = createSupabaseServerClient(cookieStore);
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return { supabase: null, user: null, error: 'Authentication required.' };
+  }
+  return { supabase, user, error: null };
+}
 
 /**
- * Fetches all study sets belonging to the current user.
+ * Creates a new study set for the authenticated user.
  */
-export async function getStudySets(): Promise<{ data: DbStudySet[] | null, error: Error | null }> {
-    const cookieStore = cookies();
-    const supabase = createSupabaseServerClient(cookieStore);
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-        console.error("getStudySets: Auth error or no user", authError);
-        return { data: null, error: authError || new Error("User not authenticated") };
+export async function createStudySet(
+    data: { name: string; description?: string | null; criteria: StudyQueryCriteria }
+): Promise<ActionResult<DbStudySet>> {
+    const { supabase, user, error: authError } = await getSupabaseAndUser();
+    if (authError || !supabase || !user) {
+        return { data: null, error: authError };
     }
 
+    console.log("[createStudySet] User:", user.id, "Input Data:", data);
+
+    // Validate input data
+    const validation = studySetInputSchema.safeParse(data);
+    if (!validation.success) {
+        console.warn("[createStudySet] Validation failed:", validation.error.errors);
+        return { data: null, error: validation.error.errors[0].message };
+    }
+
+    const { name, description, criteria } = validation.data;
+
     try {
-        console.log("Fetching study sets for user:", user.id);
-        const { data, error } = await supabase
+        const { data: newStudySet, error: insertError } = await supabase
             .from('study_sets')
-            .select('*') // Select all fields for DbStudySet
-            .eq('user_id', user.id)
-            .order('name', { ascending: true })
-            .returns<DbStudySet[]>();
+            .insert({
+                user_id: user.id,
+                name: name,
+                description: description,
+                query_criteria: criteria as any, // Cast criteria to 'any' if Supabase types aren't precise for JSONB
+            })
+            .select()
+            .single();
 
-        if (error) throw error;
+        if (insertError) {
+            console.error("[createStudySet] Insert error:", insertError);
+            // Handle potential unique name constraint if needed (though not in schema def above)
+            // if (insertError.code === '23505') { ... }
+            return { data: null, error: 'Failed to create study set.' };
+        }
 
-        console.log(`getStudySets: Found ${data?.length ?? 0} study sets.`);
-        return { data: data ?? [], error: null }; // Return empty array if data is null
+        console.log("[createStudySet] Success, ID:", newStudySet?.id);
+        revalidatePath('/study-sets'); // Revalidate page listing study sets
+        return { data: newStudySet, error: null };
 
-    } catch (error) {
-        console.error("getStudySets: Error fetching study sets:", error);
-        return { data: null, error: error instanceof Error ? error : new Error("Failed to fetch study sets.") };
+    } catch (err) {
+        console.error("[createStudySet] Unexpected error:", err);
+        return { data: null, error: 'An unexpected error occurred.' };
     }
 }
 
 /**
- * Fetches a specific study set by its ID for the current user.
+ * Retrieves all study sets for the authenticated user.
  */
-export async function getStudySet(studySetId: string): Promise<{ data: DbStudySet | null, error: Error | null }> {
-    const cookieStore = cookies();
-    const supabase = createSupabaseServerClient(cookieStore);
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+export async function getUserStudySets(): Promise<ActionResult<DbStudySet[]>> {
+    const { supabase, user, error: authError } = await getSupabaseAndUser();
+    if (authError || !supabase || !user) {
+        return { data: null, error: authError };
+    }
 
-    if (authError || !user) {
-        console.error("getStudySet: Auth error or no user", authError);
-        return { data: null, error: authError || new Error("User not authenticated") };
-    }
-    if (!studySetId) {
-        return { data: null, error: new Error("Study Set ID is required.") };
-    }
+    console.log("[getUserStudySets] User:", user.id);
 
     try {
-        console.log("Fetching study set:", studySetId, "for user:", user.id);
-        const { data, error } = await supabase
+        const { data: studySets, error: fetchError } = await supabase
+            .from('study_sets')
+            .select('*') // Select all columns
+            .eq('user_id', user.id)
+            .order('name', { ascending: true }); // Order by name
+
+        if (fetchError) {
+            console.error("[getUserStudySets] Fetch error:", fetchError);
+            return { data: null, error: 'Failed to fetch study sets.' };
+        }
+
+        console.log(`[getUserStudySets] Found ${studySets?.length ?? 0} sets.`);
+        return { data: studySets || [], error: null };
+
+    } catch (err) {
+        console.error("[getUserStudySets] Unexpected error:", err);
+        return { data: null, error: 'An unexpected error occurred.' };
+    }
+}
+
+/**
+ * Retrieves a single study set by ID for the authenticated user.
+ */
+export async function getStudySet(studySetId: string): Promise<ActionResult<DbStudySet | null>> {
+    const { supabase, user, error: authError } = await getSupabaseAndUser();
+    if (authError || !supabase || !user) {
+        return { data: null, error: authError };
+    }
+
+    // Basic ID validation
+    if (!studySetId || typeof studySetId !== 'string') {
+        return { data: null, error: 'Invalid Study Set ID provided.' };
+    }
+
+    console.log("[getStudySet] User:", user.id, "Set ID:", studySetId);
+
+    try {
+        const { data: studySet, error: fetchError } = await supabase
             .from('study_sets')
             .select('*')
             .eq('id', studySetId)
-            .eq('user_id', user.id)
-            .maybeSingle<DbStudySet>(); // Use maybeSingle as it might not exist
+            .eq('user_id', user.id) // Ensure user ownership
+            .maybeSingle(); // Use maybeSingle to return null if not found
 
-        if (error) throw error;
-
-        if (!data) {
-             console.log(`getStudySet: Study set ${studySetId} not found for user ${user.id}.`);
-             return { data: null, error: null }; // Not found is not an error here
+        if (fetchError) {
+            console.error("[getStudySet] Fetch error:", fetchError);
+            return { data: null, error: 'Failed to fetch study set.' };
         }
 
-        console.log(`getStudySet: Found study set ${studySetId}.`);
-        return { data, error: null };
+        if (!studySet) {
+            console.log("[getStudySet] Not found or unauthorized for ID:", studySetId);
+             // Return null data but not necessarily an error if simply not found
+             return { data: null, error: null }; 
+        }
 
-    } catch (error) {
-        console.error("getStudySet: Error fetching study set:", studySetId, error);
-        return { data: null, error: error instanceof Error ? error : new Error("Failed to fetch study set.") };
+        console.log("[getStudySet] Found:", studySet.id);
+        return { data: studySet, error: null };
+
+    } catch (err) {
+        console.error("[getStudySet] Unexpected error:", err);
+        return { data: null, error: 'An unexpected error occurred.' };
     }
 }
 
 /**
- * Creates a new study set for the current user.
- * TODO: Add validation for queryCriteria structure (e.g., using Zod).
+ * Updates an existing study set for the authenticated user.
  */
-export async function createStudySet(name: string, description: string | null, queryCriteria: StudyQueryCriteria): Promise<{ data: DbStudySet | null, error: Error | null }> {
-    const cookieStore = cookies();
-    const supabase = createSupabaseServerClient(cookieStore);
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-        console.error("createStudySet: Auth error or no user", authError);
-        return { data: null, error: authError || new Error("User not authenticated") };
+export async function updateStudySet(
+    studySetId: string,
+    data: Partial<{ name: string; description: string | null; criteria: StudyQueryCriteria }> 
+): Promise<ActionResult<DbStudySet>> {
+    const { supabase, user, error: authError } = await getSupabaseAndUser();
+    if (authError || !supabase || !user) {
+        return { data: null, error: authError };
     }
 
-    const trimmedName = name?.trim();
-    if (!trimmedName) {
-        return { data: null, error: new Error("Study set name cannot be empty.") };
+    if (!studySetId || typeof studySetId !== 'string') {
+        return { data: null, error: 'Invalid Study Set ID provided.' };
     }
-    // Basic check for queryCriteria - consider more robust validation
-    if (typeof queryCriteria !== 'object' || queryCriteria === null || Object.keys(queryCriteria).length === 0) {
-         return { data: null, error: new Error("Valid query criteria are required.") };
+    
+    // Validate the partial input data 
+    const validation = partialStudySetInputSchema.safeParse(data);
+     if (!validation.success) {
+        console.warn("[updateStudySet] Validation failed:", validation.error.errors);
+        return { data: null, error: validation.error.errors[0].message };
     }
+    
+    const updateData = validation.data;
+
+    // Ensure there's something to update
+    if (Object.keys(updateData).length === 0) {
+         return { data: null, error: "No update data provided." };
+    }
+
+    console.log("[updateStudySet] User:", user.id, "Set ID:", studySetId, "Update Data:", updateData);
 
     try {
-        console.log("Creating study set for user:", user.id, "with name:", trimmedName);
-        const { data, error } = await supabase
+        // Update and fetch the updated row
+        const { data: updatedStudySet, error: updateError } = await supabase
             .from('study_sets')
-            .insert({
-                name: trimmedName,
-                description: description,
-                query_criteria: queryCriteria, // Stored as JSONB
-                user_id: user.id
-            })
-            .select('*') // Select all fields of the new set
-            .single<DbStudySet>();
-
-        if (error) throw error;
-
-        console.log(`createStudySet: Study set created successfully with ID: ${data?.id}`);
-        // Revalidate paths where study sets are listed
-        revalidatePath('/study-sets'); // Example page
-        revalidatePath('/study'); // General study selection page?
-
-        return { data, error: null };
-
-    } catch (error) {
-        console.error("createStudySet: Error creating study set:", error);
-        // Add specific error handling? e.g., duplicate name constraint if added
-        return { data: null, error: error instanceof Error ? error : new Error("Failed to create study set.") };
-    }
-}
-
-/**
- * Updates an existing study set for the current user.
- * TODO: Add validation for queryCriteria structure in updates.
- */
-export async function updateStudySet(studySetId: string, updates: Partial<Pick<DbStudySet, 'name' | 'description' | 'query_criteria'>>): Promise<{ error: Error | null }> {
-    const cookieStore = cookies();
-    const supabase = createSupabaseServerClient(cookieStore);
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-        console.error("updateStudySet: Auth error or no user", authError);
-        return { error: authError || new Error("User not authenticated") };
-    }
-    if (!studySetId) {
-         return { error: new Error("Study Set ID is required for update.") };
-    }
-    if (updates.name !== undefined && !updates.name.trim()) {
-         return { error: new Error("Study set name cannot be empty.") };
-    }
-     // Basic check for queryCriteria if being updated
-    if (updates.query_criteria !== undefined && (typeof updates.query_criteria !== 'object' || updates.query_criteria === null)) {
-         return { error: new Error("Invalid query criteria provided.") };
-    }
-
-    // Prepare update object, trimming name if present
-    const finalUpdates: Partial<DbStudySet> = { ...updates };
-    if (finalUpdates.name) {
-        finalUpdates.name = finalUpdates.name.trim();
-    }
-    finalUpdates.updated_at = new Date().toISOString(); // Add if trigger isn't used
-
-    try {
-        console.log("Updating study set:", studySetId, "for user:", user.id);
-        const { error } = await supabase
-            .from('study_sets')
-            .update(finalUpdates)
+            .update({
+                ...updateData,
+                query_criteria: updateData.criteria as any, // Cast if needed
+                updated_at: new Date().toISOString(), // Explicitly set updated_at
+             })
             .eq('id', studySetId)
-            .eq('user_id', user.id); // Ensure ownership
+            .eq('user_id', user.id) // Ensure user ownership
+            .select()
+            .single();
 
-        if (error) throw error;
+        if (updateError) {
+            console.error("[updateStudySet] Update error:", updateError);
+            // Handle potential unique name constraint if name is being updated
+             // if (updateError.code === '23505') { ... }
+            return { data: null, error: 'Failed to update study set.' };
+        }
+        
+        if (!updatedStudySet) {
+             // This might happen if the ID didn't exist or RLS failed
+             console.warn("[updateStudySet] Update affected 0 rows for ID:", studySetId);
+             return { data: null, error: 'Study set not found or update failed.' };
+        }
 
-        console.log(`updateStudySet: Study set ${studySetId} updated successfully.`);
-        // Revalidate relevant paths
-        revalidatePath('/study-sets');
-        revalidatePath(`/study-set/${studySetId}`); // Example detail page
+        console.log("[updateStudySet] Success, ID:", updatedStudySet.id);
+        revalidatePath('/study-sets'); // Revalidate list page
+        revalidatePath(`/study-sets/${studySetId}`); // Revalidate specific set page (if exists)
+        return { data: updatedStudySet, error: null };
 
-        return { error: null };
-
-    } catch (error) {
-        console.error("updateStudySet: Error updating study set:", studySetId, error);
-        return { error: error instanceof Error ? error : new Error("Failed to update study set.") };
+    } catch (err) {
+        console.error("[updateStudySet] Unexpected error:", err);
+        return { data: null, error: 'An unexpected error occurred.' };
     }
 }
 
 /**
- * Deletes a study set for the current user.
+ * Deletes a study set for the authenticated user.
  */
-export async function deleteStudySet(studySetId: string): Promise<{ error: Error | null }> {
-    const cookieStore = cookies();
-    const supabase = createSupabaseServerClient(cookieStore);
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+export async function deleteStudySet(studySetId: string): Promise<ActionResult<null>> {
+    const { supabase, user, error: authError } = await getSupabaseAndUser();
+    if (authError || !supabase || !user) {
+        return { data: null, error: authError };
+    }
 
-    if (authError || !user) {
-        console.error("deleteStudySet: Auth error or no user", authError);
-        return { error: authError || new Error("User not authenticated") };
+     if (!studySetId || typeof studySetId !== 'string') {
+        return { data: null, error: 'Invalid Study Set ID provided.' };
     }
-    if (!studySetId) {
-         return { error: new Error("Study Set ID is required for deletion.") };
-    }
+
+    console.log("[deleteStudySet] User:", user.id, "Set ID:", studySetId);
 
     try {
-        console.log("Deleting study set:", studySetId, "for user:", user.id);
-        const { error } = await supabase
+        const { error: deleteError, count } = await supabase
             .from('study_sets')
             .delete()
             .eq('id', studySetId)
-            .eq('user_id', user.id); // Ensure ownership
+            .eq('user_id', user.id); // Ensure user ownership
 
-        if (error) throw error;
+        if (deleteError) {
+            console.error("[deleteStudySet] Delete error:", deleteError);
+            return { data: null, error: 'Failed to delete study set.' };
+        }
+        
+        if (count === 0) {
+             console.warn("[deleteStudySet] Delete affected 0 rows for ID:", studySetId);
+             // Don't necessarily return error if it just wasn't found
+             // return { data: null, error: 'Study set not found or not authorized.' };
+        }
 
-        console.log(`deleteStudySet: Study set ${studySetId} deleted successfully.`);
-        // Revalidate paths
-        revalidatePath('/study-sets');
-        revalidatePath('/study');
+        console.log("[deleteStudySet] Success for ID:", studySetId);
+        revalidatePath('/study-sets'); // Revalidate list page
+        return { data: null, error: null }; // Success
 
-        return { error: null };
-
-    } catch (error) {
-        console.error("deleteStudySet: Error deleting study set:", studySetId, error);
-        return { error: error instanceof Error ? error : new Error("Failed to delete study set.") };
+    } catch (err) {
+        console.error("[deleteStudySet] Unexpected error:", err);
+        return { data: null, error: 'An unexpected error occurred.' };
     }
 } 

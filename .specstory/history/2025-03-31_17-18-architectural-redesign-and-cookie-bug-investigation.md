@@ -7420,6 +7420,55 @@ _**Assistant**_
 
 ---
 
+```bash
+cd /Users/tom/dev/flashcards && git status
+```
+
+```
+On branch SRS-branch
+Your branch is up to date with 'origin/SRS-branch'.
+
+Changes to be committed:
+  (use "git restore --staged <file>..." to unstage)
+        modified:   .specstory/history/2025-03-31_17-18-architectural-redesign-a
+nd-cookie-bug-investigation.
+md
+                                    modified:   docs/architecture-study-sets.md
+        modified:   hooks/useStudyTTS.ts
+
+
+```
+
+---
+
+```bash
+git commit -m "Fix double voice command issue when starting study session" && git push
+```
+
+```
+tom@MacBook-Pro-van-Tom flashcards % git commit -m "Fix double voice command issue when starting study sessi
+on" && git push                      git commit -m "Fix double voice command issue when starting study sessi
+on" && git push
+[SRS-branch 868a0cc] Fix double voice command issue when starting study session
+ 3 files changed, 539 insertions(+), 1 deletion(-)
+Enumerating objects: 17, done.
+Counting objects: 100% (17/17), done.
+Delta compression using up to 8 threads
+Compressing objects: 100% (9/9), done.
+Writing objects: 100% (9/9), 8.77 KiB | 4.38 MiB/s, done.
+Total 9 (delta 7), reused 0 (delta 0), pack-reused 0
+remote: Resolving deltas: 100% (7/7), completed with 7 local objects.
+To https://github.com/TH3ndr1/flashcards.git
+   2e11f45..868a0cc  SRS-branch -> SRS-branch
+tom@MacBook-Pro-van-Tom flashcards %
+```
+
+---
+
+Changes
+
+---
+
 
 
 ---

@@ -11,8 +11,8 @@ interface RawDeckQueryResult {
   name: string;
   language: string | null; // Keep original fields for clarity before mapping
   is_bilingual: boolean | null;
-  question_language: string | null;
-  answer_language: string | null;
+  primary_language: string | null;
+  secondary_language: string | null;
   progress: { correct: number; total: number } | null; // Assuming progress is JSONB
   cards: RawCardQueryResult[]; // Use RawCardQueryResult here
 }
@@ -50,8 +50,8 @@ export async function fetchDecks(
       name,
       language, 
       is_bilingual,
-      question_language,
-      answer_language,
+      primary_language,
+      secondary_language,
       progress,
       cards (
         id,
@@ -99,10 +99,10 @@ export async function fetchDecks(
         id: deck.id,
         name: deck.name,
         // Prefer specific language fields, fallback to potentially deprecated 'language'
-        language: deck.question_language || deck.language || 'unknown', 
+        language: deck.primary_language || deck.language || 'unknown', 
         isBilingual: deck.is_bilingual ?? false,
-        questionLanguage: deck.question_language || deck.language || 'unknown',
-        answerLanguage: deck.answer_language || deck.language || 'unknown',
+        questionLanguage: deck.primary_language || deck.language || 'unknown',
+        answerLanguage: deck.secondary_language || deck.language || 'unknown',
         cards: cards,
         progress: deck.progress ?? { correct: 0, total: 0 },
       };
@@ -151,8 +151,8 @@ export async function createDeckService(
         user_id: userId,
         name: params.name,
         is_bilingual: params.isBilingual,
-        question_language: params.questionLanguage,
-        answer_language: params.answerLanguage,
+        primary_language: params.questionLanguage,
+        secondary_language: params.answerLanguage,
         language: params.questionLanguage, // Keep for potential backward compatibility if needed
         progress: { correct: 0, total: 0 }, // Initialize progress
         // created_at is handled by the database default
@@ -163,8 +163,8 @@ export async function createDeckService(
       name,
       language,
       is_bilingual,
-      question_language,
-      answer_language,
+      primary_language,
+      secondary_language,
       progress
     `) // No need to select cards here, as a new deck has none
     .single() // Expecting a single record back
@@ -188,10 +188,10 @@ export async function createDeckService(
     const newDeck: Deck = {
       id: rawData.id,
       name: rawData.name,
-      language: rawData.question_language || rawData.language || 'unknown',
+      language: rawData.primary_language || rawData.language || 'unknown',
       isBilingual: rawData.is_bilingual ?? false,
-      questionLanguage: rawData.question_language || rawData.language || 'unknown',
-      answerLanguage: rawData.answer_language || rawData.language || 'unknown',
+      questionLanguage: rawData.primary_language || rawData.language || 'unknown',
+      answerLanguage: rawData.secondary_language || rawData.language || 'unknown',
       cards: [], // New deck starts with no cards
       progress: rawData.progress ?? { correct: 0, total: 0 },
     };
@@ -227,8 +227,8 @@ export async function getDeckService(
       name,
       language,
       is_bilingual,
-      question_language,
-      answer_language,
+      primary_language,
+      secondary_language,
       progress,
       cards (
         id,
@@ -280,10 +280,10 @@ export async function getDeckService(
     const fetchedDeck: Deck = {
       id: rawData.id,
       name: rawData.name,
-      language: rawData.question_language || rawData.language || 'unknown',
+      language: rawData.primary_language || rawData.language || 'unknown',
       isBilingual: rawData.is_bilingual ?? false,
-      questionLanguage: rawData.question_language || rawData.language || 'unknown',
-      answerLanguage: rawData.answer_language || rawData.language || 'unknown',
+      questionLanguage: rawData.primary_language || rawData.language || 'unknown',
+      answerLanguage: rawData.secondary_language || rawData.language || 'unknown',
       cards: cards,
       progress: rawData.progress ?? { correct: 0, total: 0 },
     };
@@ -330,8 +330,8 @@ export async function updateDeckService(
     .update({
       name: updatedDeck.name,
       is_bilingual: updatedDeck.isBilingual,
-      question_language: updatedDeck.questionLanguage,
-      answer_language: updatedDeck.answerLanguage,
+      primary_language: updatedDeck.questionLanguage,
+      secondary_language: updatedDeck.answerLanguage,
       progress: updatedDeck.progress,
       updated_at: new Date().toISOString(),
     })

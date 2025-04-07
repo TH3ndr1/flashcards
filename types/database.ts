@@ -152,12 +152,12 @@ export interface DbCard {
   id: string; // uuid
   deck_id: string; // uuid
   user_id: string; // uuid 
-  front_content: string; // text - This should match the DB
-  back_content: string; // text - This should match the DB
+  question: string; // text - Reverted from front_content
+  answer: string; // text - Reverted from back_content
   created_at: string; // timestamptz
   updated_at: string; // timestamptz
   
-  // SRS Fields (match DB column names exactly)
+  // SRS Fields 
   last_reviewed_at: string | null; // timestamptz
   next_review_due: string | null; // timestamptz
   srs_level: number; // integer
@@ -167,51 +167,76 @@ export interface DbCard {
   difficulty: number | null; // float
   last_review_grade: number | null; // integer
 
-  // Stats (match DB column names exactly)
+  // Stats 
   correct_count: number; 
   incorrect_count: number; 
   attempt_count?: number; 
   
-  // Card-specific language (if exists)
-  questionLanguage?: string | null;
-  answerLanguage?: string | null;
+  // Card-specific language (Remove if not in DB schema)
+  // questionLanguage?: string | null;
+  // answerLanguage?: string | null;
 
-  // For potential joins (optional typing)
-  decks?: { name?: string | null, primary_language?: string | null, secondary_language?: string | null }; 
+  // Nested deck language info 
+  decks?: { 
+    primary_language: string | null;
+    secondary_language: string | null;
+  } | null; 
 }
 
 // --- Existing 'decks' Table (Ensure it includes user_id) ---
 export interface DbDeck {
     id: string; // uuid
     user_id: string; // uuid (Ensure this exists)
-    name: string; // text in DB, was 'title' in docs? Use 'name' if DB uses 'name'
+    name: string; // text in DB, use 'name' if DB uses 'name'
     description: string | null; // text
-    // Use specific language fields if they exist
     primary_language?: string | null; // text
     secondary_language?: string | null; // text
-    // Legacy fields (if any)
-    language?: string | null; // text
     is_bilingual?: boolean | null;
-    // progress?: Record<string, any> | null; // jsonb (If used)
     created_at: string; // timestamptz
     updated_at: string; // timestamptz
+    // Add optional card count field from aggregation
+    card_count?: number;
 }
 
 // --- Supabase Database Type (Optional but Recommended) ---
 // If you generate types using `supabase gen types typescript`:
-// export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
-// export type Database = {
-//   public: {
-//     Tables: {
-//       settings: { Row: DbSettings; Insert: /*...*/; Update: /*...*/ };
-//       tags: { Row: DbTag; Insert: /*...*/; Update: /*...*/ };
-//       card_tags: { Row: DbCardTag; Insert: /*...*/; Update: /*...*/ };
-//       study_sets: { Row: DbStudySet; Insert: /*...*/; Update: /*...*/ };
-//       cards: { Row: DbCard; Insert: /*...*/; Update: /*...*/ };
-//       decks: { Row: DbDeck; Insert: /*...*/; Update: /*...*/ };
-//       // ... other tables
-//     };
-//     Views: { /* ... */ };
-//     Functions: { /* ... */ };
-//   };
-// }; 
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
+export type Database = {
+  public: {
+    Tables: {
+      settings: { Row: DbSettings; Insert: Partial<DbSettings>; Update: Partial<DbSettings> }; // Added Insert/Update for example
+      tags: { Row: DbTag; Insert: Pick<DbTag, 'user_id' | 'name'>; Update: Partial<Pick<DbTag, 'name'>> }; // Added Insert/Update
+      card_tags: { Row: DbCardTag; Insert: DbCardTag; Update: never }; // Join table, often no direct update
+      study_sets: { Row: DbStudySet; Insert: Pick<DbStudySet, 'user_id' | 'name' | 'description' | 'query_criteria'>; Update: Partial<Pick<DbStudySet, 'name' | 'description' | 'query_criteria'>> }; // Added Insert/Update
+      cards: { Row: DbCard; Insert: Partial<DbCard>; Update: Partial<DbCard> }; // Added Insert/Update
+      decks: { Row: DbDeck; Insert: Pick<DbDeck, 'user_id' | 'name' | 'description' | 'primary_language' | 'secondary_language' | 'is_bilingual'>; Update: Partial<Pick<DbDeck, 'name' | 'description' | 'primary_language' | 'secondary_language' | 'is_bilingual'>> }; // Added Insert/Update
+      // Add other tables here with Row, Insert, Update definitions
+    };
+    Views: { // Add views if you have them
+        [_ in never]: never
+    };
+    Functions: { // Add functions if you have them
+        resolve_study_query: { // Example function
+             Args: {
+                 p_user_id: string; 
+                 p_query_criteria: Json; 
+                 p_order_by_field?: string; 
+                 p_order_by_direction?: string; 
+             };
+             Returns: { card_id: string }[]; 
+         }
+         // Add other functions here
+    };
+    Enums: { // Add enums if you have them
+        [_ in never]: never
+    };
+    CompositeTypes: { // Add composite types if you have them
+        [_ in never]: never
+    };
+  };
+}; 
+
+// Helper type to extract Row type from Tables
+export type Tables<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Row'];
+// Add Insert and Update helpers if needed
+export type Enums<T extends keyof Database['public']['Enums']> = Database['public']['Enums'][T]; 
