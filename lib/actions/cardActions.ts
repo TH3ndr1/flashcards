@@ -2,11 +2,11 @@
 
 import { createActionClient, createDynamicRouteClient } from "@/lib/supabase/server";
 // import { cookies } from "next/headers";
-import type { DbCard, Database, Tables } from "@/types/database";
-import type { DbDeck } from "@/types/database"; // Import Tables helper
+import type { DbCard, Database, Tables, DbDeck } from "@/types/database";
 import { headers } from "next/headers";
 import { z } from 'zod'; // Make sure Zod is imported
 import { revalidatePath } from 'next/cache';
+// import type { ActionResult } from "@/lib/actions/types"; // Remove potentially incorrect import
 
 /**
  * Reusable ActionResult type defined locally.
@@ -169,6 +169,10 @@ const createCardSchema = z.object({
 });
 type CreateCardInput = z.infer<typeof createCardSchema>;
 
+// Schema for updating a card (allow partial updates)
+const updateCardSchema = createCardSchema.partial(); // Reuse create schema fields as optional
+type UpdateCardInput = z.infer<typeof updateCardSchema>;
+
 // --- Card CRUD Actions ---
 
 /**
@@ -243,4 +247,71 @@ export async function createCard(
     }
 }
 
-// TODO: Add updateCard and deleteCard actions here if needed 
+/**
+ * Updates an existing card for the authenticated user.
+ */
+export async function updateCard(
+    cardId: string,
+    inputData: UpdateCardInput
+): Promise<ActionResult<DbCard>> {
+    console.log(`[updateCard] Action started for cardId: ${cardId}`);
+    if (!cardId) return { data: null, error: new Error('Card ID is required.') };
+
+    try {
+        const supabase = createActionClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+        if (authError || !user) {
+             console.error('[updateCard] Auth error:', authError);
+             return { data: null, error: new Error(authError?.message || 'Not authenticated') };
+        }
+
+        // Validate input data
+        const validation = updateCardSchema.safeParse(inputData);
+        if (!validation.success) {
+             console.warn("[updateCard] Validation failed:", validation.error.errors);
+             return { data: null, error: new Error(validation.error.errors[0].message) };
+        }
+        const updatePayload = validation.data;
+
+        if (Object.keys(updatePayload).length === 0) {
+             return { data: null, error: new Error("No fields provided for update.") };
+        }
+
+        console.log(`[updateCard] User: ${user.id}, Updating card ${cardId} with:`, updatePayload);
+
+        const { data: updatedCard, error: updateError } = await supabase
+            .from('cards')
+            .update({
+                ...updatePayload,
+                updated_at: new Date().toISOString() // Manually set updated_at
+            })
+            .eq('id', cardId)
+            .eq('user_id', user.id) // Ensure ownership
+            .select('*, decks(primary_language, secondary_language)') // Fetch updated data + deck langs
+            .single();
+
+        if (updateError) {
+            console.error('[updateCard] Update error:', updateError);
+            return { data: null, error: new Error(updateError.message || 'Failed to update card.') };
+        }
+
+        if (!updatedCard) {
+             console.warn(`[updateCard] Card ${cardId} not found or not authorized for update.`);
+             return { data: null, error: new Error('Card not found or update failed.') };
+        }
+
+        console.log(`[updateCard] Success, ID: ${updatedCard.id}`);
+        // Revalidate relevant pages (e.g., the deck edit page)
+        // Getting deckId requires another query or passing it in. 
+        // For now, let's rely on client-side state update or parent component refetch.
+        // if (updatedCard.deck_id) revalidatePath(`/edit/${updatedCard.deck_id}`); 
+        return { data: updatedCard as DbCard, error: null };
+
+    } catch (error) {
+        console.error('[updateCard] Caught unexpected error:', error);
+        return { data: null, error: error instanceof Error ? error : new Error('Unknown error updating card') };
+    }
+}
+
+// TODO: Add deleteCard action here if needed 

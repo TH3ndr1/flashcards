@@ -119,14 +119,24 @@ export default function ListStudySetsPage() {
                    </Link>
                  </Button>
 
-                 {/* Study Buttons */}
-                  <Button size="sm" onClick={() => handleStudy(set.id, 'review')} aria-label={`Review ${set.name}`}>
-                     <Play className="h-4 w-4 mr-1" /> Review
-                  </Button>
-                  {/* Optionally add a separate Learn button if desired */}
-                  {/* <Button size="sm" variant="secondary" onClick={() => handleStudy(set.id, 'learn')} aria-label={`Learn ${set.name}`}>
-                     <BookOpen className="h-4 w-4 mr-1" /> Learn
-                  </Button> */}
+                 {/* Study Buttons - Add Learn Button */}
+                 <div className="flex gap-2"> {/* Group study buttons */} 
+                      <Button 
+                          size="sm" 
+                          variant="secondary" // Style Learn differently
+                          onClick={() => handleStudy(set.id, 'learn')} 
+                          aria-label={`Learn ${set.name}`}
+                      >
+                         <BookOpen className="h-4 w-4 mr-1" /> Learn
+                      </Button>
+                      <Button 
+                          size="sm" 
+                          onClick={() => handleStudy(set.id, 'review')} 
+                          aria-label={`Review ${set.name}`}
+                      >
+                         <Play className="h-4 w-4 mr-1" /> Review
+                      </Button>
+                  </div>
               </CardFooter>
             </Card>
           ))}

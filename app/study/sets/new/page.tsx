@@ -44,7 +44,7 @@ export default function NewStudySetPage() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Create New Smart Playlist</h1>
         <Button variant="outline" asChild>
-             <Link href="/study/sets">Cancel</Link> { /* Adjust link destination */}
+          <Link href="/study/sets">Cancel</Link>
         </Button>
       </div>
 

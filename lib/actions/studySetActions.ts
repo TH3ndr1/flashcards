@@ -1,12 +1,11 @@
 "use server";
 
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { cookies } from "next/headers";
+import { createActionClient } from '@/lib/supabase/server';
 import { revalidatePath } from "next/cache";
 import { z } from 'zod';
 import { studyQueryCriteriaSchema } from '@/lib/schema/study-query.schema'; // Import the criteria schema
 import type { StudyQueryCriteria } from '@/lib/schema/study-query.schema';
-import type { Database, Tables } from "@/types_db"; // Assuming types_db defines Tables<'study_sets'> 
+import type { Database, Tables } from "@/types/database"; // Assuming types_db defines Tables<'study_sets'> 
 
 // Define DbStudySet based on your types_db or manually if needed
 type DbStudySet = Tables<'study_sets'>;
@@ -27,13 +26,13 @@ const studySetInputSchema = z.object({
 // Zod schema for partial updates
 const partialStudySetInputSchema = studySetInputSchema.partial(); 
 
-// Helper to get Supabase client and user
+// Helper to get Supabase client and user (Ensure correct usage)
 async function getSupabaseAndUser() {
-  const cookieStore = cookies();
-  const supabase = createSupabaseServerClient(cookieStore);
+  const supabase = createActionClient(); // Use the action client
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
-    return { supabase: null, user: null, error: 'Authentication required.' };
+    console.error("[getSupabaseAndUser - studySetActions] Auth error:", authError);
+    return { supabase: null, user: null, error: authError?.message || 'Authentication required.' }; 
   }
   return { supabase, user, error: null };
 }

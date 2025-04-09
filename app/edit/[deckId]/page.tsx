@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Terminal } from "lucide-react"
-import { createCard as createCardAction } from "@/lib/actions/cardActions"
+import { createCard as createCardAction, updateCard as updateCardAction } from "@/lib/actions/cardActions"
 
 /**
  * Edit Deck Page Component.
@@ -230,19 +230,58 @@ export default function EditDeckPage() {
       }
   };
 
-  const handleUpdateCard = (cardId: string, question: string, answer: string) => {
-    if (deck) {
-      setDeck(prevDeck => {
-          if (!prevDeck) return null;
-          return {
-              ...prevDeck,
-              cards: prevDeck.cards.map((card) => 
-                  (card.id === cardId ? { ...card, question: question, answer: answer } : card)
-              )
-          };
-      });
+  const handleUpdateCard = useCallback(async (cardId: string, question: string, answer: string) => {
+    console.log(`[EditDeckPage] Debounced Update for Card ID: ${cardId}`);
+    
+    // Prepare payload for the action
+    const updatePayload: { question?: string, answer?: string } = {};
+    let changed = false;
+
+    // Find the original card state to compare
+    const originalCard = deck?.cards.find(c => c.id === cardId);
+
+    if (originalCard?.question !== question) {
+        updatePayload.question = question;
+        changed = true;
     }
-  }
+    if (originalCard?.answer !== answer) {
+        updatePayload.answer = answer;
+        changed = true;
+    }
+
+    // Only call action if something actually changed
+    if (!changed) {
+        console.log(`[EditDeckPage] No changes detected for card ${cardId}, skipping update.`);
+        return;
+    }
+    
+    // Update local state optimistically *before* calling action (optional)
+    // setDeck(prevDeck => { ... update card in prevDeck ... }); 
+    // toast.info(`Saving changes for card...`, { id: `update-${cardId}` }); // Optional loading toast
+
+    try {
+        console.log(`[EditDeckPage] Calling updateCardAction for ${cardId} with payload:`, updatePayload);
+        const result = await updateCardAction(cardId, updatePayload);
+        if (result.error) {
+            toast.error(`Failed to update card`, { id: `update-${cardId}`, description: result.error.message });
+            // TODO: Optionally revert optimistic update here
+            // await refetchDeck(); // Or refetch on error
+        } else {
+            // toast.success(`Card changes saved!`, { id: `update-${cardId}` }); // Success feedback
+            // Update local state with the confirmed data from the server
+             setDeck(prevDeck => {
+                 if (!prevDeck) return null;
+                 return {
+                     ...prevDeck,
+                     cards: prevDeck.cards.map(c => c.id === cardId ? result.data : c) as Array<Partial<DbCard>>
+                 };
+            });
+        }
+    } catch (error: any) {
+         toast.error(`Failed to update card`, { id: `update-${cardId}`, description: error.message || "Unknown error" });
+         // TODO: Optionally revert optimistic update here or refetch
+    }
+  }, [deck]); // Depend on deck state to access originalCard
 
   const handleDeleteCard = (cardId: string) => {
     if (deck) {

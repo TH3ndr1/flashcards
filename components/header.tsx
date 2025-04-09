@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation"
 import { TTSToggleButton } from "@/components/tts-toggle-button"
 import { SettingsButton } from "@/components/settings-button"
 import { UserNavButton } from "@/components/user-nav"
+import { TagsButton } from "@/components/tags-button"
 
 export function Header() {
   const pathname = usePathname()
@@ -19,6 +20,7 @@ export function Header() {
       <div className="flex items-center space-x-2">
         <TTSToggleButton />
         <SettingsButton />
+        <TagsButton />
         <UserNavButton />
       </div>
     </div>

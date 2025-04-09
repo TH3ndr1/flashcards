@@ -40,7 +40,9 @@ interface UseStudySessionReturn {
     isComplete: boolean;
     totalCardsInSession: number;
     currentCardNumber: number; // 1-based index for display
+    initialSelectionCount: number; // Add count before mode filtering
     answerCard: (grade: ReviewGrade) => Promise<void>; // Function to submit an answer
+    sessionResults: { correct: number, incorrect: number, completedInSession: number };
 }
 
 interface UseStudySessionProps {
@@ -60,6 +62,8 @@ export function useStudySession({ initialInput, initialMode }: UseStudySessionPr
     const [currentCardIndex, setCurrentCardIndex] = useState<number>(0);
     const [learnModeProgress, setLearnModeProgress] = useState<Map<string, number>>(new Map());
     const [isComplete, setIsComplete] = useState<boolean>(false);
+    const [initialSelectionCount, setInitialSelectionCount] = useState<number>(-1); // Initialize to -1 (unset)
+    const [sessionResults, setSessionResults] = useState({ correct: 0, incorrect: 0, completedInSession: 0 });
 
     const { settings, loading: isLoadingSettings } = useSettings(); 
     const learnSuccessThreshold = useMemo(() => settings?.masteryThreshold ?? 3, [settings]);
@@ -101,6 +105,8 @@ export function useStudySession({ initialInput, initialMode }: UseStudySessionPr
                 setCurrentCardIndex(0);
                 setIsComplete(false);
                 setLearnModeProgress(new Map());
+                setInitialSelectionCount(-1); // Reset count on new init
+                setSessionResults({ correct: 0, incorrect: 0, completedInSession: 0 }); // Reset results on init
             }
 
             try {
@@ -119,6 +125,7 @@ export function useStudySession({ initialInput, initialMode }: UseStudySessionPr
                 if (cardIds.length === 0) {
                     console.log("[useStudySession] No cards found for criteria.");
                     if (isMounted) {
+                        setInitialSelectionCount(0); // Set count to 0
                         setIsComplete(true);
                         setIsLoading(false);
                     }
@@ -136,7 +143,10 @@ export function useStudySession({ initialInput, initialMode }: UseStudySessionPr
                 }
                 // Fix: Ensure fetched data is assigned correctly to StudyCard[] type
                 const fetchedCards: StudyCard[] = cardsResult.data as StudyCard[]; 
-                if (isMounted) setAllFetchedCards(fetchedCards);
+                if (isMounted) {
+                    setAllFetchedCards(fetchedCards);
+                    setInitialSelectionCount(fetchedCards.length); // Set count after fetch
+                }
                 console.log(`[useStudySession] Fetched ${fetchedCards.length} cards.`);
 
                 // 3. Prepare Initial Queue based on Mode
@@ -156,6 +166,7 @@ export function useStudySession({ initialInput, initialMode }: UseStudySessionPr
                     console.log(`[useStudySession] Found ${initialQueue.length} cards due for review.`);
                      if (initialQueue.length === 0 && isMounted) {
                          console.log("[useStudySession] No cards due for review in this set.");
+                         // Don't clear parameters here anymore
                          setIsComplete(true); 
                      }
                 }
@@ -171,6 +182,7 @@ export function useStudySession({ initialInput, initialMode }: UseStudySessionPr
                 if (isMounted) {
                      setError(err.message || "Failed to initialize study session.");
                      setIsComplete(true);
+                     setInitialSelectionCount(0); // Set count to 0 on error
                 }
             } finally {
                  if (isMounted) setIsLoading(false);
@@ -181,8 +193,7 @@ export function useStudySession({ initialInput, initialMode }: UseStudySessionPr
 
         return () => { isMounted = false; }; // Cleanup function
 
-    }, [initialInput, initialMode]); // Only re-run if input parameters change
-
+    }, [initialInput, initialMode]); // Remove clearStudyParameters from dependency array
 
     // --- answerCard Function --- 
     const answerCard = useCallback(async (grade: ReviewGrade) => {
@@ -192,6 +203,16 @@ export function useStudySession({ initialInput, initialMode }: UseStudySessionPr
         if (!card) return;
         
         console.log(`[useStudySession] Answering card ${card.id} with grade ${grade} in mode ${studyMode}`);
+
+        const isCorrect = grade >= 3; 
+        
+        // Update session results state immediately
+        setSessionResults(prev => ({
+            ...prev,
+            correct: isCorrect ? prev.correct + 1 : prev.correct,
+            incorrect: !isCorrect ? prev.incorrect + 1 : prev.incorrect,
+            // Completed count incremented below based on mode logic
+        }));
 
         // 1. Calculate new SRS state
          const currentSrsState = {
@@ -216,10 +237,10 @@ export function useStudySession({ initialInput, initialMode }: UseStudySessionPr
         let nextIndex = currentCardIndex; // Start with current index
         let nextQueue = [...sessionQueue];
         let sessionComplete = false;
+        let cardCompletedThisTurn = false; // Flag if card finished this turn
 
         if (studyMode === 'learn') {
             const currentStreak = learnModeProgress.get(card.id) ?? 0;
-            const isCorrect = grade >= 3; 
             const newStreak = isCorrect ? currentStreak + 1 : 0;
             const updatedLearnProgress = new Map(learnModeProgress).set(card.id, newStreak);
             setLearnModeProgress(updatedLearnProgress); // Update map state
@@ -227,7 +248,7 @@ export function useStudySession({ initialInput, initialMode }: UseStudySessionPr
             const cardSessionComplete = newStreak >= learnSuccessThreshold;
 
             if (cardSessionComplete) {
-                console.log(`[useStudySession] Card ${card.id} completed for Learn session.`);
+                cardCompletedThisTurn = true; 
                 nextQueue.splice(currentCardIndex, 1); // Remove from queue
                 // Index remains the same relative to the *new* shorter queue
             } else if (!isCorrect) {
@@ -254,14 +275,19 @@ export function useStudySession({ initialInput, initialMode }: UseStudySessionPr
             setSessionQueue(nextQueue); // Update the queue state
 
         } else { // Review Mode
+            cardCompletedThisTurn = true; // Count every answer in review mode
             nextIndex = currentCardIndex + 1; // Simply advance index
             sessionComplete = nextIndex >= nextQueue.length;
+        }
+        
+        // Increment completed count if card was finished this turn
+        if (cardCompletedThisTurn) {
+             setSessionResults(prev => ({ ...prev, completedInSession: prev.completedInSession + 1 }));
         }
         
         setCurrentCardIndex(nextIndex);
         setIsComplete(sessionComplete);
         if(sessionComplete) console.log("[useStudySession] Session complete.");
-
 
     }, [currentCardIndex, sessionQueue, studyMode, isComplete, isLoading, isLoadingSettings, learnSuccessThreshold, learnModeProgress, debouncedUpdateProgress]);
 
@@ -277,7 +303,6 @@ export function useStudySession({ initialInput, initialMode }: UseStudySessionPr
     // Display 1-based index, show total if complete but queue had items
     const currentCardNumber = totalCardsInSession > 0 ? (isComplete ? totalCardsInSession : currentCardIndex + 1) : 0; 
 
-
     return {
         currentCard,
         isLoading: isLoading || isLoadingSettings, 
@@ -286,6 +311,8 @@ export function useStudySession({ initialInput, initialMode }: UseStudySessionPr
         isComplete,
         totalCardsInSession,
         currentCardNumber, 
+        initialSelectionCount, // Return the count
         answerCard,
+        sessionResults, // Return results
     };
 } 

@@ -9,33 +9,32 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useStudySets } from '@/hooks/useStudySets';
 import type { StudyQueryCriteria } from '@/lib/schema/study-query.schema'; 
 import type { Database, Tables } from "@/types/database"; 
-import type { StudyInput } from "@/store/studySessionStore";
+import type { StudyInput, StudyMode } from "@/store/studySessionStore";
 import { toast } from 'sonner';
 import { Loader2 as IconLoader } from 'lucide-react';
 
 type DbDeck = Pick<Tables<'decks'>, 'id' | 'name'>;
 type DbStudySet = Pick<Tables<'study_sets'>, 'id' | 'name'>;
-type StudyMode = 'learn' | 'review';
 
 interface StudySetSelectorProps {
   decks: DbDeck[];
+  studySets?: DbStudySet[];
+  isLoadingStudySets?: boolean;
   onStartStudying: (actionInput: StudyInput, mode: StudyMode) => void;
 }
 
 type SelectionType = 'all' | 'deck' | 'studySet'; 
 
-export function StudySetSelector({ decks = [], onStartStudying }: StudySetSelectorProps) {
+export function StudySetSelector({
+   decks = [], 
+   studySets = [],
+   isLoadingStudySets = false,
+   onStartStudying 
+}: StudySetSelectorProps) {
   const [selectionType, setSelectionType] = useState<SelectionType>('all');
   const [selectedDeckId, setSelectedDeckId] = useState<string | undefined>(undefined); 
   const [selectedStudySetId, setSelectedStudySetId] = useState<string | undefined>(undefined); 
   const [selectedMode, setSelectedMode] = useState<StudyMode>('learn');
-  const { studySets, isLoading: isLoadingStudySets, error: studySetsError } = useStudySets();
-
-  useEffect(() => {
-    if (studySetsError) {
-      toast.error(`Failed to load study sets: ${studySetsError}`);
-    }
-  }, [studySetsError]);
 
   const handleInitiateStudy = () => {
     let actionInput: StudyInput | null = null;
@@ -119,19 +118,25 @@ export function StudySetSelector({ decks = [], onStartStudying }: StudySetSelect
        {selectionType === 'studySet' && (
          <div className="space-y-2 mt-4"> 
           <Label htmlFor="study-set-select">Choose playlist</Label>
-          <Select value={selectedStudySetId} onValueChange={setSelectedStudySetId} disabled={isLoadingStudySets}>
-            <SelectTrigger id="study-set-select" className="w-full sm:w-[280px]"><SelectValue placeholder="Select a smart playlist..." /></SelectTrigger>
+          <Select
+            value={selectedStudySetId}
+            onValueChange={setSelectedStudySetId}
+            disabled={isLoadingStudySets}
+          >
+            <SelectTrigger id="study-set-select" className="w-full sm:w-[280px]">
+              <SelectValue placeholder="Select a smart playlist..." />
+            </SelectTrigger>
             <SelectContent>
-              {isLoadingStudySets && <div className="p-2 text-sm text-muted-foreground flex items-center"><IconLoader className="mr-2 h-4 w-4 animate-spin" />Loading...</div>}
-              {studySetsError && <div className="p-2 text-sm text-destructive">Error: {studySetsError}</div>}
-              {!isLoadingStudySets && !studySetsError && (
-                studySets.length > 0 ? (
-                  studySets.map((set) => (
-                    <SelectItem key={set.id} value={set.id}>{set.name as string}</SelectItem>
-                  ))
-                ) : (
-                  <SelectItem value="no-sets" disabled>No smart playlists saved</SelectItem>
-                )
+              {isLoadingStudySets ? (
+                  <SelectItem value="loading" disabled>Loading playlists...</SelectItem>
+              ) : studySets.length > 0 ? (
+                studySets.map((set) => (
+                  <SelectItem key={set.id} value={set.id}>
+                    {set.name as string}
+                  </SelectItem>
+                ))
+              ) : (
+                <SelectItem value="no-sets" disabled>No smart playlists saved</SelectItem>
               )}
             </SelectContent>
           </Select>

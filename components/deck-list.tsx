@@ -3,19 +3,23 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { PlusCircle } from "lucide-react"
+import { PlusCircle, Play, List } from "lucide-react"
 import { CreateDeckDialog } from "@/components/create-deck-dialog"
 import { useDecks } from "@/hooks/use-decks"
 import { useRouter } from "next/navigation"
 import { useSettings } from "@/providers/settings-provider"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Terminal } from "lucide-react"
+import { useStudySessionStore, StudyInput } from "@/store/studySessionStore"
+import Link from 'next/link'
 
 export function DeckList() {
-  const { decks, loading } = useDecks()
+  const { decks, loading, error } = useDecks()
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isVisible, setIsVisible] = useState(true)
   const router = useRouter()
+  const setStudyParameters = useStudySessionStore((state) => state.setStudyParameters)
+  const clearStudyParameters = useStudySessionStore((state) => state.clearStudyParameters)
   const { settings } = useSettings()
 
   useEffect(() => {
@@ -39,9 +43,14 @@ export function DeckList() {
     router.push(`/edit/${deckId}`)
   }
 
-  const handleStudyDeck = (deckId: string) => {
-    console.warn("handleStudyDeck needs update for new study flow");
-    router.push(`/study/${deckId}`);
+  const handleStudy = (deckId: string, mode: 'learn' | 'review') => {
+    console.log(`[DeckList] Starting session for Deck ID: ${deckId}, Mode: ${mode}`);
+    const actionInput: StudyInput = { criteria: { deckId: deckId } };
+    
+    clearStudyParameters();
+    
+    setStudyParameters(actionInput, mode);
+    router.push('/study/session');
   }
 
   if (loading) {
@@ -60,12 +69,24 @@ export function DeckList() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center flex-wrap gap-4">
         <h2 className="text-2xl font-semibold">Your Decks</h2>
-        <Button onClick={() => setIsCreateOpen(true)}>
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Create Deck
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button variant="secondary" asChild>
+            <Link href="/study/select">
+              <Play className="mr-2 h-4 w-4" /> Start Studying
+            </Link>
+          </Button>
+          <Button variant="secondary" asChild>
+            <Link href="/study/sets">
+              <List className="mr-2 h-4 w-4" /> Smart Playlists
+            </Link>
+          </Button>
+          <Button onClick={() => setIsCreateOpen(true)}>
+            <PlusCircle className="mr-2 h-4 w-4" />
+            Create Deck
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -101,7 +122,23 @@ export function DeckList() {
                   <Button variant="outline" size="sm" onClick={() => handleEditDeck(deck.id)}>
                     Edit
                   </Button>
-                  <Button size="sm" onClick={() => handleStudyDeck(deck.id)}>Study</Button>
+                  <div className="flex gap-2">
+                    <Button 
+                      size="sm" 
+                      variant="secondary"
+                      onClick={() => handleStudy(deck.id, 'learn')} 
+                      aria-label={`Learn ${deck.name}`}
+                    >
+                      <Play className="h-4 w-4 mr-1" /> Learn
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      onClick={() => handleStudy(deck.id, 'review')} 
+                      aria-label={`Review ${deck.name}`}
+                    >
+                      <Play className="h-4 w-4 mr-1" /> Review
+                    </Button>
+                  </div>
                 </CardFooter>
               </Card>
             )

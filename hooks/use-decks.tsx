@@ -61,7 +61,7 @@ export function useDecks(): UseDecksReturn {
   // const { supabase } = useSupabase(); 
 
   const fetchDeckList = useCallback(async () => {
-      if (!user) {
+        if (!user) { 
            setDecks([]); setLoading(false); return;
       }
       logDecks("Fetching deck list...");
@@ -72,7 +72,7 @@ export function useDecks(): UseDecksReturn {
           if (result.error) {
               logDecksError("Error fetching deck list:", result.error);
               toast.error("Failed to load decks", { description: result.error.message });
-          } else {
+        } else {
               logDecks(`Fetched ${result.data?.length ?? 0} decks.`);
               // Data structure from action should now match DeckListItem
               setDecks(result.data || []); 
@@ -81,7 +81,7 @@ export function useDecks(): UseDecksReturn {
           logDecksError("Unexpected error fetching deck list:", error);
           toast.error("Failed to load decks", { description: "An unexpected error occurred." });
       } finally {
-          setLoading(false);
+        setLoading(false);
       }
   }, [user]);
 
