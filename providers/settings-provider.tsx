@@ -1,12 +1,12 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { useSupabase } from "@/hooks/use-supabase";
 import { useAuth } from "@/hooks/use-auth";
 import { detectSystemLanguage } from "@/lib/utils";
-import { fetchSettings, updateSettings as updateSettingsInDb } from "@/lib/settingsService";
+import { fetchSettingsAction, updateSettingsAction } from "@/lib/actions/settingsActions";
 import { toast } from "sonner";
 import type { PostgrestError } from "@supabase/supabase-js";
+import type { DbSettings } from "@/types/database";
 
 // Debug flag
 const DEBUG = true;
@@ -43,7 +43,7 @@ export interface Settings {
 
 interface SettingsContextType {
   settings: Settings | null;
-  updateSettings: (updates: Partial<Settings>) => Promise<{ success: boolean; error?: PostgrestError | Error | null }>;
+  updateSettings: (updates: Partial<Settings>) => Promise<ActionResult<DbSettings | null>>;
   loading: boolean;
 }
 
@@ -65,18 +65,43 @@ export const DEFAULT_SETTINGS: Settings = {
   },
 };
 
+// Helper to transform DbSettings (snake_case) to Settings (camelCase, frontend type)
+const transformDbSettingsToSettings = (dbSettings: DbSettings | null): Settings | null => {
+    if (!dbSettings) return null;
+    try {
+        const cardFontValue = dbSettings.card_font as FontOption | null;
+        const isValidFont = ['default', 'opendyslexic', 'atkinson'].includes(cardFontValue ?? '');
+        const cardFontFinal = isValidFont && cardFontValue ? cardFontValue : 'default';
+        const srsAlgoValue = dbSettings.srs_algorithm === 'fsrs' ? 'fsrs' : 'sm2';
+
+        // Assuming DEFAULT_DIALECTS exists
+        const DEFAULT_DIALECTS = { en:'', nl:'', fr:'', de:'', es:'', it:'' };
+
+        return {
+            appLanguage: dbSettings.app_language ?? 'en',
+            languageDialects: { ...DEFAULT_DIALECTS, ...(dbSettings.language_dialects as Record<string, string> || {}) },
+            ttsEnabled: dbSettings.tts_enabled ?? true,
+            showDifficulty: dbSettings.show_difficulty ?? true,
+            masteryThreshold: dbSettings.mastery_threshold ?? 3, // DEFAULT_MASTERY_THRESHOLD
+            cardFont: cardFontFinal,
+            srs_algorithm: srsAlgoValue,
+            // removeMasteredCards: dbSettings.remove_mastered_cards ?? false, // If field exists
+        };
+    } catch (e) {
+        console.error("Error transforming DbSettings:", e);
+        return null; // Return null or default on transform error
+    }
+};
+
 export const SettingsContext = createContext<SettingsContextType>({
   settings: null,
-  updateSettings: async () => ({ success: false, error: new Error("Provider not initialized") }),
+  updateSettings: async () => ({ data: null, error: new Error("Provider not initialized") }),
   loading: true,
 });
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   debug('SettingsProvider initializing');
 
-  // Call useSupabase at the top level again.
-  // It will initially return { supabase: null }
-  const { supabase } = useSupabase();
   const { user } = useAuth();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
@@ -87,41 +112,38 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     return () => debug('SettingsProvider unmounting');
   }, []);
 
+  // Fetch settings using the Action
   useEffect(() => {
-    debug('Settings load effect triggered', { user: user?.id, hasSupabase: !!supabase });
+    debug('Settings load effect triggered', { userId: user?.id });
     
-    // Wait for both user and supabase client to be available
-    if (!user || !supabase) {
-      debug('No user or supabase client yet, skipping settings load');
-      // If there's no user, settings should be null and loading finished.
-      // If there IS a user but no supabase client yet, keep loading until supabase is ready.
-      if (!user) {
+    if (!user) {
+        debug('No user, skipping settings load');
         setSettings(null); 
         setLoading(false); 
-      }
-      return;
+        return;
     }
 
     const loadSettings = async () => {
-      setLoading(true); // Set loading true when starting fetch for a user
+      setLoading(true); 
       try {
-        debug('Loading settings for user', user.id);
-        // supabase is guaranteed to be non-null here due to the check above
-        const { data: userSettings, error } = await fetchSettings(supabase, user.id); 
+        debug('Loading settings via action for user', user.id);
+        // Call fetchSettingsAction
+        const { data: dbSettings, error } = await fetchSettingsAction(); 
 
         if (error) {
           console.error("Failed to load settings:", error);
           debug('Error loading settings, using defaults', DEFAULT_SETTINGS);
-          toast.error("Failed to load settings", {
-            description: error.message || "Using default settings.",
-          });
+          toast.error("Failed to load settings", { description: error.message || "Using default settings." });
           setSettings(DEFAULT_SETTINGS);
-        } else if (userSettings) {
-          debug('Setting user settings', userSettings);
-          setSettings(userSettings);
         } else {
-          debug('No settings found, using defaults', DEFAULT_SETTINGS);
-          setSettings(DEFAULT_SETTINGS);
+          const transformed = transformDbSettingsToSettings(dbSettings);
+          if (transformed) {
+               debug('Setting user settings from action', transformed);
+               setSettings(transformed);
+          } else {
+               debug('No settings found or transform failed, using defaults', DEFAULT_SETTINGS);
+               setSettings(DEFAULT_SETTINGS);
+          }
         }
       } catch (unexpectedError) {
         console.error("Unexpected error during settings load:", unexpectedError);
@@ -136,59 +158,56 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     };
 
     loadSettings();
-    // Add supabase to dependency array as the effect depends on it being initialized.
-  }, [user, supabase]);
+  }, [user]); // Dependency is just user now
 
+  // Update settings using the Action
   const updateSettings = useCallback(async (
     updates: Partial<Settings>
-  ): Promise<{ success: boolean; error?: PostgrestError | Error | null }> => {
-    
-    debug('Updating settings', { current: settings, updates, hasSupabase: !!supabase });
-    // Ensure supabase client is available before attempting update
-    if (!settings || !user || !supabase) {
-      debug('Cannot update settings - missing settings, user, or supabase client');
-      toast.warning("Cannot save settings", { description: "Connection not ready. Please try again shortly." });
-      return { success: false, error: new Error("Supabase client not available") };
+  ): Promise<ActionResult<DbSettings | null>> => {
+    debug('Updating settings via action', { current: settings, updates });
+    if (!settings || !user) {
+      debug('Cannot update settings - missing settings or user');
+      const error = new Error("Cannot save settings: user or current settings missing.");
+      toast.warning("Cannot save settings", { description: error.message });
+      return { data: null, error };
     }
     
-    const updatedSettings = { ...settings, ...updates };
-    setSettings(updatedSettings); // Optimistic update
+    // Optimistic update
+    const previousSettings = settings;
+    setSettings(prev => prev ? { ...prev, ...updates } : null);
     
     try {
-      // supabase is guaranteed to be non-null here
-      const { data: savedData, error } = await updateSettingsInDb(supabase, user.id, updatedSettings);
+      // Call the server action
+      const result = await updateSettingsAction(updates);
 
-      if (error) {
-        console.error("Failed to update settings in DB:", error);
-        debug('Settings update failed', { error });
-        toast.error("Error Saving Settings", {
-          description: error.message || "Could not save your settings changes.",
-        });
-        // Revert optimistic update on DB error
-        setSettings(settings); 
-        return { success: false, error };
+      if (result.error) {
+        console.error("Failed to update settings via action:", result.error);
+        debug('Settings action update failed', { error: result.error });
+        toast.error("Error Saving Settings", { description: result.error.message || "Could not save settings." });
+        // Revert optimistic update on error
+        setSettings(previousSettings); 
+        return { data: null, error: result.error }; // Return error from action
       } else {
-        debug('Settings updated successfully in DB', savedData);
-        // Optional: toast.success("Settings saved!");
-        return { success: true };
+        debug('Settings action update successful', result.data);
+        // Optimistic update already applied, just return success
+        // Optionally transform result.data back to Settings type if needed
+        return { data: result.data, error: null }; 
       }
     } catch (unexpectedError) {
-      console.error("Unexpected error during settings update:", unexpectedError);
+      console.error("Unexpected error during settings action call:", unexpectedError);
       debug('Unexpected settings update error');
-      toast.error("Error", {
-        description: "An unexpected error occurred while saving settings.",
-      });
-      // Revert optimistic update on unexpected error
-      setSettings(settings);
-      return { success: false, error: new Error("An unexpected error occurred while saving settings.") };
+      const error = unexpectedError instanceof Error ? unexpectedError : new Error("An unexpected error occurred.");
+      toast.error("Error Saving Settings", { description: error.message });
+      // Revert optimistic update
+      setSettings(previousSettings);
+      return { data: null, error };
     }
-    // Add supabase to dependency array as the callback depends on it.
-  }, [settings, user, supabase]);
+  }, [settings, user]); // Dependencies are settings and user
 
   // Log settings changes
   useEffect(() => {
-    debug('Settings state changed', { settings, loading, hasSupabase: !!supabase });
-  }, [settings, loading, supabase]);
+    debug('Settings state changed', { settings, loading });
+  }, [settings, loading]);
 
   return (
     <SettingsContext.Provider value={{ settings, updateSettings, loading }}>

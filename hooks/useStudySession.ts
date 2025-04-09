@@ -42,14 +42,14 @@ interface UseStudySessionReturn {
     currentCardNumber: number; // 1-based index for display
     initialSelectionCount: number; // Add count before mode filtering
     isProcessingAnswer: boolean; // Add processing state
-    answerCard: (grade: ReviewGrade) => Promise<void>; // Function to submit an answer
+    isFlipped: boolean; // Hook now manages flip state
+    onFlip: () => void; // Action to trigger flip
     sessionResults: { correct: number, incorrect: number, completedInSession: number };
 }
 
 interface UseStudySessionProps {
     initialInput: StudyInput | null;
     initialMode: StudyMode | null;
-    onNewCard?: () => void; // Add optional callback for when a new card is set
 }
 
 const PROGRESS_UPDATE_DEBOUNCE_MS = 1500; // Allow slightly longer debounce
@@ -58,8 +58,7 @@ const PROCESSING_DELAY_MS = FLIP_DURATION_MS + 50; // Delay slightly longer than
 
 export function useStudySession({ 
     initialInput, 
-    initialMode, 
-    onNewCard // Destructure the callback
+    initialMode 
 }: UseStudySessionProps): UseStudySessionReturn {
     const [isInitializing, setIsInitializing] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
@@ -73,6 +72,7 @@ export function useStudySession({
     const [initialSelectionCount, setInitialSelectionCount] = useState<number>(-1); // Initialize to -1 (unset)
     const [sessionResults, setSessionResults] = useState({ correct: 0, incorrect: 0, completedInSession: 0 });
     const [isProcessingAnswer, setIsProcessingAnswer] = useState<boolean>(false); // New state
+    const [isFlipped, setIsFlipped] = useState<boolean>(false); // Add flip state here
 
     const { settings, loading: isLoadingSettings } = useSettings(); 
     const learnSuccessThreshold = useMemo(() => settings?.masteryThreshold ?? 3, [settings]);
@@ -116,6 +116,7 @@ export function useStudySession({
                 setLearnModeProgress(new Map());
                 setInitialSelectionCount(-1); // Reset count on new init
                 setSessionResults({ correct: 0, incorrect: 0, completedInSession: 0 }); // Reset results on init
+                setIsFlipped(false); // Reset flip on init
             }
 
             try {
@@ -203,6 +204,13 @@ export function useStudySession({
 
     }, [initialInput, initialMode]); // Remove clearStudyParameters from dependency array
 
+    // --- Flip Handler --- 
+    const handleFlip = useCallback(() => {
+      // Simple toggle, transition state managed by page or view component still if needed visually
+      setIsFlipped(prev => !prev);
+      console.log("[useStudySession] Flipping card");
+    }, []);
+
     // --- answerCard Function (Refactored with Delay) --- 
     const answerCard = useCallback(async (grade: ReviewGrade) => {
         // Prevent answering if initializing or already processing
@@ -273,18 +281,13 @@ export function useStudySession({
             setSessionQueue(nextQueue);       // Update queue
             setCurrentCardIndex(nextIndex);   // Update index
             setIsComplete(sessionComplete);   // Update completion status
-            
-            // Call the callback AFTER setting the new index/card
-            if (onNewCard) {
-                onNewCard(); 
-            }
-
+            setIsFlipped(false); // Reset flip state HERE
             setIsProcessingAnswer(false); // End processing
         }, PROCESSING_DELAY_MS); // Delay slightly longer than flip animation
 
         // Note: No cleanup function needed for this timeout in useCallback
 
-    }, [currentCardIndex, sessionQueue, studyMode, isComplete, isLoadingSettings, learnSuccessThreshold, learnModeProgress, debouncedUpdateProgress, isInitializing, isProcessingAnswer, onNewCard]); // Add onNewCard to dependencies
+    }, [currentCardIndex, sessionQueue, studyMode, isComplete, isLoadingSettings, learnSuccessThreshold, learnModeProgress, debouncedUpdateProgress, isInitializing, isProcessingAnswer]); // Removed onNewCard
 
     // --- Derived State --- 
     const currentCard = useMemo(() => {
@@ -309,6 +312,8 @@ export function useStudySession({
         initialSelectionCount, // Return the count
         sessionResults, // Return results
         isProcessingAnswer, // Return processing state
+        isFlipped, // Return flip state
+        onFlip: handleFlip, // Return flip action
         answerCard,
     };
 } 

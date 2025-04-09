@@ -30,32 +30,19 @@ export default function StudySessionPage() {
   const currentMode = useStudySessionStore((state) => state.currentMode);
 
   const [isInitialized, setIsInitialized] = useState(false);
-  const [isFlipped, setIsFlipped] = useState(false); 
-  const [isTransitioning, setIsTransitioning] = useState(false); 
 
   const { settings, loading: isLoadingSettings } = useSettings(); 
 
-  // Define the reset function BEFORE useStudySession uses it
-  const resetFlipState = useCallback(() => {
-      setIsFlipped(false);
-      setIsTransitioning(false);
-      console.log("[StudySessionPage] Flip state reset.");
-  }, []); // No dependencies needed
-
-  // Initialize the core study session hook, passing the defined callback
+  // Get flip state and action FROM the hook
   const { 
-    currentCard, 
-    isInitializing, // Use isInitializing from hook
-    error, studyMode, 
-    isComplete, totalCardsInSession, 
-    currentCardNumber, initialSelectionCount, 
-    answerCard, sessionResults, 
-    isProcessingAnswer // Still needed for button disabling
-  } = useStudySession({ 
-      initialInput: currentInput, 
-      initialMode: currentMode, 
-      onNewCard: resetFlipState // Now valid
-  });
+    currentCard, isInitializing, error, studyMode, 
+    isComplete, totalCardsInSession, currentCardNumber, initialSelectionCount, 
+    answerCard, sessionResults, isProcessingAnswer, 
+    isFlipped, onFlip // Use state/action from hook
+  } = useStudySession({ initialInput: currentInput, initialMode: currentMode });
+
+  // Still need local transition state for visual flip animation disabling
+  const [isTransitioningVisual, setIsTransitioningVisual] = useState(false);
 
   const { speak, loading: ttsLoading } = useTTS();
   const isLoadingPage = isInitializing || isLoadingSettings || !isInitialized;
@@ -78,7 +65,16 @@ export default function StudySessionPage() {
     return () => clearTimeout(checkTimer);
   }, [isInitialized, currentInput, currentMode, router]);
 
-  // --- Consolidated TTS Trigger Effect (Refined Logic) --- 
+  // Reset VISUAL transition state when card changes
+  useEffect(() => {
+    if (currentCard?.id) {
+      setIsTransitioningVisual(false);
+    }
+    // Keep ref update here, it runs before TTS effect
+    prevCardIdRef.current = currentCard?.id;
+  }, [currentCard?.id]);
+
+  // --- TTS Trigger Effect (Refined Logic) --- 
   useEffect(() => {
       if (!currentCard || ttsLoading || !settings?.ttsEnabled || isLoadingPage) return;
 
@@ -107,12 +103,14 @@ export default function StudySessionPage() {
 
   // --- Callbacks ---
   const handleFlip = useCallback(() => {
-    if (isTransitioning) return; 
-    setIsTransitioning(true); 
-    setIsFlipped(prev => !prev); 
-    const timer = setTimeout(() => { setIsTransitioning(false); }, FLIP_DURATION_MS);
+    if (isTransitioningVisual) return; // Prevent double-click during animation
+    setIsTransitioningVisual(true);
+    onFlip(); // Call the hook's flip action
+    const timer = setTimeout(() => {
+      setIsTransitioningVisual(false);
+    }, FLIP_DURATION_MS);
     return () => clearTimeout(timer);
-  }, [isTransitioning]); 
+  }, [isTransitioningVisual, onFlip]); // Depend on local state and hook action
 
   // --- Render Logic ---
 
@@ -221,7 +219,7 @@ export default function StudySessionPage() {
             // Pass derived progress text
             progressText={progressText}
             // Pass the transition state
-            isTransitioning={isTransitioning || isProcessingAnswer} // Disable buttons during flip AND processing
+            isTransitioning={isTransitioningVisual || isProcessingAnswer} // Disable buttons during visual flip OR background processing
          />
       </div>
 
