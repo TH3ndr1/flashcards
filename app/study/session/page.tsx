@@ -26,43 +26,39 @@ const FLIP_DURATION_MS = 300; // Match CSS animation duration (adjust if needed)
 export default function StudySessionPage() {
   const router = useRouter();
   
-  // Use separate selectors for stability
   const currentInput = useStudySessionStore((state) => state.currentInput);
   const currentMode = useStudySessionStore((state) => state.currentMode);
-  // No need to select clearStudyParameters here if it's only called from the hook
 
-  // Use state to track if redirect check is needed after initial mount
   const [isInitialized, setIsInitialized] = useState(false);
-  const [isFlipped, setIsFlipped] = useState(false); // State for card flip
-  const [isTransitioning, setIsTransitioning] = useState(false); // Add transition state
+  const [isFlipped, setIsFlipped] = useState(false); 
+  const [isTransitioning, setIsTransitioning] = useState(false); 
 
-  // Initialize the core study session hook
-  const {
-    currentCard, // This is now DbCard | null
-    isLoading: isLoadingSession,
-    error,
-    studyMode,
-    isComplete,
-    totalCardsInSession,
-    currentCardNumber,
-    initialSelectionCount, // Get the initial count
-    answerCard,
-    sessionResults // Get results from hook
-  } = useStudySession({
-      initialInput: currentInput,
-      initialMode: currentMode
+  const { settings, loading: isLoadingSettings } = useSettings(); 
+
+  // Define the reset function BEFORE useStudySession uses it
+  const resetFlipState = useCallback(() => {
+      setIsFlipped(false);
+      setIsTransitioning(false);
+      console.log("[StudySessionPage] Flip state reset.");
+  }, []); // No dependencies needed
+
+  // Initialize the core study session hook, passing the defined callback
+  const { 
+    currentCard, 
+    isInitializing, // Use isInitializing from hook
+    error, studyMode, 
+    isComplete, totalCardsInSession, 
+    currentCardNumber, initialSelectionCount, 
+    answerCard, sessionResults, 
+    isProcessingAnswer // Still needed for button disabling
+  } = useStudySession({ 
+      initialInput: currentInput, 
+      initialMode: currentMode, 
+      onNewCard: resetFlipState // Now valid
   });
 
-  // Fetch Settings
-  const { settings, loading: isLoadingSettings } = useSettings();
-
-  // Initialize TTS hook here
   const { speak, loading: ttsLoading } = useTTS();
-
-  // Combined Loading State
-  const isLoading = isLoadingSession || isLoadingSettings || !isInitialized;
-
-  // Ref to track the previous card ID for TTS logic
+  const isLoadingPage = isInitializing || isLoadingSettings || !isInitialized;
   const prevCardIdRef = useRef<string | undefined | null>(null);
 
   // Redirect if parameters aren't set after initial client-side check
@@ -84,70 +80,48 @@ export default function StudySessionPage() {
 
   // --- Consolidated TTS Trigger Effect (Refined Logic) --- 
   useEffect(() => {
-      const hasCardChanged = prevCardIdRef.current !== currentCard?.id;
-      
-      // Update ref *before* guard clauses for next render cycle check
-      prevCardIdRef.current = currentCard?.id;
+      if (!currentCard || ttsLoading || !settings?.ttsEnabled || isLoadingPage) return;
 
-      // Guard conditions
-      if (!currentCard || ttsLoading || !settings?.ttsEnabled || isLoading) {
-          // console.log("[TTS Effect] Guards prevented TTS trigger.");
-          return; 
-      }
+      const cardIdHasChanged = prevCardIdRef.current !== currentCard.id;
+      prevCardIdRef.current = currentCard.id;
       
       let textToSpeak: string | null | undefined = null;
       let langToUse: string | null = null;
 
-      // Determine what to speak
-      if (hasCardChanged || !isFlipped) { 
-          // NEW CARD or SAME CARD UNFLIPPED: Speak the question
+      // Determine what to speak based on change or flip state
+      if (cardIdHasChanged || !isFlipped) { 
           textToSpeak = currentCard.question;
           langToUse = currentCard.decks?.primary_language ?? 'en-US';
-          // console.log(`[TTS Effect] Preparing Question: cardId=${currentCard.id}, hasChanged=${hasCardChanged}, isFlipped=${isFlipped}`);
-      } else { 
-          // SAME CARD and FLIPPED: Speak the answer
+      } else if (isFlipped) { 
           textToSpeak = currentCard.answer;
           langToUse = currentCard.decks?.secondary_language ?? currentCard.decks?.primary_language ?? 'en-US';
-          // console.log(`[TTS Effect] Preparing Answer: cardId=${currentCard.id}, hasChanged=${hasCardChanged}, isFlipped=${isFlipped}`);
       }
 
-      // Only speak if text is valid and language is determined
       if (textToSpeak && langToUse) {
-          // console.log(`[TTS Effect] Speaking: "${textToSpeak.substring(0,20)}..." in ${langToUse}`);
           speak(textToSpeak, langToUse);
-      } else {
-          // console.log("[TTS Effect] No text to speak or lang missing.");
       }
        
-  // Minimal dependencies: card ID (to detect change), flip state, TTS setting, loading state, speak fn
-  }, [currentCard?.id, isFlipped, settings?.ttsEnabled, isLoading, speak, ttsLoading]); 
-  // Keep ttsLoading here to prevent starting speak if already speaking from prev render
-  // Keep speak as it's a function defined outside
+  // Minimal dependencies: card ID, flip state, TTS enabled setting, and session loading state.
+  // Crucially REMOVE ttsLoading and speak.
+  }, [currentCard?.id, isFlipped, settings?.ttsEnabled, isLoadingPage]); 
 
   // --- Callbacks ---
-  // Flip handler with transition state
   const handleFlip = useCallback(() => {
-    if (isTransitioning) return; // Prevent flipping during transition
-    
+    if (isTransitioning) return; 
     setIsTransitioning(true); 
     setIsFlipped(prev => !prev); 
-    
-    const timer = setTimeout(() => {
-      setIsTransitioning(false);
-    }, FLIP_DURATION_MS);
-
-    // Cleanup timer if component unmounts or card changes mid-transition
+    const timer = setTimeout(() => { setIsTransitioning(false); }, FLIP_DURATION_MS);
     return () => clearTimeout(timer);
-  }, [isTransitioning]); // Depend on isTransitioning to avoid stale closures
+  }, [isTransitioning]); 
 
   // --- Render Logic ---
 
-  // Loading State
-  if (isLoading) {
+  // Use isLoadingPage for the main spinner
+  if (isLoadingPage) { 
      return (
         <div className="flex flex-col justify-center items-center min-h-screen">
-            <IconLoader className="h-10 w-10 animate-spin mb-4" />
-            <p className="text-muted-foreground">Loading session...</p>
+            <IconLoader className="h-10 w-10 animate-spin mb-4" /> 
+            <p className="text-muted-foreground">Loading session...</p> 
         </div>
     );
   }
@@ -247,7 +221,7 @@ export default function StudySessionPage() {
             // Pass derived progress text
             progressText={progressText}
             // Pass the transition state
-            isTransitioning={isTransitioning}
+            isTransitioning={isTransitioning || isProcessingAnswer} // Disable buttons during flip AND processing
          />
       </div>
 

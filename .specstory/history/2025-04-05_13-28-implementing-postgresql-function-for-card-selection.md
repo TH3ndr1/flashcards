@@ -27433,6 +27433,928 @@ _**Assistant**_
 
 ---
 
+You've pinpointed the exact race condition! The state updates triggering the new card data and the state update resetting `isFlipped` aren't perfectly synchronized within React's render cycle, leading the TTS effect to sometimes see the new card data *while* `isFlipped` is still momentarily `true`.
+
+Your suggestion to delay loading the next card until the flip-back animation completes is one valid approach, but it can introduce perceived lag.
+
+A more common and often preferred approach is to refine the logic within the TTS `useEffect` to be more robust against this race condition by explicitly checking if the card ID has actually changed *within that effect's execution context*. We can use `useRef` for this.
+
+**Refined Approach (Using `useRef`):**
+
+1.  **Track Previous ID:** Add a `useRef` to store the ID of the card that was previously processed by the TTS effect.
+2.  **Check for Change:** Inside the TTS `useEffect`, compare `currentCard.id` with the value in the ref.
+3.  **Conditional Speak:**
+    *   If the ID **has changed**, *ignore* the `isFlipped` state for this specific run and *always* speak the `question`. This handles the "new card loaded" scenario correctly.
+    *   If the ID **is the same**, *then* use the `isFlipped` state to determine whether to speak the `question` or the `answer`. This handles manual flips or re-renders where the card hasn't changed.
+4.  **Update Ref:** Update the ref with the current card ID *at the end* of the effect run.
+5.  **Simplify Dependencies:** Reduce the dependency array to the essentials that should trigger a re-evaluation: `currentCard?.id`, `isFlipped`, `settings?.ttsEnabled`, `isLoading`, and the `speak` function itself. The actual card content (`question`, `answer`, `decks`) doesn't need to be dependencies because the effect reads them based on the `id` and `isFlipped` state when it runs.
+6.  **Remove Separate Flip Reset Effect:** The logic to reset `isFlipped` when the card changes becomes redundant because the TTS effect's check for `cardIdHasChanged` will handle speaking the question correctly. We can remove the separate `useEffect` that watches `currentCard?.id` just to call `setIsFlipped(false)`.
+
+Let's implement this refined logic in `app/study/session/page.tsx`.
+
+**Task: Update TTS Effect Logic in `app/study/session/page.tsx`**
+
+---
+
+```diff
+    }, [isInitialized, currentInput, currentMode, router]);
+  
+-   // Reset flip state when card changes
++   // --- Consolidated TTS Trigger Effect (Refined Logic) --- 
+    useEffect(() => {
+-     if (currentCard?.id) { 
+-         setIsFlipped(false);
+-         setIsTransitioning(false); 
+-     }
+-     // Update previous ID ref *after* potential flip reset
+-     // This happens before the TTS effect runs in the same render cycle
++       const hasCardChanged = prevCardIdRef.current !== currentCard?.id;
++       
++       // Update ref *before* guard clauses for next render cycle check
+        prevCardIdRef.current = currentCard?.id;
+-   }, [currentCard?.id]);
+  
+-   // --- Consolidated TTS Trigger Effect (Updated Logic) --- 
+-   useEffect(() => {
++       // Guard conditions
+        if (!currentCard || ttsLoading || !settings?.ttsEnabled || isLoading) {
+-           console.log("[TTS Effect] Guards prevented TTS trigger.");
++           // console.log("[TTS Effect] Guards prevented TTS trigger.");
+            return; 
+        }
+- 
+-       const cardIdHasChanged = prevCardIdRef.current !== currentCard.id;
+        
+        let textToSpeak: string | null | undefined = null;
+        let langToUse: string | null = null;
+  
+-       if (cardIdHasChanged) {
+-           // NEW CARD LOADED: Always speak the question
++       // Determine what to speak
++       if (hasCardChanged || !isFlipped) { 
++           // NEW CARD or SAME CARD UNFLIPPED: Speak the question
+            textToSpeak = currentCard.question;
+            langToUse = currentCard.decks?.primary_language ?? 'en-US';
+-           console.log(`[TTS Effect] New Card Loaded (${currentCard.id}): Preparing to speak Question.`);
++           // console.log(`[TTS Effect] Preparing Question: cardId=${currentCard.id}, hasChanged=${hasCardChanged}, isFlipped=${isFlipped}`);
+        } else { 
+-           // SAME CARD, FLIP STATE CHANGED (or other relevant deps):
+-           if (isFlipped) {
++           // SAME CARD and FLIPPED: Speak the answer
+            textToSpeak = currentCard.answer;
+            langToUse = currentCard.decks?.secondary_language ?? currentCard.decks?.primary_language ?? 'en-US';
+-               console.log(`[TTS Effect] Flipped: Preparing to speak Answer for card ${currentCard.id}`);
+-           } else {
+-               textToSpeak = currentCard.question;
+-               langToUse = currentCard.decks?.primary_language ?? 'en-US';
+-               console.log(`[TTS Effect] Not Flipped: Preparing to speak Question for card ${currentCard.id}`);
+-           }
+-       }
+- 
++           // console.log(`[TTS Effect] Preparing Answer: cardId=${currentCard.id}, hasChanged=${hasCardChanged}, isFlipped=${isFlipped}`);
++       }
++ 
++       // Only speak if text is valid and language is determined
+        if (textToSpeak && langToUse) {
++           // console.log(`[TTS Effect] Speaking: "${textToSpeak.substring(0,20)}..." in ${langToUse}`);
+            speak(textToSpeak, langToUse);
+-       }
+-        
+-   // Re-run ONLY when card, flip state, enabled status, or session loading status changes.
+-   // REMOVE ttsLoading and speak from dependencies AGAIN.
+-   }, [currentCard?.id, currentCard?.question, currentCard?.answer, currentCard?.decks, isFlipped, settings?.ttsEnabled, isLoading]); 
+-   // ^^^ Corrected Dependency Array ^^^ 
++       } else {
++           // console.log("[TTS Effect] No text to speak or lang missing.");
++       }
++        
++   // Minimal dependencies: card ID (to detect change), flip state, TTS setting, loading state, speak fn
++   }, [currentCard?.id, isFlipped, settings?.ttsEnabled, isLoading, speak, ttsLoading]); 
++   // Keep ttsLoading here to prevent starting speak if already speaking from prev render
++   // Keep speak as it's a function defined outside
+  
+    // --- Callbacks ---
+```
+
+---
+
+I've updated `app/study/session/page.tsx` with the refined TTS logic using `useRef` to track the previous card ID.
+
+**Summary of Changes:**
+
+1.  Added `prevCardIdRef = useRef<string | undefined | null>(null);`
+2.  Removed the separate `useEffect` that reset `isFlipped` based on `currentCard.id`.
+3.  Updated the consolidated TTS `useEffect`:
+    *   Checks if `prevCardIdRef.current !== currentCard?.id`.
+    *   Updates `prevCardIdRef.current = currentCard?.id` at the beginning of the effect.
+    *   If the card ID changed (or if it's the first card), it speaks the `question`.
+    *   Otherwise (if the ID is the same), it speaks the `question` or `answer` based on the `isFlipped` state.
+    *   The dependency array is kept minimal (`[currentCard?.id, isFlipped, settings?.ttsEnabled, isLoading, speak, ttsLoading]`) to correctly trigger on relevant changes while avoiding the loop. We keep `ttsLoading` as a dependency in the guard clause inside the effect, not necessarily to re-run the effect *because* it changed, but to prevent speaking if TTS is *already* active from a previous render/trigger.
+
+This approach should robustly handle the race condition and ensure the correct side of the card is spoken when the card changes or when it's manually flipped.
+
+---
+
+_**User**_
+
+still the same issue... he problem of the answer being spoken before the question is shown is not solved  - I want you to have the new card loaded  after the turning transition, instead of before - that should solve the problem
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+You've hit the nail on the head. My previous fix attempted to solve the race condition by making the TTS effect smarter, but the core issue is that the **state updates leading to the next card appearing happen *before* the visual transition (the flip back) is complete**.
+
+Your proposal to **delay loading/setting the next card state until after a transition period** is the correct way to ensure the UI state (what the user sees) and the data state (which card is "current") are synchronized from the TTS perspective.
+
+Let's implement this by adding an intermediate processing state to the `useStudySession` hook.
+
+**Task: Refactor `useStudySession` to Delay Next Card Load**
+
+1.  **Add State:** Introduce `isProcessingAnswer: boolean` state to the hook, initialized to `false`.
+2.  **Modify `answerCard`:**
+    *   When `answerCard` is called, immediately set `isProcessingAnswer(true)`.
+    *   Perform SRS calculation and schedule the debounced `updateCardProgress`.
+    *   Determine the *next* state variables (`nextIndex`, `nextQueue`, `sessionComplete`).
+    *   **Crucially, DO NOT update `currentCardIndex`, `sessionQueue`, or `isComplete` immediately.**
+    *   Use `setTimeout` with a duration slightly longer than the flip animation (`FLIP_DURATION_MS + buffer`, e.g., 400ms total) or just the flip duration.
+    *   **Inside the `setTimeout` callback:**
+        *   Update the state: `setSessionQueue(nextQueue)`, `setCurrentCardIndex(nextIndex)`, `setIsComplete(sessionComplete)`.
+        *   Reset the processing state: `setIsProcessingAnswer(false)`.
+3.  **Return State:** Add `isProcessingAnswer` to the hook's return value.
+4.  **Page Component (`app/study/session/page.tsx`):**
+    *   Consume `isProcessingAnswer` from the hook.
+    *   The page's main `isLoading` check should now include `isProcessingAnswer`.
+    *   The TTS `useEffect`'s guard condition `isLoading` will implicitly handle preventing TTS during this processing phase.
+
+**Updated `hooks/useStudySession.ts`:**
+
+---
+
+```diff
+      currentCardNumber: number; // 1-based index for display
+      initialSelectionCount: number; // Add count before mode filtering
++     isProcessingAnswer: boolean; // Add processing state
+      answerCard: (grade: ReviewGrade) => Promise<void>; // Function to submit an answer
+      sessionResults: { correct: number, incorrect: number, completedInSession: number };
+  
+  const PROGRESS_UPDATE_DEBOUNCE_MS = 1500; // Allow slightly longer debounce
++ const FLIP_DURATION_MS = 300; // Ensure consistency with page
++ const PROCESSING_DELAY_MS = FLIP_DURATION_MS + 50; // Delay slightly longer than flip
+  
+  export function useStudySession({ initialInput, initialMode }: UseStudySessionProps): UseStudySessionReturn {
+      const [initialSelectionCount, setInitialSelectionCount] = useState<number>(-1); // Initialize to -1 (unset)
+      const [sessionResults, setSessionResults] = useState({ correct: 0, incorrect: 0, completedInSession: 0 });
++     const [isProcessingAnswer, setIsProcessingAnswer] = useState<boolean>(false); // New state
+  
+      const { settings, loading: isLoadingSettings } = useSettings(); 
+      }, [initialInput, initialMode]); // Remove clearStudyParameters from dependency array
+  
+-     // --- answerCard Function --- 
++     // --- answerCard Function (Refactored with Delay) --- 
+      const answerCard = useCallback(async (grade: ReviewGrade) => {
+-         if (isComplete || isLoading || isLoadingSettings || currentCardIndex >= sessionQueue.length) return;
++         // Prevent answering if already processing, complete, loading, etc.
++         if (isProcessingAnswer || isComplete || isLoading || isLoadingSettings || currentCardIndex >= sessionQueue.length) return;
+  
+          const card = sessionQueue[currentCardIndex];
+          if (!card) return;
+          
+-         console.log(`[useStudySession] Answering card ${card.id} with grade ${grade} in mode ${studyMode}`);
+- 
++         setIsProcessingAnswer(true); // Start processing
++         console.log(`[useStudySession] Processing answer for card ${card.id} with grade ${grade}`);
++ 
++         // 1. Calculate new SRS state & Schedule Save (as before)
++         const currentSrsState = { srsLevel: card.srs_level, easinessFactor: card.easiness_factor, intervalDays: card.interval_days };
++         const srsUpdatePayload = calculateSm2State(currentSrsState, grade);
++         debouncedUpdateProgress(card.id, srsUpdatePayload);
++ 
++         // 2. Update Session Stats (as before)
+          const isCorrect = grade >= 3;
+-         
+-         // Update session results state immediately
+          setSessionResults(prev => ({
+              ...prev,
+              correct: isCorrect ? prev.correct + 1 : prev.correct,
+              incorrect: !isCorrect ? prev.incorrect + 1 : prev.incorrect,
+-             // Completed count incremented below based on mode logic
+          }));
+  
+-         // 1. Calculate new SRS state
+-          const currentSrsState = {
+-             srsLevel: card.srs_level,
+-             easinessFactor: card.easiness_factor,
+-             intervalDays: card.interval_days
+-          };
+-         const srsResult = calculateSm2State(currentSrsState, grade); 
+-         
+-         // 2. Create and Schedule Debounced Progress Update Payload
+-         const updatePayload: CardProgressUpdatePayload = {
+-             last_reviewed_at: new Date().toISOString(), // Set current time as last reviewed
+-             next_review_due: srsResult.nextReviewDue.toISOString(), // Format date to ISO string
+-             srs_level: srsResult.srsLevel,
+-             easiness_factor: srsResult.easinessFactor,
+-             interval_days: srsResult.intervalDays,
+-             last_review_grade: srsResult.lastReviewGrade
+-         };
+-         debouncedUpdateProgress(card.id, updatePayload);
+- 
+-         // 3. Mode-specific logic & queue management
+-         let nextIndex = currentCardIndex; // Start with current index
++         // 3. Determine NEXT state variables (without setting state yet)
++         let nextIndex = currentCardIndex;
+          let nextQueue = [...sessionQueue];
+          let sessionComplete = false;
+-         let cardCompletedThisTurn = false; // Flag if card finished this turn
++         let cardCompletedThisTurn = false; 
+  
+          if (studyMode === 'learn') {
+               const currentStreak = learnModeProgress.get(card.id) ?? 0;
+               const newStreak = isCorrect ? currentStreak + 1 : 0;
+               const updatedLearnProgress = new Map(learnModeProgress).set(card.id, newStreak);             
+-             setLearnModeProgress(updatedLearnProgress); // Update map state
+-             
+               const cardSessionComplete = newStreak >= learnSuccessThreshold;
+  
+               if (cardSessionComplete) {
+                   cardCompletedThisTurn = true; 
+-                 nextQueue.splice(currentCardIndex, 1); // Remove from queue
+-                 // Index remains the same relative to the *new* shorter queue
++                  nextQueue.splice(currentCardIndex, 1); 
++                  nextIndex = currentCardIndex; 
+               } else if (!isCorrect) {
+-                  console.log(`[useStudySession] Card ${card.id} incorrect in Learn session.`);
+                    const failedCard = nextQueue.splice(currentCardIndex, 1)[0];
+-                  // Simple requeue at end - consider smarter placement
+                    nextQueue.push(failedCard);
+-                  // Index remains the same relative to the *new* queue order
++                   nextIndex = currentCardIndex; 
+               } else {
+-                  // Correct, but not done - advance index if possible
+                    nextIndex = currentCardIndex + 1;
+               }
+-             
+-             // Check if the modified queue is empty
+-             if (nextQueue.length === 0) {
+-                 sessionComplete = true;
+-             } else if (nextIndex >= nextQueue.length) {
+-                 // If we were at the end and advanced past it (or removed last card)
+-                 console.log("[useStudySession] Learn mode cycle complete, looping.");
+-                 nextIndex = 0; // Loop back to the start of remaining cards
+-                 // Optional: Reshuffle remaining cards each cycle?
+-                 // nextQueue = [...nextQueue].sort(() => Math.random() - 0.5);
+-             }
+-             setSessionQueue(nextQueue); // Update the queue state
+- 
++              sessionComplete = nextQueue.length === 0;
++              if (!sessionComplete && nextIndex >= nextQueue.length) {
++                  nextIndex = 0; 
++              }
++               // Update learn progress map immediately
++              setLearnModeProgress(updatedLearnProgress); 
+          } else { // Review Mode
+-             cardCompletedThisTurn = true; // Count every answer in review mode
+-             nextIndex = currentCardIndex + 1; // Simply advance index
++             cardCompletedThisTurn = true; 
++             nextIndex = currentCardIndex + 1; 
+              sessionComplete = nextIndex >= nextQueue.length;
+          }
+  
+-         // Increment completed count if card was finished this turn
++         // Increment completed count if applicable (immediately)
+          if (cardCompletedThisTurn) {
+               setSessionResults(prev => ({ ...prev, completedInSession: prev.completedInSession + 1 }));
+          }
+  
+-         setCurrentCardIndex(nextIndex);
+-         setIsComplete(sessionComplete);
+-         if(sessionComplete) console.log("[useStudySession] Session complete.");
++         // 4. Use setTimeout to delay updating the card/queue state
++         const timer = setTimeout(() => {
++             console.log(`[useStudySession] Delayed state update: nextIndex=${nextIndex}, queueLength=${nextQueue.length}, complete=${sessionComplete}`);
++             setSessionQueue(nextQueue);       // Update queue
++             setCurrentCardIndex(nextIndex);   // Update index
++             setIsComplete(sessionComplete);   // Update completion status
++             setIsProcessingAnswer(false); // End processing
++         }, PROCESSING_DELAY_MS); // Delay slightly longer than flip animation
++ 
++         // Note: No cleanup function needed for this timeout in useCallback
+  
+-     }, [currentCardIndex, sessionQueue, studyMode, isComplete, isLoading, isLoadingSettings, learnSuccessThreshold, learnModeProgress, debouncedUpdateProgress]);
++     }, [currentCardIndex, sessionQueue, studyMode, isComplete, isLoading, isLoadingSettings, learnSuccessThreshold, learnModeProgress, debouncedUpdateProgress, isProcessingAnswer]); // Added isProcessingAnswer
+  
+      // --- Derived State --- 
+      return {
+          currentCard,
+-         isLoading: isLoading || isLoadingSettings, 
++         isLoading: isLoading || isProcessingAnswer, // Include processing state in overall loading
+          error,
+          studyMode,
+          currentCardNumber, 
+          initialSelectionCount, // Return the count
+-         answerCard,
+          sessionResults, // Return results
++         isProcessingAnswer, // Return processing state
++         answerCard,
+      };
+  } 
+```
+
+---
+
+**Task 4: Update `app/study/session/page.tsx`**
+
+---
+
+```diff
+    const {
+      currentCard, // This is now DbCard | null
+-     isLoading: isLoadingSession,
++     isLoading: isLoadingSessionHook,
+      error,
+      studyMode,
+      initialSelectionCount, // Get the initial count
+      answerCard,
+-     sessionResults // Get results from hook
++     sessionResults,
++     isProcessingAnswer // Get processing state
+    } = useStudySession({
+        initialInput: currentInput,
+    const { speak, loading: ttsLoading } = useTTS();
+  
+-   // Combined Loading State
+-   const isLoading = isLoadingSession || isLoadingSettings || !isInitialized;
++   // Combined Loading State (includes processing state)
++   const isLoading = isLoadingSessionHook || isLoadingSettings || !isInitialized || isProcessingAnswer;
+  
+    // Ref to track the previous card ID for TTS logic
+          <div className="flex flex-col justify-center items-center min-h-screen">
+              <IconLoader className="h-10 w-10 animate-spin mb-4" />
+-             <p className="text-muted-foreground">Loading session...</p>
++             <p className="text-muted-foreground">{isProcessingAnswer ? 'Processing answer...' : 'Loading session...'}</p>
+          </div>
+      );
+              progressText={progressText}
+              // Pass the transition state
+-             isTransitioning={isTransitioning}
++             isTransitioning={isTransitioning || isProcessingAnswer} // Disable buttons during flip AND processing
+           />
+        </div>
+```
+
+---
+
+Okay, the changes have been implemented:
+
+1.  **`useStudySession`:**
+    *   Added `isProcessingAnswer` state.
+    *   The `answerCard` function now sets `isProcessingAnswer` to `true`, calculates the next state, and uses `setTimeout` to delay the actual state updates (`setSessionQueue`, `setCurrentCardIndex`, `setIsComplete`) until after the `PROCESSING_DELAY_MS`. It then sets `isProcessingAnswer` back to `false`.
+    *   The hook now returns `isProcessingAnswer`.
+    *   The overall `isLoading` returned by the hook now incorporates `isProcessingAnswer`.
+2.  **`app/study/session/page.tsx`:**
+    *   Consumes `isProcessingAnswer` from the hook.
+    *   Uses the combined `isLoading` (which includes `isProcessingAnswer`) for the main loading indicator, displaying a slightly different message during processing.
+    *   Passes `isTransitioning || isProcessingAnswer` to the `isTransitioning` prop of `StudyFlashcardView` to ensure buttons are disabled during both the visual flip and the background processing delay.
+
+This approach delays the data change until after the visual transition, which should definitively solve the TTS race condition and prevent the answer of the *next* card from being spoken while the *current* card is still flipping back to the question side.
+
+---
+
+_**User**_
+
+we have the tts looping again, but we also have the question side not being shown when going to the next card - the answer is shown immediatly
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+Okay, this combination of issues (TTS loop + card showing answer side first) strongly points back to how state updates are interacting, especially the timing around `isFlipped` reset and the TTS `useEffect`.
+
+**Root Cause Analysis Refined:**
+
+1.  **TTS Loop:** The most likely cause is still the dependency array of the consolidated TTS `useEffect` in `app/study/session/page.tsx`. It might have inadvertently included `ttsLoading` or `speak` again, or `isLoading` might be fluctuating during the transition.
+2.  **Answer Shown First:** This happens because:
+    *   User clicks answer button (`isFlipped` is true).
+    *   `answerCard` in `useStudySession` is called.
+    *   It sets `isProcessingAnswer = true`.
+    *   *After a delay* (`PROCESSING_DELAY_MS`), it updates `currentCardIndex`, `sessionQueue`, and `isComplete`.
+    *   `app/study/session/page.tsx` re-renders with the *new* `currentCard`.
+    *   The `useEffect` hook meant to reset `isFlipped` based on `currentCard.id` *does* run, setting `isFlipped` to `false`.
+    *   **However,** the TTS `useEffect` *also* runs because `currentCard.id` changed. Due to potential batching or timing subtleties in React's state updates and effect execution, the TTS effect might still momentarily read the *old* `isFlipped = true` value from the *previous* render cycle just before the `setIsFlipped(false)` state update fully propagates and triggers another re-render for the effect. This causes it to try and speak the *new* card's answer.
+    *   The loop might then restart if `ttsLoading` or `speak` were incorrectly left in the dependency array.
+
+**Solution:**
+
+1.  **Fix TTS Dependency Array (Again):** Absolutely ensure `ttsLoading` and `speak` are *not* in the dependency array. Let's minimize it to essentials: `[currentCard?.id, isFlipped, settings?.ttsEnabled, isLoading]`.
+2.  **Fix Flip Reset:** The separate `useEffect` to reset `isFlipped` when `currentCard.id` changes is the correct idea, but its timing relative to the TTS effect is problematic. Instead of relying on two separate effects reacting to `currentCard.id`, let's **handle the flip reset explicitly** right *after* the card state is updated.
+
+**Revised Plan:**
+
+1.  **Correct TTS `useEffect` Dependencies:** Remove `ttsLoading`, `speak`, and potentially `isLoading` if it fluctuates unnecessarily. Keep `currentCard?.id`, `isFlipped`, `settings?.ttsEnabled`.
+2.  **Move Flip Reset:** Remove the separate `useEffect` that resets `isFlipped`. Instead, modify the `setTimeout` callback within `answerCard` in `useStudySession`: *after* updating `setCurrentCardIndex`, *also* explicitly call a new function returned by the hook (e.g., `resetFlipState()`) which will be implemented in the page component to call `setIsFlipped(false)`. This synchronizes the data change and the flip reset.
+
+**Let's implement this.**
+
+**Task 1: Fix TTS Effect Dependencies in `app/study/session/page.tsx`**
+
+---
+
+```diff
+    // --- Consolidated TTS Trigger Effect (Refined Logic) --- 
+    useEffect(() => {
+-       const hasCardChanged = prevCardIdRef.current !== currentCard?.id;
+-       
+-       // Update ref *before* guard clauses for next render cycle check
+-       prevCardIdRef.current = currentCard?.id;
+- 
+-       // Guard conditions
+-       if (!currentCard || ttsLoading || !settings?.ttsEnabled || isLoading) {
+-           // console.log("[TTS Effect] Guards prevented TTS trigger.");
+-           return; 
+-       }
++       if (!currentCard || ttsLoading || !settings?.ttsEnabled || isLoading) return;
++ 
++       const cardIdHasChanged = prevCardIdRef.current !== currentCard.id;
++       prevCardIdRef.current = currentCard.id;
+        
+        let textToSpeak: string | null | undefined = null;
+        let langToUse: string | null = null;
+  
+-       // Determine what to speak
+-       if (hasCardChanged || !isFlipped) { 
+-           // NEW CARD or SAME CARD UNFLIPPED: Speak the question
++       // Determine what to speak based on change or flip state
++       if (cardIdHasChanged || !isFlipped) { 
+            textToSpeak = currentCard.question;
+            langToUse = currentCard.decks?.primary_language ?? 'en-US';
+-           // console.log(`[TTS Effect] Preparing Question: cardId=${currentCard.id}, hasChanged=${hasCardChanged}, isFlipped=${isFlipped}`);
+-       } else { 
+-           // SAME CARD and FLIPPED: Speak the answer
++       } else if (isFlipped) { 
+            textToSpeak = currentCard.answer;
+            langToUse = currentCard.decks?.secondary_language ?? currentCard.decks?.primary_language ?? 'en-US';
+-           // console.log(`[TTS Effect] Preparing Answer: cardId=${currentCard.id}, hasChanged=${hasCardChanged}, isFlipped=${isFlipped}`);
+        }
+  
+-       // Only speak if text is valid and language is determined
+        if (textToSpeak && langToUse) {
+-           // console.log(`[TTS Effect] Speaking: "${textToSpeak.substring(0,20)}..." in ${langToUse}`);
+            speak(textToSpeak, langToUse);
+-       } else {
+-           // console.log("[TTS Effect] No text to speak or lang missing.");
+        }
+         
+-   // Minimal dependencies: card ID (to detect change), flip state, TTS setting, loading state, speak fn
+-   }, [currentCard?.id, isFlipped, settings?.ttsEnabled, isLoading, speak, ttsLoading]); 
+-   // Keep ttsLoading here to prevent starting speak if already speaking from prev render
+-   // Keep speak as it's a function defined outside
++   // Minimal dependencies: card ID, flip state, TTS enabled setting, and session loading state.
++   // Crucially REMOVE ttsLoading and speak.
++   }, [currentCard?.id, isFlipped, settings?.ttsEnabled, isLoading]); 
+  
+    // --- Callbacks ---
+```
+
+---
+
+**Task 2: Refactor Flip Reset Logic**
+
+**2.1 Remove `useEffect` from `app/study/session/page.tsx`**
+
+---
+
+```diff
+      answerCard,
+      sessionResults,
+-     isProcessingAnswer // Get processing state
++     isProcessingAnswer, // Get processing state
++     onNewCard: resetFlipState // Added onNewCard
+    } = useStudySession({
+        initialInput: currentInput,
+-       initialMode: currentMode
++       initialMode: currentMode,
++       onNewCard: resetFlipState // Pass the reset function
+    });
+  
+      return () => clearTimeout(timer);
+    }, [isTransitioning]); // Depend on isTransitioning to avoid stale closures
++ 
++   // Define the reset function needed by the hook
++   const resetFlipState = useCallback(() => {
++       setIsFlipped(false);
++       setIsTransitioning(false);
++       console.log("[StudySessionPage] Flip state reset.");
++   }, []); // No dependencies needed
+    
+    // --- Render Logic ---
+```
+
+---
+
+**2.2 Update `hooks/useStudySession.ts` to Accept and Call `onNewCard`**
+
+---
+
+```diff
+      initialInput: StudyInput | null;
+      initialMode: StudyMode | null;
++     onNewCard?: () => void; // Add optional callback for when a new card is set
+  }
+  
+  const PROCESSING_DELAY_MS = FLIP_DURATION_MS + 50; // Delay slightly longer than flip
+  
+- export function useStudySession({ initialInput, initialMode }: UseStudySessionProps): UseStudySessionReturn {
++ export function useStudySession({ 
++     initialInput, 
++     initialMode, 
++     onNewCard // Destructure the callback
++ }: UseStudySessionProps): UseStudySessionReturn {
+      const [isLoading, setIsLoading] = useState<boolean>(true);
+      const [error, setError] = useState<string | null>(null);
+              setCurrentCardIndex(nextIndex);   // Update index
+              setIsComplete(sessionComplete);   // Update completion status
++             
++             // Call the callback AFTER setting the new index/card
++             if (onNewCard) {
++                 onNewCard(); 
++             }
++ 
+              setIsProcessingAnswer(false); // End processing
+          }, PROCESSING_DELAY_MS); // Delay slightly longer than flip animation
+  
+          // Note: No cleanup function needed for this timeout in useCallback
+  
+-     }, [currentCardIndex, sessionQueue, studyMode, isComplete, isLoading, isLoadingSettings, learnSuccessThreshold, learnModeProgress, debouncedUpdateProgress, isProcessingAnswer]); // Added isProcessingAnswer
++     }, [currentCardIndex, sessionQueue, studyMode, isComplete, isLoading, isLoadingSettings, learnSuccessThreshold, learnModeProgress, debouncedUpdateProgress, isProcessingAnswer, onNewCard]); // Add onNewCard to dependencies
+  
+      // --- Derived State --- 
+```
+
+---
+
+Okay, the refactoring is complete:
+
+1.  **`lib/actions/studySetActions.ts`:** Uses `createActionClient`.
+2.  **`app/study/session/page.tsx`:**
+    *   Uses separate Zustand selectors.
+    *   Removed the unmount cleanup effect.
+    *   Defines `resetFlipState` callback.
+    *   Passes `resetFlipState` as the `onNewCard` prop to `useStudySession`.
+3.  **`hooks/useStudySession.ts`:**
+    *   Accepts the `onNewCard` callback prop.
+    *   Removed the internal effect that automatically cleared store state on completion.
+    *   Calls the `onNewCard()` callback (which triggers `resetFlipState` in the page component) *inside* the `setTimeout` right after `setCurrentCardIndex` is called, but before `setIsProcessingAnswer(false)`.
+    *   The TTS `useEffect` dependencies are corrected to prevent loops.
+
+This revised flow ensures that the state update setting the new `currentCard` and the state update resetting `isFlipped` happen in a more controlled sequence, triggered *after* the processing delay. The TTS effect should now correctly identify when a new card has *actually* been set and speak the question, avoiding the answer-first issue.
+
+---
+
+_**User**_
+
+Error: ./app/study/session/page.tsx
+Module parse failed: Identifier 'resetFlipState' has already been declared (126:10)
+|     ]); // Depend on isTransitioning to avoid stale closures
+|     // Define the reset function needed by the hook
+>     const resetFlipState = useCallback({
+|         "StudySessionPage.useCallback[resetFlipState]": ()=>{
+|             setIsFlipped(false);
+    at BuildError (webpack-internal:///(pages-dir-browser)/./node_modules/.pnpm/next@15.2.4_@babel+core@7.26.10_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/next/dist/client/components/react-dev-overlay/ui/container/build-error.js:43:41)
+    at react-stack-bottom-frame (webpack-internal:///(pages-dir-browser)/./node_modules/.pnpm/react-dom@19.1.0_react@19.1.0/node_modules/react-dom/cjs/react-dom-client.development.js:23864:20)
+    at renderWithHooks (webpack-internal:///(pages-dir-browser)/./node_modules/.pnpm/react-dom@19.1.0_react@19.1.0/node_modules/react-dom/cjs/react-dom-client.development.js:5530:22)
+    at updateFunctionComponent (webpack-internal:///(pages-dir-browser)/./node_modules/.pnpm/react-dom@19.1.0_react@19.1.0/node_modules/react-dom/cjs/react-dom-client.development.js:8898:19)
+    at beginWork (webpack-internal:///(pages-dir-browser)/./node_modules/.pnpm/react-dom@19.1.0_react@19.1.0/node_modules/react-dom/cjs/react-dom-client.development.js:10523:18)
+    at runWithFiberInDEV (webpack-internal:///(pages-dir-browser)/./node_modules/.pnpm/react-dom@19.1.0_react@19.1.0/node_modules/react-dom/cjs/react-dom-client.development.js:1520:30)
+    at performUnitOfWork (webpack-internal:///(pages-dir-browser)/./node_modules/.pnpm/react-dom@19.1.0_react@19.1.0/node_modules/react-dom/cjs/react-dom-client.development.js:15133:22)
+    at workLoopSync (webpack-internal:///(pages-dir-browser)/./node_modules/.pnpm/react-dom@19.1.0_react@19.1.0/node_modules/react-dom/cjs/react-dom-client.development.js:14957:41)
+    at renderRootSync (webpack-internal:///(pages-dir-browser)/./node_modules/.pnpm/react-dom@19.1.0_react@19.1.0/node_modules/react-dom/cjs/react-dom-client.development.js:14937:11)
+    at performWorkOnRoot (webpack-internal:///(pages-dir-browser)/./node_modules/.pnpm/react-dom@19.1.0_react@19.1.0/node_modules/react-dom/cjs/react-dom-client.development.js:14420:13)
+    at performWorkOnRootViaSchedulerTask (webpack-internal:///(pages-dir-browser)/./node_modules/.pnpm/react-dom@19.1.0_react@19.1.0/node_modules/react-dom/cjs/react-dom-client.development.js:16217:7)
+    at MessagePort.performWorkUntilDeadline (webpack-internal:///(pages-dir-browser)/./node_modules/.pnpm/scheduler@0.26.0/node_modules/scheduler/cjs/scheduler.development.js:45:48)
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+
+
+
+---
+
+
+
+---
+
+You've found the error! The message `Identifier 'resetFlipState' has already been declared` means we're defining the constant `resetFlipState` twice in the same scope within `app/study/session/page.tsx`.
+
+Looking back at the code structure:
+
+1.  We correctly define `resetFlipState` using `useCallback`:
+    ```typescript
+    const resetFlipState = useCallback(() => {
+        setIsFlipped(false);
+        setIsTransitioning(false);
+        console.log("[StudySessionPage] Flip state reset.");
+    }, []); 
+    ```
+2.  We correctly pass this function as the `onNewCard` prop when calling `useStudySession`:
+    ```typescript
+     const { /* ... other return values ... */ } = useStudySession({ 
+         initialInput: currentInput, 
+         initialMode: currentMode, 
+         onNewCard: resetFlipState // Pass the callback here
+     });
+    ```
+3.  **The Error:** In the previous step, the edit incorrectly added `onNewCard: resetFlipState` to the *destructuring assignment* of the values *returned* by `useStudySession`. The hook doesn't return `onNewCard` or `resetFlipState`; it only accepts `onNewCard` as a prop.
+
+**Solution:**
+
+Remove the incorrect alias from the destructuring assignment in `app/study/session/page.tsx`.
+
+**Fix for `app/study/session/page.tsx`:**
+
+---
+
+```diff
+      sessionResults,
+      isProcessingAnswer, // Get processing state
+-     onNewCard: resetFlipState // Added onNewCard
+    } = useStudySession({
+        initialInput: currentInput,
+        initialMode: currentMode,
+-       onNewCard: resetFlipState // Pass the reset function
++       onNewCard: resetFlipState // Pass the reset function as a prop
+    });
+  
+```
+
+---
+
+Okay, I've removed the redundant `onNewCard: resetFlipState` from the destructuring assignment where the return values of `useStudySession` are extracted.
+
+The `resetFlipState` function is now correctly defined using `useCallback` and passed as the `onNewCard` prop *to* the `useStudySession` hook, resolving the "Identifier 'resetFlipState' has already been declared" error.
+
+---
+
+_**User**_
+
+when clicking on "learn" i get: ReferenceError: Cannot access 'resetFlipState' before initialization
+    at StudySessionPage (webpack-internal:///(app-pages-browser)/./app/study/session/page.tsx:56:20)
+    at ClientPageRoot (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@15.2.4_@babel+core@7.26.10_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/next/dist/client/components/client-page.js:20:50)
+
+---
+
+_**Assistant**_
+
+Got it. This `ReferenceError: Cannot access 'resetFlipState' before initialization` is a classic JavaScript/React error that happens when you try to use a variable or function *before* its declaration has been processed.
+
+Looking at the code for `app/study/session/page.tsx`:
+
+```typescript
+// app/study/session/page.tsx
+
+export default function StudySessionPage() {
+  // ... other hooks ...
+  
+  // Initialize the useStudySession hook - THIS USES resetFlipState
+  const { 
+    // ... other values ...
+  } = useStudySession({ 
+      initialInput: currentInput, 
+      initialMode: currentMode, 
+      onNewCard: resetFlipState // PROBLEM: resetFlipState is used here...
+  });
+
+  // ... other hooks, state ...
+
+  // --- Callbacks --- 
+  // ... handleFlip ...
+
+  // ...BUT resetFlipState is defined LATER here using useCallback!
+  const resetFlipState = useCallback(() => { 
+      setIsFlipped(false);
+      setIsTransitioning(false);
+      console.log("[StudySessionPage] Flip state reset.");
+  }, []); 
+
+  // ... Render Logic ... 
+}
+```
+
+**The Fix:**
+
+Simply move the definition of `resetFlipState` *before* the call to `useStudySession` where it's being used.
+
+**Task: Reorder `resetFlipState` Definition**
+
+---
+
+```diff
+    const router = useRouter();
+    
+-   // Use separate selectors for stability
+    const currentInput = useStudySessionStore((state) => state.currentInput);
+    const currentMode = useStudySessionStore((state) => state.currentMode);
+-   // No need to select clearStudyParameters here if it's only called from the hook
+  
+-   // Use state to track if redirect check is needed after initial mount
+    const [isInitialized, setIsInitialized] = useState(false);
+-   const [isFlipped, setIsFlipped] = useState(false); // State for card flip
+-   const [isTransitioning, setIsTransitioning] = useState(false); // Add transition state
++   const [isFlipped, setIsFlipped] = useState(false); 
++   const [isTransitioning, setIsTransitioning] = useState(false); 
++ 
++   const { settings, loading: isLoadingSettings } = useSettings(); 
++ 
++   // Define the reset function BEFORE useStudySession uses it
++   const resetFlipState = useCallback(() => {
++       setIsFlipped(false);
++       setIsTransitioning(false);
++       console.log("[StudySessionPage] Flip state reset.");
++   }, []); // No dependencies needed
+  
+-   // Initialize the core study session hook
++   // Initialize the core study session hook, passing the defined callback
+    const { 
+-     currentCard, // This is now DbCard | null
++     currentCard, 
+      isLoading: isLoadingSessionHook, 
+-     error,
+-     studyMode,
+-     isComplete,
+-     totalCardsInSession,
+-     currentCardNumber,
+-     initialSelectionCount, // Get the initial count
+-     answerCard,
+-     sessionResults,
+-     isProcessingAnswer, // Get processing state
++     error, studyMode, 
++     isComplete, totalCardsInSession, 
++     currentCardNumber, initialSelectionCount, 
++     answerCard, sessionResults, 
++     isProcessingAnswer 
+    } = useStudySession({ 
+        initialInput: currentInput, 
+        initialMode: currentMode, 
+-       onNewCard: resetFlipState // Pass the reset function as a prop
++       onNewCard: resetFlipState // Now valid
+    });
+  
+-   // Fetch Settings
+-   const { settings, loading: isLoadingSettings } = useSettings();
+- 
+-   // Initialize TTS hook here
+    const { speak, loading: ttsLoading } = useTTS();
+- 
+-   // Combined Loading State (includes processing state)
+    const isLoading = isLoadingSessionHook || isLoadingSettings || !isInitialized || isProcessingAnswer;
+- 
+-   // Ref to track the previous card ID for TTS logic
+    const prevCardIdRef = useRef<string | undefined | null>(null);
+  
+  
+    // --- Callbacks ---
+-   // Flip handler with transition state
+    const handleFlip = useCallback(() => {
+-     if (isTransitioning) return; // Prevent flipping during transition
+-     
++     if (isTransitioning) return; 
+      setIsTransitioning(true); 
+      setIsFlipped(prev => !prev); 
+-     
+-     const timer = setTimeout(() => {
+-       setIsTransitioning(false);
+-     }, FLIP_DURATION_MS);
+- 
+-     // Cleanup timer if component unmounts or card changes mid-transition
++     const timer = setTimeout(() => { setIsTransitioning(false); }, FLIP_DURATION_MS);
+      return () => clearTimeout(timer);
+-   }, [isTransitioning]); // Depend on isTransitioning to avoid stale closures
+- 
+-   // Define the reset function needed by the hook
+-   const resetFlipState = useCallback(() => {
+-       setIsFlipped(false);
+-       setIsTransitioning(false);
+-       console.log("[StudySessionPage] Flip state reset.");
+-   }, []); // No dependencies needed
++   }, [isTransitioning]); 
+  
+    // --- Render Logic ---
+```
+
+---
+
+Okay, I've moved the `resetFlipState` definition using `useCallback` to *before* the `useStudySession` hook call in `app/study/session/page.tsx`.
+
+This ensures `resetFlipState` is initialized before being passed as the `onNewCard` prop, resolving the `ReferenceError`.
+
+---
+
+_**User**_
+
+ok this works fine - I now would like you to consider the following:
+after scoring the answer, I very briefly see a turning wheel with the text "processing answer" after which the new card loads - can we get rid of this to have a more swift user experience?
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+You're right, that brief "Processing answer..." state can feel a bit clunky. It was added to ensure the card visually flips back before the next card's data loads, fixing the TTS race condition.
+
+However, we can achieve the same goal (preventing the TTS race condition) without showing an explicit loading indicator during that short delay. The key is to keep the delay logic but just not factor the `isProcessingAnswer` state into the *visible* loading state of the page. The buttons on the flashcard view will still be disabled during this period, preventing double-clicks.
+
+**Solution:**
+
+1.  **Modify `isLoading` Calculation:** In `app/study/session/page.tsx`, change the `isLoading` calculation to *exclude* `isProcessingAnswer`. The page will only show the main loading spinner during initial load or settings load.
+2.  **Keep Button Disabling:** Continue passing `isTransitioning || isProcessingAnswer` to the `isTransitioning` prop of `StudyFlashcardView`. This ensures the answer buttons are disabled during both the visual flip and the brief processing delay, even though the user doesn't see a spinner.
+
+**Applying the Fix to `app/study/session/page.tsx`:**
+
+---
+
+```diff
+  
+    const { speak, loading: ttsLoading } = useTTS();
+-   const isLoading = isLoadingSessionHook || isLoadingSettings || !isInitialized || isProcessingAnswer;
++   const isLoading = isLoadingSessionHook || isLoadingSettings || !isInitialized;
+    const prevCardIdRef = useRef<string | undefined | null>(null);
+  
+          <div className="flex flex-col justify-center items-center min-h-screen">
+              <IconLoader className="h-10 w-10 animate-spin mb-4" />
+-             <p className="text-muted-foreground">{isProcessingAnswer ? 'Processing answer...' : 'Loading session...'}</p>
++             <p className="text-muted-foreground">Loading session...</p>
+          </div>
+      );
+```
+
+---
+
+Okay, I've updated `app/study/session/page.tsx`:
+
+*   The main `isLoading` constant no longer includes `isProcessingAnswer`. The page will only show the full-screen loading indicator initially.
+*   The `isTransitioning` prop passed to `StudyFlashcardView` still includes `isProcessingAnswer`, so the answer buttons on the card will be disabled during that brief processing delay after an answer is submitted.
+
+This should provide a smoother visual experience, removing the flicker of the "Processing answer..." message while still preventing users from clicking answer buttons rapidly during the state transition.
+
+---
+
+_**User**_
+
+Now I get a turning circle with the text "loading session" in between two cards... this is not an improvent
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+You are absolutely right! Showing the full "Loading session..." spinner between cards defeats the purpose of the refinement. My apologies, that indicates the loading state logic is still not quite right.
+
+The issue is that the main `isLoading` state in `app/study/session/page.tsx` (which combines `isLoadingSessionHook`, `isLoadingSettings`, etc.) is likely becoming true during the `isProcessingAnswer` phase, even though we tried to separate them. This happens because the internal state changes in `useStudySession` (like setting the new card index *within* the `setTimeout`) might briefly cause the hook to appear "loading" or the `currentCard` to be momentarily unavailable before the next render cycle fully completes.
+
+**Revised Solution:**
+
+Let's simplify and make the page's loading state strictly dependent on the *initial* loading phase of the hook and settings, not the brief processing between answers.
+
+1.  **Refine `useStudySession` State:**
+    *   Rename the main loading state inside `useStudySession` from `isLoading` to `isInitializing`. Set this *only* during the initial data fetch (`useEffect`).
+    *   Keep the `isProcessingAnswer` state, set only within the `answerCard` function's delay logic.
+    *   Return *both* `isInitializing` and `isProcessingAnswer` from the hook.
+2.  **Update `app/study/session/page.tsx`:**
+    *   Use `isInitializing` (combined with `isLoadingSettings`) for the *full-page* loading spinner.
+    *   Use `isProcessingAnswer` (along with `isTransitioning`) *only* for the `isTransitioning` prop passed to `StudyFlashcardView` to disable its internal buttons.
+
+**Task 1: Refactor State in `hooks/useStudySession.ts`**
+
+---
+
+Cancelled
+
+---
+
+
+
+---
+
 
 
 ---
