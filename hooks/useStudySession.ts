@@ -45,6 +45,7 @@ interface UseStudySessionReturn {
     isFlipped: boolean; // Hook now manages flip state
     onFlip: () => void; // Action to trigger flip
     sessionResults: { correct: number, incorrect: number, completedInSession: number };
+    answerCard: (grade: ReviewGrade) => Promise<void>;
 }
 
 interface UseStudySessionProps {
@@ -161,19 +162,28 @@ export function useStudySession({
 
                 // 3. Prepare Initial Queue based on Mode
                 let initialQueue: StudyCard[] = [];
-                const now = new Date();
+                const now = new Date(); // Get current time once
 
                 if (initialMode === 'learn') {
                     console.log("[useStudySession] Preparing Learn Mode queue.");
                     initialQueue = [...fetchedCards].sort(() => Math.random() - 0.5); 
                     if (isMounted) setLearnModeProgress(new Map(fetchedCards.map(card => [card.id, 0]))); 
-                } else { 
+                } else { // Review Mode
                     console.log("[useStudySession] Preparing Review Mode queue.");
                     initialQueue = fetchedCards
-                        .filter(card => card.next_review_due && isAfter(parseISO(card.next_review_due), now) === false) // Correct check: due date is now or in the past
-                        .sort((a, b) => parseISO(a.next_review_due!).getTime() - parseISO(b.next_review_due!).getTime());
+                        .filter(card => {
+                             // Corrected Filter: Include if never reviewed OR if due date is now or in the past
+                             return !card.next_review_due || 
+                                    (card.next_review_due && parseISO(card.next_review_due).getTime() <= now.getTime());
+                        })
+                        .sort((a, b) => {
+                            // Corrected Sort: Prioritize null dates, then sort ascending
+                            const timeA = a.next_review_due ? parseISO(a.next_review_due).getTime() : -Infinity; 
+                            const timeB = b.next_review_due ? parseISO(b.next_review_due).getTime() : -Infinity;
+                            return timeA - timeB; 
+                        });
                     
-                    console.log(`[useStudySession] Found ${initialQueue.length} cards due for review.`);
+                    console.log(`[useStudySession] Found ${initialQueue.length} cards due for review (including new).`);
                      if (initialQueue.length === 0 && isMounted) {
                          console.log("[useStudySession] No cards due for review in this set.");
                          setIsComplete(true); 
@@ -219,15 +229,27 @@ export function useStudySession({
         const card = sessionQueue[currentCardIndex];
         if (!card) return;
         
-        setIsProcessingAnswer(true); // Start processing
+        setIsProcessingAnswer(true); 
         console.log(`[useStudySession] Processing answer for card ${card.id} with grade ${grade}`);
 
-        // 1. Calculate new SRS state & Schedule Save (as before)
+        // 1. Calculate new SRS state
         const currentSrsState = { srsLevel: card.srs_level, easinessFactor: card.easiness_factor, intervalDays: card.interval_days };
-        const srsUpdatePayload = calculateSm2State(currentSrsState, grade);
-        debouncedUpdateProgress(card.id, srsUpdatePayload);
+        const srsResult = calculateSm2State(currentSrsState, grade); 
+        
+        // 2. Create the specific payload for the updateCardProgress action
+        const progressUpdatePayload: CardProgressUpdatePayload = {
+            last_reviewed_at: new Date().toISOString(), // Set current time
+            next_review_due: srsResult.nextReviewDue.toISOString(), // Format date
+            srs_level: srsResult.srsLevel,
+            easiness_factor: srsResult.easinessFactor,
+            interval_days: srsResult.intervalDays,
+            last_review_grade: srsResult.lastReviewGrade
+        };
+        
+        // 3. Schedule Debounced Save with the correct payload type
+        debouncedUpdateProgress(card.id, progressUpdatePayload); 
 
-        // 2. Update Session Stats (as before)
+        // 4. Update Session Stats 
         const isCorrect = grade >= 3;
         setSessionResults(prev => ({
             ...prev,
@@ -235,7 +257,7 @@ export function useStudySession({
             incorrect: !isCorrect ? prev.incorrect + 1 : prev.incorrect,
         }));
 
-        // 3. Determine NEXT state variables (without setting state yet)
+        // 5. Determine NEXT state variables (without setting state yet)
         let nextIndex = currentCardIndex;
         let nextQueue = [...sessionQueue];
         let sessionComplete = false;
@@ -275,7 +297,7 @@ export function useStudySession({
              setSessionResults(prev => ({ ...prev, completedInSession: prev.completedInSession + 1 }));
         }
 
-        // 4. Use setTimeout to delay updating the card/queue state
+        // 6. Use setTimeout to delay updating the card/queue state
         const timer = setTimeout(() => {
             console.log(`[useStudySession] Delayed state update: nextIndex=${nextIndex}, queueLength=${nextQueue.length}, complete=${sessionComplete}`);
             setSessionQueue(nextQueue);       // Update queue

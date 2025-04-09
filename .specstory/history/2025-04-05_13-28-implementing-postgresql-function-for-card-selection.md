@@ -29284,6 +29284,299 @@ This involves removing the `settingsService` import and call, importing the new 
 
 ---
 
+All done.
+
+1.  **`lib/actions/settingsActions.ts`:** Created this file (or updated if existing). It now contains `fetchSettingsAction` and `updateSettingsAction`. Both use `createActionClient` for the Supabase client and handle validation/mapping/database operations.
+2.  **`providers/settings-provider.tsx`:**
+    *   Removed the direct dependency on `lib/settingsService.ts` and `useSupabase`.
+    *   Imports `fetchSettingsAction` and `updateSettingsAction`.
+    *   The initial load `useEffect` now calls `fetchSettingsAction` and uses the `transformDbSettingsToSettings` helper to map the DB result to the frontend `Settings` type.
+    *   The `updateSettings` function provided by the context now performs an optimistic update on the local state and then calls `updateSettingsAction`. It reverts the optimistic update if the action returns an error.
+
+This refactoring moves the database write operation (`updateSettings`) into a proper Server Action, ensuring the correct client context is used and resolving the original error when toggling TTS from the header button. It also simplifies the provider by centralizing the fetch logic in an action as well.
+
+---
+
+_**User**_
+
+Okay, analysis of the `cards` table data shows that while many cards have future `next_review_due` dates (indicating SM-2 is calculating intervals correctly), there *are* several cards that should be appearing in "Review" mode:
+- Cards reviewed yesterday with interval 1.
+- Cards failed previously with interval 1.
+- Cards never reviewed (`next_review_due` is NULL).
+
+However, I am still seeing "No cards found" when selecting "Review" mode. This points to an issue in the filtering logic within `useStudySession`.
+
+**Task: Correct Review Mode Filtering in `useStudySession`**
+
+*   **File:** `hooks/useStudySession.ts`
+*   **Reference:** Initialization `useEffect`, `initialMode === 'review'` block.
+*   **Goal:** Modify the filter logic to correctly include cards that are due (now or past) AND cards that have never been reviewed (`next_review_due` is NULL). Also adjust sorting.
+*   **Requirements:**
+    1.  Modify the `.filter()` call on `fetchedCards` within the `initialMode === 'review'` block. The condition should be: `!card.next_review_due || (card.next_review_due && isAfter(now, parseISO(card.next_review_due)) === false)`.
+    2.  Modify the `.sort()` call to handle `NULL` due dates correctly, prioritizing them (e.g., treating `NULL` as `-Infinity` for sorting) before sorting by the actual timestamp ascending.
+
+Please provide the **updated code snippet for the `initialMode === 'review'` block** within the initialization `useEffect` in `hooks/useStudySession.ts`, showing the corrected filter and sort logic.
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+You're right, the review mode filtering needs adjustment to include never-reviewed cards and handle the sorting correctly.
+
+**Task: Correct Review Mode Filtering in `useStudySession`**
+
+Here is the updated code snippet for the `initialMode === 'review'` block within the initialization `useEffect` in `hooks/useStudySession.ts`, incorporating the corrected filter and sort logic:
+
+```typescript
+// hooks/useStudySession.ts
+
+// ... inside initializeSession async function ...
+
+                // 3. Prepare Initial Queue based on Mode
+                let initialQueue: StudyCard[] = [];
+                const now = new Date(); // Get current time once
+
+                if (initialMode === 'learn') {
+                    // ... learn mode logic (shuffle) ...
+                } else { // Review Mode
+                    console.log("[useStudySession] Preparing Review Mode queue.");
+                    initialQueue = fetchedCards
+                        .filter(card => {
+                             // Include if never reviewed OR if due date is now or in the past
+                             return !card.next_review_due || 
+                                    (card.next_review_due && parseISO(card.next_review_due).getTime() <= now.getTime());
+                        })
+                        .sort((a, b) => {
+                            // Prioritize null dates (never reviewed) first
+                            const timeA = a.next_review_due ? parseISO(a.next_review_due).getTime() : -Infinity; 
+                            const timeB = b.next_review_due ? parseISO(b.next_review_due).getTime() : -Infinity;
+                            return timeA - timeB; // Sort ascending (nulls first, then oldest due)
+                        });
+                    
+                    console.log(`[useStudySession] Found ${initialQueue.length} cards due for review (including new).`);
+                     if (initialQueue.length === 0 && isMounted) {
+                         console.log("[useStudySession] No cards due for review in this set.");
+                         setIsComplete(true); 
+                         // Note: We don't clear parameters here anymore based on previous fix
+                     }
+                }
+                
+                if (isMounted) {
+                    setSessionQueue(initialQueue);
+                    setIsComplete(initialQueue.length === 0);
+                    setCurrentCardIndex(0);
+                }
+
+// ... rest of useEffect ...
+```
+
+**Summary of Changes:**
+
+1.  **Filter Logic:**
+    *   The condition is now `!card.next_review_due` (true if `null` or empty string) OR `(card.next_review_due && parseISO(card.next_review_due).getTime() <= now.getTime())`. This includes both never-reviewed cards and cards where the due date is now or in the past.
+2.  **Sort Logic:**
+    *   The `.sort()` function now explicitly handles `null` values for `next_review_due`. It assigns `-Infinity` to `null` dates, ensuring they are sorted first.
+    *   It then compares the timestamps (`getTime()`) to sort the remaining cards chronologically (oldest due date first).
+
+Now, I'll apply this corrected logic to `hooks/useStudySession.ts`.
+
+---
+
+```diff
+                  // 3. Prepare Initial Queue based on Mode
+                  let initialQueue: StudyCard[] = [];
+-                 const now = new Date();
++                 const now = new Date(); // Get current time once
+  
+                  if (initialMode === 'learn') {
+                      console.log("[useStudySession] Preparing Learn Mode queue.");
+                      initialQueue = [...fetchedCards].sort(() => Math.random() - 0.5); 
+                      if (isMounted) setLearnModeProgress(new Map(fetchedCards.map(card => [card.id, 0]))); 
+-                 } else { 
++                 } else { // Review Mode
+                      console.log("[useStudySession] Preparing Review Mode queue.");
+                      initialQueue = fetchedCards
+-                         .filter(card => card.next_review_due && isAfter(parseISO(card.next_review_due), now) === false) // Correct check: due date is now or in the past
+-                         .sort((a, b) => parseISO(a.next_review_due!).getTime() - parseISO(b.next_review_due!).getTime());
++                         .filter(card => {
++                              // Corrected Filter: Include if never reviewed OR if due date is now or in the past
++                              return !card.next_review_due || 
++                                     (card.next_review_due && parseISO(card.next_review_due).getTime() <= now.getTime());
++                         })
++                         .sort((a, b) => {
++                             // Corrected Sort: Prioritize null dates, then sort ascending
++                             const timeA = a.next_review_due ? parseISO(a.next_review_due).getTime() : -Infinity; 
++                             const timeB = b.next_review_due ? parseISO(b.next_review_due).getTime() : -Infinity;
++                             return timeA - timeB; 
++                         });
+                      
+-                     console.log(`[useStudySession] Found ${initialQueue.length} cards due for review.`);
++                     console.log(`[useStudySession] Found ${initialQueue.length} cards due for review (including new).`);
+                       if (initialQueue.length === 0 && isMounted) {
+                           console.log("[useStudySession] No cards due for review in this set.");
+```
+
+---
+
+Okay, the review mode queue preparation logic within the initialization `useEffect` in `hooks/useStudySession.ts` has been updated with the corrected filter and sort conditions.
+
+This should now correctly include never-reviewed cards (prioritizing them) and cards whose `next_review_due` date is in the past or present, sorting them chronologically. The "No cards found" message in Review mode should now only appear if truly no cards meet these criteria.
+
+---
+
+_**User**_
+
+what is the current logic in relation to review date? assume i have a card with a next_review_due value of 2025-04-09 22:00:00+00. Should it be displayed today (wednesday april 9th 2025 23h CET)  in the  srs list?
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+Let's break down the current logic and apply it to your example.
+
+**Current Logic in `hooks/useStudySession.ts`:**
+
+Inside the initialization `useEffect`, the code for Review mode filters the fetched cards like this:
+
+```typescript
+initialQueue = fetchedCards
+    .filter(card => {
+         // Include if never reviewed OR if due date is now or in the past
+         return !card.next_review_due || 
+                (card.next_review_due && parseISO(card.next_review_due).getTime() <= now.getTime());
+    })
+    // ... sorting ...
+```
+
+*   It gets the current time `now = new Date()`.
+*   For each card, it checks:
+    *   Is `next_review_due` null or empty? If yes, include it (never reviewed).
+    *   OR, if `next_review_due` exists:
+        *   It parses the database timestamp string (e.g., `'2025-04-09 22:00:00+00'`) into a JavaScript `Date` object using `parseISO`. This function correctly handles the timezone offset (`+00` means UTC).
+        *   It compares the millisecond timestamp (`.getTime()`) of the due date with the millisecond timestamp of the current time (`now.getTime()`).
+        *   It includes the card if the due date's timestamp is **less than or equal to** the current timestamp (`<=`).
+
+**Applying to Your Example:**
+
+*   **Card Due Date:** `2025-04-09 22:00:00+00` (This is exactly 10:00 PM UTC on April 9th).
+*   **Current Time:** Wednesday, April 9th, 2025, 23:00 CET.
+    *   CET (Central European Time) is UTC+1. *However*, during summer (Daylight Saving Time - CEST), it's UTC+2. April 9th is typically within CEST.
+    *   So, 23:00 CEST is **21:00 UTC** (23 - 2 = 21).
+*   **Comparison:**
+    *   Due Time (UTC): 22:00
+    *   Current Time (UTC): 21:00
+    *   Is `parseISO('2025-04-09 22:00:00+00').getTime() <= now.getTime()`?
+    *   Is `22:00 UTC timestamp <= 21:00 UTC timestamp`? **No.**
+
+**Conclusion:**
+
+Based on the current logic (`<= now.getTime()`), the card with `next_review_due` set to `2025-04-09 22:00:00+00` **should NOT be displayed** in the review list at 23:00 CET (21:00 UTC) on April 9th. It will become due exactly one hour later, at 22:00 UTC (which would be midnight CEST/00:00 CET on April 10th).
+
+If you *are* seeing this card, it might indicate an issue with:
+1.  The system clock where the code is running (`new Date()`).
+2.  The timezone interpretation by `parseISO` or `new Date()`.
+3.  An unexpected value in the `next_review_due` column for that specific card.
+
+---
+
+**Fixing Linter Error**
+
+Before we proceed, let's fix the linter error you included (`'answerCard' does not exist in type 'UseStudySessionReturn'`). I missed adding it to the return type interface.
+
+---
+
+```diff
+      onFlip: () => void; // Action to trigger flip
+      sessionResults: { correct: number, incorrect: number, completedInSession: number };
++     answerCard: (grade: ReviewGrade) => Promise<void>;
+  }
+  
+```
+
+---
+
+That fixes the linter error. Now, regarding the review date logic, does the current behavior match what you *expect*, or do you want cards due later on the *same day* to be included?
+
+---
+
+_**User**_
+
+Please make sure that by clicking on the StudyCards text in the header, you are always redirected to the home page. Please also add the icon in front of it. The icon is already defined in @layout.tsx as 'favicon' 
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+Okay, let's make the header title a link to the homepage and add an icon.
+
+**Task: Update Header Component (`components/header.tsx`)**
+
+1.  I'll wrap the `<h1>` in a `<Link href="/">`.
+2.  I'll import and use the `GraduationCap` icon from `lucide-react` before the title text for branding.
+
+**Applying changes to `components/header.tsx`:**
+
+---
+
+```diff
+  "use client"
+  
++ import Link from "next/link"
+  import { usePathname } from "next/navigation"
+  import { TTSToggleButton } from "@/components/tts-toggle-button"
+  import { SettingsButton } from "@/components/settings-button"
+  import { UserNavButton } from "@/components/user-nav"
+  import { TagsButton } from "@/components/tags-button"
++ import { GraduationCap } from "lucide-react"
+  
+  export function Header() {
+  
+    return (
+-     <div className="flex justify-between items-center mb-6">
+-       <h1 className="text-3xl font-bold">StudyCards</h1>
++     <header className="flex justify-between items-center mb-6">
++       <Link href="/" className="flex items-center gap-2 group">
++         <GraduationCap className="h-7 w-7 text-primary transition-transform group-hover:scale-110" />
++         <h1 className="text-3xl font-bold group-hover:text-primary transition-colors">
++           StudyCards
++         </h1>
++       </Link>
+        <div className="flex items-center space-x-2">
+          <TTSToggleButton />
+          <UserNavButton />
+        </div>
+-     </div>
++     </header>
+    )
+  } 
+```
+
+---
+
+Done. The `Header` component now wraps the "StudyCards" title and the `GraduationCap` icon in a `Link` pointing to the homepage (`/`). Clicking the title or icon will navigate the user back home.
+
+---
+
+_**User**_
+
+You used the wrong icon. I do not want the graduation cap, I want the icon that is also used as favicon
+
+---
+
+_**Assistant**_
+
 
 
 ---
