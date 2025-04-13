@@ -59,7 +59,14 @@ export function debounce<T extends (...args: any[]) => any>(func: T, wait: numbe
  * @returns {Object} A new object with snake_case keys
  */
 export function convertPayloadToSnakeCase(obj: Record<string, any>): Record<string, any> {
-  // ... existing code ...
+  const newObj: Record<string, any> = {};
+  for (const key in obj) {
+    if (Object.prototype.hasOwnProperty.call(obj, key)) {
+      const snakeKey = key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+      newObj[snakeKey] = obj[key];
+    }
+  }
+  return newObj;
 }
 
 /**
@@ -69,5 +76,12 @@ export function convertPayloadToSnakeCase(obj: Record<string, any>): Record<stri
  * @returns {Object} A new object with camelCase keys
  */
 export function convertPayloadToCamelCase(obj: Record<string, any>): Record<string, any> {
-  // ... existing code ...
+  const newObj: Record<string, any> = {};
+  for (const key in obj) {
+    if (Object.prototype.hasOwnProperty.call(obj, key)) {
+      const camelKey = key.replace(/_([a-z])/g, (match, letter) => letter.toUpperCase());
+      newObj[camelKey] = obj[key];
+    }
+  }
+  return newObj;
 }
