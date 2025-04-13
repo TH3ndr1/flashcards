@@ -6,12 +6,9 @@ import { openDyslexicFont, atkinsonFont } from '@/lib/fonts';
 import { cn } from '@/lib/utils';
 // --- End of imports ---
 import "./globals.css";
-import { ThemeProvider } from "@/components/theme-provider";
-import { Toaster as SonnerToaster } from "sonner";
-import { AuthProvider } from "@/hooks/use-auth";
-import { SettingsProvider } from "@/providers/settings-provider";
 import LayoutScript from "./layout-script";
 import { Header } from "@/components/header";
+import { ClientProviders } from "@/components/ClientProviders";
 
 export const metadata: Metadata = {
   title: "StudyCards - Interactive Flashcard App",
@@ -66,21 +63,16 @@ export default function RootLayout({
         )}
       >
       {/* --- End of body className changes --- */}
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <AuthProvider>
-            <SettingsProvider> {/* SettingsProvider now correctly nested */}
-              <div className="relative flex min-h-screen flex-col">
-                <div className="flex-1">
-                  <div className="container mx-auto py-8">
-                    <Header />
-                    {children}
-                  </div>
-                </div>
+        <ClientProviders>
+          <div className="relative flex min-h-screen flex-col">
+            <div className="flex-1">
+              <div className="container mx-auto py-8">
+                <Header />
+                {children}
               </div>
-              <SonnerToaster richColors closeButton />
-            </SettingsProvider>
-          </AuthProvider>
-        </ThemeProvider>
+            </div>
+          </div>
+        </ClientProviders>
         <LayoutScript />
       </body>
     </html>
