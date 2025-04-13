@@ -1,8 +1,8 @@
 // __tests__/settingsService.test.ts
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { fetchSettings, updateSettings } from '@/lib/settingsService';
-import type { Settings } from '@/hooks/use-settings';
+import { getUserSettings, updateUserSettings } from '@/lib/actions/settingsActions';
+import type { Settings } from '@/providers/settings-provider';
 
 describe('settingsService', () => {
   let mockSupabase: Partial<SupabaseClient>;
@@ -14,138 +14,98 @@ describe('settingsService', () => {
     };
   });
 
-  describe('fetchSettings', () => {
+  describe('getUserSettings', () => {
     it('should return transformed settings if data is found', async () => {
       const mockData = {
-        id: 'setting1',
-        user_id: 'user1',
-        app_language: 'fr',
-        language_dialects: {
-          en: 'en-GB',
+        appLanguage: 'en',
+        cardFont: 'default' as const,
+        showDifficulty: true,
+        masteryThreshold: 3,
+        ttsEnabled: true,
+        srs_algorithm: 'sm2' as const,
+        languageDialects: {
+          en: 'en-US',
           nl: 'nl-NL',
           fr: 'fr-FR',
           de: 'de-DE',
           es: 'es-ES',
-          it: 'it-IT',
-        },
+          it: 'it-IT'
+        }
       };
 
-      // Setup chainable mocks for fetching settings
-      (mockSupabase.from as jest.Mock).mockReturnValueOnce({
+      (mockSupabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         maybeSingle: jest.fn().mockResolvedValue({ data: mockData, error: null }),
       });
 
-      const result = await fetchSettings(mockSupabase as SupabaseClient, 'user1');
+      const result = await getUserSettings();
 
-      expect(result).toEqual({
-        id: 'setting1',
-        userId: 'user1',
-        appLanguage: 'fr',
-        languageDialects: {
-          en: 'en-GB',
-          nl: 'nl-NL',
-          fr: 'fr-FR',
-          de: 'de-DE',
-          es: 'es-ES',
-          it: 'it-IT',
-        },
-      });
+      expect(result).toEqual(mockData);
     });
 
-    it('should return null if no data is found', async () => {
-      (mockSupabase.from as jest.Mock).mockReturnValueOnce({
+    it('should return null if no settings are found', async () => {
+      (mockSupabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
       });
-      const result = await fetchSettings(mockSupabase as SupabaseClient, 'user1');
+
+      const result = await getUserSettings();
       expect(result).toBeNull();
     });
 
-    it('should throw an error if fetching settings fails', async () => {
-      // Simulate an error by having maybeSingle reject
-      (mockSupabase.from as jest.Mock).mockReturnValueOnce({
+    it('should throw an error if the database query fails', async () => {
+      (mockSupabase.from as jest.Mock).mockReturnValue({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         maybeSingle: jest.fn().mockRejectedValue(new Error('Error occurred')),
       });
-      await expect(fetchSettings(mockSupabase as SupabaseClient, 'user1')).rejects.toThrow('Error occurred');
+
+      await expect(getUserSettings()).rejects.toThrow('Error occurred');
     });
   });
 
-  describe('updateSettings', () => {
-    const inputSettings: Settings = {
-      id: 'setting1',
-      userId: 'user1',
-      appLanguage: 'fr',
+  describe('updateUserSettings', () => {
+    const inputSettings: Partial<Settings> = {
+      appLanguage: 'en',
+      cardFont: 'default' as const,
+      showDifficulty: true,
+      masteryThreshold: 3,
+      ttsEnabled: true,
+      srs_algorithm: 'sm2' as const,
       languageDialects: {
-        en: 'en-GB',
+        en: 'en-US',
         nl: 'nl-NL',
         fr: 'fr-FR',
         de: 'de-DE',
         es: 'es-ES',
-        it: 'it-IT',
-      },
+        it: 'it-IT'
+      }
     };
 
-    it('should update settings and return transformed settings', async () => {
-      const returnedData = {
-        id: 'setting1',
-        user_id: 'user1',
-        app_language: 'fr',
-        language_dialects: {
-          en: 'en-GB',
-          nl: 'nl-NL',
-          fr: 'fr-FR',
-          de: 'de-DE',
-          es: 'es-ES',
-          it: 'it-IT',
-        },
-      };
-
-      // Setup chainable mocks for upserting settings
-      (mockSupabase.from as jest.Mock).mockReturnValueOnce({
-        upsert: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            maybeSingle: jest.fn().mockResolvedValue({ 
-              data: returnedData,
-              error: null 
-            }),
-          }),
-        }),
+    it('should update settings successfully', async () => {
+      (mockSupabase.from as jest.Mock).mockReturnValue({
+        upsert: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        maybeSingle: jest.fn().mockResolvedValue({ data: inputSettings, error: null }),
       });
 
-      const result = await updateSettings(mockSupabase as SupabaseClient, 'user1', inputSettings);
+      const result = await updateUserSettings({ updates: inputSettings });
       
-      // The service returns snake_case data directly from Supabase
-      expect(result).toEqual({
-        id: 'setting1',
-        user_id: 'user1',
-        app_language: 'fr',
-        language_dialects: {
-          en: 'en-GB',
-          nl: 'nl-NL',
-          fr: 'fr-FR',
-          de: 'de-DE',
-          es: 'es-ES',
-          it: 'it-IT',
-        },
-      });
+      expect(result).toEqual(inputSettings);
     });
 
-    it('should throw an error if update fails', async () => {
-      // Simulate update failure by having maybeSingle reject
-      (mockSupabase.from as jest.Mock).mockReturnValueOnce({
-        upsert: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            maybeSingle: jest.fn().mockRejectedValue(new Error('Update failed')),
-          }),
-        }),
+    it('should throw an error if the update fails', async () => {
+      (mockSupabase.from as jest.Mock).mockReturnValue({
+        upsert: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        maybeSingle: jest.fn().mockRejectedValue(new Error('Update failed')),
       });
 
-      await expect(updateSettings(mockSupabase as SupabaseClient, 'user1', inputSettings))
+      await expect(updateUserSettings({ updates: inputSettings }))
         .rejects.toThrow('Update failed');
     });
   });
