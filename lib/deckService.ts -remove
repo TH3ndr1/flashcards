@@ -89,9 +89,9 @@ export async function fetchDecks(
         answer: card.answer,
         correctCount: card.correct_count ?? 0,
         incorrectCount: card.incorrect_count ?? 0,
-        lastStudied: card.last_studied ? new Date(card.last_studied) : null,
+        last_reviewed_at: card.last_studied ? new Date(card.last_studied) : null,
         attemptCount: card.attempt_count ?? 0,
-        difficultyScore: card.difficulty_score ?? 0
+        difficulty: card.difficulty_score ?? 0
       }));
 
       // Map deck safely
@@ -272,9 +272,9 @@ export async function getDeckService(
         answer: card.answer,
         correctCount: card.correct_count ?? 0,
         incorrectCount: card.incorrect_count ?? 0,
-        lastStudied: card.last_studied ? new Date(card.last_studied) : null,
+        last_reviewed_at: card.last_studied ? new Date(card.last_studied) : null,
         attemptCount: card.attempt_count ?? 0,
-        difficultyScore: card.difficulty_score ?? 0
+        difficulty: card.difficulty_score ?? 0
     }));
 
     const fetchedDeck: Deck = {
@@ -378,9 +378,8 @@ export async function updateDeckService(
     answer: card.answer,
     correct_count: card.correctCount,
     incorrect_count: card.incorrectCount,
-    last_studied: card.lastStudied?.toISOString(), 
     attempt_count: card.attemptCount,
-    difficulty_score: card.difficultyScore,
+    difficulty: card.difficulty,
     updated_at: new Date().toISOString(),
   }));
 
@@ -537,8 +536,8 @@ export async function updateCardResultService(
       correctCount: newCorrectCount,
       incorrectCount: newIncorrectCount,
       attemptCount: newAttemptCount,
-      lastStudied: now, 
-      difficultyScore: currentCardData.difficulty_score ?? 0
+      last_reviewed_at: now, 
+      difficulty: currentCardData.difficulty_score ?? 0
   };
   const newDifficultyScore = calculateDifficultyScore(tempCardForScore);
 
@@ -549,7 +548,6 @@ export async function updateCardResultService(
       correct_count: newCorrectCount,
       incorrect_count: newIncorrectCount,
       attempt_count: newAttemptCount,
-      last_studied: now.toISOString(),
       difficulty_score: newDifficultyScore,
     })
     .eq('id', cardId)
@@ -583,9 +581,9 @@ export async function updateCardResultService(
         answer: updatedRawCard.answer,
         correctCount: updatedRawCard.correct_count ?? 0,
         incorrectCount: updatedRawCard.incorrect_count ?? 0,
-        lastStudied: updatedRawCard.last_studied ? new Date(updatedRawCard.last_studied) : null,
+        last_reviewed_at: updatedRawCard.last_studied ? new Date(updatedRawCard.last_studied) : null,
         attemptCount: updatedRawCard.attempt_count ?? 0,
-        difficultyScore: updatedRawCard.difficulty_score ?? 0
+        difficulty: updatedRawCard.difficulty_score ?? 0
     };
     return { data: updatedCard, error: null };
   } catch (transformError) {

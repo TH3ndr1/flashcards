@@ -31,9 +31,6 @@ export const DIFFICULTY_WEIGHTS = {
 export const DAYS_FOR_MAX_FORGETFULNESS = 5;
 /** Normalization factor for attempt count in difficulty calculation */
 export const ATTEMPTS_NORMALIZATION_FACTOR = 5;
-/** Threshold above which a card is considered difficult */
-export const DAYS_FOR_MAX_FORGETFULNESS = 5; // Time window for forgetting
-export const ATTEMPTS_NORMALIZATION_FACTOR = 5; // Constant C for attempt normalization
 
 export const DIFFICULTY_THRESHOLD = 0.55; // Score above which a card is considered difficult
 
