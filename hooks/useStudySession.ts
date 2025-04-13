@@ -9,7 +9,7 @@ import { useSettings } from '@/providers/settings-provider'; // Corrected path
 import type { Database, Tables, Json } from "@/types/database"; // Use correct path
 import type { StudyInput, StudyMode } from '@/store/studySessionStore'; // Import types
 import type { ResolvedCardId, StudyQueryCriteria } from '@/lib/schema/study-query.schema'; // Import ResolvedCardId type
-import { isAfter, parseISO } from 'date-fns'; // For checking due dates
+import { isAfter, parseISO, isValid, isToday, isPast } from 'date-fns'; // For checking due dates
 import { debounce } from "@/lib/utils"; // If using debounce for progress updates
 import { toast } from 'sonner'; // For potential error notifications
 
@@ -162,30 +162,40 @@ export function useStudySession({
 
                 // 3. Prepare Initial Queue based on Mode
                 let initialQueue: StudyCard[] = [];
-                const now = new Date(); // Get current time once
 
                 if (initialMode === 'learn') {
                     console.log("[useStudySession] Preparing Learn Mode queue.");
                     initialQueue = [...fetchedCards].sort(() => Math.random() - 0.5); 
                     if (isMounted) setLearnModeProgress(new Map(fetchedCards.map(card => [card.id, 0]))); 
                 } else { // Review Mode
-                    console.log("[useStudySession] Preparing Review Mode queue.");
+                    console.log("[useStudySession] Preparing Review Mode queue (based on day).");
                     initialQueue = fetchedCards
                         .filter(card => {
-                             // Corrected Filter: Include if never reviewed OR if due date is now or in the past
-                             return !card.next_review_due || 
-                                    (card.next_review_due && parseISO(card.next_review_due).getTime() <= now.getTime());
+                            if (!card.next_review_due) {
+                                return true; // Always include never reviewed
+                            }
+                            try {
+                                const dueDate = parseISO(card.next_review_due);
+                                // Check if date is valid AND is today or in the past
+                                return isValid(dueDate) && (isToday(dueDate) || isPast(dueDate));
+                            } catch (e) {
+                                console.error(`[useStudySession] Invalid date format for card ${card.id}: ${card.next_review_due}`, e);
+                                return false; // Exclude invalid dates
+                            }
                         })
                         .sort((a, b) => {
-                            // Corrected Sort: Prioritize null dates, then sort ascending
+                            // Sort: nulls first, then by date ascending
                             const timeA = a.next_review_due ? parseISO(a.next_review_due).getTime() : -Infinity; 
-                            const timeB = b.next_review_due ? parseISO(b.next_review_due).getTime() : -Infinity;
+                            const timeB = b.next_review_due ? (isValid(parseISO(b.next_review_due)) ? parseISO(b.next_review_due).getTime() : Infinity) : -Infinity; 
+                            if (isNaN(timeA) && isNaN(timeB)) return 0;
+                            if (isNaN(timeA)) return 1; 
+                            if (isNaN(timeB)) return -1;
                             return timeA - timeB; 
                         });
                     
-                    console.log(`[useStudySession] Found ${initialQueue.length} cards due for review (including new).`);
+                    console.log(`[useStudySession] Found ${initialQueue.length} cards due for review (day-based).`);
                      if (initialQueue.length === 0 && isMounted) {
-                         console.log("[useStudySession] No cards due for review in this set.");
+                         console.log("[useStudySession] No cards due for review in this set (day-based).");
                          setIsComplete(true); 
                      }
                 }

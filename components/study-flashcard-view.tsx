@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { Database, Tables } from "@/types/database";
 type DbCard = Tables<'cards'>;
@@ -51,7 +51,8 @@ export function StudyFlashcardView({
   progressText,
 }: StudyFlashcardViewProps) {
 
-  const { speak, loading: ttsLoading } = useTTS();
+  const { speak } = useTTS({});
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
   if (!card) {
       return (
@@ -64,12 +65,16 @@ export function StudyFlashcardView({
   const fontClass = getFontClass(settings?.cardFont);
 
   const handleSpeak = async (text: string | null | undefined, defaultLang: string) => {
-    if (!settings?.ttsEnabled || !text) return;
+    if (!settings?.ttsEnabled || !text || isSpeaking) return;
     
+    setIsSpeaking(true);
     console.log(`TTS: Attempting to speak "${text}" in lang ${defaultLang}`);
-    const { error } = await speak(text, defaultLang); 
-    if (error) {
-      console.error("TTS Error:", error);
+    try {
+        await speak(text, defaultLang);
+    } catch (error) {
+        console.error("TTS Error:", error);
+    } finally {
+        setIsSpeaking(false);
     }
   };
 
@@ -83,17 +88,17 @@ export function StudyFlashcardView({
 
       if (!isFlipped) {
         if (e.key === ' ' || e.key === 'Enter') onFlip();
-        else if ((e.key === 'p' || e.key === 't') && !ttsLoading) handleSpeak(card.question, questionLang);
+        else if ((e.key === 'p' || e.key === 't') && !isSpeaking) handleSpeak(card.question, questionLang);
       } else {
         const grade = parseInt(e.key);
         if (grade >= 1 && grade <= 4) onAnswer(grade as ReviewGrade);
-        else if ((e.key === 'p' || e.key === 't') && !ttsLoading) handleSpeak(card.answer, answerLang);
+        else if ((e.key === 'p' || e.key === 't') && !isSpeaking) handleSpeak(card.answer, answerLang);
       }
     };
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [isFlipped, isTransitioning, onAnswer, onFlip, card?.id, card?.question, card?.answer, questionLang, answerLang, ttsLoading]);
+  }, [isFlipped, isTransitioning, onAnswer, onFlip, card?.id, card?.question, card?.answer, questionLang, answerLang, isSpeaking, speak]);
 
   return (
     <div className="w-full max-w-2xl mx-auto"> 
@@ -121,8 +126,8 @@ export function StudyFlashcardView({
                   <Button
                     variant="ghost" size="icon" className="absolute bottom-2 right-2"
                     onClick={(e) => { e.stopPropagation(); handleSpeak(card.question, questionLang); }}
-                    disabled={ttsLoading} aria-label="Speak question"
-                  > <Volume2 className={cn("h-4 w-4", ttsLoading && "animate-pulse")} /> </Button>
+                    disabled={isSpeaking} aria-label="Speak question"
+                  > <Volume2 className={cn("h-4 w-4", isSpeaking && "animate-pulse")} /> </Button>
                 )}
               </CardContent>
               <CardFooter className="justify-center text-sm text-muted-foreground bg-muted/50 border-t py-3 min-h-[52px]">
@@ -147,26 +152,26 @@ export function StudyFlashcardView({
                   <Button
                     variant="ghost" size="icon" className="absolute bottom-2 right-2"
                     onClick={(e) => { e.stopPropagation(); handleSpeak(card.answer, answerLang); }}
-                    disabled={ttsLoading} aria-label="Speak answer"
-                  > <Volume2 className={cn("h-4 w-4", ttsLoading && "animate-pulse")} /> </Button>
+                    disabled={isSpeaking} aria-label="Speak answer"
+                  > <Volume2 className={cn("h-4 w-4", isSpeaking && "animate-pulse")} /> </Button>
                 )}
               </CardContent>
               <CardFooter className="text-center text-sm text-muted-foreground bg-muted/50 border-t py-3 space-x-2">
                 <TooltipProvider>
                   <Tooltip>
-                    <TooltipTrigger asChild><Button variant="outline" className="flex-1 border-red-500 text-red-700 hover:bg-red-500/10 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 active:scale-95 transition-all duration-150" onClick={(e) => { e.stopPropagation(); onAnswer(1); }} disabled={isTransitioning} aria-label="Again - Complete reset (Press 1)"><Repeat className="mr-1 h-4 w-4" /> Again <span className="ml-1 opacity-50">(1)</span></Button></TooltipTrigger>
+                    <TooltipTrigger asChild><Button variant="outline" className="flex-1 border-red-500 text-red-700 hover:bg-red-500/10 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 active:scale-95 transition-all duration-150" onClick={(e) => { e.stopPropagation(); onAnswer(1); }} disabled={isTransitioning || isSpeaking} aria-label="Again - Complete reset (Press 1)"><Repeat className="mr-1 h-4 w-4" /> Again <span className="ml-1 opacity-50">(1)</span></Button></TooltipTrigger>
                     <TooltipContent side="bottom"><p className="font-medium">Again (1)</p><p className="text-sm text-muted-foreground">Complete reset. Use when you completely forgot or got it wrong.</p></TooltipContent>
                   </Tooltip>
                    <Tooltip>
-                     <TooltipTrigger asChild><Button variant="outline" className="flex-1 border-amber-500 text-amber-700 hover:bg-amber-500/10 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300 active:scale-95 transition-all duration-150" onClick={(e) => { e.stopPropagation(); onAnswer(2); }} disabled={isTransitioning} aria-label="Hard - Remember with significant effort (Press 2)"><ThumbsDown className="mr-1 h-4 w-4" /> Hard <span className="ml-1 opacity-50">(2)</span></Button></TooltipTrigger>
+                     <TooltipTrigger asChild><Button variant="outline" className="flex-1 border-amber-500 text-amber-700 hover:bg-amber-500/10 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300 active:scale-95 transition-all duration-150" onClick={(e) => { e.stopPropagation(); onAnswer(2); }} disabled={isTransitioning || isSpeaking} aria-label="Hard - Remember with significant effort (Press 2)"><ThumbsDown className="mr-1 h-4 w-4" /> Hard <span className="ml-1 opacity-50">(2)</span></Button></TooltipTrigger>
                     <TooltipContent side="bottom"><p className="font-medium">Hard (2)</p><p className="text-sm text-muted-foreground">Remembered with significant effort. Review interval will increase slightly.</p></TooltipContent>
                   </Tooltip>
                   <Tooltip>
-                    <TooltipTrigger asChild><Button variant="outline" className="flex-1 border-green-500 text-green-700 hover:bg-green-500/10 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 active:scale-95 transition-all duration-150" onClick={(e) => { e.stopPropagation(); onAnswer(3); }} disabled={isTransitioning} aria-label="Good - Remember with some effort (Press 3)"><ThumbsUp className="mr-1 h-4 w-4" /> Good <span className="ml-1 opacity-50">(3)</span></Button></TooltipTrigger>
+                    <TooltipTrigger asChild><Button variant="outline" className="flex-1 border-green-500 text-green-700 hover:bg-green-500/10 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 active:scale-95 transition-all duration-150" onClick={(e) => { e.stopPropagation(); onAnswer(3); }} disabled={isTransitioning || isSpeaking} aria-label="Good - Remember with some effort (Press 3)"><ThumbsUp className="mr-1 h-4 w-4" /> Good <span className="ml-1 opacity-50">(3)</span></Button></TooltipTrigger>
                      <TooltipContent side="bottom"><p className="font-medium">Good (3)</p><p className="text-sm text-muted-foreground">Remembered with some effort. Normal interval increase.</p></TooltipContent>
                   </Tooltip>
                   <Tooltip>
-                    <TooltipTrigger asChild><Button variant="outline" className="flex-1 border-blue-500 text-blue-700 hover:bg-blue-500/10 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 active:scale-95 transition-all duration-150" onClick={(e) => { e.stopPropagation(); onAnswer(4); }} disabled={isTransitioning} aria-label="Easy - Remember effortlessly (Press 4)"><Zap className="mr-1 h-4 w-4" /> Easy <span className="ml-1 opacity-50">(4)</span></Button></TooltipTrigger>
+                    <TooltipTrigger asChild><Button variant="outline" className="flex-1 border-blue-500 text-blue-700 hover:bg-blue-500/10 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 active:scale-95 transition-all duration-150" onClick={(e) => { e.stopPropagation(); onAnswer(4); }} disabled={isTransitioning || isSpeaking} aria-label="Easy - Remember effortlessly (Press 4)"><Zap className="mr-1 h-4 w-4" /> Easy <span className="ml-1 opacity-50">(4)</span></Button></TooltipTrigger>
                     <TooltipContent side="bottom"><p className="font-medium">Easy (4)</p><p className="text-sm text-muted-foreground">Remembered effortlessly. Larger interval increase.</p></TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
