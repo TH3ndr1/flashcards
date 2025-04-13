@@ -1,36 +1,27 @@
 // src/lib/study-utils.ts
 import type { FlashCard } from "@/types/deck";
 import type { Settings } from "@/providers/settings-provider";
-import type { Deck, Card, StudyProgress, StudySettings, CardGroups } from "@/types/deck";
+import type { Deck } from "@/types/deck";
 
 // --- Constants ---
-/** Default mastery threshold when settings are not available */
+// Default value, but actual threshold comes from settings
 export const DEFAULT_MASTERY_THRESHOLD = 3;
-/** Debounce delay (in ms) for saving study progress */
-export const STUDY_SAVE_DEBOUNCE_MS = 2000;
-/** Delay (in ms) before triggering text-to-speech */
+export const STUDY_SAVE_DEBOUNCE_MS = 2000; // Debounce delay for saving study progress
 export const TTS_DELAY_MS = 100;
-/** Delay (in ms) between deck load retries */
 export const DECK_LOAD_RETRY_DELAY_MS = 500;
-/** Maximum number of deck load retry attempts */
 export const MAX_DECK_LOAD_RETRIES = 5;
-/** Midpoint (in ms) of the card flip animation */
 export const FLIP_ANIMATION_MIDPOINT_MS = 150;
-/** Total duration (in ms) of the card flip animation - should match CSS */
-export const FLIP_ANIMATION_DURATION_MS = 300;
+export const FLIP_ANIMATION_DURATION_MS = 300; // Should match your CSS flip animation duration
 
 // --- Difficulty Score Constants ---
-/** Weights used in difficulty score calculation */
 export const DIFFICULTY_WEIGHTS = {
   INCORRECT_RATIO: 0.8,  // Heaviest weight on failure rate
   ATTEMPTS: 0.1,         // Some weight for exposure/effort
   FORGETFULNESS: 0.1     // Weight for time decay
 } as const;
 
-/** Number of days after which a card reaches maximum forgetfulness score */
-export const DAYS_FOR_MAX_FORGETFULNESS = 5;
-/** Normalization factor for attempt count in difficulty calculation */
-export const ATTEMPTS_NORMALIZATION_FACTOR = 5;
+export const DAYS_FOR_MAX_FORGETFULNESS = 5; // Time window for forgetting
+export const ATTEMPTS_NORMALIZATION_FACTOR = 5; // Constant C for attempt normalization
 
 export const DIFFICULTY_THRESHOLD = 0.55; // Score above which a card is considered difficult
 
@@ -230,22 +221,14 @@ export const determineNextCardState = (
 };
 
 /**
- * Creates a new study session state with reset statistics.
- * 
- * @param deck - The deck to reset the study session for
- * @param settings - Study settings to apply
- * @returns Object containing the updated deck and cards to study
- * 
- * @example
- * ```typescript
- * const { updatedDeck, cardsToStudy } = createResetDeckState(deck, settings);
- * // Begin new study session with reset stats...
- * ```
+ * Creates the necessary state components for resetting a deck's progress.
+ * Does not perform side effects (like saving).
+ *
+ * @param deck The current deck object.
+ * @param settings User settings (needed for prepareStudyCards).
+ * @returns An object containing the deck with reset progress and the initial study cards list.
  */
-export function createResetDeckState(
-  deck: Deck,
-  settings: StudySettings
-): { updatedDeck: Deck; cardsToStudy: FlashCard[] } {
+export const createResetDeckState = (deck: Deck, settings: Settings | null): { resetDeck: Deck; initialStudyCards: FlashCard[] } => {
   console.log("study-utils: Preparing reset state for deck:", deck.name);
 
   const resetCards = deck.cards.map((card) => ({
@@ -266,8 +249,8 @@ export function createResetDeckState(
   // Re-prepare study cards based on the newly reset deck data
   const initialStudyCards = prepareStudyCards(resetCards, settings);
 
-  return { resetDeck, cardsToStudy: initialStudyCards };
-}
+  return { resetDeck, initialStudyCards };
+};
 
 /**
  * Creates the necessary state components for starting a difficult card study session.
@@ -320,326 +303,3 @@ export const createDifficultSessionState = (
   // The main deck state holds the *reset* progress for lookup when answering.
   return { updatedDeck, difficultCardsToStudy: difficultCards };
 };
-
-/**
- * Determines if a card is due for review.
- * 
- * @param {Object} params - Card due check parameters
- * @param {Card} params.card - The card to check
- * @param {Date} [params.now] - The current date (defaults to now)
- * @returns {boolean} True if the card is due for review
- */
-export function isCardDue({
-  card,
-  now = new Date(),
-}: {
-  card: Card;
-  now?: Date;
-}): boolean {
-  // Implementation goes here
-}
-
-/**
- * Shuffles an array of cards using the Fisher-Yates algorithm.
- * 
- * @param {Card[]} cards - The array of cards to shuffle
- * @returns {Card[]} A new array containing the shuffled cards
- */
-export function shuffleCards(cards: Card[]): Card[] {
-  // Implementation goes here
-}
-
-/**
- * Calculates the estimated time remaining in a study session.
- * 
- * @param {Object} params - Time estimation parameters
- * @param {Card[]} params.remainingCards - Cards left to review
- * @param {number} params.averageTimePerCard - Average time spent per card in milliseconds
- * @returns {number} Estimated time remaining in milliseconds
- */
-export function calculateEstimatedTimeRemaining({
-  remainingCards,
-  averageTimePerCard,
-}: {
-  remainingCards: Card[];
-  averageTimePerCard: number;
-}): number {
-  // Implementation goes here
-}
-
-/**
- * Formats a duration in milliseconds into a human-readable string.
- * 
- * @param {number} durationMs - Duration in milliseconds
- * @returns {string} Formatted duration string (e.g., "5 min")
- */
-export function formatDuration(durationMs: number): string {
-  // Implementation goes here
-}
-
-/**
- * Checks if a study session should be completed based on progress and settings.
- * 
- * @param {Object} params - Session completion check parameters
- * @param {StudyProgress} params.progress - Current study progress
- * @param {StudySettings} params.settings - Study session settings
- * @returns {boolean} True if the session should be completed
- */
-export function shouldCompleteSession({
-  progress,
-  settings,
-}: {
-  progress: StudyProgress;
-  settings: StudySettings;
-}): boolean {
-  // Implementation goes here
-}
-
-/**
- * Calculates the success rate for a set of cards.
- * 
- * @param {Card[]} cards - The cards to analyze
- * @returns {number} Success rate as a percentage (0-100)
- */
-export function calculateSuccessRate(cards: Card[]): number {
-  // Implementation goes here
-}
-
-/**
- * Groups cards by their status (new, learning, review).
- * 
- * @param {Card[]} cards - The cards to group
- * @returns {CardGroups} Object containing arrays of cards grouped by status
- */
-export function groupCardsByStatus(cards: Card[]): CardGroups {
-  // Implementation goes here
-}
-
-/**
- * Updates the study state after a card has been reviewed.
- * 
- * @param params - Object containing current state and review information
- * @param params.currentState - Current study session state
- * @param params.cardId - ID of the card being reviewed
- * @param params.isCorrect - Whether the review was correct
- * @param params.settings - Study settings to apply
- * @returns Updated study session state
- * 
- * @example
- * ```typescript
- * const newState = updateStudyState({
- *   currentState,
- *   cardId: "card-123",
- *   isCorrect: true,
- *   settings
- * });
- * ```
- */
-export function updateStudyState({
-  currentState,
-  cardId,
-  isCorrect,
-  settings,
-}: {
-  currentState: StudyProgress;
-  cardId: string;
-  isCorrect: boolean;
-  settings: StudySettings;
-}): StudyProgress {
-  // Implementation goes here
-}
-
-/**
- * Calculates the next review date for a card based on its performance and settings.
- * 
- * @param params - Object containing card information and settings
- * @param params.card - The card to calculate next review for
- * @param params.isCorrect - Whether the current review was correct
- * @param params.settings - Study settings to apply
- * @returns Date object representing the next review date
- * 
- * @example
- * ```typescript
- * const nextReview = calculateNextReviewDate({
- *   card,
- *   isCorrect: true,
- *   settings
- * });
- * ```
- */
-export function calculateNextReviewDate({
-  card,
-  isCorrect,
-  settings,
-}: {
-  card: Card;
-  isCorrect: boolean;
-  settings: StudySettings;
-}): Date {
-  // Implementation goes here
-}
-
-/**
- * Determines if a study session has reached its daily limits based on settings.
- * 
- * @param params - Object containing progress and settings
- * @param params.progress - Current study progress
- * @param params.settings - Study settings containing daily limits
- * @returns True if daily limits have been reached, false otherwise
- * 
- * @example
- * ```typescript
- * const limitReached = hasReachedDailyLimits({
- *   progress: currentProgress,
- *   settings: studySettings
- * });
- * ```
- */
-export function hasReachedDailyLimits({
-  progress,
-  settings,
-}: {
-  progress: StudyProgress;
-  settings: StudySettings;
-}): boolean {
-  // Implementation goes here
-}
-
-/**
- * Prepares a subset of cards for study based on due dates and settings.
- * 
- * @param params - Object containing cards and settings
- * @param params.cards - Array of all available cards
- * @param params.settings - Study settings to apply
- * @param params.now - Optional current date (defaults to current time)
- * @returns Array of cards prepared for study
- * 
- * @example
- * ```typescript
- * const cardsForStudy = prepareStudyCards({
- *   cards: deckCards,
- *   settings: studySettings
- * });
- * ```
- */
-export function prepareStudyCards({
-  cards,
-  settings,
-  now = new Date(),
-}: {
-  cards: Card[];
-  settings: StudySettings;
-  now?: Date;
-}): Card[] {
-  // Implementation goes here
-}
-
-/**
- * Calculates the mastery level of a card based on its review history.
- * 
- * @param card - The card to calculate mastery for
- * @param settings - Study settings containing mastery thresholds
- * @returns Number between 0 and 1 representing mastery level
- * 
- * @example
- * ```typescript
- * const mastery = calculateCardMastery(card, settings);
- * console.log(`Card mastery: ${mastery * 100}%`);
- * ```
- */
-export function calculateCardMastery(card: Card, settings: StudySettings): number {
-// ... existing code ...
-}
-
-/**
- * Filters and sorts cards that are ready for review.
- * 
- * @param cards - Array of cards to filter
- * @param now - Optional current date (defaults to current time)
- * @returns Array of cards that are due for review, sorted by priority
- * 
- * @example
- * ```typescript
- * const dueCards = getDueCards(deckCards);
- * console.log(`${dueCards.length} cards due for review`);
- * ```
- */
-export function getDueCards(cards: Card[], now = new Date()): Card[] {
-// ... existing code ...
-}
-
-/**
- * Calculates study statistics for a set of cards.
- * 
- * @param cards - Array of cards to analyze
- * @returns Object containing various statistics (retention rate, average time, etc.)
- * 
- * @example
- * ```typescript
- * const stats = calculateStudyStats(completedCards);
- * console.log(`Retention rate: ${stats.retentionRate}%`);
- * ```
- */
-export function calculateStudyStats(cards: Card[]): StudyStats {
-// ... existing code ...
-}
-
-/**
- * Updates a card's review history with new review data.
- * 
- * @param params - Object containing card and review information
- * @param params.card - The card being reviewed
- * @param params.isCorrect - Whether the review was correct
- * @param params.timeSpent - Time spent on the review in milliseconds
- * @returns Updated card with new review history
- * 
- * @example
- * ```typescript
- * const updatedCard = updateCardReviewHistory({
- *   card,
- *   isCorrect: true,
- *   timeSpent: 15000
- * });
- * ```
- */
-export function updateCardReviewHistory({
-  card,
-  isCorrect,
-  timeSpent,
-}: {
-  card: Card;
-  isCorrect: boolean;
-  timeSpent: number;
-}): Card {
-// ... existing code ...
-}
-
-/**
- * Determines if a card should be buried based on related cards and settings.
- * 
- * @param params - Object containing card and settings information
- * @param params.card - The card to check
- * @param params.relatedCards - Array of related cards
- * @param params.settings - Study settings
- * @returns True if the card should be buried, false otherwise
- * 
- * @example
- * ```typescript
- * const shouldBury = shouldBuryCard({
- *   card,
- *   relatedCards: siblings,
- *   settings
- * });
- * ```
- */
-export function shouldBuryCard({
-  card,
-  relatedCards,
-  settings,
-}: {
-  card: Card;
-  relatedCards: Card[];
-  settings: StudySettings;
-}): boolean {
-// ... existing code ...
-}
