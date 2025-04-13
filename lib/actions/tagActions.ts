@@ -29,8 +29,21 @@ async function getSupabaseAndUser() {
 }
 
 /**
- * Retrieves all tags for the authenticated user.
- * Ref: Section 4 Data Models
+ * Server actions for managing tags and card-tag relationships.
+ * 
+ * This module provides:
+ * - Tag creation, reading, updating, and deletion
+ * - Card-tag relationship management
+ * - Tag query and filtering operations
+ * 
+ * @module tagActions
+ */
+
+/**
+ * Fetches all tags for the current user.
+ * 
+ * @returns {Promise<Tag[]>} Array of user's tags
+ * @throws {Error} If tag fetch fails or user is not authenticated
  */
 export async function getTags(): Promise<TagActionResponse<DbTag[]>> {
   const { supabase, user, error: authError } = await getSupabaseAndUser();

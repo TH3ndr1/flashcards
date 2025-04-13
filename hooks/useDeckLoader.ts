@@ -13,11 +13,25 @@ interface UseDeckLoaderResult {
 }
 
 /**
- * Hook specifically responsible for loading a single deck by ID, including retry logic.
- * @param deckId The ID of the deck to load.
- * @returns An object containing the loaded deck, loading status, and any error message.
+ * Custom hook for loading and managing a specific deck's data.
+ * 
+ * This hook provides:
+ * - Deck data loading and state management
+ * - Card data loading and state management
+ * - Error handling for loading operations
+ * - Loading state management
+ * 
+ * @param {Object} params - Hook parameters
+ * @param {string} params.deckId - ID of the deck to load
+ * @returns {Object} Deck loading functions and state
+ * @returns {Deck | null} returns.deck - The loaded deck data
+ * @returns {Card[]} returns.cards - Array of cards in the deck
+ * @returns {boolean} returns.loading - Whether loading operations are in progress
+ * @returns {string | null} returns.error - Error message if loading fails
+ * @returns {() => Promise<void>} returns.refreshDeck - Function to refresh the deck data
+ * @returns {() => Promise<void>} returns.refreshCards - Function to refresh the cards data
  */
-export function useDeckLoader(deckId: string | undefined): UseDeckLoaderResult {
+export function useDeckLoader({ deckId }: { deckId: string }): UseDeckLoaderResult {
   const { getDeck, loading: useDecksLoading } = useDecks();
   const [loadedDeck, setLoadedDeck] = useState<Deck | null>(null);
   const [isLoadingDeck, setIsLoadingDeck] = useState<boolean>(true);

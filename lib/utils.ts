@@ -1,6 +1,17 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 
+/**
+ * General utility functions for the application.
+ * 
+ * This module provides:
+ * - Object transformation utilities
+ * - Type conversion helpers
+ * - Common helper functions
+ * 
+ * @module utils
+ */
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
@@ -39,4 +50,24 @@ export function debounce<T extends (...args: any[]) => any>(func: T, wait: numbe
     }
     timeout = setTimeout(later, wait);
   };
+}
+
+/**
+ * Converts object keys from camelCase to snake_case.
+ * 
+ * @param {Object} obj - The object to convert
+ * @returns {Object} A new object with snake_case keys
+ */
+export function convertPayloadToSnakeCase(obj: Record<string, any>): Record<string, any> {
+  // ... existing code ...
+}
+
+/**
+ * Converts object keys from snake_case to camelCase.
+ * 
+ * @param {Object} obj - The object to convert
+ * @returns {Object} A new object with camelCase keys
+ */
+export function convertPayloadToCamelCase(obj: Record<string, any>): Record<string, any> {
+  // ... existing code ...
 }

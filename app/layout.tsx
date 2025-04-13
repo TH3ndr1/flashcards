@@ -33,20 +33,20 @@ const fontSans = Inter({
 
 /**
  * Root layout component for the application.
- *
- * Sets up the HTML structure, applies global styles and fonts,
- * configures metadata, and wraps content with essential providers
- * (Theme, Auth, Settings).
- *
- * @param {object} props - Component props.
- * @param {React.ReactNode} props.children - The child components to render within the layout.
- * @returns {JSX.Element} The root layout structure.
+ * 
+ * This component sets up the fundamental structure of the application, including:
+ * - HTML document structure and metadata
+ * - Global styles and fonts
+ * - Client-side providers for authentication, theme, and settings
+ * 
+ * @component
+ * @returns {JSX.Element} The root layout with all necessary providers and global styles
  */
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode
-}>) {
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>

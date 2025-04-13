@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { detectSystemLanguage } from "@/lib/utils";
-import { fetchSettingsAction, updateSettingsAction } from "@/lib/actions/settingsActions";
+import { getUserSettings, updateSettingsAction } from "@/lib/actions/settingsActions";
 import { toast } from "sonner";
 import type { PostgrestError } from "@supabase/supabase-js";
 import type { DbSettings } from "@/types/database";
@@ -127,8 +127,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       setLoading(true); 
       try {
         debug('Loading settings via action for user', user.id);
-        // Call fetchSettingsAction
-        const { data: dbSettings, error } = await fetchSettingsAction(); 
+        // Call the correct function
+        const { data: dbSettings, error } = await getUserSettings();
 
         if (error) {
           console.error("Failed to load settings:", error);

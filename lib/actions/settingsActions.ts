@@ -29,15 +29,29 @@ const updateSettingsSchema = z.object({
 type UpdateSettingsInput = z.infer<typeof updateSettingsSchema>;
 
 /**
- * Fetches settings for the current user (can remain a server action or be a service)
- * Keeping it here for consistency for now.
+ * Server actions for managing user settings.
+ * 
+ * This module provides:
+ * - User settings management
+ * - SRS algorithm configuration
+ * - Study mode preferences
+ * - TTS preferences
+ * 
+ * @module settingsActions
  */
-export async function fetchSettingsAction(): Promise<ActionResult<DbSettings | null>> {
+
+/**
+ * Fetches user settings.
+ * 
+ * @returns {Promise<Settings>} The user's settings
+ * @throws {Error} If settings fetch fails or user is not authenticated
+ */
+export async function getUserSettings(): Promise<Settings> {
     try {
         const supabase = createActionClient();
         const { data: { user }, error: authError } = await supabase.auth.getUser();
         if (authError || !user) {
-            return { data: null, error: new Error(authError?.message || 'Not authenticated') };
+            throw new Error(authError?.message || 'Not authenticated');
         }
 
         const { data, error } = await supabase
@@ -47,43 +61,50 @@ export async function fetchSettingsAction(): Promise<ActionResult<DbSettings | n
             .maybeSingle();
             
         if (error) {
-            console.error("[fetchSettingsAction] Error:", error);
-            return { data: null, error: new Error(error.message || "Failed to fetch settings.") };
+            console.error("[getUserSettings] Error:", error);
+            throw new Error(error.message || "Failed to fetch settings.");
         }
-        return { data, error: null };
+        return data as Settings;
 
     } catch (error) {
-        console.error('[fetchSettingsAction] Unexpected error:', error);
-        return { data: null, error: error instanceof Error ? error : new Error('Unknown error fetching settings') };
+        console.error('[getUserSettings] Unexpected error:', error);
+        throw error instanceof Error ? error : new Error('Unknown error fetching settings');
     }
 }
 
 /**
- * Server Action to update (upsert) user settings.
+ * Updates user settings.
+ * 
+ * @param {Object} params - Settings update parameters
+ * @param {Partial<Settings>} params.updates - Partial settings object containing fields to update
+ * @returns {Promise<Settings>} The updated settings
+ * @throws {Error} If settings update fails or user is not authenticated
  */
-export async function updateSettingsAction(
-    updates: UpdateSettingsInput
-): Promise<ActionResult<DbSettings | null>> { // Return updated DbSettings
-    console.log(`[updateSettingsAction] Action started.`);
+export async function updateUserSettings({
+  updates,
+}: {
+  updates: Partial<Settings>;
+}): Promise<Settings> {
+    console.log(`[updateUserSettings] Action started.`);
     try {
         const supabase = createActionClient();
         const { data: { user }, error: authError } = await supabase.auth.getUser();
 
         if (authError || !user) {
-             console.error('[updateSettingsAction] Auth error:', authError);
-             return { data: null, error: new Error(authError?.message || 'Not authenticated') };
+             console.error('[updateUserSettings] Auth error:', authError);
+             throw new Error(authError?.message || 'Not authenticated');
         }
 
         // Validate the partial updates
         const validation = updateSettingsSchema.safeParse(updates);
         if (!validation.success) {
-             console.warn("[updateSettingsAction] Validation failed:", validation.error.errors);
-             return { data: null, error: new Error(validation.error.errors[0].message) };
+             console.warn("[updateUserSettings] Validation failed:", validation.error.errors);
+             throw new Error(validation.error.errors[0].message);
         }
         const validatedUpdates = validation.data;
 
         if (Object.keys(validatedUpdates).length === 0) {
-             return { data: null, error: new Error("No valid fields provided for update.") };
+             throw new Error("No valid fields provided for update.");
         }
 
         // Map frontend camelCase settings to DB snake_case columns
@@ -101,7 +122,7 @@ export async function updateSettingsAction(
         // Add updated_at timestamp
         dbPayload.updated_at = new Date().toISOString();
         
-        console.log(`[updateSettingsAction] User: ${user.id}, Upserting payload:`, dbPayload);
+        console.log(`[updateUserSettings] User: ${user.id}, Upserting payload:`, dbPayload);
 
         // Perform Upsert
         const { data: updatedSettings, error: upsertError } = await supabase
@@ -111,22 +132,22 @@ export async function updateSettingsAction(
             .single();
 
         if (upsertError) {
-            console.error('[updateSettingsAction] Upsert error:', upsertError);
-            return { data: null, error: new Error(upsertError.message || 'Failed to update settings.') };
+            console.error('[updateUserSettings] Upsert error:', upsertError);
+            throw new Error(upsertError.message || 'Failed to update settings.');
         }
         
         if (!updatedSettings) {
-             console.error('[updateSettingsAction] No data returned after upsert.');
-             return { data: null, error: new Error('Failed to confirm settings update.') };
+             console.error('[updateUserSettings] No data returned after upsert.');
+             throw new Error('Failed to confirm settings update.');
         }
 
-        console.log(`[updateSettingsAction] Success for user: ${user.id}`);
+        console.log(`[updateUserSettings] Success for user: ${user.id}`);
         // Revalidate paths? Maybe revalidate layout if settings affect global UI
         // revalidatePath('/', 'layout');
-        return { data: updatedSettings, error: null };
+        return updatedSettings as Settings;
 
     } catch (error) {
-        console.error('[updateSettingsAction] Caught unexpected error:', error);
-        return { data: null, error: error instanceof Error ? error : new Error('Unknown error updating settings') };
+        console.error('[updateUserSettings] Caught unexpected error:', error);
+        throw error instanceof Error ? error : new Error('Unknown error updating settings');
     }
 } 

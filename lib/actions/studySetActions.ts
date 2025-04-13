@@ -38,7 +38,25 @@ async function getSupabaseAndUser() {
 }
 
 /**
- * Creates a new study set for the authenticated user.
+ * Server actions for managing study sets.
+ * 
+ * This module provides:
+ * - Study set creation, reading, updating, and deletion
+ * - Query criteria management
+ * - Study set filtering and resolution
+ * 
+ * @module studySetActions
+ */
+
+/**
+ * Creates a new study set.
+ * 
+ * @param {Object} params - Study set creation parameters
+ * @param {string} params.name - Name of the study set
+ * @param {string} [params.description] - Optional description of the study set
+ * @param {StudyQueryCriteria} params.queryCriteria - Query criteria for the study set
+ * @returns {Promise<StudySet>} The created study set
+ * @throws {Error} If study set creation fails or user is not authenticated
  */
 export async function createStudySet(
     data: { name: string; description?: string | null; criteria: StudyQueryCriteria }
@@ -89,7 +107,10 @@ export async function createStudySet(
 }
 
 /**
- * Retrieves all study sets for the authenticated user.
+ * Fetches all study sets for the current user.
+ * 
+ * @returns {Promise<StudySet[]>} Array of user's study sets
+ * @throws {Error} If study set fetch fails or user is not authenticated
  */
 export async function getUserStudySets(): Promise<ActionResult<DbStudySet[]>> {
     const { supabase, user, error: authError } = await getSupabaseAndUser();
@@ -121,7 +142,12 @@ export async function getUserStudySets(): Promise<ActionResult<DbStudySet[]>> {
 }
 
 /**
- * Retrieves a single study set by ID for the authenticated user.
+ * Fetches a single study set by its ID.
+ * 
+ * @param {Object} params - Study set fetch parameters
+ * @param {string} params.studySetId - ID of the study set to fetch
+ * @returns {Promise<StudySet>} The fetched study set
+ * @throws {Error} If study set fetch fails or user is not authenticated
  */
 export async function getStudySet(studySetId: string): Promise<ActionResult<DbStudySet | null>> {
     const { supabase, user, error: authError } = await getSupabaseAndUser();
@@ -165,7 +191,13 @@ export async function getStudySet(studySetId: string): Promise<ActionResult<DbSt
 }
 
 /**
- * Updates an existing study set for the authenticated user.
+ * Updates an existing study set.
+ * 
+ * @param {Object} params - Study set update parameters
+ * @param {string} params.studySetId - ID of the study set to update
+ * @param {Partial<StudySet>} params.updates - Partial study set object containing fields to update
+ * @returns {Promise<StudySet>} The updated study set
+ * @throws {Error} If study set update fails or user is not authenticated
  */
 export async function updateStudySet(
     studySetId: string,
@@ -235,7 +267,12 @@ export async function updateStudySet(
 }
 
 /**
- * Deletes a study set for the authenticated user.
+ * Deletes a study set.
+ * 
+ * @param {Object} params - Study set deletion parameters
+ * @param {string} params.studySetId - ID of the study set to delete
+ * @returns {Promise<void>}
+ * @throws {Error} If study set deletion fails or user is not authenticated
  */
 export async function deleteStudySet(studySetId: string): Promise<ActionResult<null>> {
     const { supabase, user, error: authError } = await getSupabaseAndUser();

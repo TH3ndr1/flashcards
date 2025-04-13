@@ -173,10 +173,26 @@ type CreateCardInput = z.infer<typeof createCardSchema>;
 const updateCardSchema = createCardSchema.partial(); // Reuse create schema fields as optional
 type UpdateCardInput = z.infer<typeof updateCardSchema>;
 
-// --- Card CRUD Actions ---
+/**
+ * Server actions for managing flashcard operations.
+ * 
+ * This module provides:
+ * - Card creation, reading, updating, and deletion
+ * - Batch card operations
+ * - Card content and SRS state management
+ * 
+ * @module cardActions
+ */
 
 /**
- * Creates a single new card within a specified deck for the authenticated user.
+ * Creates a new flashcard.
+ * 
+ * @param {Object} params - Card creation parameters
+ * @param {string} params.deckId - ID of the deck to create the card in
+ * @param {string} params.frontContent - Front side content of the card
+ * @param {string} params.backContent - Back side content of the card
+ * @returns {Promise<Card>} The created card
+ * @throws {Error} If card creation fails or user is not authenticated
  */
 export async function createCard(
     deckId: string,
@@ -248,7 +264,13 @@ export async function createCard(
 }
 
 /**
- * Updates an existing card for the authenticated user.
+ * Updates an existing flashcard.
+ * 
+ * @param {Object} params - Card update parameters
+ * @param {string} params.cardId - ID of the card to update
+ * @param {Partial<Card>} params.updates - Partial card object containing fields to update
+ * @returns {Promise<Card>} The updated card
+ * @throws {Error} If card update fails or user is not authenticated
  */
 export async function updateCard(
     cardId: string,

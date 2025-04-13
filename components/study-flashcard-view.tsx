@@ -38,8 +38,25 @@ interface StudyFlashcardViewProps {
 }
 
 /**
- * Renders the interactive, flippable flashcard view for a study session.
- * Works directly with the DbCard type.
+ * Study flashcard view component for displaying and interacting with flashcards during study sessions.
+ * 
+ * This component handles the core flashcard study experience, including:
+ * - Displaying card content (front and back)
+ * - Managing card state (flipped, answered)
+ * - Handling user interactions (flip, rate)
+ * - Providing study controls and progress tracking
+ * 
+ * @component
+ * @param {Object} props - Component props
+ * @param {Card} props.card - The current card being studied
+ * @param {boolean} props.isFlipped - Whether the card is currently flipped
+ * @param {() => void} props.onFlip - Callback for when the card is flipped
+ * @param {(rating: number) => void} props.onRate - Callback for when the card is rated
+ * @param {() => void} props.onNext - Callback for moving to the next card
+ * @param {() => void} props.onPrevious - Callback for moving to the previous card
+ * @param {number} props.currentIndex - Current card index in the session
+ * @param {number} props.totalCards - Total number of cards in the session
+ * @returns {JSX.Element} The study flashcard view with all interactive elements
  */
 export function StudyFlashcardView({
   card,

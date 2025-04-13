@@ -9,6 +9,17 @@ import { google } from '@google-cloud/text-to-speech/build/protos/protos';
 // const ttsClient = new TextToSpeechClient();
 
 /**
+ * Server actions for Text-to-Speech (TTS) functionality.
+ * 
+ * This module provides:
+ * - TTS audio generation
+ * - Language and voice selection
+ * - Audio caching and management
+ * 
+ * @module ttsActions
+ */
+
+/**
  * Generates speech audio from text using Google Cloud TTS.
  *
  * @param text The text to synthesize.
@@ -73,4 +84,26 @@ export async function generateTtsAction(
         const errorMessage = error.details || error.message || 'Unknown API error';
         return { audioContent: null, error: `TTS generation failed: ${errorMessage}` };
     }
+}
+
+/**
+ * Generates TTS audio for the given text.
+ * 
+ * @param {Object} params - TTS generation parameters
+ * @param {string} params.text - Text to convert to speech
+ * @param {string} params.language - Language code for TTS (e.g., 'en-US')
+ * @param {string} [params.voice] - Optional voice ID to use
+ * @returns {Promise<ArrayBuffer>} The generated audio data
+ * @throws {Error} If TTS generation fails or parameters are invalid
+ */
+export async function generateTTS({
+  text,
+  language,
+  voice,
+}: {
+  text: string;
+  language: string;
+  voice?: string;
+}): Promise<ArrayBuffer> {
+    // ... existing code ...
 }

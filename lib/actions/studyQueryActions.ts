@@ -7,6 +7,17 @@ import { getStudySet } from '@/lib/actions/studySetActions'; // Import action to
 import { ZodError } from 'zod';
 import type { Database, Json } from "@/types/database"; // Import Json type if not global
 
+/**
+ * Server actions for resolving study queries and fetching card IDs.
+ * 
+ * This module provides:
+ * - Query resolution for study sets and criteria
+ * - Card ID fetching based on query criteria
+ * - Integration with database functions for complex queries
+ * 
+ * @module studyQueryActions
+ */
+
 // Define the expected input shape (either criteria or studySetId)
 type ResolveStudyQueryInput = 
   | { criteria: StudyQueryCriteria; studySetId?: never } 
@@ -18,11 +29,13 @@ interface ActionResult {
 }
 
 /**
- * Server Action to resolve card IDs based on flexible query criteria OR a saved study set ID.
- * Calls the `resolve_study_query` PostgreSQL function.
- *
- * @param input An object containing either a `criteria` object or a `studySetId` string.
- * @returns An object containing either the array of card IDs or an error message.
+ * Resolves a study query to get matching card IDs.
+ * 
+ * @param {Object} params - Query parameters
+ * @param {StudyQueryCriteria} params.queryCriteria - The query criteria to resolve
+ * @param {string} [params.studySetId] - Optional study set ID to use predefined criteria
+ * @returns {Promise<string[]>} Array of card IDs matching the query
+ * @throws {Error} If query resolution fails or user is not authenticated
  */
 export async function resolveStudyQuery(
   input: ResolveStudyQueryInput

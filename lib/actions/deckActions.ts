@@ -7,6 +7,17 @@ import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 
 /**
+ * Server actions for managing decks.
+ * 
+ * This module provides:
+ * - Deck creation, reading, updating, and deletion
+ * - Deck metadata management
+ * - Deck query and filtering operations
+ * 
+ * @module deckActions
+ */
+
+/**
  * Get the name of a deck by its ID
  * 
  * @param deckId The deck UUID to fetch

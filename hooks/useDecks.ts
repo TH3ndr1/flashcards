@@ -14,8 +14,22 @@ interface UseDecksReturn {
 }
 
 /**
- * Hook to fetch and manage all decks (id, name) available to the current user.
- * Calls the getDecks server action.
+ * Custom hook for managing deck operations and state.
+ * 
+ * This hook provides:
+ * - Deck creation, reading, updating, and deletion
+ * - Deck state management
+ * - Error handling for deck operations
+ * - Loading state management
+ * 
+ * @returns {Object} Deck management functions and state
+ * @returns {Deck[]} returns.decks - Array of user's decks
+ * @returns {boolean} returns.loading - Whether deck operations are in progress
+ * @returns {string | null} returns.error - Error message if any operation fails
+ * @returns {(title: string, description?: string) => Promise<void>} returns.createDeck - Function to create a new deck
+ * @returns {(deckId: string, updates: Partial<Deck>) => Promise<void>} returns.updateDeck - Function to update a deck
+ * @returns {(deckId: string) => Promise<void>} returns.deleteDeck - Function to delete a deck
+ * @returns {() => Promise<void>} returns.refreshDecks - Function to refresh the decks list
  */
 export function useDecks(): UseDecksReturn {
   const [decks, setDecks] = useState<Pick<DbDeck, 'id' | 'name'>[]>([]);

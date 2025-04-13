@@ -4,7 +4,17 @@ import * as React from "react"
 
 const MOBILE_BREAKPOINT = 768
 
-export function useIsMobile() {
+/**
+ * Custom hook for detecting mobile device state.
+ * 
+ * This hook provides:
+ * - Mobile device detection
+ * - Responsive state management
+ * - Window resize handling
+ * 
+ * @returns {boolean} Whether the current device is considered mobile
+ */
+export function useMobile() {
   const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined)
 
   React.useEffect(() => {

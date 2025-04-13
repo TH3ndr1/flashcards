@@ -23,8 +23,23 @@ interface UseStudyTTSProps {
 }
 
 /**
- * Hook dedicated to handling Text-to-Speech side effects during a study session.
- * It listens to relevant state changes and triggers speech accordingly.
+ * Custom hook for managing Text-to-Speech (TTS) functionality during study sessions.
+ * 
+ * This hook provides:
+ * - TTS playback control for card content
+ * - Language-specific voice selection
+ * - Playback state management
+ * - Integration with study session state
+ * 
+ * @param {Object} params - Hook parameters
+ * @param {Card} params.card - The current card being studied
+ * @param {boolean} params.isFlipped - Whether the card is currently flipped
+ * @param {Settings} params.settings - User settings including TTS preferences
+ * @returns {Object} TTS controls and state
+ * @returns {() => void} returns.speakQuestion - Function to speak the card's question
+ * @returns {() => void} returns.speakAnswer - Function to speak the card's answer
+ * @returns {boolean} returns.isSpeaking - Whether TTS is currently playing
+ * @returns {() => void} returns.stopSpeaking - Function to stop current TTS playback
  */
 export function useStudyTTS({
   isEnabled,

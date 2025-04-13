@@ -5,6 +5,17 @@ import { createActionClient, createDynamicRouteClient } from "@/lib/supabase/ser
 import type { DbCard } from "@/types/database";
 
 /**
+ * Server actions for managing study progress and SRS state.
+ * 
+ * This module provides:
+ * - Card progress tracking and updates
+ * - SRS state management
+ * - Study session progress persistence
+ * 
+ * @module progressActions
+ */
+
+/**
  * Represents the necessary data to update a card's progress after a review.
  * Matches the SRS fields in the DbCard type.
  */
@@ -48,19 +59,26 @@ function convertPayloadToSnakeCase(payload: Record<string, any>): Record<string,
     return snakeCasePayload;
 }
 
-
 /**
- * Updates the progress of a card after a review.
+ * Updates a card's progress and SRS state.
  * 
- * @param cardId The UUID of the card to update.
- * @param progressUpdate The progress data to update.
- * @returns Promise with result and potential error.
+ * @param {Object} params - Progress update parameters
+ * @param {string} params.cardId - ID of the card to update
+ * @param {number} params.grade - The grade given to the card (1-4)
+ * @param {SRSState} params.nextState - The calculated next SRS state
+ * @returns {Promise<Card>} The updated card
+ * @throws {Error} If progress update fails or user is not authenticated
  */
-export async function updateCardProgress(
-    cardId: string,
-    progressUpdate: CardProgressUpdate
-): Promise<{ error: Error | null }> {
-    console.log(`[updateCardProgress] Action started for cardId: ${cardId}`, { progressUpdate });
+export async function updateCardProgress({
+  cardId,
+  grade,
+  nextState,
+}: {
+  cardId: string;
+  grade: number;
+  nextState: SRSState;
+}): Promise<Card> {
+    console.log(`[updateCardProgress] Action started for cardId: ${cardId}`, { grade, nextState });
     
     try {
         // Use the standard action client - must await
@@ -71,18 +89,28 @@ export async function updateCardProgress(
 
         if (authError || !user) {
             console.error('[updateCardProgress] Auth error or no user:', authError);
-            return { error: authError || new Error('Not authenticated') };
+            throw new Error('Not authenticated');
         }
 
         if (!cardId) {
             console.error("[updateCardProgress] Card ID is required.");
-            return { error: new Error("Card ID is required to update progress.") };
+            throw new Error("Card ID is required to update progress.");
         }
         
-        // Ensure we have last_reviewed_at
+        // Correct the payload construction to match the SRSState type fields
         const updatedProgress = {
-            ...progressUpdate,
-            last_reviewed_at: progressUpdate.last_reviewed_at || new Date()
+            last_reviewed_at: new Date(), // Set directly here
+            next_review_due: nextState.nextReviewDue, // Use the correct field from SRSState
+            srs_level: nextState.srsLevel, // Use the correct field from SRSState (srsLevel)
+            easiness_factor: nextState.easinessFactor, // Use the correct field from SRSState
+            interval_days: nextState.intervalDays, // Use the correct field from SRSState
+            last_review_grade: grade, // Use the provided grade
+            // stability: nextState.stability, // Remove FSRS specific fields for now
+            // difficulty: nextState.difficulty, // Remove FSRS specific fields for now
+            // TODO: Add correct/incorrect/attempt count logic if needed
+            // correct_count: 0, 
+            // incorrect_count: 0,
+            // attempt_count: 1 
         };
         
         // Convert payload keys to snake_case for DB and handle Date conversion
@@ -120,13 +148,106 @@ export async function updateCardProgress(
         }
         
         console.log("[updateCardProgress] Successfully updated card:", cardId);
-        return { error: null };
+        return updatedProgress as Card;
     } catch (error) {
         console.error("[updateCardProgress] Caught error during execution:", error);
         // Log specific details if available (e.g., PostgreSQL error code)
         if (error && typeof error === 'object' && 'code' in error) {
            console.error("[updateCardProgress] DB Error Code:", error.code);
         }
-        return { error: error instanceof Error ? error : new Error("Failed to update card progress.") };
+        throw error instanceof Error ? error : new Error("Failed to update card progress.");
+    }
+}
+
+/**
+ * Resets a card's progress and SRS state.
+ * 
+ * @param {Object} params - Progress reset parameters
+ * @param {string} params.cardId - ID of the card to reset
+ * @returns {Promise<Card>} The reset card
+ * @throws {Error} If progress reset fails or user is not authenticated
+ */
+export async function resetCardProgress({
+  cardId,
+}: {
+  cardId: string;
+}): Promise<Card> {
+    console.log(`[resetCardProgress] Action started for cardId: ${cardId}`);
+    
+    try {
+        // Use the standard action client - must await
+        const supabase = await createActionClient();
+        
+        // Fetch user for authentication check
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+        if (authError || !user) {
+            console.error('[resetCardProgress] Auth error or no user:', authError);
+            throw new Error('Not authenticated');
+        }
+
+        if (!cardId) {
+            console.error("[resetCardProgress] Card ID is required.");
+            throw new Error("Card ID is required to reset progress.");
+        }
+        
+        // Reset the card progress
+        const resetProgress = {
+            last_reviewed_at: null,
+            next_review_due: null,
+            srs_level: 0,
+            easiness_factor: 2.5,
+            interval_days: 0,
+            stability: 0,
+            difficulty: 0,
+            last_review_grade: null,
+            correct_count: 0,
+            incorrect_count: 0,
+            attempt_count: 0
+        };
+        
+        // Convert payload keys to snake_case for DB and handle Date conversion
+        const dbResetPayload = convertPayloadToSnakeCase(resetProgress);
+        console.log("[resetCardProgress] DB reset payload prepared:", dbResetPayload);
+
+        // First verify the card belongs to a deck owned by the user
+        console.log(`[resetCardProgress] Verifying ownership for card: ${cardId}`);
+        const { data: card, error: cardError } = await supabase
+            .from('cards')
+            .select('deck_id')
+            .eq('id', cardId)
+            .single();
+        
+        console.log("[resetCardProgress] Ownership verification result:", { card, cardError });
+
+        if (cardError || !card) {
+            console.error("[resetCardProgress] Error fetching card or card not found/denied:", cardError);
+            throw new Error("Card not found or access denied");
+        }
+
+        // Now reset the card
+        console.log(`[resetCardProgress] Resetting card ${cardId} with payload:`, dbResetPayload);
+        const { error: resetError } = await supabase
+            .from('cards')
+            .update(dbResetPayload)
+            .eq('id', cardId)
+            .eq('deck_id', card.deck_id);
+            
+        console.log("[resetCardProgress] Supabase reset result:", { resetError });
+
+        if (resetError) {
+            console.error("[resetCardProgress] Error during Supabase reset:", resetError);
+            throw resetError;
+        }
+        
+        console.log("[resetCardProgress] Successfully reset card:", cardId);
+        return resetProgress as Card;
+    } catch (error) {
+        console.error("[resetCardProgress] Caught error during execution:", error);
+        // Log specific details if available (e.g., PostgreSQL error code)
+        if (error && typeof error === 'object' && 'code' in error) {
+           console.error("[resetCardProgress] DB Error Code:", error.code);
+        }
+        throw error instanceof Error ? error : new Error("Failed to reset card progress.");
     }
 } 

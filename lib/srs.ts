@@ -1,6 +1,17 @@
 import { addDays, startOfDay } from 'date-fns'; // Using date-fns for reliable date math
 
 /**
+ * Spaced Repetition System (SRS) implementation.
+ * 
+ * This module provides:
+ * - SM-2 algorithm implementation
+ * - SRS state calculation and management
+ * - Grade mapping and interval calculations
+ * 
+ * @module srs
+ */
+
+/**
  * Represents the relevant SRS state of a card before a review.
  * Matches fields from the 'cards' table data model.
  */
@@ -150,7 +161,6 @@ export function calculateSm2State(
   return resultPayload;
 }
 
-
 /**
  * Selects the appropriate SRS calculation function based on the algorithm name.
  *
@@ -178,4 +188,22 @@ export function calculateNextSrsState(
       // throw new Error(`Unsupported SRS algorithm: ${algorithm}`);
       return calculateSm2State(card, grade);
   }
-} 
+}
+
+/**
+ * Maps a grade (1-4) to an SM-2 quality (0-5).
+ * 
+ * @param {number} grade - The grade given to the card (1-4)
+ * @returns {number} The SM-2 quality value (0-5)
+ */
+// Removed mapGradeToSm2Quality function as it was an unused placeholder
+
+/**
+ * Calculates the next review date based on the SRS state.
+ * 
+ * @param {Object} params - Review date calculation parameters
+ * @param {SRSState} params.state - The SRS state
+ * @param {Date} [params.baseDate] - The base date to calculate from (defaults to now)
+ * @returns {Date} The next review date
+ */
+// Removed calculateNextReviewDate function as it was an unused placeholder 

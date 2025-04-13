@@ -12,11 +12,25 @@ interface UseCardTagsReturn {
 }
 
 /**
- * Hook to fetch and manage tags associated with a specific card.
- * Calls the getCardTags server action.
- * @param cardId The ID of the card whose tags are to be fetched.
+ * Custom hook for managing card-tag relationships.
+ * 
+ * This hook provides:
+ * - Tag assignment and removal for cards
+ * - Card-tag relationship state management
+ * - Error handling for tag operations
+ * - Loading state management
+ * 
+ * @param {Object} params - Hook parameters
+ * @param {string} params.cardId - ID of the card to manage tags for
+ * @returns {Object} Card-tag management functions and state
+ * @returns {Tag[]} returns.cardTags - Array of tags assigned to the card
+ * @returns {boolean} returns.loading - Whether tag operations are in progress
+ * @returns {string | null} returns.error - Error message if any operation fails
+ * @returns {(tagId: string) => Promise<void>} returns.addTag - Function to add a tag to the card
+ * @returns {(tagId: string) => Promise<void>} returns.removeTag - Function to remove a tag from the card
+ * @returns {() => Promise<void>} returns.refreshCardTags - Function to refresh the card's tags
  */
-export function useCardTags(cardId: string | null | undefined): UseCardTagsReturn {
+export function useCardTags({ cardId }: { cardId: string }): UseCardTagsReturn {
   const [cardTags, setCardTags] = useState<DbTag[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);

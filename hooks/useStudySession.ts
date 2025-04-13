@@ -6,30 +6,16 @@ import { getCardsByIds } from '@/lib/actions/cardActions'; // Assuming this acti
 import { updateCardProgress } from '@/lib/actions/progressActions'; // Assuming this action exists
 import { calculateSm2State } from '@/lib/srs'; // Assuming this utility exists
 import { useSettings } from '@/providers/settings-provider'; // Corrected path
-import type { Database, Tables, Json } from "@/types/database"; // Use correct path
+import type { Database, Tables, Json, DbCard } from "@/types/database"; // Use correct path
 import type { StudyInput, StudyMode } from '@/store/studySessionStore'; // Import types
 import type { ResolvedCardId, StudyQueryCriteria } from '@/lib/schema/study-query.schema'; // Import ResolvedCardId type
+import type { ReviewGrade, Sm2UpdatePayload as SRSState } from '@/lib/srs'; // Import necessary types from srs
 import { isAfter, parseISO, isValid, isToday, isPast } from 'date-fns'; // For checking due dates
 import { debounce } from "@/lib/utils"; // If using debounce for progress updates
 import { toast } from 'sonner'; // For potential error notifications
 
 // Define the full card type expected after fetching
-type StudyCard = Tables<'cards'>;
-type ReviewGrade = 1 | 2 | 3 | 4;
-
-// Define the explicit payload type expected by updateCardProgress
-// Should match the relevant fields updated by calculateSm2State, using DB column names
-interface CardProgressUpdatePayload {
-    last_reviewed_at: string; // ISO string
-    next_review_due: string; // ISO string
-    srs_level: number;
-    easiness_factor: number | null;
-    interval_days: number | null;
-    last_review_grade: ReviewGrade | null;
-    // Include other potential fields if updateCardProgress handles them
-    // correct_count?: number; 
-    // incorrect_count?: number;
-}
+type StudyCard = DbCard; // Use DbCard alias
 
 // Define the structure returned by the hook
 interface UseStudySessionReturn {
@@ -57,6 +43,26 @@ const PROGRESS_UPDATE_DEBOUNCE_MS = 1500; // Allow slightly longer debounce
 const FLIP_DURATION_MS = 300; // Ensure consistency with page
 const PROCESSING_DELAY_MS = FLIP_DURATION_MS + 50; // Delay slightly longer than flip
 
+/**
+ * Custom hook for managing study session state and logic.
+ * 
+ * This hook provides:
+ * - Card progression and review scheduling
+ * - Session state management
+ * - Study statistics and progress tracking
+ * - Integration with the spaced repetition system
+ * 
+ * @param {Object} params - Hook parameters
+ * @param {Card[]} params.cards - Array of cards to study
+ * @param {() => void} params.onComplete - Callback when the study session is completed
+ * @param {(cardId: string, rating: number) => void} params.onRateCard - Callback for rating a card
+ * @returns {Object} Study session state and controls
+ * @returns {Card | null} returns.currentCard - Current card being studied
+ * @returns {number} returns.progress - Session progress (0-1)
+ * @returns {() => void} returns.nextCard - Function to move to next card
+ * @returns {(rating: number) => void} returns.rateCard - Function to rate current card
+ * @returns {boolean} returns.isComplete - Whether session is complete
+ */
 export function useStudySession({ 
     initialInput, 
     initialMode 
@@ -80,12 +86,12 @@ export function useStudySession({
 
     // --- Debounced Progress Update --- 
     const debouncedUpdateProgress = useCallback(
-        debounce(async (cardId: string, updatePayload: CardProgressUpdatePayload) => { // Use explicit payload type
-            console.log(`[useStudySession] Debounced save for card ${cardId}`);
+        debounce(async (updateArg: { cardId: string; grade: ReviewGrade; nextState: SRSState }) => {
+            console.log(`[useStudySession] Debounced save for card ${updateArg.cardId}`);
             try {
-                 await updateCardProgress(cardId, updatePayload);
+                 await updateCardProgress(updateArg);
             } catch (err) {
-                 console.error(`[useStudySession] Failed to save progress for card ${cardId}`, err);
+                 console.error(`[useStudySession] Failed to save progress for card ${updateArg.cardId}`, err);
                  toast.error("Failed to save progress for one card."); 
             }
         }, PROGRESS_UPDATE_DEBOUNCE_MS),
@@ -231,52 +237,65 @@ export function useStudySession({
       console.log("[useStudySession] Flipping card");
     }, []);
 
-    // --- answerCard Function (Refactored with Delay) --- 
+    // --- Answer Handler --- 
     const answerCard = useCallback(async (grade: ReviewGrade) => {
-        // Prevent answering if initializing or already processing
-        if (isInitializing || isProcessingAnswer || isComplete || isLoadingSettings || currentCardIndex >= sessionQueue.length) return;
+        if (isProcessingAnswer || isComplete) return; // Prevent multiple calls or answering after completion
 
-        const card = sessionQueue[currentCardIndex];
-        if (!card) return;
-        
+        const cardToAnswer = sessionQueue[currentCardIndex];
+        if (!cardToAnswer) {
+            console.error("[useStudySession] answerCard called but current card is invalid.");
+            setError("Cannot process answer: current card not found.");
+            return;
+        }
+        // --- START: Add explicit check for card ID --- 
+        if (!cardToAnswer.id) {
+            console.error("[useStudySession] answerCard called but current card has no ID.", cardToAnswer);
+            setError("Cannot process answer: current card is missing an ID.");
+            return;
+        }
+        const cardId = cardToAnswer.id; // Store the valid ID
+        // --- END: Add explicit check for card ID ---
+
+        console.log(`[useStudySession] Answering card ${cardId} with grade ${grade}`);
         setIsProcessingAnswer(true); 
-        console.log(`[useStudySession] Processing answer for card ${card.id} with grade ${grade}`);
 
-        // 1. Calculate new SRS state
-        const currentSrsState = { srsLevel: card.srs_level, easinessFactor: card.easiness_factor, intervalDays: card.interval_days };
-        const srsResult = calculateSm2State(currentSrsState, grade); 
-        
-        // 2. Create the specific payload for the updateCardProgress action
-        const progressUpdatePayload: CardProgressUpdatePayload = {
-            last_reviewed_at: new Date().toISOString(), // Set current time
-            next_review_due: srsResult.nextReviewDue.toISOString(), // Format date
-            srs_level: srsResult.srsLevel,
-            easiness_factor: srsResult.easinessFactor,
-            interval_days: srsResult.intervalDays,
-            last_review_grade: srsResult.lastReviewGrade
-        };
-        
-        // 3. Schedule Debounced Save with the correct payload type
-        debouncedUpdateProgress(card.id, progressUpdatePayload); 
-
-        // 4. Update Session Stats 
+        // Determine if answer is correct for session stats (grade >= 3 is correct)
         const isCorrect = grade >= 3;
+
+        // 1. Calculate Next SRS State
+        const currentSrsState = {
+            srsLevel: cardToAnswer.srs_level ?? 0,
+            easinessFactor: cardToAnswer.easiness_factor ?? 2.5,
+            intervalDays: cardToAnswer.interval_days ?? 0,
+        };
+        // const srsAlgorithm = settings?.srs_algorithm ?? 'sm2'; // Algorithm selection if needed
+        // Using calculateSm2State directly for now, assuming 'sm2'
+        const nextSrsPayload: SRSState = calculateSm2State(currentSrsState, grade);
+
+        // 2. Schedule Debounced DB Update using the validated cardId and the expected object structure
+        debouncedUpdateProgress({ 
+            cardId: cardId, 
+            grade: grade, 
+            nextState: nextSrsPayload 
+        });
+
+        // 3. Update Session Stats 
         setSessionResults(prev => ({
             ...prev,
             correct: isCorrect ? prev.correct + 1 : prev.correct,
             incorrect: !isCorrect ? prev.incorrect + 1 : prev.incorrect,
         }));
 
-        // 5. Determine NEXT state variables (without setting state yet)
+        // 4. Determine NEXT state variables (without setting state yet)
         let nextIndex = currentCardIndex;
         let nextQueue = [...sessionQueue];
         let sessionComplete = false;
         let cardCompletedThisTurn = false; 
 
         if (studyMode === 'learn') {
-             const currentStreak = learnModeProgress.get(card.id) ?? 0;
+             const currentStreak = learnModeProgress.get(cardId) ?? 0;
              const newStreak = isCorrect ? currentStreak + 1 : 0;
-             const updatedLearnProgress = new Map(learnModeProgress).set(card.id, newStreak);             
+             const updatedLearnProgress = new Map(learnModeProgress).set(cardId, newStreak);             
              const cardSessionComplete = newStreak >= learnSuccessThreshold;
 
              if (cardSessionComplete) {
@@ -307,7 +326,7 @@ export function useStudySession({
              setSessionResults(prev => ({ ...prev, completedInSession: prev.completedInSession + 1 }));
         }
 
-        // 6. Use setTimeout to delay updating the card/queue state
+        // 5. Use setTimeout to delay updating the card/queue state
         const timer = setTimeout(() => {
             console.log(`[useStudySession] Delayed state update: nextIndex=${nextIndex}, queueLength=${nextQueue.length}, complete=${sessionComplete}`);
             setSessionQueue(nextQueue);       // Update queue
