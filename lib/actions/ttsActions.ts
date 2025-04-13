@@ -105,5 +105,21 @@ export async function generateTTS({
   language: string;
   voice?: string;
 }): Promise<ArrayBuffer> {
-    // ... existing code ...
+  const result = await generateTtsAction(
+    text,
+    language,
+    voice ? undefined : google.cloud.texttospeech.v1.SsmlVoiceGender.NEUTRAL,
+    voice || null
+  );
+  
+  if (result.error || !result.audioContent) {
+    throw new Error(result.error || 'Failed to generate TTS audio');
+  }
+  
+  // Convert base64 string to ArrayBuffer
+  const buffer = Buffer.from(result.audioContent, 'base64');
+  return buffer.buffer.slice(
+    buffer.byteOffset,
+    buffer.byteOffset + buffer.byteLength
+  );
 }

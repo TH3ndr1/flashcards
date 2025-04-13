@@ -6,7 +6,7 @@ import { getCardsByIds } from '@/lib/actions/cardActions'; // Assuming this acti
 import { updateCardProgress } from '@/lib/actions/progressActions'; // Assuming this action exists
 import { calculateSm2State } from '@/lib/srs'; // Assuming this utility exists
 import { useSettings } from '@/providers/settings-provider'; // Corrected path
-import type { Database, Tables, Json, DbCard } from "@/types/database"; // Use correct path
+import type { Database, Tables } from "@/types/database"; // Remove DbCard import, use Tables
 import type { StudyInput, StudyMode } from '@/store/studySessionStore'; // Import types
 import type { ResolvedCardId, StudyQueryCriteria } from '@/lib/schema/study-query.schema'; // Import ResolvedCardId type
 import type { ReviewGrade, Sm2UpdatePayload as SRSState } from '@/lib/srs'; // Import necessary types from srs
@@ -15,7 +15,7 @@ import { debounce } from "@/lib/utils"; // If using debounce for progress update
 import { toast } from 'sonner'; // For potential error notifications
 
 // Define the full card type expected after fetching
-type StudyCard = DbCard; // Use DbCard alias
+type StudyCard = Tables<'cards'>; // Use Tables<'cards'> instead of DbCard
 
 // Define the structure returned by the hook
 interface UseStudySessionReturn {
@@ -89,7 +89,17 @@ export function useStudySession({
         debounce(async (updateArg: { cardId: string; grade: ReviewGrade; nextState: SRSState }) => {
             console.log(`[useStudySession] Debounced save for card ${updateArg.cardId}`);
             try {
-                 await updateCardProgress(updateArg);
+                // Convert nextState (Sm2UpdatePayload) to the required CalculatedSrsState format
+                await updateCardProgress({
+                    cardId: updateArg.cardId,
+                    grade: updateArg.grade,
+                    nextState: {
+                        easiness_factor: updateArg.nextState.easinessFactor,
+                        interval_days: updateArg.nextState.intervalDays,
+                        next_review_due: updateArg.nextState.nextReviewDue.toISOString(),
+                        srs_level: updateArg.nextState.srsLevel
+                    }
+                });
             } catch (err) {
                  console.error(`[useStudySession] Failed to save progress for card ${updateArg.cardId}`, err);
                  toast.error("Failed to save progress for one card."); 

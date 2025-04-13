@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { getTags } from '@/lib/actions/tagActions';
-import type { DbTag } from '@/types/database';
+import type { Tables } from '@/types/database';
 
 interface UseTagsReturn {
-  allTags: DbTag[];
+  allTags: Tables<'tags'>[];
   isLoading: boolean;
   error: string | null;
   refetchAllTags: () => Promise<void>;
@@ -30,7 +30,7 @@ interface UseTagsReturn {
  * @returns {() => Promise<void>} returns.refreshTags - Function to refresh the tags list
  */
 export function useTags(): UseTagsReturn {
-  const [allTags, setAllTags] = useState<DbTag[]>([]);
+  const [allTags, setAllTags] = useState<Tables<'tags'>[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 

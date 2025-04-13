@@ -29,6 +29,9 @@ export function CardTagEditor({ cardId }: CardTagEditorProps) {
   const [actionLoading, setActionLoading] = useState<{ [tagId: string]: boolean }>({}); // Track loading state per tag action
   const [popoverOpen, setPopoverOpen] = useState(false);
 
+  // <<< Add console log here >>>
+  console.log(`[CardTagEditor] Render. cardId: ${cardId}, isLoadingCardTags: ${isLoadingCardTags}, cardTags:`, cardTags, `isLoadingAllTags: ${isLoadingAllTags}, allTags:`, allTags, `cardTagsError:`, cardTagsError);
+
   // Display initial loading errors from hooks
   useEffect(() => {
     if (cardTagsError) {

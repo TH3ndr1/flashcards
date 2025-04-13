@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { getCardTags } from '@/lib/actions/tagActions';
-import type { DbTag } from '@/types/database';
+import type { Tables } from '@/types/database';
 
 interface UseCardTagsReturn {
-  cardTags: DbTag[];
+  cardTags: Tables<'tags'>[];
   isLoading: boolean;
   error: string | null;
   refetchCardTags: () => Promise<void>;
@@ -20,30 +20,30 @@ interface UseCardTagsReturn {
  * - Error handling for tag operations
  * - Loading state management
  * 
- * @param {Object} params - Hook parameters
- * @param {string} params.cardId - ID of the card to manage tags for
+ * @param {string} cardId - ID of the card to manage tags for
  * @returns {Object} Card-tag management functions and state
  * @returns {Tag[]} returns.cardTags - Array of tags assigned to the card
  * @returns {boolean} returns.loading - Whether tag operations are in progress
  * @returns {string | null} returns.error - Error message if any operation fails
- * @returns {(tagId: string) => Promise<void>} returns.addTag - Function to add a tag to the card
- * @returns {(tagId: string) => Promise<void>} returns.removeTag - Function to remove a tag from the card
  * @returns {() => Promise<void>} returns.refreshCardTags - Function to refresh the card's tags
  */
-export function useCardTags({ cardId }: { cardId: string }): UseCardTagsReturn {
-  const [cardTags, setCardTags] = useState<DbTag[]>([]);
+export function useCardTags(cardId: string): UseCardTagsReturn {
+  const [cardTags, setCardTags] = useState<Tables<'tags'>[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Function to fetch card tags that can be used in both useEffect and refetch
   const fetchCardTags = useCallback(async () => {
     // Only fetch if cardId is valid
     if (!cardId) {
+      console.log(`[useCardTags] Skipping fetch for invalid cardId: ${cardId}`);
       setCardTags([]);
       setIsLoading(false);
       setError(null);
       return;
     }
 
+    console.log(`[useCardTags] Fetching tags for card: ${cardId}`);
     setIsLoading(true);
     setError(null);
     try {
@@ -61,12 +61,13 @@ export function useCardTags({ cardId }: { cardId: string }): UseCardTagsReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [cardId]); // Dependency on cardId
+  }, [cardId]);
 
   // Fetch on mount or when cardId changes
   useEffect(() => {
+    console.log(`[useCardTags] useEffect triggered for cardId: ${cardId}`);
     fetchCardTags();
-  }, [fetchCardTags]); // fetchCardTags changes when cardId changes
+  }, [fetchCardTags, cardId]);
 
   return { cardTags, isLoading, error, refetchCardTags: fetchCardTags };
 } 

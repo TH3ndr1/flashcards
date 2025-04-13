@@ -71,7 +71,7 @@ export function useDeckLoader({ deckId }: { deckId: string }): UseDeckLoaderResu
 
         if (!isMounted) return; // Component unmounted during async operation
 
-        if (result.error) {
+        if (result && result.error) {
           console.error("useDeckLoader: Failed to load deck:", result.error);
           // Don't retry on explicit errors from getDeck
           toast.error("Error Loading Deck", {
@@ -79,7 +79,7 @@ export function useDeckLoader({ deckId }: { deckId: string }): UseDeckLoaderResu
           });
           setDeckLoadError(result.error.message || "Failed to load deck.");
           setLoadedDeck(null);
-        } else if (result.data) {
+        } else if (result && result.data) {
           // Deck loaded successfully
           console.log("useDeckLoader: Deck loaded successfully:", result.data.name);
           if (!Array.isArray(result.data.cards)) {
@@ -122,7 +122,11 @@ export function useDeckLoader({ deckId }: { deckId: string }): UseDeckLoaderResu
       } finally {
         // Set loading to false only when the process is truly finished (success, error, retries exhausted)
         // This check prevents setting isLoading false during the retry delay.
-         if (isMounted && (result?.data || result?.error || retryCountRef.current >= MAX_DECK_LOAD_RETRIES)) {
+         if (isMounted && (
+            (result && result.data) || 
+            (result && result.error) || 
+            retryCountRef.current >= MAX_DECK_LOAD_RETRIES
+         )) {
              setIsLoadingDeck(false);
              console.log("useDeckLoader: Loading process finished.");
          }

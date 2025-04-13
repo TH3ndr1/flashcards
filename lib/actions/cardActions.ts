@@ -2,19 +2,11 @@
 
 import { createActionClient, createDynamicRouteClient } from "@/lib/supabase/server";
 // import { cookies } from "next/headers";
-import type { DbCard, Database, Tables, DbDeck } from "@/types/database";
+import type { Database, Tables, Json } from "@/types/database";
 import { headers } from "next/headers";
 import { z } from 'zod'; // Make sure Zod is imported
 import { revalidatePath } from 'next/cache';
-// import type { ActionResult } from "@/lib/actions/types"; // Remove potentially incorrect import
-
-/**
- * Reusable ActionResult type defined locally.
- */
-interface ActionResult<T> {
-  data: T | null;
-  error: Error | null;
-}
+import type { ActionResult } from '@/lib/actions/types'; // Use shared type
 
 /**
  * Detects if we're being called from a dynamic route by checking the referer header
@@ -37,7 +29,7 @@ async function isCalledFromDynamicRoute(searchPattern = '/study/[') {
  */
 export async function getCardsByIds(
     cardIds: string[]
-): Promise<ActionResult<DbCard[]>> {
+): Promise<ActionResult<Tables<'cards'>[]>> {
     console.log(`[getCardsByIds] Action started for ${cardIds.length} cards`);
     
     if (!cardIds || cardIds.length === 0) {
@@ -51,8 +43,8 @@ export async function getCardsByIds(
 
         if (authError || !user) {
             console.error('[getCardsByIds] Auth error or no user:', authError);
-            // Return a standard Error object
-            return { data: null, error: new Error(authError?.message || 'Not authenticated') };
+            // Return error message string
+            return { data: [], error: authError?.message || 'Not authenticated' };
         }
         
         console.log(`[getCardsByIds] User authenticated: ${user.id}, fetching ${cardIds.length} cards`);
@@ -86,8 +78,8 @@ export async function getCardsByIds(
 
         if (dbError) {
             console.error('[getCardsByIds] Database error:', dbError);
-             // Return a standard Error object
-            return { data: null, error: new Error(dbError.message || 'Database query failed') };
+             // Return error message string
+            return { data: [], error: dbError.message || 'Database query failed' };
         }
 
         if (!dbCards || dbCards.length === 0) {
@@ -97,15 +89,11 @@ export async function getCardsByIds(
         
         console.log(`[getCardsByIds] Successfully fetched ${dbCards.length} cards`);
         // Type assertion might be needed if Supabase client types aren't perfect
-        return { data: dbCards as DbCard[], error: null }; 
+        return { data: dbCards as Tables<'cards'>[], error: null }; 
         
     } catch (error) {
-        console.error('[getCardsByIds] Caught error:', error);
-        return { 
-            data: null, 
-            // Ensure a standard Error object is returned
-            error: error instanceof Error ? error : new Error('Unknown error fetching cards') 
-        };
+        console.error('[getCardsByIds] Caught unexpected error:', error);
+        return { data: [], error: error instanceof Error ? error.message : 'Unknown error fetching cards by IDs' };
     }
 }
 
@@ -119,15 +107,16 @@ export async function getCardsByIds(
 export async function getCardById(
     cardId: string,
     isDynamicRoute = false
-): Promise<{ data: DbCard | null, error: Error | null }> {
+): Promise<ActionResult<Tables<'cards'>>> {
+    console.log(`[getCardById] Fetching card: ${cardId}`);
     // Use the standard client - must await
     const supabase = await createActionClient();
      
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
-        console.error("getCardById: Auth error or no user", authError);
-        return { data: null, error: authError || new Error("User not authenticated") };
+        console.error('[getCardById] Auth error or no user:', authError);
+        return { data: null, error: authError?.message || 'Not authenticated' };
     }
 
     console.log("Fetching single card:", cardId, "for user:", user.id);
@@ -138,11 +127,11 @@ export async function getCardById(
              .select(`*`) // Select all card columns
              // RLS should handle user check based on deck_id relationship
              .eq('id', cardId)
-             .maybeSingle<DbCard>(); 
+             .maybeSingle<Tables<'cards'>>(); 
 
         if (error) {
-            console.error("getCardById: Error fetching card:", cardId, error);
-            throw error;
+            console.error('[getCardById] Database error:', error);
+            return { data: null, error: error.message || 'Database query failed' };
         }
 
         if (!dbCard) {
@@ -153,8 +142,8 @@ export async function getCardById(
         return { data: dbCard, error: null };
 
     } catch (error) {
-         console.error("getCardById: Unexpected error:", cardId, error);
-        return { data: null, error: error instanceof Error ? error : new Error("Failed to fetch card by ID.") };
+         console.error('[getCardById] Caught unexpected error:', error);
+        return { data: null, error: error instanceof Error ? error.message : 'Unknown error fetching card' };
     }
 }
 
@@ -197,9 +186,9 @@ type UpdateCardInput = z.infer<typeof updateCardSchema>;
 export async function createCard(
     deckId: string,
     inputData: CreateCardInput
-): Promise<ActionResult<DbCard>> { 
+): Promise<ActionResult<Tables<'cards'>>> { 
     console.log(`[createCard] Action started for deckId: ${deckId}`);
-    if (!deckId) return { data: null, error: new Error('Deck ID is required.') };
+    if (!deckId) return { data: null, error: 'Deck ID is required.' };
 
     try {
         const supabase = createActionClient();
@@ -207,13 +196,13 @@ export async function createCard(
 
         if (authError || !user) {
              console.error('[createCard] Auth error:', authError);
-             return { data: null, error: new Error(authError?.message || 'Not authenticated') };
+             return { data: null, error: authError?.message || 'Not authenticated' };
         }
 
         const validation = createCardSchema.safeParse(inputData);
         if (!validation.success) {
              console.warn("[createCard] Validation failed:", validation.error.errors);
-             return { data: null, error: new Error(validation.error.errors[0].message) };
+             return { data: null, error: validation.error.errors[0].message };
         }
         const { question, answer } = validation.data;
 
@@ -226,7 +215,7 @@ export async function createCard(
 
         if (deckCheckError || deckCount === 0) {
              console.error('[createCard] Deck ownership check failed:', deckCheckError);
-             return { data: null, error: new Error('Target deck not found or access denied.') };
+             return { data: null, error: 'Target deck not found or access denied.' };
         }
         
         console.log(`[createCard] User: ${user.id}, Creating card in deck ${deckId}`);
@@ -245,21 +234,21 @@ export async function createCard(
 
         if (insertError) {
             console.error('[createCard] Insert error:', insertError);
-            return { data: null, error: new Error(insertError.message || 'Failed to create card.') };
+            return { data: null, error: insertError.message || 'Failed to create card.' };
         }
 
         if (!newCard) {
              console.error('[createCard] Insert succeeded but no data returned.');
-             return { data: null, error: new Error('Failed to retrieve created card data.') };
+             return { data: null, error: 'Failed to retrieve created card data.' };
         }
 
         console.log(`[createCard] Success, New Card ID: ${newCard.id}`);
         revalidatePath(`/edit/${deckId}`); 
-        return { data: newCard as DbCard, error: null }; // Return new card data including nested deck langs
+        return { data: newCard as Tables<'cards'>, error: null }; // Return new card data including nested deck langs
 
     } catch (error) {
         console.error('[createCard] Caught unexpected error:', error);
-        return { data: null, error: error instanceof Error ? error : new Error('Unknown error creating card') };
+        return { data: null, error: error instanceof Error ? error.message : 'Unknown error creating card' };
     }
 }
 
@@ -275,9 +264,9 @@ export async function createCard(
 export async function updateCard(
     cardId: string,
     inputData: UpdateCardInput
-): Promise<ActionResult<DbCard>> {
+): Promise<ActionResult<Tables<'cards'>>> {
     console.log(`[updateCard] Action started for cardId: ${cardId}`);
-    if (!cardId) return { data: null, error: new Error('Card ID is required.') };
+    if (!cardId) return { data: null, error: 'Card ID is required.' };
 
     try {
         const supabase = createActionClient();
@@ -285,19 +274,19 @@ export async function updateCard(
 
         if (authError || !user) {
              console.error('[updateCard] Auth error:', authError);
-             return { data: null, error: new Error(authError?.message || 'Not authenticated') };
+             return { data: null, error: authError?.message || 'Not authenticated' };
         }
 
         // Validate input data
         const validation = updateCardSchema.safeParse(inputData);
         if (!validation.success) {
              console.warn("[updateCard] Validation failed:", validation.error.errors);
-             return { data: null, error: new Error(validation.error.errors[0].message) };
+             return { data: null, error: validation.error.errors[0].message };
         }
         const updatePayload = validation.data;
 
         if (Object.keys(updatePayload).length === 0) {
-             return { data: null, error: new Error("No fields provided for update.") };
+             return { data: null, error: "No fields provided for update." };
         }
 
         console.log(`[updateCard] User: ${user.id}, Updating card ${cardId} with:`, updatePayload);
@@ -315,12 +304,12 @@ export async function updateCard(
 
         if (updateError) {
             console.error('[updateCard] Update error:', updateError);
-            return { data: null, error: new Error(updateError.message || 'Failed to update card.') };
+            return { data: null, error: updateError.message || 'Failed to update card.' };
         }
 
         if (!updatedCard) {
              console.warn(`[updateCard] Card ${cardId} not found or not authorized for update.`);
-             return { data: null, error: new Error('Card not found or update failed.') };
+             return { data: null, error: 'Card not found or update failed.' };
         }
 
         console.log(`[updateCard] Success, ID: ${updatedCard.id}`);
@@ -328,12 +317,68 @@ export async function updateCard(
         // Getting deckId requires another query or passing it in. 
         // For now, let's rely on client-side state update or parent component refetch.
         // if (updatedCard.deck_id) revalidatePath(`/edit/${updatedCard.deck_id}`); 
-        return { data: updatedCard as DbCard, error: null };
+        return { data: updatedCard as Tables<'cards'>, error: null };
 
     } catch (error) {
         console.error('[updateCard] Caught unexpected error:', error);
-        return { data: null, error: error instanceof Error ? error : new Error('Unknown error updating card') };
+        return { data: null, error: error instanceof Error ? error.message : 'Unknown error updating card' };
     }
 }
 
 // TODO: Add deleteCard action here if needed 
+
+// Helper function to get deck details (example)
+async function getDeckDetails(deckId: string): Promise<Tables<'decks'> | null> {
+    const supabase = createActionClient();
+    const { data } = await supabase.from('decks').select('*').eq('id', deckId).single();
+    return data;
+}
+
+export async function getCardsByDeckId(deckId: string): Promise<ActionResult<Tables<'cards'>[]>> {
+    // Placeholder implementation - Replace with actual logic
+    console.log(`[getCardsByDeckId] Fetching cards for deck: ${deckId}`);
+    const supabase = createActionClient();
+    const { data, error } = await supabase
+        .from('cards')
+        .select('*')
+        .eq('deck_id', deckId);
+        
+    if (error) {
+        console.error(`[getCardsByDeckId] Error fetching cards for deck ${deckId}:`, error);
+        return { data: null, error: error.message || 'Failed to fetch cards' }; // Return message string
+    }
+    
+    return { data: (data || []) as Tables<'cards'>[], error: null }; 
+}
+
+export async function deleteCard(cardId: string): Promise<ActionResult<null>> {
+    console.log(`[deleteCard] Action started for cardId: ${cardId}`);
+    if (!cardId) return { data: null, error: 'Card ID is required.' };
+
+    try {
+        const supabase = createActionClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+        if (authError || !user) {
+            console.error('[deleteCard] Auth error:', authError);
+            return { data: null, error: authError?.message || 'Not authenticated' };
+        }
+
+        const { error: deleteError } = await supabase
+            .from('cards')
+            .delete()
+            .eq('id', cardId)
+            .eq('user_id', user.id);
+
+        if (deleteError) {
+            console.error('[deleteCard] Delete error:', deleteError);
+            return { data: null, error: deleteError.message || 'Failed to delete card.' };
+        }
+
+        return { data: null, error: null };
+
+    } catch (error) {
+        console.error('[deleteCard] Caught unexpected error:', error);
+        return { data: null, error: error instanceof Error ? error.message : 'Unknown error deleting card' };
+    }
+} 

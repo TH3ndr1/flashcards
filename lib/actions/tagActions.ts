@@ -2,9 +2,9 @@
 
 import { createActionClient } from '@/lib/supabase/server';
 import { revalidatePath } from "next/cache";
-import type { DbTag, DbCardTag } from "@/types/database";
 import { z } from 'zod';
 import type { Database, Tables } from "@/types/database";
+import type { ActionResult } from '@/lib/actions/types';
 
 // Zod schema for tag validation
 const tagSchema = z.object({
@@ -45,7 +45,7 @@ async function getSupabaseAndUser() {
  * @returns {Promise<Tag[]>} Array of user's tags
  * @throws {Error} If tag fetch fails or user is not authenticated
  */
-export async function getTags(): Promise<TagActionResponse<DbTag[]>> {
+export async function getTags(): Promise<TagActionResponse<Tables<'tags'>[]>> {
   const { supabase, user, error: authError } = await getSupabaseAndUser();
   if (authError || !supabase || !user) {
     return { data: null, error: authError };
@@ -76,7 +76,7 @@ export async function getTags(): Promise<TagActionResponse<DbTag[]>> {
  * Enforces unique constraint (user_id, name).
  * Ref: Section 4 Data Models
  */
-export async function createTag(name: string): Promise<TagActionResponse<DbTag>> {
+export async function createTag(name: string): Promise<ActionResult<Tables<'tags'>>> {
   const { supabase, user, error: authError } = await getSupabaseAndUser();
   if (authError || !supabase || !user) {
     return { data: null, error: authError };
@@ -169,7 +169,7 @@ export async function deleteTag(tagId: string): Promise<TagActionResponse<void>>
 export async function addTagToCard(
   cardId: string,
   tagId: string
-): Promise<TagActionResponse<void>> {
+): Promise<ActionResult<Tables<'card_tags'>>> {
   const { supabase, user, error: authError } = await getSupabaseAndUser();
   if (authError || !supabase || !user) {
     return { data: null, error: authError };
@@ -246,7 +246,7 @@ export async function addTagToCard(
 export async function removeTagFromCard(
   cardId: string,
   tagId: string
-): Promise<TagActionResponse<void>> {
+): Promise<ActionResult<null>> {
   const { supabase, user, error: authError } = await getSupabaseAndUser();
   if (authError || !supabase || !user) {
     return { data: null, error: authError };
@@ -284,7 +284,7 @@ export async function removeTagFromCard(
 /**
  * Gets all tags associated with a specific card for the authenticated user.
  */
-export async function getCardTags(cardId: string): Promise<TagActionResponse<DbTag[]>> {
+export async function getCardTags(cardId: string): Promise<TagActionResponse<Tables<'tags'>[]>> {
   const { supabase, user, error: authError } = await getSupabaseAndUser();
   if (authError || !supabase || !user) {
     return { data: null, error: authError };
@@ -309,6 +309,9 @@ export async function getCardTags(cardId: string): Promise<TagActionResponse<DbT
       .eq('card_tags.card_id', cardId) // Filter on the joined table column
       .order('name', { ascending: true }); 
 
+    // <<< Add Log Here >>>
+    console.log(`[getCardTags] Raw Supabase result for card ${cardId}:`, { data: tags, error: fetchError });
+
     if (fetchError) {
       console.error(`[getCardTags] Error fetching card tags for ${cardId}:`, fetchError);
       return { data: null, error: 'Failed to fetch card tags.' }; 
@@ -316,7 +319,7 @@ export async function getCardTags(cardId: string): Promise<TagActionResponse<DbT
     
     // Supabase might return the joined data (`card_tags: [...]`) even if not strictly selected.
     // We need to map to ensure we only return DbTag fields.
-    const resultTags: DbTag[] = (tags || []).map((tagWithJoin: any) => ({
+    const resultTags: Tables<'tags'>[] = (tags || []).map((tagWithJoin: any) => ({
         id: tagWithJoin.id,
         user_id: tagWithJoin.user_id,
         name: tagWithJoin.name,
@@ -330,4 +333,4 @@ export async function getCardTags(cardId: string): Promise<TagActionResponse<DbT
     console.error(`[getCardTags] Unexpected error for ${cardId}:`, error);
     return { data: null, error: 'An unexpected error occurred.' };
   }
-} 
+}

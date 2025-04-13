@@ -1,11 +1,12 @@
 "use server";
 
-import { createServerClient } from '@/lib/supabase/server';
+import { createActionClient } from '@/lib/supabase/server';
 import { cookies } from 'next/headers';
 import { studyQueryCriteriaSchema, type StudyQueryCriteria, type ResolvedCardId } from "@/lib/schema/study-query.schema";
 import { getStudySet } from '@/lib/actions/studySetActions'; // Import action to get study set details
 import { ZodError } from 'zod';
 import type { Database, Json } from "@/types/database"; // Import Json type if not global
+import type { ActionResult } from '@/lib/actions/types'; // Import shared type
 
 /**
  * Server actions for resolving study queries and fetching card IDs.
@@ -23,11 +24,6 @@ type ResolveStudyQueryInput =
   | { criteria: StudyQueryCriteria; studySetId?: never } 
   | { criteria?: never; studySetId: string };
 
-interface ActionResult {
-  data: string[] | null; // Array of card UUIDs
-  error: string | null; // Error message string
-}
-
 /**
  * Resolves a study query to get matching card IDs.
  * 
@@ -39,9 +35,9 @@ interface ActionResult {
  */
 export async function resolveStudyQuery(
   input: ResolveStudyQueryInput
-): Promise<ActionResult> {
-  const cookieStore = cookies();
-  const supabase = createServerClient(cookieStore);
+): Promise<ActionResult<string[]>> {
+  // const cookieStore = cookies(); // No longer needed for createActionClient
+  const supabase = createActionClient(); // Use the action client consistent with other actions
 
   // 1. Authentication
   const { data: { user }, error: authError } = await supabase.auth.getUser();

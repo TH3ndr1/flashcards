@@ -1,242 +1,416 @@
-/**
- * Represents the structure of the 'settings' table.
- */
-export interface Settings {
-  user_id: string; // UUID -> string
-  srs_algorithm: 'sm2' | 'fsrs'; // Assuming these are the only valid values initially
-  fsrs_parameters: Record<string, any> | null; // JSONB -> object or null
-  created_at: string; // timestamptz -> string (ISO 8601)
-  updated_at: string; // timestamptz -> string
-  // Add other settings fields matching the DB schema
-}
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
 
-/**
- * Represents the structure of the 'tags' table.
- */
-export interface Tag {
-  id: string; // UUID -> string
-  user_id: string; // UUID -> string
-  name: string;
-  created_at: string; // timestamptz -> string
-}
-
-/**
- * Represents the structure of the 'card_tags' join table.
- */
-export interface CardTag {
-  card_id: string; // UUID -> string
-  tag_id: string; // UUID -> string
-  user_id: string; // UUID -> string
-}
-
-/**
- * Represents the structure of the 'study_sets' table.
- */
-export interface StudySet {
-  id: string; // UUID -> string
-  user_id: string; // UUID -> string
-  name: string;
-  description: string | null;
-  query_criteria: StudySetQueryCriteria; // JSONB -> specific object type
-  created_at: string; // timestamptz -> string
-  updated_at: string; // timestamptz -> string
-}
-
-/**
- * Defines the expected structure for the 'query_criteria' JSONB field
- * in the 'study_sets' table. Adapt this based on your actual query needs.
- */
-export interface StudySetQueryCriteria {
-  includeTags?: string[]; // Array of tag IDs to include
-  excludeTags?: string[]; // Array of tag IDs to exclude
-  includeDecks?: string[]; // Array of deck IDs to include
-  excludeDecks?: string[]; // Array of deck IDs to exclude
-  isDue?: boolean; // Include cards where next_review_due <= now()
-  isNew?: boolean; // Include cards never reviewed (srs_level = 0 or last_reviewed_at IS NULL)
-  difficultyRange?: [number, number]; // Min/Max FSRS difficulty (e.g., [0.7, 1.0])
-  srsLevelRange?: [number, number]; // Min/Max SRS level
-  limit?: number; // Max number of cards to return
-  // Add other potential filter fields: e.g., content search term?
-}
-
-/**
- * Represents the structure of the 'cards' table, including SRS fields.
- * Updates the existing FlashCard type or creates a new one.
- * Make sure field names match your actual table columns.
- */
-export interface FlashCard {
-  id: string; // UUID -> string
-  deck_id: string; // UUID -> string
-  user_id: string; // UUID -> string (Newly added)
-  front_content: string; // Example field name
-  back_content: string; // Example field name
-  created_at: string; // timestamptz -> string
-  updated_at: string; // timestamptz -> string
-
-  // SRS Fields (Newly added)
-  last_reviewed_at: string | null; // timestamptz -> string | null
-  next_review_due: string | null; // timestamptz -> string | null
-  srs_level: number; // integer -> number
-  easiness_factor: number | null; // real -> number | null
-  interval_days: number | null; // integer -> number | null
-  stability: number | null; // real -> number | null (for FSRS)
-  difficulty: number | null; // real -> number | null (for FSRS)
-  last_review_grade: 1 | 2 | 3 | 4 | null; // integer -> specific number union | null
-
-  // Optional General Stats (Consider if still needed)
-  correct_count?: number; // integer -> number
-  incorrect_count?: number; // integer -> number
-}
-
-/**
- * Represents the structure of the 'decks' table.
- * Ensure this matches your schema and includes FKs/relationships as needed.
- */
-export interface Deck {
-    id: string;
-    user_id: string;
-    title: string; // Assuming 'title' based on docs
-    description: string | null;
-    primary_language: string | null;
-    secondary_language: string | null;
-    created_at: string;
-    updated_at: string;
-    cards: FlashCard[]; // Embed cards or fetch separately
-    // Add any other deck-specific fields
-}
-
-// Based on your Supabase schema (snake_case)
-
-// --- From Supabase Auth ---
-// Assuming you have User type from @supabase/supabase-js elsewhere
-
-// --- New Tables ---
-
-export interface DbSettings {
-  user_id: string; // uuid
-  srs_algorithm: 'sm2' | 'fsrs'; // Assuming limited text options
-  fsrs_parameters: Record<string, any> | null; // jsonb
-  created_at: string; // timestamptz
-  updated_at: string; // timestamptz
-  // Add other setting fields if defined in SQL (e.g., tts_enabled, card_font)
-  tts_enabled?: boolean; // Example
-  card_font?: string;    // Example
-}
-
-export interface DbTag {
-  id: string; // uuid
-  user_id: string; // uuid
-  name: string;
-  created_at: string; // timestamptz
-}
-
-export interface DbCardTag {
-  card_id: string; // uuid
-  tag_id: string; // uuid
-  user_id: string; // uuid
-}
-
-export interface DbStudySet {
-  id: string; // uuid
-  user_id: string; // uuid
-  name: string;
-  description: string | null;
-  query_criteria: Record<string, any>; // jsonb - Define specific structure later if needed
-  created_at: string; // timestamptz
-  updated_at: string; // timestamptz
-}
-
-// --- Updated 'cards' Table ---
-
-export interface DbCard {
-  id: string; // uuid
-  deck_id: string; // uuid
-  user_id: string; // uuid 
-  question: string; // text - Reverted from front_content
-  answer: string; // text - Reverted from back_content
-  created_at: string; // timestamptz
-  updated_at: string; // timestamptz
-  
-  // SRS Fields 
-  last_reviewed_at: string | null; // timestamptz
-  next_review_due: string | null; // timestamptz
-  srs_level: number; // integer
-  easiness_factor: number | null; // float
-  interval_days: number | null; // integer
-  stability: number | null; // float
-  difficulty: number | null; // float
-  last_review_grade: number | null; // integer
-
-  // Stats 
-  correct_count: number; 
-  incorrect_count: number; 
-  attempt_count?: number; 
-  
-  // Card-specific language (Remove if not in DB schema)
-  // questionLanguage?: string | null;
-  // answerLanguage?: string | null;
-
-  // Nested deck language info 
-  decks?: { 
-    primary_language: string | null;
-    secondary_language: string | null;
-  } | null; 
-}
-
-// --- Existing 'decks' Table (Ensure it includes user_id) ---
-export interface DbDeck {
-    id: string; // uuid
-    user_id: string; // uuid (Ensure this exists)
-    name: string; // text in DB, use 'name' if DB uses 'name'
-    description: string | null; // text
-    primary_language?: string | null; // text
-    secondary_language?: string | null; // text
-    is_bilingual?: boolean | null;
-    created_at: string; // timestamptz
-    updated_at: string; // timestamptz
-    // Add optional card count field from aggregation
-    card_count?: number;
-}
-
-// --- Supabase Database Type (Optional but Recommended) ---
-// If you generate types using `supabase gen types typescript`:
-export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
 export type Database = {
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          operationName?: string
+          query?: string
+          variables?: Json
+          extensions?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
-      settings: { Row: DbSettings; Insert: Partial<DbSettings>; Update: Partial<DbSettings> }; // Added Insert/Update for example
-      tags: { Row: DbTag; Insert: Pick<DbTag, 'user_id' | 'name'>; Update: Partial<Pick<DbTag, 'name'>> }; // Added Insert/Update
-      card_tags: { Row: DbCardTag; Insert: DbCardTag; Update: never }; // Join table, often no direct update
-      study_sets: { Row: DbStudySet; Insert: Pick<DbStudySet, 'user_id' | 'name' | 'description' | 'query_criteria'>; Update: Partial<Pick<DbStudySet, 'name' | 'description' | 'query_criteria'>> }; // Added Insert/Update
-      cards: { Row: DbCard; Insert: Partial<DbCard>; Update: Partial<DbCard> }; // Added Insert/Update
-      decks: { Row: DbDeck; Insert: Pick<DbDeck, 'user_id' | 'name' | 'description' | 'primary_language' | 'secondary_language' | 'is_bilingual'>; Update: Partial<Pick<DbDeck, 'name' | 'description' | 'primary_language' | 'secondary_language' | 'is_bilingual'>> }; // Added Insert/Update
-      // Add other tables here with Row, Insert, Update definitions
-    };
-    Views: { // Add views if you have them
-        [_ in never]: never
-    };
-    Functions: { // Add functions if you have them
-        resolve_study_query: { // Example function
-             Args: {
-                 p_user_id: string; 
-                 p_query_criteria: Json; 
-                 p_order_by_field?: string; 
-                 p_order_by_direction?: string; 
-             };
-             Returns: { card_id: string }[]; 
-         }
-         // Add other functions here
-    };
-    Enums: { // Add enums if you have them
-        [_ in never]: never
-    };
-    CompositeTypes: { // Add composite types if you have them
-        [_ in never]: never
-    };
-  };
-}; 
+      card_tags: {
+        Row: {
+          card_id: string
+          tag_id: string
+          user_id: string
+        }
+        Insert: {
+          card_id: string
+          tag_id: string
+          user_id: string
+        }
+        Update: {
+          card_id?: string
+          tag_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "card_tags_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "card_tags_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cards: {
+        Row: {
+          answer: string
+          attempt_count: number | null
+          correct_count: number | null
+          created_at: string | null
+          deck_id: string
+          difficulty: number | null
+          difficulty_score: number | null
+          easiness_factor: number | null
+          id: string
+          incorrect_count: number | null
+          interval_days: number | null
+          last_review_grade: number | null
+          last_reviewed_at: string | null
+          last_studied: string | null
+          next_review_due: string | null
+          question: string
+          srs_level: number
+          stability: number | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          answer: string
+          attempt_count?: number | null
+          correct_count?: number | null
+          created_at?: string | null
+          deck_id: string
+          difficulty?: number | null
+          difficulty_score?: number | null
+          easiness_factor?: number | null
+          id?: string
+          incorrect_count?: number | null
+          interval_days?: number | null
+          last_review_grade?: number | null
+          last_reviewed_at?: string | null
+          last_studied?: string | null
+          next_review_due?: string | null
+          question: string
+          srs_level?: number
+          stability?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          answer?: string
+          attempt_count?: number | null
+          correct_count?: number | null
+          created_at?: string | null
+          deck_id?: string
+          difficulty?: number | null
+          difficulty_score?: number | null
+          easiness_factor?: number | null
+          id?: string
+          incorrect_count?: number | null
+          interval_days?: number | null
+          last_review_grade?: number | null
+          last_reviewed_at?: string | null
+          last_studied?: string | null
+          next_review_due?: string | null
+          question?: string
+          srs_level?: number
+          stability?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_deck"
+            columns: ["deck_id"]
+            isOneToOne: false
+            referencedRelation: "decks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      decks: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_bilingual: boolean
+          name: string
+          primary_language: string
+          progress: Json
+          secondary_language: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_bilingual?: boolean
+          name: string
+          primary_language?: string
+          progress?: Json
+          secondary_language?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_bilingual?: boolean
+          name?: string
+          primary_language?: string
+          progress?: Json
+          secondary_language?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      settings: {
+        Row: {
+          app_language: string
+          card_font: string | null
+          created_at: string | null
+          id: string
+          language_dialects: Json | null
+          mastery_threshold: number | null
+          preferred_voices: Json
+          show_difficulty: boolean | null
+          tts_enabled: boolean | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          app_language?: string
+          card_font?: string | null
+          created_at?: string | null
+          id?: string
+          language_dialects?: Json | null
+          mastery_threshold?: number | null
+          preferred_voices?: Json
+          show_difficulty?: boolean | null
+          tts_enabled?: boolean | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          app_language?: string
+          card_font?: string | null
+          created_at?: string | null
+          id?: string
+          language_dialects?: Json | null
+          mastery_threshold?: number | null
+          preferred_voices?: Json
+          show_difficulty?: boolean | null
+          tts_enabled?: boolean | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      study_sets: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          query_criteria: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          query_criteria: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          query_criteria?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      tags: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      resolve_study_query: {
+        Args: {
+          p_user_id: string
+          p_query_criteria: Json
+          p_order_by_field?: string
+          p_order_by_direction?: string
+        }
+        Returns: {
+          card_id: string
+        }[]
+      }
+    }
+    Enums: {
+      font_option: "default" | "opendyslexic" | "atkinson"
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+}
 
-// Helper type to extract Row type from Tables
-export type Tables<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Row'];
-// Add Insert and Update helpers if needed
-export type Enums<T extends keyof Database['public']['Enums']> = Database['public']['Enums'][T]; 
+type DefaultSchema = Database[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof Database },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof Database
+  }
+    ? keyof (Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        Database[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
+  ? (Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      Database[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof Database },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof Database
+  }
+    ? keyof Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
+  ? Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof Database },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof Database
+  }
+    ? keyof Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
+  ? Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof Database },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof Database
+  }
+    ? keyof Database[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends { schema: keyof Database }
+  ? Database[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof Database },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof Database
+  }
+    ? keyof Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends { schema: keyof Database }
+  ? Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
+  public: {
+    Enums: {
+      font_option: ["default", "opendyslexic", "atkinson"],
+    },
+  },
+} as const

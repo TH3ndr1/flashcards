@@ -6,15 +6,10 @@ import { z } from 'zod';
 import { studyQueryCriteriaSchema } from '@/lib/schema/study-query.schema'; // Import the criteria schema
 import type { StudyQueryCriteria } from '@/lib/schema/study-query.schema';
 import type { Database, Tables } from "@/types/database"; // Assuming types_db defines Tables<'study_sets'> 
+import type { ActionResult } from '@/lib/actions/types'; // Import shared type
 
 // Define DbStudySet based on your types_db or manually if needed
 type DbStudySet = Tables<'study_sets'>;
-
-// Define a common ActionResult type
-interface ActionResult<T> {
-    data: T | null;
-    error: string | null;
-}
 
 // Zod schema for creating/updating study sets (validates name, description, criteria)
 const studySetInputSchema = z.object({

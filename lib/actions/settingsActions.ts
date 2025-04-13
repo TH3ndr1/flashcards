@@ -4,9 +4,10 @@ import { createActionClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import type { Database, Tables } from "@/types/database";
-import type { ActionResult } from './types'; // Define or import ActionResult
+import type { ActionResult } from '@/lib/actions/types'; // Corrected import path
 // Import the Settings type used by the frontend/provider
 import type { Settings, FontOption } from "@/providers/settings-provider"; 
+import { convertPayloadToCamelCase } from '@/lib/utils'; // Import the conversion utility
 
 // Define ActionResult locally if needed
 // interface ActionResult<T> { data: T | null; error: Error | null; }
@@ -64,7 +65,9 @@ export async function getUserSettings(): Promise<Settings> {
             console.error("[getUserSettings] Error:", error);
             throw new Error(error.message || "Failed to fetch settings.");
         }
-        return data as Settings;
+        // Convert snake_case DB result to camelCase Settings type
+        const settingsResult = data ? convertPayloadToCamelCase(data) : null;
+        return settingsResult as Settings; // Cast after conversion
 
     } catch (error) {
         console.error('[getUserSettings] Unexpected error:', error);
@@ -116,8 +119,9 @@ export async function updateUserSettings({
         if (validatedUpdates.ttsEnabled !== undefined) dbPayload.tts_enabled = validatedUpdates.ttsEnabled;
         // Add removeMasteredCards if it exists in your DB schema
         // if (validatedUpdates.removeMasteredCards !== undefined) dbPayload.remove_mastered_cards = validatedUpdates.removeMasteredCards;
-        if (validatedUpdates.srs_algorithm !== undefined) dbPayload.srs_algorithm = validatedUpdates.srs_algorithm;
-        if (validatedUpdates.languageDialects !== undefined) dbPayload.language_dialects = validatedUpdates.languageDialects;
+        // TODO: Uncomment the next line once 'srs_algorithm' column is added to the 'settings' table and types are regenerated.
+        // if (validatedUpdates.srs_algorithm !== undefined) dbPayload.srs_algorithm = validatedUpdates.srs_algorithm;
+        // if (validatedUpdates.languageDialects !== undefined) dbPayload.language_dialects = validatedUpdates.languageDialects; // Assuming JSONB or text column
         
         // Add updated_at timestamp
         dbPayload.updated_at = new Date().toISOString();
@@ -144,7 +148,9 @@ export async function updateUserSettings({
         console.log(`[updateUserSettings] Success for user: ${user.id}`);
         // Revalidate paths? Maybe revalidate layout if settings affect global UI
         // revalidatePath('/', 'layout');
-        return updatedSettings as Settings;
+        // Convert snake_case DB result to camelCase Settings type before returning
+        const updatedSettingsCamel = convertPayloadToCamelCase(updatedSettings);
+        return updatedSettingsCamel as Settings;
 
     } catch (error) {
         console.error('[updateUserSettings] Caught unexpected error:', error);
