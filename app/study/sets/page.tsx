@@ -15,10 +15,12 @@ import {
 import { toast } from 'sonner';
 import { Loader2 as IconLoader, Edit, Trash2, Play, BookOpen } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import type { DbStudySet } from '@/types/database'; // Use DbStudySet type
+import type { Tables } from '@/types/database'; // Import Tables
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Terminal } from "lucide-react"
 
+// Define DbStudySet using Tables
+type DbStudySet = Tables<'study_sets'>;
 
 export default function ListStudySetsPage() {
   const router = useRouter();

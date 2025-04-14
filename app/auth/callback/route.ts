@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { createServerClient } from '@/lib/supabase/server'
 
 /**
  * Handles the GET request for the authentication callback.
@@ -16,7 +16,7 @@ export async function GET(request: Request) {
   // const next = searchParams.get('next') ?? '/'
 
   if (code) {
-    const supabase = createSupabaseServerClient()
+    const supabase = createServerClient()
     try {
       const { error, data } = await supabase.auth.exchangeCodeForSession(code)
       

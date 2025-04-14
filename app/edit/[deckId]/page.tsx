@@ -10,7 +10,7 @@ import Link from "next/link"
 import { CardEditor } from "@/components/card-editor"
 // import { TableEditor } from "@/components/table-editor" // Comment out until refactored
 import { useDecks } from "@/hooks/use-decks"
-import type { DbDeck, DbCard } from "@/types/database"
+import type { Tables } from "@/types/database" // Import Tables
 import type { UpdateDeckParams } from "@/hooks/use-decks"
 import { toast } from "sonner"
 import { Switch } from "@/components/ui/switch"
@@ -20,6 +20,10 @@ import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Terminal } from "lucide-react"
 import { createCard as createCardAction, updateCard as updateCardAction } from "@/lib/actions/cardActions"
+
+// Define types using Tables
+type DbDeck = Tables<'decks'>;
+type DbCard = Tables<'cards'>;
 
 /**
  * Edit Deck Page Component.
@@ -67,6 +71,7 @@ export default function EditDeckPage() {
             if (result.error) throw result.error;
             if (result.data) {
                 const fetchedDeck = result.data;
+                // Ensure cards are typed correctly
                 setDeck({ ...fetchedDeck, cards: fetchedDeck.cards as Array<Partial<DbCard>> });
             } else {
                 throw new Error("Deck not found after refetch.");
@@ -101,7 +106,7 @@ export default function EditDeckPage() {
               // Correctly set state matching DeckEditState
               setDeck({ 
                   ...fetchedDeck, 
-                  cards: fetchedDeck.cards as Array<Partial<DbCard>> 
+                  cards: fetchedDeck.cards as Array<Partial<DbCard>> // Ensure cards are typed
               }); 
               setError(null);
           } else {
@@ -195,7 +200,8 @@ export default function EditDeckPage() {
         correct_count: 0,
         incorrect_count: 0,
       };
-      setDeck(prev => prev ? { ...prev, cards: [...prev.cards, newCard] } : null);
+      // Add type to prev
+      setDeck((prev: DeckEditState | null) => prev ? { ...prev, cards: [...prev.cards, newCard] } : null);
     }
   }
 
@@ -238,7 +244,8 @@ export default function EditDeckPage() {
     let changed = false;
 
     // Find the original card state to compare
-    const originalCard = deck?.cards.find(c => c.id === cardId);
+    // Add type to c
+    const originalCard = deck?.cards.find((c: Partial<DbCard>) => c.id === cardId);
 
     if (originalCard?.question !== question) {
         updatePayload.question = question;
@@ -263,17 +270,19 @@ export default function EditDeckPage() {
         console.log(`[EditDeckPage] Calling updateCardAction for ${cardId} with payload:`, updatePayload);
         const result = await updateCardAction(cardId, updatePayload);
         if (result.error) {
-            toast.error(`Failed to update card`, { id: `update-${cardId}`, description: result.error.message });
+            // Use result.error directly as it's a string
+            toast.error(`Failed to update card`, { id: `update-${cardId}`, description: result.error });
             // TODO: Optionally revert optimistic update here
             // await refetchDeck(); // Or refetch on error
         } else {
             // toast.success(`Card changes saved!`, { id: `update-${cardId}` }); // Success feedback
             // Update local state with the confirmed data from the server
-             setDeck(prevDeck => {
+             // Add type to prevDeck and c
+             setDeck((prevDeck: DeckEditState | null) => {
                  if (!prevDeck) return null;
                  return {
                      ...prevDeck,
-                     cards: prevDeck.cards.map(c => c.id === cardId ? result.data : c) as Array<Partial<DbCard>>
+                     cards: prevDeck.cards.map((c: Partial<DbCard>) => c.id === cardId ? result.data : c) as Array<Partial<DbCard>>
                  };
             });
         }
@@ -285,11 +294,12 @@ export default function EditDeckPage() {
 
   const handleDeleteCard = (cardId: string) => {
     if (deck) {
-      setDeck(prevDeck => {
+      // Add type to prevDeck and card
+      setDeck((prevDeck: DeckEditState | null) => {
           if (!prevDeck) return null;
           return {
               ...prevDeck,
-              cards: prevDeck.cards.filter((card) => card.id !== cardId)
+              cards: prevDeck.cards.filter((card: Partial<DbCard>) => card.id !== cardId)
           };
       });
     }
@@ -366,7 +376,8 @@ export default function EditDeckPage() {
           <Switch
             checked={deck.is_bilingual ?? false}
             onCheckedChange={(checked) =>
-              setDeck((prev) => prev ? {
+              // Add type to prev
+              setDeck((prev: DeckEditState | null) => prev ? {
                 ...prev,
                 is_bilingual: checked,
                 // When switching to monolingual, copy primary to secondary
@@ -382,7 +393,8 @@ export default function EditDeckPage() {
               <Label htmlFor="primaryLanguage">Front/Primary Language</Label>
               <Select
                 value={deck.primary_language ?? undefined}
-                onValueChange={(value) => setDeck((prev) => prev ? { ...prev, primary_language: value } : null) }
+                // Add type to value and prev
+                onValueChange={(value: string) => setDeck((prev: DeckEditState | null) => prev ? { ...prev, primary_language: value } : null) }
               >
                 <SelectTrigger id="primaryLanguage">
                   <SelectValue placeholder="Select language" />
@@ -401,7 +413,8 @@ export default function EditDeckPage() {
               <Label htmlFor="secondaryLanguage">Back/Secondary Language</Label>
               <Select
                  value={deck.secondary_language ?? undefined}
-                 onValueChange={(value) => setDeck((prev) => prev ? { ...prev, secondary_language: value } : null) }
+                 // Add type to value and prev
+                 onValueChange={(value: string) => setDeck((prev: DeckEditState | null) => prev ? { ...prev, secondary_language: value } : null) }
               >
                 <SelectTrigger id="secondaryLanguage">
                   <SelectValue placeholder="Select language" />
@@ -422,8 +435,9 @@ export default function EditDeckPage() {
             <Label htmlFor="language">Language</Label>
             <Select
               value={deck.primary_language ?? undefined}
-              onValueChange={(value) =>
-                setDeck((prev) => prev ? {
+              // Add type to value and prev
+              onValueChange={(value: string) =>
+                setDeck((prev: DeckEditState | null) => prev ? {
                   ...prev,
                   primary_language: value,
                   secondary_language: value,
@@ -470,7 +484,7 @@ export default function EditDeckPage() {
             </Card>
           ) : (
             <div className="space-y-4">
-              {deck.cards.map((cardData, index) => (
+              {deck.cards.map((cardData: Partial<DbCard>, index: number) => (
                 <CardEditor
                   key={cardData.id || `new-${index}`}
                   card={cardData}

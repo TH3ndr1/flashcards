@@ -6,7 +6,13 @@ import { detectSystemLanguage } from "@/lib/utils";
 import { getUserSettings, updateUserSettings } from "@/lib/actions/settingsActions";
 import { toast } from "sonner";
 import type { PostgrestError } from "@supabase/supabase-js";
-import type { DbSettings } from "@/types/database";
+import type { Tables } from "@/types/database";
+
+// Define ActionResult type
+type ActionResult<T> = {
+  data: T | null;
+  error: string | null;
+};
 
 // Debug flag
 const DEBUG = true;
@@ -30,7 +36,6 @@ export interface Settings {
   masteryThreshold: number;
   ttsEnabled: boolean;
   removeMasteredCards?: boolean;
-  srs_algorithm: 'sm2' | 'fsrs';
   languageDialects: {
     en: string;
     nl: string;
@@ -40,6 +45,8 @@ export interface Settings {
     it: string;
   };
 }
+
+type DbSettings = Tables<'settings'>; // Define DbSettings using Tables
 
 interface SettingsContextType {
   settings: Settings | null;
@@ -54,7 +61,6 @@ export const DEFAULT_SETTINGS: Settings = {
   masteryThreshold: 3,
   ttsEnabled: true,
   removeMasteredCards: false,
-  srs_algorithm: 'sm2',
   languageDialects: {
     en: "en-GB",
     nl: "nl-NL",
@@ -72,7 +78,6 @@ const transformDbSettingsToSettings = (dbSettings: DbSettings | null): Settings 
         const cardFontValue = dbSettings.card_font as FontOption | null;
         const isValidFont = ['default', 'opendyslexic', 'atkinson'].includes(cardFontValue ?? '');
         const cardFontFinal = isValidFont && cardFontValue ? cardFontValue : 'default';
-        const srsAlgoValue = dbSettings.srs_algorithm === 'fsrs' ? 'fsrs' : 'sm2';
 
         // Use proper BCP-47 language codes as defaults
         const DEFAULT_DIALECTS = { 
@@ -94,8 +99,6 @@ const transformDbSettingsToSettings = (dbSettings: DbSettings | null): Settings 
             showDifficulty: dbSettings.show_difficulty ?? true,
             masteryThreshold: dbSettings.mastery_threshold ?? 3, // DEFAULT_MASTERY_THRESHOLD
             cardFont: cardFontFinal,
-            srs_algorithm: srsAlgoValue,
-            // removeMasteredCards: dbSettings.remove_mastered_cards ?? false, // If field exists
         };
     } catch (e) {
         console.error("Error transforming DbSettings:", e);
@@ -105,7 +108,7 @@ const transformDbSettingsToSettings = (dbSettings: DbSettings | null): Settings 
 
 export const SettingsContext = createContext<SettingsContextType>({
   settings: null,
-  updateSettings: async () => ({ data: null, error: new Error("Provider not initialized") }),
+  updateSettings: async () => ({ data: null, error: null }),
   loading: true,
 });
 
@@ -137,13 +140,13 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       setLoading(true); 
       try {
         debug('Loading settings via action for user', user.id);
-        // Call the correct function
+        // Call the correct function - It now returns ActionResult correctly
         const { data: dbSettings, error } = await getUserSettings();
 
         if (error) {
           console.error("Failed to load settings:", error);
           debug('Error loading settings, using defaults', DEFAULT_SETTINGS);
-          toast.error("Failed to load settings", { description: error.message || "Using default settings." });
+          toast.error("Failed to load settings", { description: error || "Using default settings." });
           setSettings(DEFAULT_SETTINGS);
         } else {
           const transformed = transformDbSettingsToSettings(dbSettings);
@@ -179,7 +182,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       debug('Cannot update settings - missing settings or user');
       const error = new Error("Cannot save settings: user or current settings missing.");
       toast.warning("Cannot save settings", { description: error.message });
-      return { data: null, error };
+      return { data: null, error: null };
     }
     
     // Optimistic update
@@ -187,21 +190,21 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     setSettings(prev => prev ? { ...prev, ...updates } : null);
     
     try {
-      // Call the server action
-      const result = await updateUserSettings({ updates });
+      // Call the server action - It now returns ActionResult correctly
+      const { data, error } = await updateUserSettings({ updates });
 
-      if (result.error) {
-        console.error("Failed to update settings via action:", result.error);
-        debug('Settings action update failed', { error: result.error });
-        toast.error("Error Saving Settings", { description: result.error.message || "Could not save settings." });
+      if (error) {
+        console.error("Failed to update settings via action:", error);
+        debug('Settings action update failed', { error });
+        toast.error("Error Saving Settings", { description: error || "Could not save settings." });
         // Revert optimistic update on error
         setSettings(previousSettings); 
-        return { data: null, error: result.error }; // Return error from action
+        return { data: null, error: error };
       } else {
-        debug('Settings action update successful', result.data);
+        debug('Settings action update successful', data);
         // Optimistic update already applied, just return success
         // Optionally transform result.data back to Settings type if needed
-        return { data: result.data, error: null }; 
+        return { data, error: null }; 
       }
     } catch (unexpectedError) {
       console.error("Unexpected error during settings action call:", unexpectedError);
@@ -210,7 +213,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       toast.error("Error Saving Settings", { description: error.message });
       // Revert optimistic update
       setSettings(previousSettings);
-      return { data: null, error };
+      return { data: null, error: error.message };
     }
   }, [settings, user]); // Dependencies are settings and user
 

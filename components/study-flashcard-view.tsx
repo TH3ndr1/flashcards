@@ -8,7 +8,6 @@ import type { Settings } from "@/providers/settings-provider";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Repeat, ThumbsDown, ThumbsUp, Zap, Volume2 } from "lucide-react";
-import { DifficultyIndicator } from "@/components/difficulty-indicator";
 import { getFontClass } from "@/lib/fonts";
 import { useTTS } from "@/hooks/use-tts";
 import {
@@ -136,9 +135,6 @@ export function StudyFlashcardView({
               <CardHeader className="text-xs text-muted-foreground bg-muted/50 border-b py-2 px-4">
                  <div className="flex justify-between items-center">
                   <span>{progressText || '\u00A0'}</span>
-                  {settings?.showDifficulty && card.difficulty !== null && card.difficulty !== undefined && (
-                     <DifficultyIndicator difficultyScore={card.difficulty} /> 
-                  )}
                 </div>
               </CardHeader>
               <CardContent className="p-6 text-center relative overflow-auto flex-grow flex items-center justify-center">
@@ -162,9 +158,6 @@ export function StudyFlashcardView({
                <CardHeader className="text-xs text-muted-foreground bg-muted/50 border-b py-2 px-4">
                  <div className="flex justify-between items-center">
                   <span>{progressText || '\u00A0'}</span>
-                  {settings?.showDifficulty && card.difficulty !== null && card.difficulty !== undefined &&(
-                    <DifficultyIndicator difficultyScore={card.difficulty} />
-                  )}
                 </div>
               </CardHeader>
               <CardContent className="p-6 text-center relative overflow-auto flex-grow flex items-center justify-center">

@@ -5,12 +5,15 @@ import { useRouter, useParams } from 'next/navigation';
 import { StudySetBuilder } from '@/components/study/StudySetBuilder'; // Adjust path if needed
 import { getStudySet, updateStudySet } from '@/lib/actions/studySetActions'; // Import actions
 import type { StudyQueryCriteria } from '@/lib/schema/study-query.schema';
-import type { DbStudySet } from '@/types/database'; // Import DbStudySet type
+import type { Tables } from '@/types/database'; // Import Tables
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Loader2 as IconLoader, AlertTriangle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+
+// Define the DbStudySet type using Tables
+type DbStudySet = Tables<'study_sets'>;
 
 // Define the type for the data passed to the onSave callback
 interface StudySetSaveData {

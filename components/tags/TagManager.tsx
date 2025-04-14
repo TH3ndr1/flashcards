@@ -19,7 +19,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Loader2 as IconLoader, X as IconX, Plus as IconPlus, Trash2 as IconTrash } from 'lucide-react';
-import type { DbTag } from '@/types/database';
+import type { Tables } from "@/types/database";
+type DbTag = Tables<'tags'>;
 import { Label } from '@/components/ui/label';
 
 /**

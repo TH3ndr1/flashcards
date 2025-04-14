@@ -18,7 +18,7 @@ import { useTags } from '@/hooks/useTags';
 import { useDecks } from '@/hooks/useDecks';
 import type { StudyQueryCriteria } from '@/lib/schema/study-query.schema';
 import type { Database, Tables } from "@/types/database";
-import type { DbTag } from '@/types/database';
+type DbTag = Tables<'tags'>;
 import { toast } from 'sonner';
 import { cn } from "@/lib/utils";
 import { CalendarIcon, Check, ChevronsUpDown, Loader2 as IconLoader, Plus as IconPlus, X as IconX } from "lucide-react";

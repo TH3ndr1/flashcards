@@ -47,31 +47,33 @@ type UpdateSettingsInput = z.infer<typeof updateSettingsSchema>;
  * @returns {Promise<Settings>} The user's settings
  * @throws {Error} If settings fetch fails or user is not authenticated
  */
-export async function getUserSettings(): Promise<Settings> {
+export async function getUserSettings(): Promise<ActionResult<DbSettings | null>> {
     try {
         const supabase = createActionClient();
         const { data: { user }, error: authError } = await supabase.auth.getUser();
         if (authError || !user) {
-            throw new Error(authError?.message || 'Not authenticated');
+            console.error("[getUserSettings] Auth Error:", authError);
+            return { data: null, error: authError?.message || 'Not authenticated' };
         }
 
         const { data, error } = await supabase
             .from('settings')
-            .select('*')
+            .select('*' // Select all DB columns
+            )
             .eq('user_id', user.id)
             .maybeSingle();
             
         if (error) {
             console.error("[getUserSettings] Error:", error);
-            throw new Error(error.message || "Failed to fetch settings.");
+            return { data: null, error: error.message || "Failed to fetch settings." };
         }
-        // Convert snake_case DB result to camelCase Settings type
-        const settingsResult = data ? convertPayloadToCamelCase(data) : null;
-        return settingsResult as Settings; // Cast after conversion
+        // Return the raw DbSettings (snake_case)
+        return { data: data, error: null };
 
     } catch (error) {
         console.error('[getUserSettings] Unexpected error:', error);
-        throw error instanceof Error ? error : new Error('Unknown error fetching settings');
+        const err = error instanceof Error ? error : new Error('Unknown error fetching settings');
+        return { data: null, error: err.message };
     }
 }
 
@@ -87,7 +89,7 @@ export async function updateUserSettings({
   updates,
 }: {
   updates: Partial<Settings>;
-}): Promise<Settings> {
+}): Promise<ActionResult<DbSettings | null>> {
     console.log(`[updateUserSettings] Action started.`);
     try {
         const supabase = createActionClient();
@@ -95,19 +97,19 @@ export async function updateUserSettings({
 
         if (authError || !user) {
              console.error('[updateUserSettings] Auth error:', authError);
-             throw new Error(authError?.message || 'Not authenticated');
+             return { data: null, error: authError?.message || 'Not authenticated' };
         }
 
         // Validate the partial updates
         const validation = updateSettingsSchema.safeParse(updates);
         if (!validation.success) {
              console.warn("[updateUserSettings] Validation failed:", validation.error.errors);
-             throw new Error(validation.error.errors[0].message);
+             return { data: null, error: validation.error.errors[0].message };
         }
         const validatedUpdates = validation.data;
 
         if (Object.keys(validatedUpdates).length === 0) {
-             throw new Error("No valid fields provided for update.");
+             return { data: null, error: "No valid fields provided for update." };
         }
 
         // Map frontend camelCase settings to DB snake_case columns
@@ -137,23 +139,23 @@ export async function updateUserSettings({
 
         if (upsertError) {
             console.error('[updateUserSettings] Upsert error:', upsertError);
-            throw new Error(upsertError.message || 'Failed to update settings.');
+            return { data: null, error: upsertError.message || 'Failed to update settings.' };
         }
         
         if (!updatedSettings) {
              console.error('[updateUserSettings] No data returned after upsert.');
-             throw new Error('Failed to confirm settings update.');
+             return { data: null, error: 'Failed to confirm settings update.' };
         }
 
         console.log(`[updateUserSettings] Success for user: ${user.id}`);
         // Revalidate paths? Maybe revalidate layout if settings affect global UI
         // revalidatePath('/', 'layout');
-        // Convert snake_case DB result to camelCase Settings type before returning
-        const updatedSettingsCamel = convertPayloadToCamelCase(updatedSettings);
-        return updatedSettingsCamel as Settings;
+        // Return the raw DbSettings (snake_case)
+        return { data: updatedSettings, error: null };
 
     } catch (error) {
         console.error('[updateUserSettings] Caught unexpected error:', error);
-        throw error instanceof Error ? error : new Error('Unknown error updating settings');
+        const err = error instanceof Error ? error : new Error('Unknown error updating settings');
+        return { data: null, error: err.message };
     }
 } 
