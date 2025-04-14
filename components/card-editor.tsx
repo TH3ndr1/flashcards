@@ -10,6 +10,7 @@ import type { Tables } from "@/types/database"
 import { debounce } from "@/lib/utils"
 import { CardTagEditor } from "./CardTagEditor"
 import { toast } from "sonner"
+import { cn } from "@/lib/utils"
 
 const DEBOUNCE_WAIT_MS = 500;
 
@@ -89,7 +90,22 @@ export function CardEditor({ card, onUpdate, onDelete, onCreate }: CardEditorPro
   };
 
   return (
-    <Card className={!isExistingCard ? "border-primary border-2 shadow-lg shadow-primary/20" : ""}>
+    <Card className={cn(
+      "relative",
+      !isExistingCard ? "border-primary border-2 shadow-lg shadow-primary/20" : ""
+    )}>
+       {isExistingCard && card.id && (
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={handleDelete} 
+            aria-label="Delete card" 
+            className="absolute top-3 right-3 h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+          >
+              <Trash2 className="h-4 w-4" />
+          </Button>
+       )}
+
       <CardContent className="p-4 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -116,18 +132,16 @@ export function CardEditor({ card, onUpdate, onDelete, onCreate }: CardEditorPro
           </div>
         </div>
 
+        {/* Tags Section - Only for existing cards */}
         {isExistingCard && card.id && (
-            <div className="pt-2 border-t mt-4">
-                <CardTagEditor cardId={card.id} />
-            </div>
+          <div className="flex items-center gap-2 pt-2 border-t mt-4">
+            <CardTagEditor cardId={card.id} />
+          </div>
         )}
       </CardContent>
+      
       <CardFooter className="flex justify-end p-4 pt-2">
-         {isExistingCard && card.id && (
-            <Button variant="ghost" size="icon" onClick={handleDelete} aria-label="Delete card" className="text-destructive hover:text-destructive hover:bg-destructive/10">
-                <Trash2 className="h-4 w-4" />
-            </Button>
-         )}
+         
          {!isExistingCard && onCreate && (
              <Button onClick={handleCreate} disabled={isSavingNew || !internalQuestion.trim() || !internalAnswer.trim()} size="sm">
                 {isSavingNew ? <IconLoader className="h-4 w-4 animate-spin mr-2"/> : <Save className="h-4 w-4 mr-2" />} 

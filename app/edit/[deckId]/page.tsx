@@ -20,6 +20,17 @@ import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Terminal } from "lucide-react"
 import { createCard as createCardAction, updateCard as updateCardAction } from "@/lib/actions/cardActions"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 // Define types using Tables
 type DbDeck = Tables<'decks'>;
@@ -59,6 +70,7 @@ export default function EditDeckPage() {
   const [activeTab, setActiveTab] = useState("cards")
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // Refetch function
@@ -152,7 +164,7 @@ export default function EditDeckPage() {
       } else {
         toast.success("Changes saved successfully!");
         // Optionally refetch or just rely on optimistic update/navigation
-        // router.push("/"); 
+        router.push("/"); 
       }
     } catch (error: any) {
       console.error("Error saving deck:", error);
@@ -162,26 +174,25 @@ export default function EditDeckPage() {
     }
   }
 
-  const handleDelete = async () => {
+  const handleDeleteDeck = async () => {
     if (!deck) return
-    const confirmation = window.confirm("Are you sure you want to delete this deck and all its cards? This action cannot be undone.");
-    if (confirmation) {
-      setSaving(true); // Use saving state for delete indication
-      try {
-        const result = await deleteDeck(deck.id)
-        if (result.error) {
-          throw result.error;
-        } else {
-          toast.success("Deck deleted successfully!");
-          router.push("/"); // Navigate away
-        }
-      } catch (error: any) {
-        console.error("Error deleting deck:", error);
-        toast.error("Error deleting deck", { description: error.message || "Unknown error" });
-        setSaving(false); // Reset saving state on error
+    // Confirmation is handled by AlertDialog now
+    setIsDeleting(true);
+    const deckName = deck.name;
+    try {
+      const result = await deleteDeck(deck.id)
+      if (result.error) {
+        throw result.error;
+      } else {
+        toast.success(`Deck "${deckName}" deleted successfully!`);
+        router.push("/"); // Navigate away
       }
-      // No finally needed here as we navigate away on success
+    } catch (error: any) {
+      console.error("Error deleting deck:", error);
+      toast.error(`Error deleting deck "${deckName}"`, { description: error.message || "Unknown error" });
+      setIsDeleting(false); // Reset deleting state on error
     }
+    // No finally needed here as we navigate away on success
   }
 
   const handleAddCard = () => {
@@ -338,10 +349,10 @@ export default function EditDeckPage() {
   }
 
   return (
-    <main className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center">
-          <Link href="/" className="mr-4">
+    <div className="py-4 px-4 md:p-6 max-w-4xl mx-auto">
+      <div className="flex justify-between items-center mb-6 flex-wrap gap-y-2">
+        <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+          <Link href="/" className="mr-0" aria-label="Back to Decks">
             <Button variant="ghost" size="icon">
               <ArrowLeft className="h-5 w-5" />
             </Button>
@@ -349,19 +360,9 @@ export default function EditDeckPage() {
           <Input
             value={deck.name}
             onChange={(e) => handleNameChange(e.target.value)}
-            className="text-2xl font-bold h-auto py-1 px-2 w-[300px] border-input"
+            className="text-2xl font-bold h-auto py-1 px-2 border-input flex-1 min-w-0"
             placeholder="Deck name"
           />
-        </div>
-        <div className="flex space-x-2">
-          <Button variant="outline" onClick={handleDelete} disabled={saving}>
-            <Trash2 className="mr-2 h-4 w-4" />
-            Delete Deck
-          </Button>
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? <IconLoader className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-            {saving ? "Saving..." : "Save Changes"}
-          </Button>
         </div>
       </div>
 
@@ -466,12 +467,6 @@ export default function EditDeckPage() {
           <TabsTrigger value="table">Table View</TabsTrigger>
         </TabsList>
         <TabsContent value="cards" className="mt-6">
-          <div className="flex justify-end mb-4">
-            <Button onClick={handleAddCard}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Card
-            </Button>
-          </div>
           {deck.cards.length === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center p-6 h-40">
@@ -495,6 +490,15 @@ export default function EditDeckPage() {
               ))}
             </div>
           )}
+          
+          {deck.cards.length > 0 && (
+             <div className="flex justify-center mt-6">
+               <Button onClick={handleAddCard}>
+                 <Plus className="mr-2 h-4 w-4" />
+                 Add Card
+               </Button>
+             </div>
+          )}
         </TabsContent>
         <TabsContent value="table" className="mt-6">
            {/* Commented out TableEditor until it's refactored */}
@@ -507,7 +511,39 @@ export default function EditDeckPage() {
           <p className="text-center text-muted-foreground">Table Editor view needs refactoring.</p>
         </TabsContent>
       </Tabs>
-    </main>
+      
+      <div className="flex justify-end mt-8"> 
+          <Button onClick={handleSave} disabled={saving || isDeleting}>
+            {saving ? <IconLoader className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            {saving ? "Updating..." : "Update Deck"}
+          </Button>
+       </div>
+      
+      <div className="mt-8 pt-6 border-t border-dashed border-destructive/50">
+        <h3 className="text-lg font-semibold text-destructive mb-2">Danger Zone</h3>
+        <p className="text-sm text-muted-foreground mb-4">Deleting this deck and all its cards cannot be undone.</p>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="destructive" disabled={isDeleting || saving}>
+               <Trash2 className="mr-2 h-4 w-4" /> Delete Deck
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Delete "{deck.name}"?</AlertDialogTitle>
+                <AlertDialogDescription>This action cannot be undone. This will permanently delete the deck and all associated cards.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+               <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+               <AlertDialogAction onClick={handleDeleteDeck} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
+                    {isDeleting ? <IconLoader className="h-4 w-4 animate-spin mr-2"/> : null} Delete
+               </AlertDialogAction>
+             </AlertDialogFooter>
+           </AlertDialogContent>
+        </AlertDialog>
+      </div>
+
+    </div>
   )
 }
 

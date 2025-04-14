@@ -4,146 +4,117 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useStudySets } from '@/hooks/useStudySets';
-import { deleteStudySet } from '@/lib/actions/studySetActions';
 import { useStudySessionStore, StudyInput } from '@/store/studySessionStore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { toast } from 'sonner';
-import { Loader2 as IconLoader, Edit, Trash2, Play, BookOpen } from 'lucide-react';
+import { Edit, Play, BookOpen, GraduationCap } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import type { Tables } from '@/types/database'; // Import Tables
+import type { Tables } from '@/types/database';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Terminal } from "lucide-react"
+import { cn } from "@/lib/utils";
 
 // Define DbStudySet using Tables
 type DbStudySet = Tables<'study_sets'>;
 
 export default function ListStudySetsPage() {
   const router = useRouter();
-  const { studySets, isLoading, error, refetchStudySets } = useStudySets();
+  const { studySets, isLoading, error } = useStudySets();
   const setStudyParameters = useStudySessionStore((state) => state.setStudyParameters);
-  const [deletingId, setDeletingId] = useState<string | null>(null); // Track which set is being deleted
 
   const handleStudy = (studySetId: string, mode: 'learn' | 'review') => {
     console.log(`[ListStudySetsPage] Starting session for Set ID: ${studySetId}, Mode: ${mode}`);
-    // Prepare the input for the store/action
     const actionInput: StudyInput = { studySetId: studySetId };
     setStudyParameters(actionInput, mode);
     router.push('/study/session');
   };
 
-  const handleDelete = async (studySet: DbStudySet) => {
-    setDeletingId(studySet.id);
-    console.log(`[ListStudySetsPage] Deleting study set: ${studySet.name} (${studySet.id})`);
-    try {
-      const result = await deleteStudySet(studySet.id);
-      if (result.error) {
-        toast.error(`Failed to delete "${studySet.name}"`, { description: result.error });
-      } else {
-        toast.success(`Study Set "${studySet.name}" deleted.`);
-        await refetchStudySets(); // Refresh the list
-      }
-    } catch (err) {
-      console.error(`[ListStudySetsPage] Unexpected error deleting study set:`, err);
-      toast.error("An unexpected error occurred while deleting.");
-    } finally {
-      setDeletingId(null);
-    }
-  };
-
   // --- Render Logic ---
 
   return (
-    <div className="container mx-auto p-4 md:p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Your Smart Playlists</h1>
-        <Button asChild>
-          <Link href="/study/sets/new">Create New Playlist</Link>
-        </Button>
-      </div>
-
-      {isLoading && (
-        <div className="flex justify-center items-center h-40">
-           <IconLoader className="h-6 w-6 animate-spin mr-2" /> Loading playlists...
+    <TooltipProvider>
+      <div className="py-4 px-4 md:p-6">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold">Your Smart Playlists</h1>
+          <Button asChild>
+            <Link href="/study/sets/new">Create New Playlist</Link>
+          </Button>
         </div>
-      )}
 
-      {error && (
-         <Alert variant="destructive"><Terminal className="h-4 w-4" /><AlertTitle>Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>
-      )}
+        {isLoading && (
+          <div className="flex justify-center items-center h-40">
+             Loading playlists...
+          </div>
+        )}
 
-      {!isLoading && !error && studySets.length === 0 && (
-        <p className="text-center text-muted-foreground mt-10">You haven't created any smart playlists yet.</p>
-      )}
+        {error && (
+           <Alert variant="destructive"><Terminal className="h-4 w-4" /><AlertTitle>Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>
+        )}
 
-      {!isLoading && !error && studySets.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {studySets.map((set) => (
-            <Card key={set.id}>
-              <CardHeader>
-                <CardTitle>{set.name}</CardTitle>
-                {set.description && (
-                  <CardDescription>{set.description}</CardDescription>
-                )}
-              </CardHeader>
-              <CardContent>
-                 <p className="text-xs text-muted-foreground">
-                    Last updated: {formatDistanceToNow(new Date(set.updated_at), { addSuffix: true })}
-                 </p>
-              </CardContent>
-              <CardFooter className="flex justify-end gap-2">
-                 {/* Delete Button */}
-                 <AlertDialog>
-                   <AlertDialogTrigger asChild>
-                      <Button variant="ghost" size="icon" disabled={deletingId === set.id} aria-label={`Delete ${set.name}`}>
-                        {deletingId === set.id ? <IconLoader className="h-4 w-4 animate-spin"/> : <Trash2 className="h-4 w-4" />}
-                      </Button>
-                   </AlertDialogTrigger>
-                   <AlertDialogContent>
-                      <AlertDialogHeader><AlertDialogTitle>Delete "{set.name}"?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel disabled={deletingId === set.id}>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => handleDelete(set)} disabled={deletingId === set.id} className="bg-destructive hover:bg-destructive/90">
-                            {deletingId === set.id ? <IconLoader className="h-4 w-4 animate-spin mr-2"/> : null} Delete
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                 </AlertDialog>
+        {!isLoading && !error && studySets.length === 0 && (
+          <p className="text-center text-muted-foreground mt-10">You haven't created any smart playlists yet.</p>
+        )}
 
-                {/* Edit Button */}
-                 <Button variant="outline" size="sm" asChild>
-                   <Link href={`/study/sets/${set.id}/edit`} aria-label={`Edit ${set.name}`}> 
-                      <Edit className="h-4 w-4 mr-1" /> Edit 
-                   </Link>
-                 </Button>
-
-                 {/* Study Buttons - Add Learn Button */}
-                 <div className="flex gap-2"> {/* Group study buttons */} 
+        {!isLoading && !error && studySets.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {studySets.map((set) => (
+              <Card key={set.id} className="hover:shadow-md transition-shadow flex flex-col bg-gradient-to-b from-slate-100/40 dark:from-slate-800/40 to-transparent">
+                <CardHeader className="pt-4 pb-2 space-y-1 px-4">
+                  <div className="flex justify-between items-center">
+                    <CardTitle className="truncate" title={set.name}>{set.name}</CardTitle>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-7 w-7 flex-shrink-0 text-muted-foreground" 
+                          aria-label={`Edit ${set.name}`}
+                          asChild
+                        >
+                           <Link href={`/study/sets/${set.id}/edit`}> 
+                             <Edit className="h-4 w-4" />
+                           </Link>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Edit Playlist</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                  <CardDescription>
+                    {set.description || `Updated ${formatDistanceToNow(new Date(set.updated_at), { addSuffix: true })}`}
+                  </CardDescription>
+                </CardHeader>
+                <CardFooter className="flex justify-end items-center mt-auto pt-4">
+                   <div className="flex gap-3">
                       <Button 
-                          size="sm" 
-                          variant="secondary" // Style Learn differently
                           onClick={() => handleStudy(set.id, 'learn')} 
                           aria-label={`Learn ${set.name}`}
+                          className="h-9 px-3 text-sm bg-gradient-to-br from-pink-500 to-red-500 hover:from-pink-600 hover:to-red-600 text-white"
                       >
-                         <BookOpen className="h-4 w-4 mr-1" /> Learn
+                         <GraduationCap className="h-4 w-4 mr-1" /> Learn
                       </Button>
                       <Button 
-                          size="sm" 
                           onClick={() => handleStudy(set.id, 'review')} 
                           aria-label={`Review ${set.name}`}
+                          className="h-9 px-3 text-sm bg-gradient-to-br from-blue-500 to-sky-500 hover:from-blue-600 hover:to-sky-600 text-white"
                       >
                          <Play className="h-4 w-4 mr-1" /> Review
                       </Button>
                   </div>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
-      )}
-    </div>
+                </CardFooter>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    </TooltipProvider>
   );
 } 

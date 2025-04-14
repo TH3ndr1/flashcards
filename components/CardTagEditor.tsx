@@ -92,77 +92,73 @@ export function CardTagEditor({ cardId }: CardTagEditorProps) {
   const showInitialLoader = isLoadingCardTags || isLoadingAllTags;
 
   return (
-    <div className="space-y-3">
-      <Label htmlFor="tag-combobox-trigger">Tags</Label>
-      {showInitialLoader ? (
-        <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-          <IconLoader className="h-4 w-4 animate-spin" />
-          <span>Loading tags...</span>
-        </div>
-      ) : (
-        <div className="flex flex-wrap gap-2 items-center min-h-[40px]"> 
-          {/* Display Current Tags */}
-          {(Array.isArray(cardTags) ? cardTags : []).map(tag => (
-            <Badge key={tag.id} variant="secondary" className="flex items-center gap-1 pl-2 pr-1 py-0.5">
-              <span className="text-sm">{tag.name}</span>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => handleRemoveTag(tag.id)}
-                disabled={actionLoading[`remove-${tag.id}`]}
-                aria-label={`Remove tag ${tag.name}`}
-                className="h-5 w-5 p-0 ml-1 hover:bg-destructive/20 rounded-full"
-              >
-                {actionLoading[`remove-${tag.id}`] ? (
-                  <IconLoader className="h-3 w-3 animate-spin" />
-                ) : (
-                  <IconX className="h-3 w-3" />
-                )}
-              </Button>
-            </Badge>
-          ))}
+    showInitialLoader ? (
+      <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+        <IconLoader className="h-4 w-4 animate-spin" />
+        <span>Loading tags...</span>
+      </div>
+    ) : (
+      <div className="flex flex-wrap gap-2 items-center min-h-[40px]"> 
+        <span className="text-sm font-medium text-muted-foreground mr-1">Tags:</span> 
 
-          {/* Add Tag Selector */}
-          <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                id="tag-combobox-trigger"
-                variant="outline"
-                size="sm"
-                className="h-7 px-2"
-                aria-label="Add tag"
-              >
-                <IconPlus className="h-4 w-4" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-[250px] p-0" align="start">
-              <Command filter={(value, search) => {
-                 if (value.toLowerCase().includes(search.toLowerCase())) return 1
-                 return 0
-               }}>
-                <CommandInput placeholder="Add tag..." />
-                <CommandList>
-                  <CommandEmpty>No available tags found.</CommandEmpty>
-                  <CommandGroup>
-                    {(Array.isArray(availableTagsToAdd) ? availableTagsToAdd : []).map(tag => (
-                      <CommandItem
-                        key={tag.id}
-                        value={tag.name}
-                        onSelect={() => handleAddTag(tag.id)}
-                        disabled={actionLoading[`add-${tag.id}`]}
-                        className="flex justify-between items-center text-sm h-8"
-                      >
-                        <span>{tag.name}</span>
-                        {actionLoading[`add-${tag.id}`] && <IconLoader className="h-4 w-4 animate-spin" />}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
-        </div>
-      )}
-    </div>
+        {(Array.isArray(cardTags) ? cardTags : []).map(tag => (
+          <Badge key={tag.id} variant="secondary" className="flex items-center gap-1 pl-2 pr-1 py-0.5">
+            <span className="text-sm">{tag.name}</span>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => handleRemoveTag(tag.id)}
+              disabled={actionLoading[`remove-${tag.id}`]}
+              aria-label={`Remove tag ${tag.name}`}
+              className="h-5 w-5 p-0 ml-1 hover:bg-destructive/20 rounded-full"
+            >
+              {actionLoading[`remove-${tag.id}`] ? (
+                <IconLoader className="h-3 w-3 animate-spin" />
+              ) : (
+                <IconX className="h-3 w-3" />
+              )}
+            </Button>
+          </Badge>
+        ))}
+
+        <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2"
+              aria-label="Add tag"
+            >
+              <IconPlus className="h-4 w-4" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[250px] p-0" align="start">
+            <Command filter={(value, search) => {
+               if (value.toLowerCase().includes(search.toLowerCase())) return 1
+               return 0
+             }}>
+              <CommandInput placeholder="Add tag..." />
+              <CommandList>
+                <CommandEmpty>No available tags found.</CommandEmpty>
+                <CommandGroup>
+                  {(Array.isArray(availableTagsToAdd) ? availableTagsToAdd : []).map(tag => (
+                    <CommandItem
+                      key={tag.id}
+                      value={tag.name}
+                      onSelect={() => handleAddTag(tag.id)}
+                      disabled={actionLoading[`add-${tag.id}`]}
+                      className="flex justify-between items-center text-sm h-8"
+                    >
+                      <span>{tag.name}</span>
+                      {actionLoading[`add-${tag.id}`] && <IconLoader className="h-4 w-4 animate-spin" />}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+      </div>
+    )
   );
 } 
