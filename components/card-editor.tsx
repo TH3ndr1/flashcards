@@ -28,10 +28,12 @@ export function CardEditor({ card, onUpdate, onDelete, onCreate }: CardEditorPro
   const isExistingCard = !!card?.id
 
   useEffect(() => {
+    // Only reset internal state if the card ID changes
     setInternalQuestion(card?.question || '')
     setInternalAnswer(card?.answer || '')
     setIsSavingNew(false)
-  }, [card?.id, card?.question, card?.answer])
+    // Dependency array now only watches card.id
+  }, [card?.id]);
 
   const debouncedOnUpdate = useCallback(
     debounce((question: string, answer: string) => {
@@ -134,21 +136,21 @@ export function CardEditor({ card, onUpdate, onDelete, onCreate }: CardEditorPro
 
         {/* Tags Section - Only for existing cards */}
         {isExistingCard && card.id && (
-          <div className="flex items-center gap-2 pt-2 border-t mt-4">
+          <div className="flex items-center gap-2 pt-2 border-t mt-2">
             <CardTagEditor cardId={card.id} />
           </div>
         )}
       </CardContent>
       
-      <CardFooter className="flex justify-end p-4 pt-2">
-         
-         {!isExistingCard && onCreate && (
-             <Button onClick={handleCreate} disabled={isSavingNew || !internalQuestion.trim() || !internalAnswer.trim()} size="sm">
-                {isSavingNew ? <IconLoader className="h-4 w-4 animate-spin mr-2"/> : <Save className="h-4 w-4 mr-2" />} 
-                Save New Card
-             </Button>
-         )}
-      </CardFooter>
+      {/* Conditionally render CardFooter only for new cards */}
+      {!isExistingCard && onCreate && (
+        <CardFooter className="flex justify-end p-2">
+           <Button onClick={handleCreate} disabled={isSavingNew || !internalQuestion.trim() || !internalAnswer.trim()} size="sm">
+              {isSavingNew ? <IconLoader className="h-4 w-4 animate-spin mr-2"/> : <Save className="h-4 w-4 mr-2" />} 
+              Save New Card
+           </Button>
+        </CardFooter>
+      )}
     </Card>
   )
 }

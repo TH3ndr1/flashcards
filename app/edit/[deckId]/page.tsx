@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -31,6 +31,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { debounce } from "@/lib/utils"
 
 // Define types using Tables
 type DbDeck = Tables<'decks'>;
@@ -60,6 +61,8 @@ type DbCard = Tables<'cards'>;
 // Define state type: DbDeck combined with potentially partial cards
 type DeckEditState = (DbDeck & { cards: Array<Partial<DbCard>> }) | null;
 
+const DECK_UPDATE_DEBOUNCE_MS = 1500; // Debounce for deck setting updates
+
 export default function EditDeckPage() {
   const params = useParams<{ deckId: string }>()
   const deckId = params?.deckId
@@ -72,6 +75,7 @@ export default function EditDeckPage() {
   const [saving, setSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const isMountedRef = useRef(false) // Ref to track initial mount/load
 
   // Refetch function
   const refetchDeck = useCallback(async () => {
@@ -121,6 +125,9 @@ export default function EditDeckPage() {
                   cards: fetchedDeck.cards as Array<Partial<DbCard>> // Ensure cards are typed
               }); 
               setError(null);
+              // Set mount ref *after* initial data is loaded
+              // Timeout allows initial render potentially before setting true
+              setTimeout(() => { if(isMounted) isMountedRef.current = true; }, 0); 
           } else {
                throw new Error("Deck not found");
           }
@@ -133,45 +140,13 @@ export default function EditDeckPage() {
       }
     };
     loadDeck();
-    return () => { isMounted = false; };
+    return () => { isMounted = false; isMountedRef.current = false; }; // Reset on unmount
   }, [deckId, getDeck, useDecksLoading]); 
 
   const handleNameChange = (newName: string) => {
     if (!deck) return
     // Use name (ensure DbDeck interface uses name)
     setDeck({ ...deck, name: newName });
-  }
-
-  // handleSave needs careful review of updateDeck's expected payload
-  const handleSave = async () => {
-    if (!deck) return
-    setSaving(true)
-    try {
-        // Prepare the payload matching UpdateDeckParams (excluding id and description)
-        const updatePayload: UpdateDeckParams = {
-            name: deck.name,
-            primary_language: deck.primary_language, 
-            secondary_language: deck.secondary_language,
-            is_bilingual: deck.is_bilingual,
-            // Add any other DbDeck fields allowed in UpdateDeckParams
-        };
-        
-        // Call updateDeck with id and the payload
-        const result = await updateDeck(deck.id, updatePayload); 
-
-      if (result.error) {
-        throw result.error;
-      } else {
-        toast.success("Changes saved successfully!");
-        // Optionally refetch or just rely on optimistic update/navigation
-        router.push("/"); 
-      }
-    } catch (error: any) {
-      console.error("Error saving deck:", error);
-      toast.error("Error saving changes", { description: error.message || "Unknown error" });
-    } finally {
-      setSaving(false)
-    }
   }
 
   const handleDeleteDeck = async () => {
@@ -316,6 +291,50 @@ export default function EditDeckPage() {
     }
   }
 
+  // Debounced function for updating deck settings
+  const debouncedUpdateDeckSettings = useCallback(
+    debounce(async (deckToSave: DbDeck) => {
+      if (!deckToSave || !deckToSave.id) return;
+      console.log("[EditDeckPage] Debounced Deck Settings Update Triggered");
+      // Indicate saving starts (optional, could use a subtle indicator)
+      // setSaving(true);
+      try {
+          const updatePayload: UpdateDeckParams = {
+              name: deckToSave.name,
+              primary_language: deckToSave.primary_language,
+              secondary_language: deckToSave.secondary_language,
+              is_bilingual: deckToSave.is_bilingual,
+          };
+          const result = await updateDeck(deckToSave.id, updatePayload);
+          if (result.error) {
+            toast.error("Auto-save failed", { description: result.error });
+          } else {
+            // Optionally, provide subtle success feedback if needed
+            // toast.success("Deck settings auto-saved");
+            // Update local state with returned data to ensure consistency if backend changes something
+             setDeck((prev: DeckEditState | null) => prev ? { ...prev, ...result.data } : null);
+          }
+      } catch (error: any) {
+        console.error("Error auto-saving deck settings:", error);
+        toast.error("Auto-save failed", { description: error.message || "Unknown error" });
+      } finally {
+        // Indicate saving ends
+        // setSaving(false);
+      }
+    }, DECK_UPDATE_DEBOUNCE_MS),
+    [updateDeck] // updateDeck should be stable from the hook
+  );
+
+  // useEffect to trigger debounced update on deck setting changes
+  useEffect(() => {
+    // Only run saves after initial data load is complete
+    if (isMountedRef.current && deck) {
+      console.log("[EditDeckPage] Deck setting changed, queueing auto-save...");
+      debouncedUpdateDeckSettings(deck as DbDeck);
+    }
+    // Watch ONLY relevant deck properties for changes, NOT the whole deck object
+  }, [deck?.name, deck?.is_bilingual, deck?.primary_language, deck?.secondary_language, debouncedUpdateDeckSettings]);
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-screen">
@@ -350,115 +369,89 @@ export default function EditDeckPage() {
 
   return (
     <div className="py-4 px-4 md:p-6 max-w-4xl mx-auto">
-      <div className="flex justify-between items-center mb-6 flex-wrap gap-y-2">
-        <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-          <Link href="/" className="mr-0" aria-label="Back to Decks">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-          </Link>
-          <Input
+      <div className="flex items-center justify-between mb-6">
+         <h1 className="text-2xl font-bold">Edit Deck</h1>
+         
+         <Button variant="outline" onClick={() => router.back()}> 
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back
+         </Button>
+      </div>
+
+      <div className="mb-6">
+         <Label htmlFor="deckNameInput">Deck Name</Label>
+         <Input
+            id="deckNameInput" 
             value={deck.name}
             onChange={(e) => handleNameChange(e.target.value)}
-            className="text-2xl font-bold h-auto py-1 px-2 border-input flex-1 min-w-0"
-            placeholder="Deck name"
-          />
-        </div>
+            className="mt-1" 
+            placeholder="Enter deck name"
+         />
       </div>
 
       <div className="mb-6 space-y-4">
-        <div className="flex items-center justify-between p-4 border rounded-lg">
-          <div>
-            <h3 className="font-medium">Bilingual Mode</h3>
-            <p className="text-sm text-muted-foreground">
-              Enable different languages for front and back
-            </p>
-          </div>
-          <Switch
-            checked={deck.is_bilingual ?? false}
-            onCheckedChange={(checked) =>
-              // Add type to prev
-              setDeck((prev: DeckEditState | null) => prev ? {
-                ...prev,
-                is_bilingual: checked,
-                // When switching to monolingual, copy primary to secondary
-                secondary_language: checked ? prev.secondary_language : prev.primary_language,
-              } : null)
-            }
-          />
-        </div>
-
-        {deck.is_bilingual ? (
-          <div className="grid gap-4 p-4 border rounded-lg sm:grid-cols-2">
+        <div className="p-4 border rounded-lg space-y-4">
+          <div className="flex items-center justify-between">
             <div>
-              <Label htmlFor="primaryLanguage">Front/Primary Language</Label>
-              <Select
-                value={deck.primary_language ?? undefined}
-                // Add type to value and prev
-                onValueChange={(value: string) => setDeck((prev: DeckEditState | null) => prev ? { ...prev, primary_language: value } : null) }
-              >
-                <SelectTrigger id="primaryLanguage">
-                  <SelectValue placeholder="Select language" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="en">English</SelectItem>
-                  <SelectItem value="nl">Dutch</SelectItem>
-                  <SelectItem value="fr">French</SelectItem>
-                  <SelectItem value="de">German</SelectItem>
-                  <SelectItem value="es">Spanish</SelectItem>
-                  <SelectItem value="it">Italian</SelectItem>
-                </SelectContent>
-              </Select>
+              <h3 className="font-medium">Bilingual Mode</h3>
+              <p className="text-sm text-muted-foreground">
+                Enable different languages for front and back
+              </p>
             </div>
-            <div>
-              <Label htmlFor="secondaryLanguage">Back/Secondary Language</Label>
-              <Select
-                 value={deck.secondary_language ?? undefined}
-                 // Add type to value and prev
-                 onValueChange={(value: string) => setDeck((prev: DeckEditState | null) => prev ? { ...prev, secondary_language: value } : null) }
-              >
-                <SelectTrigger id="secondaryLanguage">
-                  <SelectValue placeholder="Select language" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="en">English</SelectItem>
-                  <SelectItem value="nl">Dutch</SelectItem>
-                  <SelectItem value="fr">French</SelectItem>
-                  <SelectItem value="de">German</SelectItem>
-                  <SelectItem value="es">Spanish</SelectItem>
-                  <SelectItem value="it">Italian</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        ) : (
-          <div className="p-4 border rounded-lg">
-            <Label htmlFor="language">Language</Label>
-            <Select
-              value={deck.primary_language ?? undefined}
-              // Add type to value and prev
-              onValueChange={(value: string) =>
+            <Switch
+              checked={deck.is_bilingual ?? false}
+              onCheckedChange={(checked) =>
                 setDeck((prev: DeckEditState | null) => prev ? {
                   ...prev,
-                  primary_language: value,
-                  secondary_language: value,
+                  is_bilingual: checked,
+                  secondary_language: checked ? prev.secondary_language : prev.primary_language,
                 } : null)
               }
-            >
-              <SelectTrigger id="language">
-                <SelectValue placeholder="Select language" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="en">English</SelectItem>
-                <SelectItem value="nl">Dutch</SelectItem>
-                <SelectItem value="fr">French</SelectItem>
-                <SelectItem value="de">German</SelectItem>
-                <SelectItem value="es">Spanish</SelectItem>
-                <SelectItem value="it">Italian</SelectItem>
-              </SelectContent>
-            </Select>
+            />
           </div>
-        )}
+
+          {deck.is_bilingual ? (
+            <div className="grid gap-4 sm:grid-cols-2 pt-4 border-t">
+              <div>
+                <Label htmlFor="primaryLanguage">Front/Primary Language</Label>
+                <Select
+                  value={deck.primary_language ?? undefined}
+                  onValueChange={(value: string) => setDeck((prev: DeckEditState | null) => prev ? { ...prev, primary_language: value } : null) }
+                >
+                  <SelectTrigger id="primaryLanguage"><SelectValue placeholder="Select language" /></SelectTrigger>
+                  <SelectContent> <SelectItem value="en">English</SelectItem> <SelectItem value="nl">Dutch</SelectItem> <SelectItem value="fr">French</SelectItem> <SelectItem value="de">German</SelectItem> <SelectItem value="es">Spanish</SelectItem> <SelectItem value="it">Italian</SelectItem> </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="secondaryLanguage">Back/Secondary Language</Label>
+                <Select
+                   value={deck.secondary_language ?? undefined}
+                   onValueChange={(value: string) => setDeck((prev: DeckEditState | null) => prev ? { ...prev, secondary_language: value } : null) }
+                >
+                  <SelectTrigger id="secondaryLanguage"><SelectValue placeholder="Select language" /></SelectTrigger>
+                  <SelectContent> <SelectItem value="en">English</SelectItem> <SelectItem value="nl">Dutch</SelectItem> <SelectItem value="fr">French</SelectItem> <SelectItem value="de">German</SelectItem> <SelectItem value="es">Spanish</SelectItem> <SelectItem value="it">Italian</SelectItem> </SelectContent>
+                </Select>
+              </div>
+            </div>
+          ) : (
+            <div className="pt-4 border-t">
+              <Label htmlFor="language">Language</Label>
+              <Select
+                value={deck.primary_language ?? undefined}
+                onValueChange={(value: string) =>
+                  setDeck((prev: DeckEditState | null) => prev ? {
+                    ...prev,
+                    primary_language: value,
+                    secondary_language: value,
+                  } : null)
+                }
+              >
+                <SelectTrigger id="language"><SelectValue placeholder="Select language" /></SelectTrigger>
+                <SelectContent> <SelectItem value="en">English</SelectItem> <SelectItem value="nl">Dutch</SelectItem> <SelectItem value="fr">French</SelectItem> <SelectItem value="de">German</SelectItem> <SelectItem value="es">Spanish</SelectItem> <SelectItem value="it">Italian</SelectItem> </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -512,19 +505,12 @@ export default function EditDeckPage() {
         </TabsContent>
       </Tabs>
       
-      <div className="flex justify-end mt-8"> 
-          <Button onClick={handleSave} disabled={saving || isDeleting}>
-            {saving ? <IconLoader className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-            {saving ? "Updating..." : "Update Deck"}
-          </Button>
-       </div>
-      
       <div className="mt-8 pt-6 border-t border-dashed border-destructive/50">
         <h3 className="text-lg font-semibold text-destructive mb-2">Danger Zone</h3>
         <p className="text-sm text-muted-foreground mb-4">Deleting this deck and all its cards cannot be undone.</p>
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <Button variant="destructive" disabled={isDeleting || saving}>
+            <Button variant="destructive" disabled={isDeleting}>
                <Trash2 className="mr-2 h-4 w-4" /> Delete Deck
             </Button>
           </AlertDialogTrigger>
@@ -546,10 +532,4 @@ export default function EditDeckPage() {
     </div>
   )
 }
-
-const logDecksError = (...args: any[]) => {
-    if (process.env.NODE_ENV !== 'production') {
-        console.error('[EditDeck Page Error]:', ...args);
-    }
-};
 
