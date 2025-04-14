@@ -14,14 +14,27 @@ import { Terminal } from "lucide-react"
 import { toast } from 'sonner'; // Added toast import
 import { useSettings } from '@/providers/settings-provider'; // Import useSettings
 import { useTTS } from "@/hooks/use-tts"; // Import useTTS here
-// Import the specific types needed
-import type { DbCard } from '@/types/database'; // Only need DbCard now
-// REMOVED: import { mapDbCardToFlashCard } from '@/lib/actions/cardActions';
+import type { Tables } from '@/types/database'; // Import Tables type
+
+// Add proper type for the card including joined deck data
+type StudyCard = Tables<'cards'> & {
+  decks?: {
+    primary_language: string;
+    secondary_language: string;
+  } | null;
+};
 
 // Assuming ReviewGrade is defined or imported elsewhere
 type ReviewGrade = 1 | 2 | 3 | 4;
 
 const FLIP_DURATION_MS = 300; // Match CSS animation duration (adjust if needed)
+
+// Add TypeScript declaration for window property
+declare global {
+  interface Window {
+    ttsErrorShown?: boolean;
+  }
+}
 
 export default function StudySessionPage() {
   const router = useRouter();
@@ -44,7 +57,7 @@ export default function StudySessionPage() {
   // Still need local transition state for visual flip animation disabling
   const [isTransitioningVisual, setIsTransitioningVisual] = useState(false);
 
-  const { speak, loading: ttsLoading } = useTTS();
+  const { speak, ttsState } = useTTS({});
   const isLoadingPage = isInitializing || isLoadingSettings || !isInitialized;
   const prevCardIdRef = useRef<string | undefined | null>(null);
 
@@ -76,30 +89,56 @@ export default function StudySessionPage() {
 
   // --- TTS Trigger Effect (Refined Logic) --- 
   useEffect(() => {
-      if (!currentCard || ttsLoading || !settings?.ttsEnabled || isLoadingPage) return;
+      if (!currentCard || ttsState === 'loading' || !settings?.ttsEnabled || isLoadingPage) return;
 
       const cardIdHasChanged = prevCardIdRef.current !== currentCard.id;
       prevCardIdRef.current = currentCard.id;
       
+      // Debug language dialects in settings
+      console.log('[Study Session] Language dialects in settings:', settings?.languageDialects);
+      
       let textToSpeak: string | null | undefined = null;
       let langToUse: string | null = null;
 
+      // Safe casting of currentCard to StudyCard type
+      const studyCard = currentCard as StudyCard;
+
       // Determine what to speak based on change or flip state
       if (cardIdHasChanged || !isFlipped) { 
-          textToSpeak = currentCard.question;
-          langToUse = currentCard.decks?.primary_language ?? 'en-US';
+          textToSpeak = studyCard.question;
+          // Safely access deck properties
+          langToUse = studyCard.decks?.primary_language ?? 'en-US';
+          console.log('[Study Session] Speaking question, original language:', langToUse);
       } else if (isFlipped) { 
-          textToSpeak = currentCard.answer;
-          langToUse = currentCard.decks?.secondary_language ?? currentCard.decks?.primary_language ?? 'en-US';
+          textToSpeak = studyCard.answer;
+          // Safely access deck properties
+          langToUse = studyCard.decks?.secondary_language ?? 
+                      studyCard.decks?.primary_language ?? 
+                      'en-US';
+          console.log('[Study Session] Speaking answer, original language:', langToUse);
       }
 
+      // Ensure we have a proper language code with dialect - direct fix
       if (textToSpeak && langToUse) {
-          speak(textToSpeak, langToUse);
+          // Map language code directly at the point of use
+          // This ensures the correct language code is used even if the hook has issues
+          console.log(`[Study Session] Calling speak() with language: ${langToUse}`);
+          
+          speak(textToSpeak, langToUse).catch(error => {
+              console.error("Failed to speak text:", error);
+              // Only show TTS errors once per session to avoid repeated notifications
+              if (!window.ttsErrorShown) {
+                  toast.error("Text-to-speech error", { 
+                      description: "TTS functionality is unavailable. Check your settings.",
+                      duration: 5000
+                  });
+                  window.ttsErrorShown = true;
+              }
+          });
       }
        
   // Minimal dependencies: card ID, flip state, TTS enabled setting, and session loading state.
-  // Crucially REMOVE ttsLoading and speak.
-  }, [currentCard?.id, isFlipped, settings?.ttsEnabled, isLoadingPage]); 
+  }, [currentCard?.id, isFlipped, settings?.ttsEnabled, isLoadingPage, speak]); 
 
   // --- Callbacks ---
   const handleFlip = useCallback(() => {

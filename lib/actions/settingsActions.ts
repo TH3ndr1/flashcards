@@ -121,7 +121,7 @@ export async function updateUserSettings({
         // if (validatedUpdates.removeMasteredCards !== undefined) dbPayload.remove_mastered_cards = validatedUpdates.removeMasteredCards;
         // TODO: Uncomment the next line once 'srs_algorithm' column is added to the 'settings' table and types are regenerated.
         // if (validatedUpdates.srs_algorithm !== undefined) dbPayload.srs_algorithm = validatedUpdates.srs_algorithm;
-        // if (validatedUpdates.languageDialects !== undefined) dbPayload.language_dialects = validatedUpdates.languageDialects; // Assuming JSONB or text column
+        if (validatedUpdates.languageDialects !== undefined) dbPayload.language_dialects = validatedUpdates.languageDialects; // Assuming JSONB or text column
         
         // Add updated_at timestamp
         dbPayload.updated_at = new Date().toISOString();

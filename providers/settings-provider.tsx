@@ -74,8 +74,18 @@ const transformDbSettingsToSettings = (dbSettings: DbSettings | null): Settings 
         const cardFontFinal = isValidFont && cardFontValue ? cardFontValue : 'default';
         const srsAlgoValue = dbSettings.srs_algorithm === 'fsrs' ? 'fsrs' : 'sm2';
 
-        // Assuming DEFAULT_DIALECTS exists
-        const DEFAULT_DIALECTS = { en:'', nl:'', fr:'', de:'', es:'', it:'' };
+        // Use proper BCP-47 language codes as defaults
+        const DEFAULT_DIALECTS = { 
+            en: 'en-GB',
+            nl: 'nl-NL', 
+            fr: 'fr-FR', 
+            de: 'de-DE', 
+            es: 'es-ES', 
+            it: 'it-IT' 
+        };
+
+        // Log the language dialects for debugging
+        console.log('[Settings Provider] DB language_dialects:', dbSettings.language_dialects);
 
         return {
             appLanguage: dbSettings.app_language ?? 'en',

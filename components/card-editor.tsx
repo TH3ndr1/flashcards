@@ -6,7 +6,7 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Trash2, Save, Loader2 as IconLoader } from "lucide-react"
-import type { DbCard } from "@/types/database"
+import type { Tables } from "@/types/database"
 import { debounce } from "@/lib/utils"
 import { CardTagEditor } from "./CardTagEditor"
 import { toast } from "sonner"
@@ -14,7 +14,7 @@ import { toast } from "sonner"
 const DEBOUNCE_WAIT_MS = 500;
 
 interface CardEditorProps {
-  card: Partial<DbCard> | null
+  card: Partial<Tables<'cards'>> | null
   onUpdate: (id: string, question: string, answer: string) => void
   onDelete: (id: string) => void
   onCreate?: (question: string, answer: string) => Promise<string | null>

@@ -13,27 +13,32 @@ import {
   deleteDeck as deleteDeckAction
 } from "@/lib/actions/deckActions";
 import { getDecksFromLocalStorage, saveDecksToLocalStorage } from "@/lib/localStorageUtils";
-import type { DbDeck, DbCard, Database, Tables } from "@/types/database";
-import type { ActionResult } from "@/lib/actions/types";
+import type { Database, Tables } from "@/types/database";
 import { toast } from "sonner";
 
+// ActionResult interface for consistent error handling
+interface ActionResult<T> {
+  data: T | null;
+  error: string | null;
+}
+
 // Type returned by getDeck action
-type DeckWithCards = DbDeck & { cards: DbCard[] };
+type DeckWithCards = Tables<'decks'> & { cards: Tables<'cards'>[] };
 
 // Types for create/update actions
-export interface CreateDeckParams extends Pick<DbDeck, 'name' | 'primary_language' | 'secondary_language' | 'is_bilingual'> {}
-export interface UpdateDeckParams extends Partial<Pick<DbDeck, 'name' | 'primary_language' | 'secondary_language' | 'is_bilingual'>> {}
+export interface CreateDeckParams extends Pick<Tables<'decks'>, 'name' | 'primary_language' | 'secondary_language' | 'is_bilingual'> {}
+export interface UpdateDeckParams extends Partial<Pick<Tables<'decks'>, 'name' | 'primary_language' | 'secondary_language' | 'is_bilingual'>> {}
 
 // Type for the list state (removed description)
-type DeckListItem = Pick<DbDeck, 'id' | 'name' | 'primary_language' | 'secondary_language' | 'is_bilingual' | 'updated_at'> & { card_count: number };
+type DeckListItem = Pick<Tables<'decks'>, 'id' | 'name' | 'primary_language' | 'secondary_language' | 'is_bilingual' | 'updated_at'> & { card_count: number };
 
 // Hook return type definition
 interface UseDecksReturn {
     decks: DeckListItem[]; // Update state type
     loading: boolean;
     getDeck: (id: string) => Promise<ActionResult<DeckWithCards | null>>;
-    createDeck: (params: CreateDeckParams) => Promise<ActionResult<DbDeck>>;
-    updateDeck: (id: string, params: UpdateDeckParams) => Promise<ActionResult<DbDeck>>;
+    createDeck: (params: CreateDeckParams) => Promise<ActionResult<Tables<'decks'>>>;
+    updateDeck: (id: string, params: UpdateDeckParams) => Promise<ActionResult<Tables<'decks'>>>;
     deleteDeck: (id: string) => Promise<ActionResult<null>>;
     refetchDecks: () => Promise<void>;
 }
@@ -71,7 +76,7 @@ export function useDecks(): UseDecksReturn {
           const result = await getDecksAction(); 
           if (result.error) {
               logDecksError("Error fetching deck list:", result.error);
-              toast.error("Failed to load decks", { description: result.error.message });
+              toast.error("Failed to load decks", { description: result.error });
         } else {
               logDecks(`Fetched ${result.data?.length ?? 0} decks.`);
               // Data structure from action should now match DeckListItem
@@ -89,8 +94,8 @@ export function useDecks(): UseDecksReturn {
 
   // --- Action Wrappers --- 
 
-  const createDeck = useCallback(async (params: CreateDeckParams): Promise<ActionResult<DbDeck>> => {
-      if (!user) return { data: null, error: new Error("User not authenticated") };
+  const createDeck = useCallback(async (params: CreateDeckParams): Promise<ActionResult<Tables<'decks'>>> => {
+      if (!user) return { data: null, error: "User not authenticated" };
       const result = await createDeckAction(params);
       if (!result.error && result.data) {
           logDecks("Create successful, adding basic info to local state.");
@@ -108,25 +113,25 @@ export function useDecks(): UseDecksReturn {
           toast.success(`Deck "${newDeckItem.name}" created.`);
       }
        if (result.error) {
-            toast.error("Failed to create deck", { description: result.error.message });
+            toast.error("Failed to create deck", { description: result.error });
        }
       return result; 
   }, [user]);
 
   const getDeck = useCallback(async (id: string): Promise<ActionResult<DeckWithCards | null>> => {
-       if (!user) return { data: null, error: new Error("User not authenticated") };
-       if (!id) return { data: null, error: new Error("Deck ID required") };
+       if (!user) return { data: null, error: "User not authenticated" };
+       if (!id) return { data: null, error: "Deck ID required" };
        // getDeckAction fetches the full deck with cards
        const result = await getDeckAction(id);
         if (result.error) {
-            toast.error("Failed to load deck details", { description: result.error.message });
+            toast.error("Failed to load deck details", { description: result.error });
        }
        return result; 
   }, [user]);
 
-  const updateDeck = useCallback(async (id: string, params: UpdateDeckParams): Promise<ActionResult<DbDeck>> => {
-       if (!user) return { data: null, error: new Error("User not authenticated") };
-       if (!id) return { data: null, error: new Error("Deck ID required") };
+  const updateDeck = useCallback(async (id: string, params: UpdateDeckParams): Promise<ActionResult<Tables<'decks'>>> => {
+       if (!user) return { data: null, error: "User not authenticated" };
+       if (!id) return { data: null, error: "Deck ID required" };
        const result = await updateDeckAction(id, params);
        if (!result.error && result.data) {
             logDecks("Update successful, updating local list state.");
@@ -137,26 +142,26 @@ export function useDecks(): UseDecksReturn {
                 ...(params.primary_language !== undefined && { primary_language: params.primary_language }),
                 ...(params.secondary_language !== undefined && { secondary_language: params.secondary_language }),
                 ...(params.is_bilingual !== undefined && { is_bilingual: params.is_bilingual }),
-                updated_at: result.data.updated_at // Use timestamp from result
+                updated_at: result.data?.updated_at || d.updated_at // Use timestamp from result or keep existing
             } : d).sort((a,b) => a.name.localeCompare(b.name)) );
             toast.success(`Deck "${result.data.name}" updated.`);
        } 
        if (result.error) {
-            toast.error("Failed to update deck", { description: result.error.message });
+            toast.error("Failed to update deck", { description: result.error });
        }
        return result;
   }, [user]);
 
   const deleteDeck = useCallback(async (id: string): Promise<ActionResult<null>> => {
-      if (!user) return { data: null, error: new Error("User not authenticated") };
-      if (!id) return { data: null, error: new Error("Deck ID required") };
+      if (!user) return { data: null, error: "User not authenticated" };
+      if (!id) return { data: null, error: "Deck ID required" };
       // Optimistic UI: Remove immediately from local state
       const originalDecks = decks;
       setDecks((prev) => prev.filter(d => d.id !== id));
       logDecks("Calling deleteDeck action for ID:", id);
       const result = await deleteDeckAction(id);
        if (result.error) {
-            toast.error("Failed to delete deck", { description: result.error.message });
+            toast.error("Failed to delete deck", { description: result.error });
             // Revert optimistic update on error
             setDecks(originalDecks);
             return { data: null, error: result.error };

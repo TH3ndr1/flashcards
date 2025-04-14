@@ -160,7 +160,6 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
 - Custom Hooks (`hooks/`) are central:
     - `useSupabase`, `useAuth`, `useSettings`.
     - `useDecks`, `useTags`, `useStudySets`.
-    - `useDeckLoader` (still useful for viewing/editing a *single* deck's cards, but *not* for study session loading).
     - `useStudySession` (Refactored: takes query/setID, resolves card IDs via action, fetches cards via action, calculates SRS state via utils, persists progress via `progressActions`, manages Learn/Review modes).
     - `useTTS`, `useStudyTTS` (Bridge study session state to TTS).
     - `useMobile`.
@@ -290,7 +289,6 @@ The application follows Next.js App Router best practices with a clear separatio
 │   └── [component].tsx   # Individual components
 ├── hooks/                # Custom React hooks
 ├── lib/                  # Utility functions and services
-│   ├── services/         # Service layer
 │   ├── actions/          # Server actions
 │   ├── schema/           # Database schema types
 │   └── supabase/         # Supabase client setup
@@ -524,13 +522,19 @@ This section provides the definitive architecture for how study sessions are ini
 - `date-fns` Docs
 
 ## 12. Changelog
+*   **v2.3 (2024-04-05):** 
+    - Removed deprecated `language` column from `decks` table, keeping only `primary_language` and `secondary_language` as nullable fields.
+    - Deprecated and removed `lib/deckService.ts` and its tests in favor of Server Actions pattern (`lib/actions/deckActions.ts`).
+    - Consolidated documentation from `architecture-study-sets.md` and `project-documentation.md`. 
+    - Added comprehensive authentication flow details. 
+    - Updated version to reflect latest architecture.
 *   **v2.2 (2024-04-05):** Consolidated documentation from `architecture-study-sets.md` and `project-documentation.md`. Added comprehensive authentication flow details. Updated version to reflect latest architecture.
 *   **v2.1 (2024-07-27):** Refactored study session architecture into Section 5. Clarified Card Selection vs. Study Mode execution. Consolidated SRS details. Updated functional overview and workflows. Added `learn_mode_success_threshold` to settings.
 *   **v2.0 (2024-07-26):** Integrated architecture for Tagging, Query-Based Study Sets, and Spaced Repetition System (SRS) with initial SM-2 support. Updated data models, hooks, server actions, and documentation throughout.
 *   **v1.0 (Previous Date):** Initial project documentation covering basic deck/card management, authentication, and TTS.
 
 ## 13. Implementation Plan & Status (v2.1 Refactor)
-*   **Phase 1: Data Model & Core Backend Setup:** (Largely Completed - Migration `YYYYMMDDHHMMSS_add_srs_study_sets.sql` includes schema, `calculateSm2State` done, core Actions `settings/progress/card` done, Action placeholders created, **Supabase Types Integrated**).
+*   **Phase 1: Data Model & Core Backend Setup:** (Completed - Migration `YYYYMMDDHHMMSS_add_srs_study_sets.sql` includes schema, `calculateSm2State` done, core Actions `settings/progress/card` done, Action placeholders created, **Supabase Types Integrated**, **Removed deprecated `language` column from `decks` table**).
 *   **Phase 2: Study Session Hook Refactoring:** (**Completed** - `useStudySession` refactored for store-based initialization, mode handling, data fetching, and SRS logic).
 *   **Phase 3: UI Adaptation & New Features:** (**Largely Completed for Core Study Loop & Study Set Definition**)
     *   Implement `StudySetSelector` (Card Selection + Mode Selection UI). **(Largely Completed - Added Study Set Selection)**
@@ -558,6 +562,7 @@ This section provides the definitive architecture for how study sessions are ini
     *   Implement Server Action `studyQueryActions.resolveStudyQuery` to call the DB function and handle criteria/studySetId input. **(Completed)**
     *   Implement `tagActions`. **(Completed)**
     *   Implement `studySetActions`. (**Completed**)
+    *   **Removed deprecated `deckService.ts` and its tests in favor of Server Actions pattern (`deckActions.ts`)**. **(Completed)**
 
 ## 14. Codebase Structure and File Interactions
 
@@ -581,13 +586,14 @@ This section provides the definitive architecture for how study sessions are ini
 │   └── [component].tsx   # Individual components
 ├── hooks/                # Custom React hooks
 ├── lib/                  # Utility functions and services
-│   ├── services/         # Service layer
 │   ├── actions/          # Server actions
 │   ├── schema/           # Database schema types
 │   └── supabase/         # Supabase client setup
 ├── providers/            # Context providers
 └── types/                # TypeScript type definitions
 ```
+
+*Note: Removed `services/` directory as we've migrated to Server Actions pattern.*
 
 ### 14.2 Core File Interactions
 
@@ -611,7 +617,7 @@ graph TD
     end
 
     subgraph "Deck Management"
-        N[lib/services/deckService.ts] --> O[lib/supabase/client.ts]
+        N[lib/actions/deckActions.ts] --> O[lib/supabase/client.ts]
         N --> P[lib/supabase/server.ts]
         Q[components/deck-list.tsx] --> N
         R[components/create-deck-dialog.tsx] --> N
@@ -639,7 +645,6 @@ graph TD
 
 2. **Deck Management Hooks**
    - `hooks/useDecks.ts`: Manages deck operations (CRUD) and state, including loading, error handling, and refresh functionality.
-   - `hooks/useDeckLoader.ts`: Specialized hook for loading specific deck data with retry logic and error handling.
 
 3. **Tag Management Hooks**
    - `hooks/useTags.ts`: Manages tag operations and state, including creation, updating, and deletion of tags.
@@ -692,7 +697,6 @@ graph TD
 
     subgraph "Deck Management"
         H[useDecks] --> I[deckActions]
-        J[useDeckLoader] --> H
         K[DeckList] --> H
         L[CreateDeckDialog] --> H
     end
@@ -719,6 +723,4 @@ graph TD
         Y[useAuth] --> Z[AuthProvider]
         AA[useSupabase] --> Z
     end
-```
-
-// ... existing code ... 
+``` 

@@ -8,7 +8,7 @@ import { Command, CommandInput, CommandList, CommandItem, CommandGroup, CommandE
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { X as IconX, PlusCircle as IconPlus, Loader2 as IconLoader } from 'lucide-react';
 import { toast } from 'sonner';
-import type { DbTag } from '@/types/database';
+import type { Tables } from '@/types/database';
 import { Label } from '@/components/ui/label';
 
 // Import the actual hooks
@@ -20,6 +20,8 @@ import { useTags } from '@/hooks/useTags';
 interface CardTagEditorProps {
   cardId: string;
 }
+
+type Tag = Tables<'tags'>;  // Define Tag type using Tables utility type
 
 export function CardTagEditor({ cardId }: CardTagEditorProps) {
   // --- State and Data Fetching via REAL Hooks ---

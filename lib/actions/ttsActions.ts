@@ -38,7 +38,9 @@ export async function generateTtsAction(
     // Check for Google Cloud credentials in environment variables
     // Supports both GOOGLE_APPLICATION_CREDENTIALS file path and individual vars
     const hasCredentialsFile = !!process.env.GOOGLE_APPLICATION_CREDENTIALS;
-    const hasIndividualCreds = !!process.env.GOOGLE_PROJECT_ID && !!process.env.GOOGLE_CLIENT_EMAIL && !!process.env.GOOGLE_PRIVATE_KEY;
+    const hasIndividualCreds = !!process.env.GCP_PROJECT_ID && 
+                              !!process.env.GCP_SERVICE_ACCOUNT_EMAIL && 
+                              !!process.env.GCP_PRIVATE_KEY;
 
     if (!hasCredentialsFile && !hasIndividualCreds) {
          console.error("TTS Action Error: Google Cloud credentials are not set properly in environment variables.");
@@ -50,16 +52,47 @@ export async function generateTtsAction(
         return { audioContent: null, error: "Missing required parameters for TTS generation." };
     }
 
-    console.log(`[generateTtsAction] Generating TTS for text: "${text.substring(0, 50)}...", lang: ${languageCode}, gender: ${ssmlGender}, voice: ${voiceName ?? 'default'}`);
+    // Add detailed logging about language code
+    console.log(`[TTS Action] EXACT language code received: "${languageCode}" (type: ${typeof languageCode})`);
+    console.log(`[TTS Action] Is language code a valid BCP-47 code with dialect? ${languageCode.includes('-') ? 'Yes' : 'No'}`);
+    
+    // Add server-side language mapping for safety
+    let mappedCode = languageCode;
+    
+    // Simple backup mapping if no dialect is present
+    if (!languageCode.includes('-')) {
+        const baseCode = languageCode.toLowerCase();
+        const mapping: Record<string, string> = {
+            'nl': 'nl-NL',
+            'en': 'en-GB',
+            'fr': 'fr-FR',
+            'de': 'de-DE',
+            'es': 'es-ES',
+            'it': 'it-IT'
+        };
+        
+        if (mapping[baseCode]) {
+            mappedCode = mapping[baseCode];
+            console.log(`[TTS Action] Applied server-side mapping: ${languageCode} → ${mappedCode}`);
+        }
+    }
+    
+    console.log(`[generateTtsAction] Generating TTS for text: "${text.substring(0, 50)}...", lang: ${mappedCode}, gender: ${ssmlGender}, voice: ${voiceName ?? 'default'}`);
 
     // Initialize client here for serverless compatibility
     // If using long-running server, initialize outside the function.
-    const ttsClient = new TextToSpeechClient();
+    const ttsClient = new TextToSpeechClient({
+        projectId: process.env.GCP_PROJECT_ID,
+        credentials: {
+            client_email: process.env.GCP_SERVICE_ACCOUNT_EMAIL,
+            private_key: process.env.GCP_PRIVATE_KEY
+        }
+    });
 
     const request: google.cloud.texttospeech.v1.ISynthesizeSpeechRequest = {
         input: { text: text },
         voice: {
-            languageCode: languageCode,
+            languageCode: mappedCode, // Use the mapped code
             ssmlGender: ssmlGender,
             // Only include name if it's provided
             ...(voiceName && { name: voiceName })
@@ -72,7 +105,7 @@ export async function generateTtsAction(
 
         if (response.audioContent instanceof Uint8Array) {
             const audioBase64 = Buffer.from(response.audioContent).toString('base64');
-            console.log(`[generateTtsAction] Successfully generated TTS audio for lang: ${languageCode}`);
+            console.log(`[generateTtsAction] Successfully generated TTS audio for lang: ${mappedCode}`);
             return { audioContent: audioBase64, error: null };
         } else {
              console.error("[generateTtsAction] TTS response did not contain valid audio content.", response);
