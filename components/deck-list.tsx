@@ -14,7 +14,7 @@ import { useStudySessionStore, StudyInput } from "@/store/studySessionStore"
 import Link from 'next/link'
 
 export function DeckList() {
-  const { decks, loading, error } = useDecks()
+  const { decks, loading } = useDecks()
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isVisible, setIsVisible] = useState(true)
   const router = useRouter()

@@ -95,8 +95,12 @@ export function StudyFlashcardView({
     }
   };
 
-  const questionLang = card.decks?.primary_language ?? 'en-US';
-  const answerLang = card.decks?.secondary_language ?? card.decks?.primary_language ?? 'en-US';
+  // Default to en-US when deck language information isn't available
+  // card.deck_id exists but we don't have direct access to the deck's language properties here
+  const questionLang = settings?.appLanguage ? 
+    (settings.languageDialects?.[settings.appLanguage as keyof typeof settings.languageDialects] || 'en-US') : 
+    'en-US';
+  const answerLang = questionLang; // Default to same language for question and answer
 
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {

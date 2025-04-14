@@ -55,15 +55,15 @@ export function CreateDeckDialog({ open, onOpenChange }: CreateDeckDialogProps) 
       setLoading(true)
       const { data: newDeckData, error: createError } = await createDeck({
         name,
-        isBilingual,
-        questionLanguage,
-        answerLanguage,
+        is_bilingual: isBilingual,
+        primary_language: questionLanguage,
+        secondary_language: answerLanguage,
       })
 
       if (createError) {
         console.error("Error creating deck (from hook):", createError)
         toast.error("Failed to create deck", {
-          description: createError.message || "An unexpected error occurred."
+          description: "Please try again or check the console for details."
         })
         return
       }

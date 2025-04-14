@@ -14,6 +14,12 @@
  * @param {(cardId: string, rating: number) => void} props.onRateCard - Callback for rating a card
  * @returns {JSX.Element} The complete study session interface
  */
+
+import type { Tables } from '@/types/database';
+
+// Define the card type from database schema
+type Card = Tables<'cards'>;
+
 export function StudySession({
   cards,
   onComplete,

@@ -228,8 +228,9 @@ export async function updateStudySet(
         const { data: updatedStudySet, error: updateError } = await supabase
             .from('study_sets')
             .update({
-                ...updateData,
-                query_criteria: updateData.criteria as any, // Cast if needed
+                name: updateData.name,
+                description: updateData.description,
+                query_criteria: updateData.criteria, // Map criteria to query_criteria
                 updated_at: new Date().toISOString(), // Explicitly set updated_at
              })
             .eq('id', studySetId)
