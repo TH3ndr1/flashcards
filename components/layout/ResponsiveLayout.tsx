@@ -3,6 +3,7 @@
 import { useState, useCallback, ReactNode } from 'react';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
+import { cn } from '@/lib/utils';
 
 interface ResponsiveLayoutProps {
   children: ReactNode;
@@ -10,6 +11,7 @@ interface ResponsiveLayoutProps {
 
 export function ResponsiveLayout({ children }: ResponsiveLayoutProps) {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
 
   const toggleMobileSidebar = useCallback(() => {
     setIsMobileSidebarOpen((prev) => !prev);
@@ -19,13 +21,29 @@ export function ResponsiveLayout({ children }: ResponsiveLayoutProps) {
     setIsMobileSidebarOpen(false);
   }, []);
 
+  const toggleDesktopSidebar = useCallback(() => {
+    setIsDesktopSidebarCollapsed((prev) => !prev);
+  }, []);
+
+  const collapsedWidth = 'md:pl-20';
+  const expandedWidth = 'md:pl-64';
+
   return (
     <div className="flex min-h-screen flex-col">
       <Header onToggleMobileSidebar={toggleMobileSidebar} />
       <div className="flex flex-1">
-        <Sidebar isOpen={isMobileSidebarOpen} onClose={closeMobileSidebar} />
-        {/* Apply padding-left on medium screens and up to account for the desktop sidebar */}
-        <main className="flex-1 bg-muted/40 md:pl-64 pt-16">{children}</main>
+        <Sidebar 
+          isOpen={isMobileSidebarOpen} 
+          onClose={closeMobileSidebar} 
+          isCollapsed={isDesktopSidebarCollapsed}
+          onToggleCollapse={toggleDesktopSidebar}
+        />
+        <main className={cn(
+          "flex-1 bg-muted/40 pt-16 transition-all duration-300 ease-in-out",
+          isDesktopSidebarCollapsed ? collapsedWidth : expandedWidth
+        )}>
+          {children}
+        </main>
       </div>
     </div>
   );

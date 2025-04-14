@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { PlusCircle, Play, List, Pencil, GraduationCap } from "lucide-react"
+import { PlusCircle, Play, List, Edit, GraduationCap } from "lucide-react"
 import { CreateDeckDialog } from "@/components/create-deck-dialog"
 import { useDecks } from "@/hooks/use-decks"
 import { useRouter } from "next/navigation"
@@ -75,7 +75,7 @@ export function DeckList() {
 
   return (
     <TooltipProvider>
-      <div className="space-y-6">
+      <div className="space-y-6 py-4 px-4 md:p-6">
         <div className="flex justify-between items-center flex-wrap gap-4">
           <h2 className="text-2xl font-semibold">Your Decks</h2>
           <div className="flex items-center gap-2 flex-wrap">
@@ -108,20 +108,20 @@ export function DeckList() {
               }
 
               return (
-                <Card key={deck.id} className="hover:shadow-md transition-shadow flex flex-col">
-                  <CardHeader className="pt-4 pb-2 space-y-1">
+                <Card key={deck.id} className="hover:shadow-md transition-shadow flex flex-col bg-gradient-to-b from-slate-100/40 dark:from-slate-800/40 to-transparent">
+                  <CardHeader className="pt-4 pb-2 space-y-1 px-4">
                     <div className="flex justify-between items-center">
-                      <CardTitle className="truncate mr-2" title={deck.name}>{deck.name}</CardTitle>
+                      <CardTitle className="truncate" title={deck.name}>{deck.name}</CardTitle>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button 
                             variant="ghost" 
                             size="icon" 
                             onClick={() => handleEditDeck(deck.id)}
-                            className="h-7 w-7 flex-shrink-0"
+                            className="h-7 w-7 flex-shrink-0 text-muted-foreground"
                             aria-label="Edit Deck"
                           >
-                            <Pencil className="h-4 w-4" />
+                            <Edit className="h-4 w-4" />
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>
@@ -138,14 +138,14 @@ export function DeckList() {
                       <Button 
                         onClick={() => handleStudy(deck.id, 'learn')} 
                         aria-label={`Learn ${deck.name}`}
-                        className="h-8 px-2 text-xs sm:h-9 sm:px-3 sm:text-sm bg-gradient-to-br from-pink-500 to-red-500 hover:from-pink-600 hover:to-red-600 text-white"
+                        className="h-9 px-3 text-sm bg-gradient-to-br from-pink-500 to-red-500 hover:from-pink-600 hover:to-red-600 text-white"
                       >
                         <GraduationCap className="h-4 w-4 mr-1" /> Learn
                       </Button>
                       <Button 
                         onClick={() => handleStudy(deck.id, 'review')} 
                         aria-label={`Review ${deck.name}`}
-                        className="h-8 px-2 text-xs sm:h-9 sm:px-3 sm:text-sm bg-gradient-to-br from-blue-500 to-sky-500 hover:from-blue-600 hover:to-sky-600 text-white"
+                        className="h-9 px-3 text-sm bg-gradient-to-br from-blue-500 to-sky-500 hover:from-blue-600 hover:to-sky-600 text-white"
                       >
                         <Play className="h-4 w-4 mr-1" /> Review
                       </Button>

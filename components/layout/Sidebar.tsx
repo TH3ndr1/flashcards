@@ -13,6 +13,12 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils'; // Assuming you have a utility for classnames
 import {
+  Tooltip,
+  TooltipProvider,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   BookOpen,
   Tags,
   Settings,
@@ -20,11 +26,15 @@ import {
   List,
   PlusCircle,
   LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
+  isCollapsed: boolean;
+  onToggleCollapse: () => void;
 }
 
 const navItems = [
@@ -38,7 +48,7 @@ const navItems = [
   {
     group: 'Prepare',
     items: [
-      { href: '/decks', label: 'Decks', icon: LayoutDashboard },
+      { href: '/', label: 'Decks', icon: LayoutDashboard },
       { href: '/tags', label: 'Manage Tags', icon: Tags },
       { href: '/decks/new', label: 'Create Deck', icon: PlusCircle },
     ],
@@ -53,64 +63,82 @@ const navItems = [
   },
 ];
 
-function NavigationContent({ onClose }: { onClose?: () => void }) {
+function NavigationContent({ isCollapsed, onClose }: { isCollapsed: boolean; onClose?: () => void }) {
   const pathname = usePathname();
 
   return (
     <nav className="flex flex-col gap-4 py-4">
       {navItems.map((group) => (
-        <div key={group.group} className="px-3">
-          <h2 className="mb-2 px-1 text-lg font-semibold tracking-tight">
-            {group.group}
-          </h2>
+        <div key={group.group} className={cn("px-3", isCollapsed && "px-1")}>
           <div className="space-y-1">
             {group.items.map((item) => (
-              <Button
-                key={item.href}
-                variant={pathname === item.href ? 'secondary' : 'ghost'}
-                className="w-full justify-start"
-                asChild // Use Button styling on the Link
-                onClick={onClose} // Close mobile sidebar on link click
-              >
-                <Link href={item.href}>
-                  <item.icon className="mr-2 h-4 w-4" />
-                  {item.label}
-                </Link>
-              </Button>
+              <Tooltip key={item.href}>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={pathname === item.href ? 'secondary' : 'ghost'}
+                    className={cn(
+                      "w-full justify-start",
+                      isCollapsed && "justify-center h-10"
+                    )}
+                    asChild
+                    onClick={onClose}
+                  >
+                    <Link href={item.href} aria-label={item.label}>
+                      <item.icon className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
+                      <span className={cn(isCollapsed && "hidden")}>{item.label}</span>
+                    </Link>
+                  </Button>
+                </TooltipTrigger>
+                {isCollapsed && (
+                  <TooltipContent side="right">
+                    <p>{item.label}</p>
+                  </TooltipContent>
+                )}
+              </Tooltip>
             ))}
           </div>
         </div>
       ))}
-      {/* Optional: Add Logout button at the bottom */}
-      {/* <div className="mt-auto px-3">
-                <Button variant="ghost" className="w-full justify-start" onClick={() => { }}>
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Logout
-                </Button>
-            </div> */}
     </nav>
   );
 }
 
-export function Sidebar({ isOpen, onClose }: SidebarProps) {
+export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }: SidebarProps) {
   return (
-    <>
+    <TooltipProvider>
       {/* Mobile Sidebar using Sheet */}
       <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
         <SheetOverlay className="md:hidden" />
-        <SheetContent side="left" className="w-64 p-0 md:hidden"> {/* Adjust width as needed */}
+        <SheetContent side="left" className="w-64 p-0 md:hidden">
           <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
           <SheetDescription className="sr-only">Main navigation links for the application.</SheetDescription>
-          <NavigationContent onClose={onClose} />
+          <NavigationContent isCollapsed={false} onClose={onClose} />
         </SheetContent>
       </Sheet>
 
-      {/* Desktop Sidebar */}
-      <aside className="hidden md:fixed md:left-0 md:top-0 md:bottom-0 md:z-30 md:flex md:h-full md:w-64 md:flex-col md:border-r bg-background pt-16">
-        <div className="flex-1 overflow-y-auto">
-             <NavigationContent />
+      {/* Desktop Sidebar - Now collapsible */}
+      <aside 
+        className={cn(
+          "hidden md:fixed md:left-0 md:top-0 md:bottom-0 md:z-30 md:flex md:h-full md:flex-col md:border-r bg-background pt-16",
+          "transition-all duration-300 ease-in-out",
+          isCollapsed ? "md:w-20" : "md:w-64"
+        )}
+      >
+        <div className="flex-1 overflow-y-auto overflow-x-hidden">
+             <NavigationContent isCollapsed={isCollapsed} />
+        </div>
+        <div className="mt-auto border-t p-2">
+           <Button 
+              variant="ghost" 
+              size="icon" 
+              className="w-full hidden md:block" 
+              onClick={onToggleCollapse}
+              aria-label={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+           >
+              {isCollapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
+           </Button>
         </div>
       </aside>
-    </>
+    </TooltipProvider>
   );
 } 

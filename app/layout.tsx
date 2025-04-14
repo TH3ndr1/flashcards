@@ -68,7 +68,7 @@ export default function RootLayout({
           <ResponsiveLayout>
             <div className="relative flex min-h-screen flex-col">
               <div className="flex-1">
-                <div className="container mx-auto pb-8">
+                <div className="pb-8">
                   {children}
                 </div>
               </div>
