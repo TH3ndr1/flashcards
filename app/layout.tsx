@@ -1,14 +1,15 @@
+import { Atkinson_Hyperlegible } from "next/font/google";
 import type React from "react";
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter as FontSans } from "next/font/google";
 // --- 1. Import custom font objects and cn utility ---
 import { openDyslexicFont, atkinsonFont } from '@/lib/fonts';
 import { cn } from '@/lib/utils';
 // --- End of imports ---
 import "./globals.css";
-import LayoutScript from "./layout-script";
-import { Header } from "@/components/header";
 import { ClientProviders } from "@/components/ClientProviders";
+import { ResponsiveLayout } from '@/components/layout/ResponsiveLayout';
+import LayoutScript from "./layout-script";
 
 export const metadata: Metadata = {
   title: "StudyCards - Interactive Flashcard App",
@@ -25,7 +26,7 @@ export const metadata: Metadata = {
 };
 
 // --- 2. Configure Inter to use a CSS variable ---
-const fontSans = Inter({
+const fontSans = FontSans({
   subsets: ["latin"],
   variable: "--font-sans", // Define the CSS variable name
 });
@@ -64,14 +65,15 @@ export default function RootLayout({
       >
       {/* --- End of body className changes --- */}
         <ClientProviders>
-          <div className="relative flex min-h-screen flex-col">
-            <div className="flex-1">
-              <div className="container mx-auto py-8">
-                <Header />
-                {children}
+          <ResponsiveLayout>
+            <div className="relative flex min-h-screen flex-col">
+              <div className="flex-1">
+                <div className="container mx-auto pb-8">
+                  {children}
+                </div>
               </div>
             </div>
-          </div>
+          </ResponsiveLayout>
         </ClientProviders>
         <LayoutScript />
       </body>

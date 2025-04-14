@@ -7,7 +7,7 @@ type DbCard = Tables<'cards'>;
 import type { Settings } from "@/providers/settings-provider";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Repeat, ThumbsDown, ThumbsUp, Zap, Volume2 } from "lucide-react";
+import { ThumbsDown, ThumbsUp, Volume2, ChevronsDown, ChevronsUp } from "lucide-react";
 import { getFontClass } from "@/lib/fonts";
 import { useTTS } from "@/hooks/use-tts";
 import {
@@ -170,22 +170,76 @@ export function StudyFlashcardView({
                   > <Volume2 className={cn("h-4 w-4", isSpeaking && "animate-pulse")} /> </Button>
                 )}
               </CardContent>
-              <CardFooter className="text-center text-sm text-muted-foreground bg-muted/50 border-t py-3 space-x-2">
+              <CardFooter className="bg-muted/50 border-t flex flex-row items-center justify-around gap-1 p-2 sm:justify-start sm:gap-2 sm:p-3">
                 <TooltipProvider>
                   <Tooltip>
-                    <TooltipTrigger asChild><Button variant="outline" className="flex-1 border-red-500 text-red-700 hover:bg-red-500/10 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 active:scale-95 transition-all duration-150" onClick={(e) => { e.stopPropagation(); onAnswer(1); }} disabled={isTransitioning || isSpeaking} aria-label="Again - Complete reset (Press 1)"><Repeat className="mr-1 h-4 w-4" /> Again <span className="ml-1 opacity-50">(1)</span></Button></TooltipTrigger>
+                    <TooltipTrigger asChild>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="flex-1 justify-center text-xs border-red-500 text-red-700 hover:bg-red-500/10 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 active:scale-95 transition-all duration-150 sm:w-auto sm:justify-start sm:text-sm"
+                        onClick={(e) => { e.stopPropagation(); onAnswer(1); }} 
+                        disabled={isTransitioning || isSpeaking} 
+                        aria-label="Again - Complete reset (Press 1)"
+                      >
+                        <ThumbsDown className="h-4 w-4 sm:mr-1" /> 
+                        <ThumbsDown className="h-4 w-4 -ml-2 sm:hidden" />
+                        <span className="hidden sm:inline">Again</span>
+                        <span className="hidden sm:inline ml-1 opacity-50">(1)</span>
+                      </Button>
+                    </TooltipTrigger>
                     <TooltipContent side="bottom"><p className="font-medium">Again (1)</p><p className="text-sm text-muted-foreground">Complete reset. Use when you completely forgot or got it wrong.</p></TooltipContent>
                   </Tooltip>
-                   <Tooltip>
-                     <TooltipTrigger asChild><Button variant="outline" className="flex-1 border-amber-500 text-amber-700 hover:bg-amber-500/10 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300 active:scale-95 transition-all duration-150" onClick={(e) => { e.stopPropagation(); onAnswer(2); }} disabled={isTransitioning || isSpeaking} aria-label="Hard - Remember with significant effort (Press 2)"><ThumbsDown className="mr-1 h-4 w-4" /> Hard <span className="ml-1 opacity-50">(2)</span></Button></TooltipTrigger>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="flex-1 justify-center text-xs border-amber-500 text-amber-700 hover:bg-amber-500/10 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300 active:scale-95 transition-all duration-150 sm:w-auto sm:justify-start sm:text-sm"
+                        onClick={(e) => { e.stopPropagation(); onAnswer(2); }} 
+                        disabled={isTransitioning || isSpeaking} 
+                        aria-label="Hard - Remember with significant effort (Press 2)"
+                      >
+                        <ThumbsDown className="h-4 w-4 sm:mr-1" />
+                        <span className="hidden sm:inline">Hard</span>
+                        <span className="hidden sm:inline ml-1 opacity-50">(2)</span>
+                      </Button>
+                    </TooltipTrigger>
                     <TooltipContent side="bottom"><p className="font-medium">Hard (2)</p><p className="text-sm text-muted-foreground">Remembered with significant effort. Review interval will increase slightly.</p></TooltipContent>
                   </Tooltip>
                   <Tooltip>
-                    <TooltipTrigger asChild><Button variant="outline" className="flex-1 border-green-500 text-green-700 hover:bg-green-500/10 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 active:scale-95 transition-all duration-150" onClick={(e) => { e.stopPropagation(); onAnswer(3); }} disabled={isTransitioning || isSpeaking} aria-label="Good - Remember with some effort (Press 3)"><ThumbsUp className="mr-1 h-4 w-4" /> Good <span className="ml-1 opacity-50">(3)</span></Button></TooltipTrigger>
+                    <TooltipTrigger asChild>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="flex-1 justify-center text-xs border-green-500 text-green-700 hover:bg-green-500/10 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 active:scale-95 transition-all duration-150 sm:w-auto sm:justify-start sm:text-sm"
+                        onClick={(e) => { e.stopPropagation(); onAnswer(3); }} 
+                        disabled={isTransitioning || isSpeaking} 
+                        aria-label="Good - Remember with some effort (Press 3)"
+                      >
+                        <ThumbsUp className="h-4 w-4 sm:mr-1" />
+                        <span className="hidden sm:inline">Good</span>
+                        <span className="hidden sm:inline ml-1 opacity-50">(3)</span>
+                      </Button>
+                    </TooltipTrigger>
                      <TooltipContent side="bottom"><p className="font-medium">Good (3)</p><p className="text-sm text-muted-foreground">Remembered with some effort. Normal interval increase.</p></TooltipContent>
                   </Tooltip>
                   <Tooltip>
-                    <TooltipTrigger asChild><Button variant="outline" className="flex-1 border-blue-500 text-blue-700 hover:bg-blue-500/10 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 active:scale-95 transition-all duration-150" onClick={(e) => { e.stopPropagation(); onAnswer(4); }} disabled={isTransitioning || isSpeaking} aria-label="Easy - Remember effortlessly (Press 4)"><Zap className="mr-1 h-4 w-4" /> Easy <span className="ml-1 opacity-50">(4)</span></Button></TooltipTrigger>
+                    <TooltipTrigger asChild>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="flex-1 justify-center text-xs border-blue-500 text-blue-700 hover:bg-blue-500/10 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 active:scale-95 transition-all duration-150 sm:w-auto sm:justify-start sm:text-sm"
+                        onClick={(e) => { e.stopPropagation(); onAnswer(4); }} 
+                        disabled={isTransitioning || isSpeaking} 
+                        aria-label="Easy - Remember effortlessly (Press 4)"
+                      >
+                        <ThumbsUp className="h-4 w-4 sm:mr-1" /> 
+                        <ThumbsUp className="h-4 w-4 -ml-2 sm:hidden" />
+                        <span className="hidden sm:inline">Easy</span>
+                        <span className="hidden sm:inline ml-1 opacity-50">(4)</span>
+                      </Button>
+                    </TooltipTrigger>
                     <TooltipContent side="bottom"><p className="font-medium">Easy (4)</p><p className="text-sm text-muted-foreground">Remembered effortlessly. Larger interval increase.</p></TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
