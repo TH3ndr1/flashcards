@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Menu, Settings, Volume2 } from 'lucide-react';
 import Image from 'next/image';
 import { UserNavButton } from '@/components/user-nav';
+import { TTSToggleButton } from '@/components/tts-toggle-button';
 
 interface HeaderProps {
   onToggleMobileSidebar: () => void;
@@ -49,10 +50,10 @@ export function Header({ onToggleMobileSidebar }: HeaderProps) {
             <Settings className="h-5 w-5" />
           </Button>
         </Link>
-        {/* TTS Button (Using Lucide Icon) - Hidden on mobile */}
-        <Button variant="ghost" size="icon" aria-label="Toggle Text-to-Speech" className="hidden md:inline-flex"> {/* Hide Button on mobile */}
-           <Volume2 className="h-5 w-5" />
-        </Button>
+        {/* Use the actual TTSToggleButton component */}
+        <div className="hidden md:inline-flex"> {/* Wrapper to maintain layout */} 
+          <TTSToggleButton />
+        </div>
         {/* User/Profile Button (Using Functional Component) - Always visible */} 
         <UserNavButton />
       </div>

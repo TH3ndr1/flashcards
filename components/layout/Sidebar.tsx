@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useState } from 'react';
 import {
   Sheet,
   SheetContent,
@@ -29,6 +30,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
 } from 'lucide-react';
+import { CreateDeckDialog } from '@/components/create-deck-dialog';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -50,7 +52,7 @@ const navItems = [
     items: [
       { href: '/', label: 'Decks', icon: LayoutDashboard },
       { href: '/tags', label: 'Manage Tags', icon: Tags },
-      { href: '/decks/new', label: 'Create Deck', icon: PlusCircle },
+      { id: 'create-deck', label: 'Create Deck', icon: PlusCircle },
     ],
   },
   {
@@ -65,41 +67,73 @@ const navItems = [
 
 function NavigationContent({ isCollapsed, onClose }: { isCollapsed: boolean; onClose?: () => void }) {
   const pathname = usePathname();
+  const [isCreateDeckOpen, setIsCreateDeckOpen] = useState(false);
 
   return (
-    <nav className="flex flex-col gap-4 py-4">
-      {navItems.map((group) => (
-        <div key={group.group} className={cn("px-3", isCollapsed && "px-1")}>
-          <div className="space-y-1">
-            {group.items.map((item) => (
-              <Tooltip key={item.href}>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant={pathname === item.href ? 'secondary' : 'ghost'}
-                    className={cn(
-                      "w-full justify-start",
-                      isCollapsed && "justify-center h-10"
+    <>
+      <nav className="flex flex-col gap-4 py-4">
+        {navItems.map((group) => (
+          <div key={group.group} className={cn("px-3", isCollapsed && "px-1")}>
+            <div className="space-y-1">
+              {group.items.map((item) => {
+                if (item.id === 'create-deck') {
+                  return (
+                    <Tooltip key={item.id}>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant={'ghost'}
+                          className={cn(
+                            "w-full justify-start",
+                            isCollapsed && "justify-center h-10"
+                          )}
+                          onClick={() => setIsCreateDeckOpen(true)}
+                          aria-label={item.label}
+                        >
+                          <item.icon className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
+                          <span className={cn(isCollapsed && "hidden")}>{item.label}</span>
+                        </Button>
+                      </TooltipTrigger>
+                      {isCollapsed && (
+                        <TooltipContent side="right">
+                          <p>{item.label}</p>
+                        </TooltipContent>
+                      )}
+                    </Tooltip>
+                  );
+                }
+
+                return (
+                  <Tooltip key={item.href}>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={pathname === item.href ? 'secondary' : 'ghost'}
+                        className={cn(
+                          "w-full justify-start",
+                          isCollapsed && "justify-center h-10"
+                        )}
+                        asChild
+                        onClick={onClose}
+                      >
+                        <Link href={item.href} aria-label={item.label}>
+                          <item.icon className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
+                          <span className={cn(isCollapsed && "hidden")}>{item.label}</span>
+                        </Link>
+                      </Button>
+                    </TooltipTrigger>
+                    {isCollapsed && (
+                      <TooltipContent side="right">
+                        <p>{item.label}</p>
+                      </TooltipContent>
                     )}
-                    asChild
-                    onClick={onClose}
-                  >
-                    <Link href={item.href} aria-label={item.label}>
-                      <item.icon className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
-                      <span className={cn(isCollapsed && "hidden")}>{item.label}</span>
-                    </Link>
-                  </Button>
-                </TooltipTrigger>
-                {isCollapsed && (
-                  <TooltipContent side="right">
-                    <p>{item.label}</p>
-                  </TooltipContent>
-                )}
-              </Tooltip>
-            ))}
+                  </Tooltip>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      ))}
-    </nav>
+        ))}
+      </nav>
+      <CreateDeckDialog open={isCreateDeckOpen} onOpenChange={setIsCreateDeckOpen} />
+    </>
   );
 }
 

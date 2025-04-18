@@ -131,7 +131,7 @@ export function StudyFlashcardView({
       >
         <div className="flip-card-inner relative w-full h-full">
           <div className="flip-card-front absolute w-full h-full">
-            <Card className={cn("w-full h-full flex flex-col", fontClass)}>
+            <Card className={cn("w-full h-full flex flex-col flashcard-border", fontClass)}>
               <CardHeader className="text-xs text-muted-foreground bg-muted/50 border-b py-2 px-4">
                  <div className="flex justify-between items-center">
                   <span>{progressText || '\u00A0'}</span>
@@ -154,7 +154,7 @@ export function StudyFlashcardView({
           </div>
 
           <div className="flip-card-back absolute w-full h-full">
-            <Card className={cn("w-full h-full flex flex-col", fontClass)}>
+            <Card className={cn("w-full h-full flex flex-col flashcard-border", fontClass)}>
                <CardHeader className="text-xs text-muted-foreground bg-muted/50 border-b py-2 px-4">
                  <div className="flex justify-between items-center">
                   <span>{progressText || '\u00A0'}</span>

@@ -109,6 +109,17 @@
   }
 }
 
+/* CSS class to apply specific border color to flashcards */
+.flashcard-border {
+  /* Override --border locally for light mode */
+  --border: 210 40% 70%;
+}
+
+.dark .flashcard-border {
+  /* Override --border locally for dark mode */
+  --border: 210 30% 35%;
+}
+
 .flip-card {
   perspective: 1000px;
 }
