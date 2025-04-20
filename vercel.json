@@ -5,10 +5,15 @@
       "maxDuration": 90
     }
   },
-  "routes": [
+  "headers": [
     {
       "source": "/api/extract-pdf",
-      "destination": "/api/extract-pdf"
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/json"
+        }
+      ]
     }
   ]
 } 
