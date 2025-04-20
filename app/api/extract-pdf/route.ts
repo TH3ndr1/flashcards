@@ -338,24 +338,31 @@ export async function POST(request: NextRequest) {
 
     // --- Page Count Check for PDFs --- 
     if (fileType === 'pdf') {
+      let pageCount: number | null = null;
       try {
         const pdfDoc = await PDFDocument.load(arrayBuffer);
-        const pageCount = pdfDoc.getPageCount();
+        pageCount = pdfDoc.getPageCount();
         console.log(`[Page Check] PDF '${filename}' has ${pageCount} pages.`);
-        const MAX_PAGES_SYNC = 30;
-        if (pageCount > MAX_PAGES_SYNC) {
-          throw new Error(`PDF has ${pageCount} pages, exceeding the ${MAX_PAGES_SYNC}-page limit for direct processing. Please use a smaller document.`);
-        }
       } catch (pdfError: any) {
-        console.error(`[Page Check] Error checking PDF page count for '${filename}':`, pdfError.message);
-        // If we can't check page count, let Document AI try, but throw a specific error if it fails later
-        // Or, throw immediately if pdfError suggests it's not a valid PDF
+        // Handle errors during PDF parsing or page count retrieval
+        console.error(`[Page Check] Error parsing PDF or getting page count for '${filename}':`, pdfError.message);
         if (pdfError.message.includes('Invalid PDF') || pdfError.message.includes('encrypted')) {
              throw new Error(`Failed to parse PDF '${filename}'. It might be corrupted or password-protected.`);
         }
-        // Otherwise, maybe let it proceed? Or throw a generic parsing error?
-        // Let's throw a generic error for now to be safe if page count fails
-        throw new Error(`Could not verify page count for PDF '${filename}'. Processing aborted.`);
+        // Throw a generic error if parsing/counting failed for other reasons
+        throw new Error(`Could not read page count from PDF '${filename}'. Processing aborted.`);
+      }
+      
+      // Now check the page count limit *after* successfully getting it
+      if (pageCount !== null) {
+          const MAX_PAGES_SYNC = 30;
+          if (pageCount > MAX_PAGES_SYNC) {
+              // This error will now be caught by the main outer catch block
+              throw new Error(`PDF has ${pageCount} pages, exceeding the ${MAX_PAGES_SYNC}-page limit for direct processing. Please use a smaller document.`);
+          }
+      } else {
+          // This case should theoretically not be reached if the try/catch works, but as a safeguard:
+          throw new Error(`Could not determine page count for PDF '${filename}'. Processing aborted.`);
       }
     }
     // --- End Page Count Check --- 
