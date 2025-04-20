@@ -8363,7 +8363,224 @@ Additionally, I recommend updating the frontend error handling to be more inform
 
 ---
 
-Cancelled
+```diff
+          // Make sure to dismiss the loading toast
+          toast.dismiss(loadingToastId);
+-         throw new Error('Server returned an invalid response. Please try again later.');
++         throw new Error(`Server returned an invalid response (${response.status} ${response.statusText}). Please try again later.`);
+        }
+        
+        
+        if (!response.ok) {
++         console.error('API Error:', response.status, response.statusText, data);
+          throw new Error(data?.message || `Error: ${response.status} ${response.statusText}`);
+        }
+```
+
+---
+
+I also fixed the issue with handling server-side errors by:
+
+1. Adding more detailed error logging that includes the HTTP status and response text
+2. Enhancing the error message to include status information when parsing JSON fails
+3. Adding explicit console logging of API errors for better debugging in the browser console
+
+These changes will help diagnose what's happening on Vercel more easily by providing more detailed error information.
+
+To make this work properly on Vercel, deploy the updated code with these changes. The two key fixes are:
+
+1. Added `"methods": ["POST", "OPTIONS"]` to your route configuration in `vercel.json`
+2. Enhanced error handling in the client code for better debugging
+
+If you still encounter issues after deploying these changes, the additional error information should help us narrow down the problem further.
+
+---
+
+_**User**_
+
+also the sonner message bug is not fixed yet
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+Let me fix the Sonner toast message bug. The current implementation may have race conditions or edge cases where the toast doesn't get dismissed properly.
+
+---
+
+```diff
+      // Create a unique ID for the loading toast so we can dismiss it later
+      const loadingToastId = `loading-${Date.now()}`;
+-     toast.loading("Processing file", { id: loadingToastId });
++     
++     // Create a safety timeout to dismiss toast after 30 seconds regardless of what happens
++     const safetyTimeout = setTimeout(() => {
++       toast.dismiss(loadingToastId);
++     }, 30000);
++     
++     // Show the loading toast
++     toast.loading("Processing file", { id: loadingToastId, duration: 30000 });
+      
+      try {
+        formData.append('file', fileBlob, file.name);
+        
+-       const response = await fetch('/api/extract-pdf', {
++       // Wrap fetch in a timeout to prevent hanging indefinitely
++       const fetchWithTimeout = async (url: string, options: RequestInit, timeout = 25000) => {
++         const controller = new AbortController();
++         const timeoutId = setTimeout(() => controller.abort(), timeout);
++         
++         try {
++           const response = await fetch(url, {
++             ...options,
++             signal: controller.signal
++           });
++           clearTimeout(timeoutId);
++           return response;
++         } catch (error) {
++           clearTimeout(timeoutId);
++           throw error;
++         }
++       };
++       
++       // Use the fetch with timeout
++       const response = await fetchWithTimeout('/api/extract-pdf', {
+          method: 'POST',
+          body: formData,
+        } catch (jsonError) {
+          console.error('JSON parsing error:', jsonError);
+-         // Make sure to dismiss the loading toast
+-         toast.dismiss(loadingToastId);
+          throw new Error(`Server returned an invalid response (${response.status} ${response.statusText}). Please try again later.`);
+        }
+-       
+-       // Always dismiss the loading toast whether successful or not
+-       toast.dismiss(loadingToastId);
+        
+        if (!response.ok) {
+          console.error('API Error:', response.status, response.statusText, data);
+          throw new Error(data?.message || `Error: ${response.status} ${response.statusText}`);
+        }
++       
++       // Clear safety timeout as we got here successfully
++       clearTimeout(safetyTimeout);
++       // Dismiss the loading toast
++       toast.dismiss(loadingToastId);
+        
+        setFlashcards(data.flashcards || []);
+        console.error('Error:', err);
+        setError(err.message || 'An error occurred while generating flashcards');
+-       
+-       // Ensure the loading toast is dismissed in case of error
++     } finally {
++       // Always clean up
++       clearTimeout(safetyTimeout);
++       // Always dismiss the loading toast regardless of outcome
+        toast.dismiss(loadingToastId);
+-       toast.error(err.message || 'Failed to generate flashcards');
+-     } finally {
++       // Show error toast if there's an error
++       if (error) {
++         toast.error(error);
++       }
+        setIsLoading(false);
+      }
+```
+
+---
+
+The Sonner toast bug should now be fixed. I've implemented several layers of protection to ensure toast messages don't get stuck:
+
+1. **Multiple Dismissal Points**:
+   - Added a safety timeout that will dismiss the toast after 30 seconds regardless of what happens
+   - Moved the toast dismissal to the `finally` block to ensure it always runs
+   - Set an explicit duration of 30 seconds on the toast itself
+
+2. **Fetch Timeout Protection**:
+   - Added a `fetchWithTimeout` function that will abort the fetch request if it takes too long (25 seconds)
+   - This prevents the app from hanging if the server doesn't respond
+
+3. **Cleanup Logic**:
+   - Added proper cleanup for all timeouts
+   - Centralized error toast display in the finally block
+
+4. **Error Handling**:
+   - Fixed an issue where error toasts might not show under certain conditions
+   - Used the component's error state to determine when to show error toasts
+
+These changes ensure that:
+1. The loading toast will always be dismissed, even if the request times out
+2. Error messages are displayed consistently
+3. Users won't get stuck with loading indicators that can't be closed
+
+This robust error handling approach should resolve the toast notification issues on Vercel.
+
+---
+
+_**User**_
+
+I no longer see new builds coming up in vercel... in git i see attached printscreen (error - deployment failed)
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+I see the issue - your Vercel deployment is failing. This is likely related to the changes we've made recently. Based on the screenshot showing the failed deployment check, here are some steps to diagnose and fix the issue:
+
+1. First, check the detailed Vercel deployment logs by clicking the "Details" link in the failed check. This will show the exact error message.
+
+2. Common causes of Vercel deployment failures after our recent changes:
+
+   - **Issue with vercel.json configuration**: The format or settings in your vercel.json file might be causing the build to fail. Let's check if it's valid.
+
+   - **Missing environment variables**: The PDF processing relies on Google Cloud credentials which need to be configured in Vercel.
+
+   - **Build errors related to new code**: There might be a syntax error or incompatible code in our recent changes.
+
+Let's update your vercel.json file to ensure it's properly formatted:
+
+---
+
+```diff
+    "functions": {
+      "app/api/extract-pdf/route.ts": {
+-       "memory": 3008,
+-       "maxDuration": 90
++       "memory": 1024,
++       "maxDuration": 60
+      }
+    },
+```
+
+---
+
+I've fixed the vercel.json file by:
+
+1. Simplifying the configuration to only include the essential function settings
+2. Reducing memory from 3008MB to 1024MB (3GB is very high and might exceed limits on some Vercel plans)
+3. Reducing maxDuration from 90 seconds to 60 seconds (more reasonable for Vercel)
+4. Removing the complex routes configuration which might be causing issues
+
+Now I need to check if there are any issues with the API route configuration:
+
+---
+
+```diff
+    runtime: 'nodejs',
+    // Increase timeouts for PDF processing
+-   maxDuration: 60,
++   maxDuration: 60
+  };
+  
+```
 
 ---
 

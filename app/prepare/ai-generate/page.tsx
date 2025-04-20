@@ -118,16 +118,15 @@ export default function AiGeneratePage() {
       toast.success(`Successfully created ${data.flashcards.length} flashcards`);
     } catch (err: any) {
       console.error('Error:', err);
-      setError(err.message || 'An error occurred while generating flashcards');
+      const errorMessage = err.message || 'An error occurred while generating flashcards';
+      setError(errorMessage);
+      // Show error toast here to ensure it has the current error
+      toast.error(errorMessage);
     } finally {
       // Always clean up
       clearTimeout(safetyTimeout);
       // Always dismiss the loading toast regardless of outcome
       toast.dismiss(loadingToastId);
-      // Show error toast if there's an error
-      if (error) {
-        toast.error(error);
-      }
       setIsLoading(false);
     }
   };

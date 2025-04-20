@@ -7,7 +7,7 @@ import { ImageAnnotatorClient } from '@google-cloud/vision';
 export const config = {
   runtime: 'nodejs',
   // Increase timeouts for PDF processing
-  maxDuration: 60,
+  maxDuration: 60
 };
 
 // Configuration for Vertex AI
