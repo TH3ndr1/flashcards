@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { VertexAI } from '@google-cloud/vertexai';
-import pdfParse from 'pdf-parse';
 import { ImageAnnotatorClient } from '@google-cloud/vision';
+// Import Document AI Client
+import { DocumentProcessorServiceClient } from '@google-cloud/documentai';
 
 // Specify Node.js runtime for Vercel with explicit configuration
 export const config = {
@@ -10,123 +11,127 @@ export const config = {
   maxDuration: 60
 };
 
-// Configuration for Vertex AI
+// --- Configuration ---
 const projectId = process.env.GCP_PROJECT_ID;
-const location = 'us-central1';
-const modelName = 'gemini-2.0-flash-lite-001';
+const location = 'eu'; // Use the 'eu' region for Document AI as specified
+const processorId = '2ffef9e90eeb6543'; // Your Document OCR processor ID
+const vertexLocation = 'us-central1'; // Keep Vertex AI location if different
+const vertexModelName = 'gemini-2.0-flash-lite-001';
+const skipHumanReview = true; // Process automatically
 
-// Modify the PDF parse options to be even more minimal
-const PDF_PARSE_OPTIONS = {
-  // Reduce max pages for Vercel compatibility
-  max: 30, 
-  // Try removing the pagerender function entirely to see if it avoids internal lookups
-  // pagerender: function(pageData: any) { ... } // Commented out
-};
+// Document AI Client Initialization - Explicitly set the endpoint
+const docAIClientOptions = { apiEndpoint: 'eu-documentai.googleapis.com' };
+const docAIClient = new DocumentProcessorServiceClient(docAIClientOptions);
 
-// Supported file types
+// --- Supported File Types ---
 const SUPPORTED_EXTENSIONS = {
-  // Images
-  'jpg': 'image',
-  'jpeg': 'image',
-  'png': 'image',
-  'gif': 'image',
-  'bmp': 'image',
-  'webp': 'image',
-  // PDFs
-  'pdf': 'pdf',
+  'jpg': 'image' as const,
+  'jpeg': 'image' as const,
+  'png': 'image' as const,
+  'gif': 'image' as const,
+  'bmp': 'image' as const,
+  'webp': 'image' as const,
+  'pdf': 'pdf' as const,
 };
 
-// Check if file type is supported
-function getSupportedFileType(filename: string): string | null {
+function getSupportedFileType(filename: string): 'pdf' | 'image' | null {
   const extension = filename.split('.').pop()?.toLowerCase() || '';
   return SUPPORTED_EXTENSIONS[extension as keyof typeof SUPPORTED_EXTENSIONS] || null;
 }
 
-// Extract text from PDF file using pdf-parse with better error handling
-async function extractTextFromPdf(pdfBuffer: ArrayBuffer) {
-  try {
-    // Convert ArrayBuffer to Buffer
-    const buffer = Buffer.from(pdfBuffer);
-    
-    console.log('Starting PDF parsing with pdf-parse...');
-    // Use pdf-parse with options
-    const result = await pdfParse(buffer, PDF_PARSE_OPTIONS);
-    console.log(`PDF parsing complete: ${result.numpages} pages processed`);
-    
-    return {
-      text: result.text,
-      info: {
-        pages: result.numpages,
-        metadata: result.info
-      }
-    };
-  } catch (error: any) {
-    console.error('PDF parsing error:', error.message, error.stack);
-    throw new Error(`Failed to extract text: ${error.message}`);
-  }
-}
+// --- Text Extraction Functions ---
 
-// Extract text from image using Google Cloud Vision API with improved logging
-async function extractTextFromImage(imageBuffer: ArrayBuffer) {
+// Extract text from IMAGE using Google Cloud Vision AI
+async function extractTextFromImage(fileBuffer: ArrayBuffer, filename: string) {
+  const visionClient = new ImageAnnotatorClient();
+  const buffer = Buffer.from(fileBuffer);
+  console.log(`Starting Vision AI text extraction for IMAGE: ${filename}...`);
   try {
-    console.log('Starting Vision AI text extraction...');
-    // Create client for Vision API
-    const visionClient = new ImageAnnotatorClient();
-    
-    // Convert ArrayBuffer to Buffer
-    const buffer = Buffer.from(imageBuffer);
-    
-    // Use document text detection for best results with document images
     const [result] = await visionClient.documentTextDetection({
       image: { content: buffer.toString('base64') }
     });
-    
-    const detections = result.textAnnotations;
-    if (!detections || detections.length === 0) {
-      console.log('Vision AI returned no text detections');
-      throw new Error('No text detected in the image');
+    const extractedText = result.fullTextAnnotation?.text || '';
+    if (!extractedText) {
+      console.warn(`Vision AI returned no text detections for IMAGE ${filename}`);
+      throw new Error('Vision AI could not detect any text in the image.');
     }
-    
-    // Full text is typically the first annotation
-    const extractedText = detections[0].description || '';
-    console.log(`Vision AI extraction complete, extracted ${extractedText.length} characters`);
-    
+    const characterCount = extractedText.length;
+    console.log(`Vision AI extraction complete for IMAGE ${filename}, extracted ${characterCount} characters`);
     return {
       text: extractedText,
       info: {
-        pages: 1,
-        metadata: { source: 'Vision AI' }
+        pages: result.fullTextAnnotation?.pages?.length || 1, // Get page count if available
+        metadata: { source: 'Vision AI', characters: characterCount }
       }
     };
   } catch (error: any) {
-    console.error('Vision AI extraction error:', error.message, error.stack);
-    throw new Error(`Failed to extract text from image: ${error.message}`);
+    console.error(`Vision AI extraction error for IMAGE ${filename}:`, error.message);
+    throw new Error(`Failed to extract text from image ${filename}: ${error.message}`);
   }
 }
 
-// Function to generate flashcards from extracted text
+// Extract text from PDF using Google Cloud Document AI
+async function extractTextFromPdfWithDocumentAI(fileBuffer: ArrayBuffer, filename: string, mimeType: string) {
+  console.log(`Starting Document AI text extraction for PDF: ${filename} with reported mimeType: ${mimeType}`);
+  const name = `projects/${projectId}/locations/${location}/processors/${processorId}`;
+  const buffer = Buffer.from(fileBuffer);
+  const encodedImage = buffer.toString('base64');
+
+  const request = {
+    name,
+    rawDocument: {
+      content: encodedImage,
+      // Force mimeType to application/pdf for Document AI, regardless of browser detection
+      mimeType: 'application/pdf',
+    },
+  };
+
+  try {
+    // Process the document
+    const [result] = await docAIClient.processDocument(request);
+    const { document } = result;
+
+    if (!document || !document.text) {
+      console.warn(`Document AI returned no text for PDF ${filename}. It might be empty or unreadable.`);
+      throw new Error('Document AI could not detect any text in the PDF. The file might be empty, corrupted, or password-protected.');
+    }
+
+    const extractedText = document.text;
+    const characterCount = extractedText.length;
+    const pageCount = document.pages?.length || 1;
+    console.log(`Document AI extraction complete for PDF ${filename}, extracted ${characterCount} characters from ${pageCount} pages.`);
+
+    return {
+      text: extractedText,
+      info: {
+        pages: pageCount,
+        metadata: { source: 'Document AI', characters: characterCount }
+      }
+    };
+  } catch (error: any) {
+    // Log the full error object for more details on INVALID_ARGUMENT
+    console.error(`Document AI extraction error for PDF ${filename}:`, JSON.stringify(error, null, 2));
+    // Add more specific error handling if needed based on Document AI errors
+    throw new Error(`Failed to process PDF with Document AI: ${error.message}`);
+  }
+}
+
+// --- Flashcard Generation ---
 async function generateFlashcardsFromText(text: string, filename: string) {
   try {
-    // Initialize Vertex AI client
-    const vertexAI = new VertexAI({
-      project: projectId!,
-      location
-    });
-
-    const model = vertexAI.getGenerativeModel({ model: modelName });
-
-    // Create a prompt that uses the extracted text
-    // Increased character limit to 50,000 (still far below the 1M token limit mentioned)
-    const truncatedText = text.length > 50000 
-      ? text.slice(0, 50000) + '...(text truncated for token limits)'
+    const vertexAI = new VertexAI({ project: projectId!, location: vertexLocation });
+    const model = vertexAI.getGenerativeModel({ model: vertexModelName });
+    const MAX_CHARS = 50000; 
+    const truncatedText = text.length > MAX_CHARS
+      ? text.slice(0, MAX_CHARS) + `...(text truncated at ${MAX_CHARS} characters)`
       : text;
-      
     const prompt = `
 I have a document titled "${filename}" with the following extracted text:
 
 """
 ${truncatedText}
 """
+
 You are a professor who is an expert in the field of the document.
 Based on this document content, please create high-quality flashcard-style question and answer pairs.
 Capture the essence of the document in the flashcards so that if a student were to read the flashcards, they would have a good understanding of the document and pass the exam.
@@ -138,204 +143,152 @@ Make the questions test understanding rather than just recall.
 Return an array of these objects.
 
 Example format:
+
 [
   {
     "question": "What is the main principle of X?",
     "answer": "X primarily works by doing Y, which enables Z"
   }
 ]`;
-
-    // Generate content
     const result = await model.generateContent(prompt);
     const response = result.response;
     const responseText = response?.candidates?.[0]?.content?.parts?.[0]?.text;
-    
-    if (!responseText) {
-      throw new Error('No text generated');
+    if (!responseText) throw new Error('No text generated by AI model');
+    const jsonStartIndex = responseText.indexOf('[');
+    const jsonEndIndex = responseText.lastIndexOf(']') + 1;
+    if (jsonStartIndex === -1 || jsonEndIndex === 0) {
+      console.error("Could not find JSON array in AI response:", responseText);
+      throw new Error("AI model did not return the expected JSON format.");
     }
-
-    // Extract and parse JSON
-    const jsonStr = responseText.substring(responseText.indexOf('['), responseText.lastIndexOf(']') + 1);
-    return JSON.parse(jsonStr);
+    const jsonStr = responseText.substring(jsonStartIndex, jsonEndIndex);
+    try {
+      return JSON.parse(jsonStr);
+    } catch (parseError: any) {
+      console.error("Error parsing JSON from AI response:", parseError.message);
+      console.error("Received text:", responseText);
+      console.error("Attempted JSON string:", jsonStr);
+      throw new Error("Failed to parse flashcards from AI response.");
+    }
   } catch (error: any) {
-    console.error('Error generating flashcards:', error.message);
-    throw error;
+    console.error('Error generating flashcards:', error.message, error.stack);
+    throw error; 
   }
 }
 
-// Export the API route handler
+// --- API Route Handlers ---
+
+export async function GET(request: NextRequest) {
+  return NextResponse.json({
+    message: 'Document extraction API is active. Use POST method to extract text.',
+    status: 'ok',
+  });
+}
+
+export async function OPTIONS(request: NextRequest) {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS, GET',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  });
+}
+
 export async function POST(request: NextRequest) {
   console.log('POST request received to /api/extract-pdf');
+  let filename = 'uploaded-file'; // Default filename
+  let fileType: 'pdf' | 'image' | null = null;
+
   try {
-    // Get the form data with more robust error handling
-    let formData;
-    try {
-      formData = await request.formData();
-      console.log('FormData parsed successfully');
-    } catch (formError: any) {
-      console.error('Error parsing form data:', formError);
-      return NextResponse.json({ 
-        success: false, 
-        message: 'Error processing uploaded file. Please try again.',
-        formError: formError.message
-      }, { status: 400 });
-    }
-    
-    // Get the file from the form data with better error handling
+    const formData = await request.formData();
+    console.log('FormData parsed successfully');
+
     const file = formData.get('file');
-    
-    if (!file) {
-      return NextResponse.json({ 
-        success: false, 
-        message: 'No file provided in request'
-      }, { status: 400 });
-    }
-    
-    // Verify the file is a proper File or Blob object
-    if (!(file instanceof Blob)) {
-      return NextResponse.json({ 
-        success: false, 
-        message: 'Uploaded file is not in the expected format',
-        receivedType: typeof file
-      }, { status: 400 });
-    }
+    if (!file) throw new Error('No file provided in request');
+    if (!(file instanceof Blob)) throw new Error('Uploaded item is not a Blob/File');
 
-    // Extract filename from file object with fallback
-    const filename = 'name' in file && typeof file.name === 'string' 
-      ? file.name 
-      : 'uploaded-file';
+    filename = 'name' in file && typeof file.name === 'string' ? file.name : filename;
+    console.log(`Processing file: ${filename}`);
 
-    // Check if file type is supported
-    const fileType = getSupportedFileType(filename);
+    fileType = getSupportedFileType(filename);
     if (!fileType) {
-      return NextResponse.json({ 
-        success: false, 
-        message: `Unsupported file type: "${filename}". Please upload a PDF or image file (jpg, jpeg, png, gif, bmp, webp).`
-      }, { status: 400 });
+      throw new Error(`Unsupported file type: "${filename}". Please upload a supported PDF or image file.`);
     }
 
-    // Increased file size limit to 25MB
-    const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
+    const MAX_FILE_SIZE = 25 * 1024 * 1024;
     if (file.size > MAX_FILE_SIZE) {
       throw new Error(`File too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum size is 25MB.`);
     }
 
-    // Get file information
-    const fileSize = file.size;
     const fileMimeType = file.type;
-
-    // Convert file to array buffer for processing
     const arrayBuffer = await file.arrayBuffer();
-    
-    // Extract text from the document based on file type
-    let extractedText = '';
-    let extractInfo = { pages: 0, metadata: {} };
-    let extractionMethod = '';
-    
+    console.log(`File ${filename} converted to ArrayBuffer, size: ${arrayBuffer.byteLength}`);
+
+    // --- Call appropriate extraction function --- 
+    let extractResult;
+    let extractionMethod: string;
+
     if (fileType === 'pdf') {
-      try {
-        // Try to extract text with pdf-parse first
-        const extractResult = await extractTextFromPdf(arrayBuffer);
-        extractedText = extractResult.text;
-        extractInfo = extractResult.info;
-        extractionMethod = 'pdf-parse';
-        
-        // Handle empty text case
-        if (!extractedText || extractedText.trim().length === 0) {
-          throw new Error('No text could be extracted with pdf-parse');
-        }
-      } catch (extractError: any) {
-        console.error('Primary text extraction failed:', extractError);
-        
-        try {
-          // Fallback to Vision AI for PDFs
-          console.log('Attempting fallback to Vision AI...');
-          const visionResult = await extractTextFromImage(arrayBuffer);
-          extractedText = visionResult.text;
-          extractInfo = visionResult.info;
-          extractionMethod = 'Vision AI';
-          
-          // If Vision AI also returns empty text
-          if (!extractedText || extractedText.trim().length === 0) {
-            throw new Error('No text could be extracted with Vision AI either');
-          }
-        } catch (visionError: any) {
-          console.error('Fallback extraction also failed:', visionError);
-          
-          // Both extraction methods failed
-          return NextResponse.json({ 
-            success: false, 
-            message: `Could not extract text from PDF. The file might be scanned, password-protected, or contain only images that our extractors couldn't process.`,
-            flashcards: []
-          }, { status: 422 });
-        }
-      }
-    } else if (fileType === 'image') {
-      // For images, go directly to Vision AI
-      try {
-        const visionResult = await extractTextFromImage(arrayBuffer);
-        extractedText = visionResult.text;
-        extractInfo = visionResult.info;
-        extractionMethod = 'Vision AI';
-        
-        // Handle empty text case
-        if (!extractedText || extractedText.trim().length === 0) {
-          throw new Error('No text could be detected in the image');
-        }
-      } catch (error: any) {
-        console.error('Image text extraction failed:', error);
-        return NextResponse.json({ 
-          success: false, 
-          message: `Could not extract text from image: ${error.message}`,
-          flashcards: []
-        }, { status: 422 });
-      }
+      extractionMethod = 'Document AI';
+      extractResult = await extractTextFromPdfWithDocumentAI(arrayBuffer, filename, fileMimeType);
+    } else { // fileType === 'image'
+      extractionMethod = 'Vision AI';
+      extractResult = await extractTextFromImage(arrayBuffer, filename);
     }
-    
-    // Generate flashcards from the extracted text
+    // --- End extraction call ---
+
+    const { text: extractedText, info: extractInfo } = extractResult;
+
+    if (!extractedText || extractedText.trim().length === 0) {
+      // This case should ideally be handled within the specific extraction functions now
+      console.warn(`${extractionMethod} detected no text in ${filename}.`);
+      throw new Error(`${extractionMethod} could not detect any text in the ${fileType} file.`);
+    }
+
+    console.log(`Generating flashcards for ${filename} using text from ${extractionMethod}...`);
     const flashcards = await generateFlashcardsFromText(extractedText, filename);
-    
-    // Return the results
-    return NextResponse.json({ 
-      success: true, 
+    console.log(`Generated ${flashcards.length} flashcards for ${filename}`);
+
+    return NextResponse.json({
+      success: true,
       flashcards,
       fileInfo: {
         name: filename,
-        size: fileSize,
+        size: file.size,
         type: fileMimeType,
         fileType: fileType,
         pages: extractInfo.pages,
         extractionMethod
       },
       extractedTextPreview: extractedText.substring(0, 500) + (extractedText.length > 500 ? '...' : ''),
-      message: `Successfully processed ${fileType} ${extractInfo.pages > 1 ? `(${extractInfo.pages} pages)` : ''} with ${extractionMethod} and generated ${flashcards.length} flashcards`
+      message: `Successfully processed ${fileType} with ${extractionMethod} and generated ${flashcards.length} flashcards`
     });
+
   } catch (error: any) {
-    console.error('API error:', error.message);
-    return NextResponse.json({ 
-      success: false, 
-      message: `Error: ${error.message}`,
+    console.error(`API error processing ${filename}:`, error.message, error.stack);
+    let status = 500;
+    let message = `An unexpected server error occurred: ${error.message}`;
+
+    // Set specific statuses based on error type
+    if (error.message.includes("No file provided")) status = 400;
+    if (error.message.includes("Unsupported file type")) status = 400;
+    if (error.message.includes("File too large")) status = 413;
+    if (error.message.includes("could not detect any text")) status = 422;
+    if (error.message.includes("Failed to process PDF with Document AI")) status = 422;
+    if (error.message.includes("Failed to extract text from image")) status = 422;
+    if (error.message.includes("AI model did not return")) status = 502; // Bad Gateway from AI
+    if (error.message.includes("Failed to parse flashcards")) status = 502;
+
+    // Use the specific message from the error if it's one we threw intentionally
+    if (status !== 500 && status !== 502) {
+        message = error.message; 
+    }
+
+    return NextResponse.json({
+      success: false,
+      message: message,
       flashcards: []
-    }, { status: 500 });
+    }, { status });
   }
-}
-
-// Add OPTIONS handler to support CORS preflight requests
-export async function OPTIONS(request: NextRequest) {
-  return new NextResponse(null, {
-    status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    },
-  });
-}
-
-// Add a simple GET handler for testing connectivity
-export async function GET(request: NextRequest) {
-  return NextResponse.json({
-    message: 'PDF extraction API is active. Use POST method to extract text from PDF files.',
-    status: 'ok',
-  });
 } 

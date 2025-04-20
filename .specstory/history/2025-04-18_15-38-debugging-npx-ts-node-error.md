@@ -9019,6 +9019,1437 @@ _**Assistant**_
 
 ---
 
+Okay, the Vercel logs give us a much clearer picture!
+
+The error `Error: ENOENT: no such file or directory, open './test/data/05-versions-space.pdf'` is the key. This indicates that somewhere in the code execution for the `/api/extract-pdf` route, the system is trying to open a specific test file (`05-versions-space.pdf`) that doesn't exist in the Vercel deployment environment.
+
+This almost certainly points to an issue within the `pdf-parse` library itself or how it's being bundled/used in the serverless environment. Libraries sometimes contain internal references to test files, which work fine locally but break when deployed because those test files aren't included in the final build artifact.
+
+We previously added `PDF_PARSE_OPTIONS` to try and mitigate this, but it seems it wasn't sufficient.
+
+Let's try modifying the `pdf-parse` options again to be even more explicit about *not* trying to render anything complex, which might trigger these internal test file lookups.
+
+---
+
+```diff
+  const modelName = 'gemini-2.0-flash-lite-001';
+  
+- // Modify the PDF parse options to be more memory-efficient
++ // Modify the PDF parse options to be even more minimal
+  const PDF_PARSE_OPTIONS = {
+    // Reduce max pages for Vercel compatibility
+    max: 30, 
+-   // Only extract text, ignore other content
+-   pagerender: function(pageData: any) {
+-     return pageData.getTextContent()
+-       .then(function(textContent: any) {
+-         let text = '';
+-         for (let item of textContent.items) {
+-           text += item.str + ' ';
+-         }
+-         return text;
+-       });
+-   }
++   // Try removing the pagerender function entirely to see if it avoids internal lookups
++   // pagerender: function(pageData: any) { ... } // Commented out
+  };
+  
+```
+
+---
+
+I've updated the `PDF_PARSE_OPTIONS` in `app/api/extract-pdf/route.ts` by commenting out the custom `pagerender` function. The hypothesis is that this custom function, while intended to optimize, might inadvertently be triggering the part of `pdf-parse` that looks for test files. By removing it, we'll rely on the default text extraction mechanism of `pdf-parse`, which might be safer in the Vercel environment.
+
+Please try these steps:
+
+1.  Commit this change and push it to your branch.
+2.  Wait for the Vercel deployment.
+3.  Check the Vercel deployment logs *first* to see if the `ENOENT` error is gone during the build/startup phase.
+4.  If the deployment is successful, test the file upload functionality.
+
+If this fixes the issue, it means the `pagerender` option was indeed the culprit. If the error persists, it points to a more fundamental incompatibility between `pdf-parse` and the Vercel environment, and we might need to consider replacing `pdf-parse` as the primary PDF extractor.
+
+---
+
+_**User**_
+
+It is still the same... can't we just skip the pdf-parse library and rely on google vision ai for the extraction, also for pdfs?
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+You're absolutely right. Given the persistent problems with `pdf-parse` in the Vercel serverless environment, relying solely on Google Cloud Vision AI for all supported file types (including PDFs) is the most robust solution. It simplifies the logic and eliminates the problematic dependency.
+
+Let's make those changes.
+
+1.  **Update the API Route (`app/api/extract-pdf/route.ts`):**
+    I'll remove the `pdf-parse` dependency and logic, routing all supported files directly to the `extractTextFromImage` function (which uses Vision AI).
+
+---
+
+_**User**_
+
+please continue
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+Okay, let's proceed with removing `pdf-parse` and consolidating on Google Cloud Vision AI.
+
+**Step 1: Update the API Route Logic**
+
+I will modify `app/api/extract-pdf/route.ts` to remove `pdf-parse` and its associated logic, ensuring all files are processed using `extractTextFromImage` (Vision AI).
+
+---
+
+```diff
+  import { NextRequest, NextResponse } from 'next/server';
+  import { VertexAI } from '@google-cloud/vertexai';
+- import pdfParse from 'pdf-parse';
+  import { ImageAnnotatorClient } from '@google-cloud/vision';
+  
+  const location = 'us-central1';
+  const modelName = 'gemini-2.0-flash-lite-001';
+- 
+- // Modify the PDF parse options to be even more minimal
+- const PDF_PARSE_OPTIONS = {
+-   // Reduce max pages for Vercel compatibility
+-   max: 30, 
+-   // Try removing the pagerender function entirely to see if it avoids internal lookups
+-   // pagerender: function(pageData: any) { ... } // Commented out
+- };
+  
+  // Supported file types
+    'bmp': 'image',
+    'webp': 'image',
+-   // PDFs
++   // PDFs - still supported, but processed by Vision AI
+    'pdf': 'pdf',
+  };
+  }
+  
+- // Extract text from PDF file using pdf-parse with better error handling
+- async function extractTextFromPdf(pdfBuffer: ArrayBuffer) {
+-   try {
+-     // Convert ArrayBuffer to Buffer
+-     const buffer = Buffer.from(pdfBuffer);
+-     
+-     console.log('Starting PDF parsing with pdf-parse...');
+-     // Use pdf-parse with options
+-     const result = await pdfParse(buffer, PDF_PARSE_OPTIONS);
+-     console.log(`PDF parsing complete: ${result.numpages} pages processed`);
+-     
+-     return {
+-       text: result.text,
+-       info: {
+-         pages: result.numpages,
+-         metadata: result.info
+-       }
+-     };
+-   } catch (error: any) {
+-     console.error('PDF parsing error:', error.message, error.stack);
+-     throw new Error(`Failed to extract text: ${error.message}`);
+-   }
+- }
+- 
+- // Extract text from image using Google Cloud Vision API with improved logging
+- async function extractTextFromImage(imageBuffer: ArrayBuffer) {
++ // Extract text from image/PDF using Google Cloud Vision API with improved logging
++ async function extractTextFromDocument(fileBuffer: ArrayBuffer, filename: string) {
+    try {
+-     console.log('Starting Vision AI text extraction...');
+-     // Create client for Vision API
++     console.log(`Starting Vision AI text extraction for ${filename}...`);
++     // Create client for Vision AI
+      const visionClient = new ImageAnnotatorClient();
+  
+      // Convert ArrayBuffer to Buffer
+-     const buffer = Buffer.from(imageBuffer);
++     const buffer = Buffer.from(fileBuffer);
+  
+-     // Use document text detection for best results with document images
++     // Use document text detection for best results with document images/PDFs
+      const [result] = await visionClient.documentTextDetection({
+        image: { content: buffer.toString('base64') }
+      const detections = result.textAnnotations;
+      if (!detections || detections.length === 0) {
+-       console.log('Vision AI returned no text detections');
+-       throw new Error('No text detected in the image');
++       console.log(`Vision AI returned no text detections for ${filename}`);
++       throw new Error(`No text detected in the document ${filename}`);
+      }
+  
+      // Full text is typically the first annotation
+      const extractedText = detections[0].description || '';
+-     console.log(`Vision AI extraction complete, extracted ${extractedText.length} characters`);
++     const characterCount = extractedText.length;
++     console.log(`Vision AI extraction complete for ${filename}, extracted ${characterCount} characters`);
++ 
++     // Vision AI doesn't inherently know page numbers for PDFs, default to 1
++     const pageCount = 1; 
+  
+      return {
+        text: extractedText,
+        info: {
+-         pages: 1,
+-         metadata: { source: 'Vision AI' }
++         pages: pageCount,
++         metadata: { source: 'Vision AI', characters: characterCount }
+        }
+      };
+    } catch (error: any) {
+-     console.error('Vision AI extraction error:', error.message, error.stack);
+-     throw new Error(`Failed to extract text from image: ${error.message}`);
++     console.error(`Vision AI extraction error for ${filename}:`, error.message, error.stack);
++     throw new Error(`Failed to extract text from document ${filename}: ${error.message}`);
+    }
+  }
+      const model = vertexAI.getGenerativeModel({ model: modelName });
+  
+-     // Create a prompt that uses the extracted text
+-     // Increased character limit to 50,000 (still far below the 1M token limit mentioned)
+-     const truncatedText = text.length > 50000 
+-       ? text.slice(0, 50000) + '...(text truncated for token limits)'
++     // Truncate text if needed (Vision AI might return more text than pdf-parse)
++     const MAX_CHARS = 50000; 
++     const truncatedText = text.length > MAX_CHARS
++       ? text.slice(0, MAX_CHARS) + `...(text truncated at ${MAX_CHARS} characters)`
+        : text;
+  
+      const prompt = `
+- I have a document titled "${filename}" with the following extracted text:
+- 
+- """
+- ${truncatedText}
+- """
++ I have a document titled "${filename}" with the following extracted text:\n
++ \"\"\"\n${truncatedText}\n\"\"\"\n
+  You are a professor who is an expert in the field of the document.
+  Based on this document content, please create high-quality flashcard-style question and answer pairs.
+  Format each pair as a JSON object with "question" and "answer" fields.
+  Make the questions test understanding rather than just recall.
+- Return an array of these objects.
+- 
+- Example format:
+- [
+-   {
+-     "question": "What is the main principle of X?",
+-     "answer": "X primarily works by doing Y, which enables Z"
+-   }
+- ]`;
++ Return an array of these objects.\n
++ Example format:\n
++ [\n  {\n    "question": "What is the main principle of X?",\n    "answer": "X primarily works by doing Y, which enables Z"\n  }\n]`;
+  
+      // Generate content
+  
+      if (!responseText) {
+-       throw new Error('No text generated');
++       throw new Error('No text generated by AI model');
+      }
+  
+      // Extract and parse JSON
+-     const jsonStr = responseText.substring(responseText.indexOf('['), responseText.lastIndexOf(']') + 1);
++     const jsonStartIndex = responseText.indexOf('[');
++     const jsonEndIndex = responseText.lastIndexOf(']') + 1;
++     
++     if (jsonStartIndex === -1 || jsonEndIndex === 0) {
++         console.error("Could not find JSON array in AI response:", responseText);
++         throw new Error("AI model did not return the expected JSON format.");
++     }
++         
++     const jsonStr = responseText.substring(jsonStartIndex, jsonEndIndex);
++ 
++     try {
+          return JSON.parse(jsonStr);
++     } catch (parseError: any) {
++         console.error("Error parsing JSON from AI response:", parseError.message);
++         console.error("Received text:", responseText);
++         console.error("Attempted JSON string:", jsonStr);
++         throw new Error("Failed to parse flashcards from AI response.");
++     }
+    } catch (error: any) {
+-     console.error('Error generating flashcards:', error.message);
++     console.error('Error generating flashcards:', error.message, error.stack);
++     // Re-throw to be caught by the main handler
+      throw error; 
+    }
+  }
++ 
++ // Add a simple GET handler for testing connectivity
++ export async function GET(request: NextRequest) {
++   return NextResponse.json({
++     message: 'Document extraction API is active. Use POST method to extract text.',
++     status: 'ok',
++   });
++ }
++ 
++ // Add OPTIONS handler to support CORS preflight requests
++ export async function OPTIONS(request: NextRequest) {
++   return new NextResponse(null, {
++     status: 200,
++     headers: {
++       'Access-Control-Allow-Origin': '*', // Adjust in production
++       'Access-Control-Allow-Methods': 'POST, OPTIONS, GET',
++       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
++     },
++   });
++ }
+  
+  // Export the API route handler
+  export async function POST(request: NextRequest) {
+    console.log('POST request received to /api/extract-pdf');
+    try {
+-     // Get the form data with more robust error handling
++     // Get the form data
+      let formData;
+      try {
+          success: false,
+          message: 'Error processing uploaded file. Please try again.',
+-         formError: formError.message
++         formError: formError.message // Include specific form error
+        }, { status: 400 });
+      }
+  
+-     // Get the file from the form data with better error handling
++     // Get the file from the form data
+      const file = formData.get('file');
+  
+      if (!file) {
++       console.error('No file found in request');
+        return NextResponse.json({
+          success: false,
+      // Verify the file is a proper File or Blob object
+      if (!(file instanceof Blob)) {
++       console.error('Uploaded item is not a Blob/File:', typeof file);
+        return NextResponse.json({
+          success: false,
+      }
+  
+-     // Extract filename from file object with fallback
++     // Extract filename
+      const filename = 'name' in file && typeof file.name === 'string'
+        ? file.name
+        : 'uploaded-file';
++     console.log(`Processing file: ${filename}`);
+  
+      // Check if file type is supported
+      const fileType = getSupportedFileType(filename);
+      if (!fileType) {
++       console.error(`Unsupported file type: ${filename}`);
+        return NextResponse.json({
+          success: false,
+-         message: `Unsupported file type: "${filename}". Please upload a PDF or image file (jpg, jpeg, png, gif, bmp, webp).`
++         message: `Unsupported file type: "${filename}". Please upload a supported PDF or image file.`
+        }, { status: 400 });
+      }
+      const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
+      if (file.size > MAX_FILE_SIZE) {
+-       throw new Error(`File too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum size is 25MB.`);
++        console.error(`File too large: ${filename} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
++       return NextResponse.json({
++         success: false,
++         message: `File too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum size is 25MB.`
++       }, { status: 413 }); // 413 Payload Too Large
+      }
+  
+      // Convert file to array buffer for processing
+      const arrayBuffer = await file.arrayBuffer();
++     console.log(`File ${filename} converted to ArrayBuffer, size: ${arrayBuffer.byteLength}`);
+  
+-     // Extract text from the document based on file type
++     // Extract text from the document using Vision AI
+      let extractedText = '';
+      let extractInfo = { pages: 0, metadata: {} };
+-     let extractionMethod = '';
+-     
+-     if (fileType === 'pdf') {
+-       try {
+-         // Try to extract text with pdf-parse first
+-         const extractResult = await extractTextFromPdf(arrayBuffer);
+-         extractedText = extractResult.text;
+-         extractInfo = extractResult.info;
+-         extractionMethod = 'pdf-parse';
+-         
+-         // Handle empty text case
+-         if (!extractedText || extractedText.trim().length === 0) {
+-           throw new Error('No text could be extracted with pdf-parse');
+-         }
+-       } catch (extractError: any) {
+-         console.error('Primary text extraction failed:', extractError);
+-         
+-         try {
+-           // Fallback to Vision AI for PDFs
+-           console.log('Attempting fallback to Vision AI...');
+-           const visionResult = await extractTextFromImage(arrayBuffer);
+-           extractedText = visionResult.text;
+-           extractInfo = visionResult.info;
+-           extractionMethod = 'Vision AI';
+-           
+-           // If Vision AI also returns empty text
+-           if (!extractedText || extractedText.trim().length === 0) {
+-             throw new Error('No text could be extracted with Vision AI either');
+-           }
+-         } catch (visionError: any) {
+-           console.error('Fallback extraction also failed:', visionError);
+-           
+-           // Both extraction methods failed
+-           return NextResponse.json({ 
+-             success: false, 
+-             message: `Could not extract text from PDF. The file might be scanned, password-protected, or contain only images that our extractors couldn't process.`,
+-             flashcards: []
+-           }, { status: 422 });
+-         }
+-       }
+-     } else if (fileType === 'image') {
+-       // For images, go directly to Vision AI
+-       try {
+-         const visionResult = await extractTextFromImage(arrayBuffer);
++     const extractionMethod = 'Vision AI'; // Always Vision AI now
++ 
++     try {
++       console.log(`Calling Vision AI for ${filename}...`);
++       const visionResult = await extractTextFromDocument(arrayBuffer, filename);
+        extractedText = visionResult.text;
+        extractInfo = visionResult.info;
+-         extractionMethod = 'Vision AI';
+  
+        // Handle empty text case
+        if (!extractedText || extractedText.trim().length === 0) {
+-           throw new Error('No text could be detected in the image');
++         console.error(`Vision AI detected no text in ${filename}`);
++         throw new Error(`No text could be detected in the ${fileType} file.`);
+        }
++       console.log(`Vision AI successful for ${filename}`);
+      } catch (error: any) {
+-         console.error('Image text extraction failed:', error);
++       console.error(`Vision AI extraction failed for ${filename}:`, error);
++       // Return a specific error message if Vision AI fails
+        return NextResponse.json({
+          success: false,
+-           message: `Could not extract text from image: ${error.message}`,
++         message: `Could not extract text from ${fileType}: ${error.message}`,
+          flashcards: []
+-         }, { status: 422 });
+-       }
++       }, { status: 422 }); // 422 Unprocessable Entity
+      }
+  
+      // Generate flashcards from the extracted text
++     console.log(`Generating flashcards for ${filename}...`);
+      const flashcards = await generateFlashcardsFromText(extractedText, filename);
++     console.log(`Generated ${flashcards.length} flashcards for ${filename}`);
+  
+      // Return the results
+          size: fileSize,
+          type: fileMimeType,
+-         fileType: fileType,
+-         pages: extractInfo.pages,
++         fileType: fileType, // e.g., 'pdf' or 'image'
++         pages: extractInfo.pages, // Note: Vision AI might not give accurate page counts for PDFs
+          extractionMethod
+        },
+        extractedTextPreview: extractedText.substring(0, 500) + (extractedText.length > 500 ? '...' : ''),
+-       message: `Successfully processed ${fileType} ${extractInfo.pages > 1 ? `(${extractInfo.pages} pages)` : ''} with ${extractionMethod} and generated ${flashcards.length} flashcards`
++       message: `Successfully processed ${fileType} with ${extractionMethod} and generated ${flashcards.length} flashcards`
+      });
+    } catch (error: any) {
+-     console.error('API error:', error.message);
++     // Catch any unexpected errors during the process
++     console.error('Unhandled API error:', error.message, error.stack);
+      return NextResponse.json({
+        success: false,
+-       message: `Error: ${error.message}`,
++       message: `An unexpected server error occurred: ${error.message}`,
+        flashcards: []
+      }, { status: 500 });
+    }
+- }
+- 
+- // Add OPTIONS handler to support CORS preflight requests
+- export async function OPTIONS(request: NextRequest) {
+-   return new NextResponse(null, {
+-     status: 200,
+-     headers: {
+-       'Access-Control-Allow-Origin': '*',
+-       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+-       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+-     },
+-   });
+- }
+- 
+- // Add a simple GET handler for testing connectivity
+- export async function GET(request: NextRequest) {
+-   return NextResponse.json({
+-     message: 'PDF extraction API is active. Use POST method to extract text from PDF files.',
+-     status: 'ok',
+-   });
+  } 
+```
+
+---
+
+**Step 2: Remove the Dependency**
+
+Now, I'll remove the `pdf-parse` package from your project dependencies.
+
+---
+
+```bash
+pnpm remove pdf-parse
+```
+
+```
+tom@MBP-van-Tom flashcards % pnpm remove pdf-parse
+ WARN  deprecated @supabase/auth-helpers-nextjs@0.10.0: This package is now deprecated - please use the @supabase/ssr package instea
+d.
+ WARN  6 deprecated subdependencies found: @supabase/auth-helpers-shared@0.7.0, @types/long@5.0.0, abab@2.0.6, domexception@4.0.0, g
+lob@7.2.3, inflight@1.0.6
+Already up to date
+Progress: resolved 768, reused 711, downloaded 0, added 0, done
+ WARN  Issues with peer dependencies found
+.
+├─┬ @testing-library/react-hooks 8.0.1
+│ ├── ✕ unmet peer @types/react@"^16.9.0 || ^17.0.0": found 19.0.12
+│ ├── ✕ unmet peer react@"^16.9.0 || ^17.0.0": found 19.1.0
+│ └── ✕ unmet peer react-dom@"^16.9.0 || ^17.0.0": found 19.1.0
+├─┬ react-day-picker 8.10.1
+│ ├── ✕ unmet peer react@"^16.8.0 || ^17.0.0 || ^18.0.0": found 19.1.0
+│ └── ✕ unmet peer date-fns@"^2.28.0 || ^3.0.0": found 4.1.0
+├─┬ vaul 0.9.9
+│ ├── ✕ unmet peer react@"^16.8 || ^17.0 || ^18.0": found 19.1.0
+│ └── ✕ unmet peer react-dom@"^16.8 || ^17.0 || ^18.0": found 19.1.0
+└─┬ jest-environment-jsdom 29.7.0
+  ├── ✕ unmet peer canvas@^2.5.0: found 3.1.0
+  └─┬ jsdom 20.0.3
+    └── ✕ unmet peer canvas@^2.5.0: found 3.1.0
+
+dependencies:
+- pdf-parse 1.1.1
+
+Done in 1.8s using pnpm v10.6.3
+tom@MBP-van-Tom flashcards %
+```
+
+---
+
+**Step 3: Update Frontend UI Note**
+
+Finally, I'll update the note in the UI on the `ai-generate` page to reflect that only Vision AI is now used for extraction.
+
+---
+
+```diff
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+-                   Note: Text is extracted using pdf-parse for PDFs (up to 100 pages) or Google Cloud Vision AI 
+-                   for images. Files up to 25MB are supported.
++                   Note: Text is extracted using Google Cloud Vision AI for all supported document types (PDFs and images).
++                   Files up to 25MB are supported.
+                  </p>
+                </CardContent>
+```
+
+---
+
+We have now completed the switch to using only Google Cloud Vision AI for text extraction:
+
+1.  The `app/api/extract-pdf/route.ts` API route has been significantly simplified, removing all logic related to `pdf-parse`. It now sends all supported files directly to the `extractTextFromDocument` function which uses Vision AI.
+2.  The `pdf-parse` dependency has been removed from your `package.json`.
+3.  The user interface note on the `app/prepare/ai-generate/page.tsx` page has been updated to accurately reflect that Vision AI is used for both PDFs and images.
+
+This approach should be more stable on Vercel as it removes the dependency that was causing the `ENOENT` error.
+
+Please try deploying these changes. The file upload should now work correctly, using Vision AI for all supported document types.
+
+---
+
+_**User**_
+
+Error: Could not extract text from pdf: Failed to extract text from document Context.pdf: No text detected in the document Context.pdf
+    at handleSubmit (webpack-internal:///(app-pages-browser)/./app/prepare/ai-generate/page.tsx:121:23)
+
+Error: API Error: 422 "Unprocessable Entity" {}
+    at createUnhandledError (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@15.2.4_@babel+core@7.26.10_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/next/dist/client/components/errors/console-error.js:27:71)
+    at handleClientError (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@15.2.4_@babel+core@7.26.10_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/next/dist/client/components/errors/use-error-handler.js:45:56)
+    at console.error (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@15.2.4_@babel+core@7.26.10_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/next/dist/client/components/globals/intercept-console-error.js:47:56)
+    at handleSubmit (webpack-internal:///(app-pages-browser)/./app/prepare/ai-generate/page.tsx:120:25)
+
+Error: Could not extract text from pdf: Failed to extract text from document CCM663 - B&W plafond speaker living.pdf: No text detected in the document CCM663 - B&W plafond speaker living.pdf
+    at handleSubmit (webpack-internal:///(app-pages-browser)/./app/prepare/ai-generate/page.tsx:121:23)
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+Okay, it seems we've resolved the deployment and routing issues, but now we're encountering a different problem: Google Cloud Vision AI is reporting that it cannot detect any text in the PDFs you're uploading (`Context.pdf` and `CCM663 - B&W plafond speaker living.pdf`). The API correctly returns a 422 "Unprocessable Entity" error in this case, which the frontend then displays.
+
+This typically happens when:
+
+1.  **The PDF is Image-Based:** The PDF contains scanned images of text rather than actual text data. While Vision AI performs Optical Character Recognition (OCR), it might struggle with low-resolution scans, unusual fonts, or complex layouts.
+2.  **The PDF is Protected:** The file might be encrypted or have security settings preventing text extraction.
+3.  **The PDF is Empty or Corrupted:** Less likely if it happens with multiple files, but possible.
+
+Since Vision AI is now our sole extraction method, we need to handle this specific failure mode more gracefully and inform the user better.
+
+Let's refine the error handling:
+
+**1. Improve API Error Response for "No Text Detected"**
+
+I'll modify the API route (`app/api/extract-pdf/route.ts`) to specifically identify the "No text detected" error from the `extractTextFromDocument` function and return a clearer message in the 422 response.
+
+---
+
+```diff
+        extractInfo = visionResult.info;
+  
+-       // Handle empty text case
++       // Handle empty text case explicitly
+        if (!extractedText || extractedText.trim().length === 0) {
+-         console.error(`Vision AI detected no text in ${filename}`);
+-         throw new Error(`No text could be detected in the ${fileType} file.`);
++         console.warn(`Vision AI detected no text in ${filename}. The file might be image-based or protected.`);
++         // Throw a specific error to be caught below
++         throw new Error("Vision AI could not detect any text in the document. It might be purely image-based, scanned, or protected.");
+        }
+        console.log(`Vision AI successful for ${filename}`);
+      } catch (error: any) {
+        console.error(`Vision AI extraction failed for ${filename}:`, error);
+-       // Return a specific error message if Vision AI fails
++       // Return a specific error message based on the error type
++       let errorMessage = `Could not process the ${fileType} file.`;
++       if (error.message.includes("No text detected") || error.message.includes("Vision AI could not detect any text")) {
++           errorMessage = `Vision AI could not detect any text in the ${fileType}. The file might be image-based, scanned, or protected.`;
++       } else {
++           errorMessage = `Error extracting text from ${fileType}: ${error.message}`;
++       }
++       
+        return NextResponse.json({
+          success: false,
+-         message: `Could not extract text from ${fileType}: ${error.message}`,
++         message: errorMessage,
+          flashcards: []
+        }, { status: 422 }); // 422 Unprocessable Entity
+```
+
+---
+
+**2. Display the Improved Error on the Frontend**
+
+The frontend code (`app/prepare/ai-generate/page.tsx`) should already display the `message` field from the API response when an error occurs. The changes above ensure this message is now more specific when Vision AI fails to find text. No frontend code changes are strictly needed, but the user will now see a clearer explanation like:
+
+_"Vision AI could not detect any text in the pdf. The file might be image-based, scanned, or protected."_
+
+This refined error handling should provide better feedback to the user when they upload PDFs that Vision AI cannot process. Please deploy this change and test again with those problematic PDFs.
+
+---
+
+_**User**_
+
+I see the issue... the problem is that google vision ai does not interprete pdf files but only image files, which work ok.
+We need to use the google document ai api for pdf files - i have enabled the api - these are the details:
+
+Basic information
+Name
+OCR
+ID
+2ffef9e90eeb6543
+Status
+ Enabled
+Processor Type
+Document OCR
+Created
+Apr 20, 2025, 11:10:24 PM
+Encryption Type
+Google-managed
+Region
+eu
+Prediction
+Prediction endpoint 
+https://eu-documentai.googleapis.com/v1/projects/219530320354/locations/eu/processors/2ffef9e90eeb6543:process 
+
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+Excellent catch! You are absolutely right. While Vision AI *can* sometimes extract text from PDFs using OCR (especially if they are essentially images wrapped in a PDF), **Google Cloud Document AI** is specifically designed for parsing document structures like PDFs and is much more reliable for this task.
+
+It's great that you've already enabled the Document OCR processor in the `eu` region. We can now integrate this into our API route.
+
+Here's the plan:
+
+1.  **Install the Document AI Client Library:** We need the official Node.js library for Document AI.
+2.  **Update the API Route:** Modify `app/api/extract-pdf/route.ts` to:
+    *   Import the necessary Document AI client.
+    *   Keep the `extractTextFromDocument` function (using Vision AI) for *image* files.
+    *   Create a *new* function, `extractTextFromPdfWithDocumentAI`, specifically for PDF files, using the Document AI client and the processor details you provided.
+    *   In the main `POST` handler, check the `fileType` and call the appropriate function (Vision AI for images, Document AI for PDFs).
+3.  **Update the Frontend Note:** Adjust the note in the UI to reflect the different services used.
+
+**Step 1: Install Document AI Client Library**
+
+I'll add the `@google-cloud/documentai` package to your project.
+
+---
+
+```bash
+pnpm add @google-cloud/documentai
+```
+
+```
+tom@MBP-van-Tom flashcards % pnpm add @google-cloud/documentai
+ WARN  deprecated @supabase/auth-helpers-nextjs@0.10.0: This package is now deprecated - please use the @supabase/ssr package instea
+d.
+ WARN  6 deprecated subdependencies found: @supabase/auth-helpers-shared@0.7.0, @types/long@5.0.0, abab@2.0.6, domexception@4.0.0, g
+lob@7.2.3, inflight@1.0.6
+Packages: +1
++
+Progress: resolved 769, reused 711, downloaded 1, added 1, done
+ WARN  Issues with peer dependencies found
+.
+├─┬ @testing-library/react-hooks 8.0.1
+│ ├── ✕ unmet peer @types/react@"^16.9.0 || ^17.0.0": found 19.0.12
+│ ├── ✕ unmet peer react@"^16.9.0 || ^17.0.0": found 19.1.0
+│ └── ✕ unmet peer react-dom@"^16.9.0 || ^17.0.0": found 19.1.0
+├─┬ react-day-picker 8.10.1
+│ ├── ✕ unmet peer react@"^16.8.0 || ^17.0.0 || ^18.0.0": found 19.1.0
+│ └── ✕ unmet peer date-fns@"^2.28.0 || ^3.0.0": found 4.1.0
+├─┬ vaul 0.9.9
+│ ├── ✕ unmet peer react@"^16.8 || ^17.0 || ^18.0": found 19.1.0
+│ └── ✕ unmet peer react-dom@"^16.8 || ^17.0 || ^18.0": found 19.1.0
+└─┬ jest-environment-jsdom 29.7.0
+  ├── ✕ unmet peer canvas@^2.5.0: found 3.1.0
+  └─┬ jsdom 20.0.3
+    └── ✕ unmet peer canvas@^2.5.0: found 3.1.0
+
+dependencies:
++ @google-cloud/documentai 9.1.0
+
+Done in 2.9s using pnpm v10.6.3
+tom@MBP-van-Tom flashcards %
+```
+
+---
+
+**Step 2: Update API Route Logic**
+
+Now, I'll modify the API route (`app/api/extract-pdf/route.ts`) to incorporate the Document AI client for PDF processing.
+
+---
+
+```diff
+  import { VertexAI } from '@google-cloud/vertexai';
+  import { ImageAnnotatorClient } from '@google-cloud/vision';
++ // Import Document AI Client
++ import { DocumentProcessorServiceClient } from '@google-cloud/documentai';
+  
+  // Specify Node.js runtime for Vercel with explicit configuration
+  };
+  
+- // Configuration for Vertex AI
++ // --- Configuration ---
+  const projectId = process.env.GCP_PROJECT_ID;
+- const location = 'us-central1';
+- const modelName = 'gemini-2.0-flash-lite-001';
+- 
+- // Supported file types
++ const location = 'eu'; // Use the 'eu' region for Document AI as specified
++ const processorId = '2ffef9e90eeb6543'; // Your Document OCR processor ID
++ const vertexLocation = 'us-central1'; // Keep Vertex AI location if different
++ const vertexModelName = 'gemini-2.0-flash-lite-001';
++ const skipHumanReview = true; // Process automatically
++ 
++ // Document AI Client Initialization
++ const docAIClient = new DocumentProcessorServiceClient();
++ 
++ // --- Supported File Types ---
+  const SUPPORTED_EXTENSIONS = {
+-   // Images
+    'jpg': 'image',
+    'jpeg': 'image',
+    'bmp': 'image',
+    'webp': 'image',
+-   // PDFs - still supported, but processed by Vision AI
+    'pdf': 'pdf',
+  };
+  
+- // Check if file type is supported
+- function getSupportedFileType(filename: string): string | null {
++ function getSupportedFileType(filename: string): 'pdf' | 'image' | null {
+    const extension = filename.split('.').pop()?.toLowerCase() || '';
+    return SUPPORTED_EXTENSIONS[extension as keyof typeof SUPPORTED_EXTENSIONS] || null;
+  }
+  
+- // Extract text from image/PDF using Google Cloud Vision API with improved logging
+- async function extractTextFromDocument(fileBuffer: ArrayBuffer, filename: string) {
+-   try {
+-     console.log(`Starting Vision AI text extraction for ${filename}...`);
+-     // Create client for Vision AI
+-     const visionClient = new ImageAnnotatorClient();
+- 
+-     // Convert ArrayBuffer to Buffer
++ // --- Text Extraction Functions ---
++ 
++ // Extract text from IMAGE using Google Cloud Vision AI
++ async function extractTextFromImage(fileBuffer: ArrayBuffer, filename: string) {
++   const visionClient = new ImageAnnotatorClient();
+    const buffer = Buffer.from(fileBuffer);
+- 
+-     // Use document text detection for best results with document images/PDFs
++   console.log(`Starting Vision AI text extraction for IMAGE: ${filename}...`);
++   try {
+      const [result] = await visionClient.documentTextDetection({
+        image: { content: buffer.toString('base64') }
+      });
+- 
+-     const detections = result.textAnnotations;
+-     if (!detections || detections.length === 0) {
+-       console.log(`Vision AI returned no text detections for ${filename}`);
+-       throw new Error(`No text detected in the document ${filename}`);
+-     }
+- 
+-     // Full text is typically the first annotation
+-     const extractedText = detections[0].description || '';
++     const extractedText = result.fullTextAnnotation?.text || '';
++     if (!extractedText) {
++       console.warn(`Vision AI returned no text detections for IMAGE ${filename}`);
++       throw new Error('Vision AI could not detect any text in the image.');
++     }
++     const characterCount = extractedText.length;
++     console.log(`Vision AI extraction complete for IMAGE ${filename}, extracted ${characterCount} characters`);
++     return {
++       text: extractedText,
++       info: {
++         pages: result.fullTextAnnotation?.pages?.length || 1, // Get page count if available
++         metadata: { source: 'Vision AI', characters: characterCount }
++       }
++     };
++   } catch (error: any) {
++     console.error(`Vision AI extraction error for IMAGE ${filename}:`, error.message);
++     throw new Error(`Failed to extract text from image ${filename}: ${error.message}`);
++   }
++ }
++ 
++ // Extract text from PDF using Google Cloud Document AI
++ async function extractTextFromPdfWithDocumentAI(fileBuffer: ArrayBuffer, filename: string, mimeType: string) {
++   console.log(`Starting Document AI text extraction for PDF: ${filename}...`);
++   const name = `projects/${projectId}/locations/${location}/processors/${processorId}`;
++   const buffer = Buffer.from(fileBuffer);
++   const encodedImage = buffer.toString('base64');
++ 
++   const request = {
++     name,
++     skipHumanReview,
++     rawDocument: {
++       content: encodedImage,
++       mimeType: mimeType || 'application/pdf', // Use provided mimeType or default
++     },
++   };
++ 
++   try {
++     // Process the document
++     const [result] = await docAIClient.processDocument(request);
++     const { document } = result;
++ 
++     if (!document || !document.text) {
++       console.warn(`Document AI returned no text for PDF ${filename}. It might be empty or unreadable.`);
++       throw new Error('Document AI could not detect any text in the PDF. The file might be empty, corrupted, or password-protected.');
++     }
++ 
++     const extractedText = document.text;
+      const characterCount = extractedText.length;
+-     console.log(`Vision AI extraction complete for ${filename}, extracted ${characterCount} characters`);
+- 
+-     // Vision AI doesn't inherently know page numbers for PDFs, default to 1
+-     const pageCount = 1; 
++     const pageCount = document.pages?.length || 1;
++     console.log(`Document AI extraction complete for PDF ${filename}, extracted ${characterCount} characters from ${pageCount} pages.`);
+  
+      return {
+        text: extractedText,
+        info: {
+          pages: pageCount,
+-         metadata: { source: 'Vision AI', characters: characterCount }
++         metadata: { source: 'Document AI', characters: characterCount }
+        }
+      };
+    } catch (error: any) {
+-     console.error(`Vision AI extraction error for ${filename}:`, error.message, error.stack);
+-     throw new Error(`Failed to extract text from document ${filename}: ${error.message}`);
++     console.error(`Document AI extraction error for PDF ${filename}:`, error.message);
++     // Add more specific error handling if needed based on Document AI errors
++     throw new Error(`Failed to process PDF with Document AI: ${error.message}`);
+    }
+  }
+  
+- // Function to generate flashcards from extracted text
++ // --- Flashcard Generation ---
+  async function generateFlashcardsFromText(text: string, filename: string) {
+    try {
+-     // Initialize Vertex AI client
+-     const vertexAI = new VertexAI({
+-       project: projectId!,
+-       location
+-     });
+- 
+-     const model = vertexAI.getGenerativeModel({ model: modelName });
+- 
+-     // Truncate text if needed (Vision AI might return more text than pdf-parse)
++     const vertexAI = new VertexAI({ project: projectId!, location: vertexLocation });
++     const model = vertexAI.getGenerativeModel({ model: vertexModelName });
+      const MAX_CHARS = 50000; 
+      const truncatedText = text.length > MAX_CHARS
+        ? text.slice(0, MAX_CHARS) + `...(text truncated at ${MAX_CHARS} characters)`
+        : text;
+- 
+      const prompt = `
+- I have a document titled "${filename}" with the following extracted text:\n
+- \"\"\"\n${truncatedText}\n\"\"\"\n
++ I have a document titled "${filename}" with the following extracted text:
++ 
++ """
++ ${truncatedText}
++ """
++ 
+  You are a professor who is an expert in the field of the document.
+  Based on this document content, please create high-quality flashcard-style question and answer pairs.
+  Format each pair as a JSON object with "question" and "answer" fields.
+  Make the questions test understanding rather than just recall.
+- Return an array of these objects.\n
+- Example format:\n
+- [\n  {\n    "question": "What is the main principle of X?",\n    "answer": "X primarily works by doing Y, which enables Z"\n  }\n]`;
+- 
+-     // Generate content
++ Return an array of these objects.
++ 
++ Example format:
++ 
++ [
++   {
++     "question": "What is the main principle of X?",
++     "answer": "X primarily works by doing Y, which enables Z"
++   }
++ ]`;
+      const result = await model.generateContent(prompt);
+      const response = result.response;
+      const responseText = response?.candidates?.[0]?.content?.parts?.[0]?.text;
+- 
+-     if (!responseText) {
+-       throw new Error('No text generated by AI model');
+-     }
+- 
+-     // Extract and parse JSON
++     if (!responseText) throw new Error('No text generated by AI model');
+      const jsonStartIndex = responseText.indexOf('[');
+      const jsonEndIndex = responseText.lastIndexOf(']') + 1;
+-     
+      if (jsonStartIndex === -1 || jsonEndIndex === 0) {
+        console.error("Could not find JSON array in AI response:", responseText);
+        throw new Error("AI model did not return the expected JSON format.");
+      }
+-         
+      const jsonStr = responseText.substring(jsonStartIndex, jsonEndIndex);
+- 
+      try {
+        return JSON.parse(jsonStr);
+    } catch (error: any) {
+      console.error('Error generating flashcards:', error.message, error.stack);
+-     // Re-throw to be caught by the main handler
+      throw error; 
+    }
+  }
+  
+- // Add a simple GET handler for testing connectivity
++ // --- API Route Handlers ---
++ 
+  export async function GET(request: NextRequest) {
+    return NextResponse.json({
+  }
+  
+- // Add OPTIONS handler to support CORS preflight requests
+  export async function OPTIONS(request: NextRequest) {
+    return new NextResponse(null, {
+      status: 200,
+      headers: {
+-       'Access-Control-Allow-Origin': '*', // Adjust in production
++       'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS, GET',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  }
+  
+- // Export the API route handler
+  export async function POST(request: NextRequest) {
+    console.log('POST request received to /api/extract-pdf');
++   let filename = 'uploaded-file'; // Default filename
++   let fileType: 'pdf' | 'image' | null = null;
++ 
+    try {
+-     // Get the form data
+-     let formData;
+-     try {
+-       formData = await request.formData();
++     const formData = await request.formData();
+      console.log('FormData parsed successfully');
+-     } catch (formError: any) {
+-       console.error('Error parsing form data:', formError);
+-       return NextResponse.json({
+-         success: false,
+-         message: 'Error processing uploaded file. Please try again.',
+-         formError: formError.message // Include specific form error
+-       }, { status: 400 });
+-     }
+- 
+-     // Get the file from the form data
++ 
+      const file = formData.get('file');
+- 
+-     if (!file) {
+-       console.error('No file found in request');
+-       return NextResponse.json({
+-         success: false,
+-         message: 'No file provided in request'
+-       }, { status: 400 });
+-     }
+- 
+-     // Verify the file is a proper File or Blob object
+-     if (!(file instanceof Blob)) {
+-       console.error('Uploaded item is not a Blob/File:', typeof file);
+-       return NextResponse.json({
+-         success: false,
+-         message: 'Uploaded file is not in the expected format',
+-         receivedType: typeof file
+-       }, { status: 400 });
+-     }
+- 
+-     // Extract filename
+-     const filename = 'name' in file && typeof file.name === 'string'
+-       ? file.name
+-       : 'uploaded-file';
++     if (!file) throw new Error('No file provided in request');
++     if (!(file instanceof Blob)) throw new Error('Uploaded item is not a Blob/File');
++ 
++     filename = 'name' in file && typeof file.name === 'string' ? file.name : filename;
+      console.log(`Processing file: ${filename}`);
+  
+-     // Check if file type is supported
+-     const fileType = getSupportedFileType(filename);
++     fileType = getSupportedFileType(filename);
+      if (!fileType) {
+-       console.error(`Unsupported file type: ${filename}`);
+-       return NextResponse.json({
+-         success: false,
+-         message: `Unsupported file type: "${filename}". Please upload a supported PDF or image file.`
+-       }, { status: 400 });
++       throw new Error(`Unsupported file type: "${filename}". Please upload a supported PDF or image file.`);
+      }
+  
+-     // Increased file size limit to 25MB
+-     const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
++     const MAX_FILE_SIZE = 25 * 1024 * 1024;
+      if (file.size > MAX_FILE_SIZE) {
+-        console.error(`File too large: ${filename} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
+-       return NextResponse.json({
+-         success: false,
+-         message: `File too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum size is 25MB.`
+-       }, { status: 413 }); // 413 Payload Too Large
+-     }
+- 
+-     // Get file information
+-     const fileSize = file.size;
++       throw new Error(`File too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum size is 25MB.`);
++     }
++ 
+      const fileMimeType = file.type;
+- 
+-     // Convert file to array buffer for processing
+      const arrayBuffer = await file.arrayBuffer();
+      console.log(`File ${filename} converted to ArrayBuffer, size: ${arrayBuffer.byteLength}`);
+  
+-     // Extract text from the document using Vision AI
+-     let extractedText = '';
+-     let extractInfo = { pages: 0, metadata: {} };
+-     const extractionMethod = 'Vision AI'; // Always Vision AI now
+- 
+-     try {
+-       console.log(`Calling Vision AI for ${filename}...`);
+-       const visionResult = await extractTextFromDocument(arrayBuffer, filename);
+-       extractedText = visionResult.text;
+-       extractInfo = visionResult.info;
+- 
+-       // Handle empty text case explicitly
++     // --- Call appropriate extraction function --- 
++     let extractResult;
++     let extractionMethod: string;
++ 
++     if (fileType === 'pdf') {
++       extractionMethod = 'Document AI';
++       extractResult = await extractTextFromPdfWithDocumentAI(arrayBuffer, filename, fileMimeType);
++     } else { // fileType === 'image'
++       extractionMethod = 'Vision AI';
++       extractResult = await extractTextFromImage(arrayBuffer, filename);
++     }
++     // --- End extraction call ---
++ 
++     const { text: extractedText, info: extractInfo } = extractResult;
++ 
+      if (!extractedText || extractedText.trim().length === 0) {
+-         console.warn(`Vision AI detected no text in ${filename}. The file might be image-based or protected.`);
+-         // Throw a specific error to be caught below
+-         throw new Error("Vision AI could not detect any text in the document. It might be purely image-based, scanned, or protected.");
+-       }
+-       console.log(`Vision AI successful for ${filename}`);
+-     } catch (error: any) {
+-       console.error(`Vision AI extraction failed for ${filename}:`, error);
+-       // Return a specific error message based on the error type
+-       let errorMessage = `Could not process the ${fileType} file.`;
+-       if (error.message.includes("No text detected") || error.message.includes("Vision AI could not detect any text")) {
+-           errorMessage = `Vision AI could not detect any text in the ${fileType}. The file might be image-based, scanned, or protected.`;
+-       } else {
+-           errorMessage = `Error extracting text from ${fileType}: ${error.message}`;
+-       }
+-       
+-       return NextResponse.json({
+-         success: false,
+-         message: errorMessage,
+-         flashcards: []
+-       }, { status: 422 }); // 422 Unprocessable Entity
+-     }
+- 
+-     // Generate flashcards from the extracted text
+-     console.log(`Generating flashcards for ${filename}...`);
++       // This case should ideally be handled within the specific extraction functions now
++       console.warn(`${extractionMethod} detected no text in ${filename}.`);
++       throw new Error(`${extractionMethod} could not detect any text in the ${fileType} file.`);
++     }
++ 
++     console.log(`Generating flashcards for ${filename} using text from ${extractionMethod}...`);
+      const flashcards = await generateFlashcardsFromText(extractedText, filename);
+      console.log(`Generated ${flashcards.length} flashcards for ${filename}`);
+  
+-     // Return the results
+      return NextResponse.json({
+        success: true,
+        flashcards,
+        fileInfo: {
+          name: filename,
+-         size: fileSize,
++         size: file.size,
+          type: fileMimeType,
+-         fileType: fileType, // e.g., 'pdf' or 'image'
+-         pages: extractInfo.pages, // Note: Vision AI might not give accurate page counts for PDFs
++         fileType: fileType,
++         pages: extractInfo.pages,
+          extractionMethod
+        },
+        extractedTextPreview: extractedText.substring(0, 500) + (extractedText.length > 500 ? '...' : ''),
+        message: `Successfully processed ${fileType} with ${extractionMethod} and generated ${flashcards.length} flashcards`
+      });
++ 
+    } catch (error: any) {
+-     // Catch any unexpected errors during the process
+-     console.error('Unhandled API error:', error.message, error.stack);
++     console.error(`API error processing ${filename}:`, error.message, error.stack);
++     let status = 500;
++     let message = `An unexpected server error occurred: ${error.message}`;
++ 
++     // Set specific statuses based on error type
++     if (error.message.includes("No file provided")) status = 400;
++     if (error.message.includes("Unsupported file type")) status = 400;
++     if (error.message.includes("File too large")) status = 413;
++     if (error.message.includes("could not detect any text")) status = 422;
++     if (error.message.includes("Failed to process PDF with Document AI")) status = 422;
++     if (error.message.includes("Failed to extract text from image")) status = 422;
++     if (error.message.includes("AI model did not return")) status = 502; // Bad Gateway from AI
++     if (error.message.includes("Failed to parse flashcards")) status = 502;
++ 
++     // Use the specific message from the error if it's one we threw intentionally
++     if (status !== 500 && status !== 502) {
++         message = error.message; 
++     }
++ 
+      return NextResponse.json({
+        success: false,
+-       message: `An unexpected server error occurred: ${error.message}`,
++       message: message,
+        flashcards: []
+-     }, { status: 500 });
++     }, { status });
+    }
+  } 
+```
+
+---
+
+It seems I introduced a small TypeScript error in the `getSupportedFileType` function's return type. Let me fix that quickly.
+
+---
+
+```diff
+  // --- Supported File Types ---
+  const SUPPORTED_EXTENSIONS = {
+-   'jpg': 'image',
+-   'jpeg': 'image',
+-   'png': 'image',
+-   'gif': 'image',
+-   'bmp': 'image',
+-   'webp': 'image',
+-   'pdf': 'pdf',
++   'jpg': 'image' as const,
++   'jpeg': 'image' as const,
++   'png': 'image' as const,
++   'gif': 'image' as const,
++   'bmp': 'image' as const,
++   'webp': 'image' as const,
++   'pdf': 'pdf' as const,
+  };
+  
+```
+
+---
+
+**Step 3: Update Frontend UI Note**
+
+Lastly, I'll update the note in the UI to accurately describe which service handles which file type.
+
+---
+
+```diff
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+-                   Note: Text is extracted using Google Cloud Vision AI for all supported document types (PDFs and images).
++                   Note: PDFs are processed using Google Document AI, and images are processed using Google Vision AI.
+                    Files up to 25MB are supported.
+                  </p>
+```
+
+---
+
+Okay, the integration of Google Cloud Document AI should now be complete:
+
+1.  The `@google-cloud/documentai` library is installed.
+2.  The API route (`app/api/extract-pdf/route.ts`) now correctly uses:
+    *   `DocumentProcessorServiceClient` (Document AI) for PDF files.
+    *   `ImageAnnotatorClient` (Vision AI) for image files.
+3.  The frontend note accurately reflects which service is used for each file type.
+
+This should resolve the "No text detected" errors for PDFs, as Document AI is the correct tool for that job.
+
+Please deploy these changes and test again with your PDF files. Let me know how it goes!
+
+---
+
+_**User**_
+
+Error: API Error: 422 "Unprocessable Entity" {}
+    at createUnhandledError (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@15.2.4_@babel+core@7.26.10_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/next/dist/client/components/errors/console-error.js:27:71)
+    at handleClientError (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@15.2.4_@babel+core@7.26.10_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/next/dist/client/components/errors/use-error-handler.js:45:56)
+    at console.error (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@15.2.4_@babel+core@7.26.10_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/next/dist/client/components/globals/intercept-console-error.js:47:56)
+    at handleSubmit (webpack-internal:///(app-pages-browser)/./app/prepare/ai-generate/page.tsx:120:25)
+
+Error: Failed to process PDF with Document AI: 3 INVALID_ARGUMENT: Request contains an invalid argument.
+    at handleSubmit (webpack-internal:///(app-pages-browser)/./app/prepare/ai-generate/page.tsx:121:23)
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+Okay, we've progressed! The 405 error is gone, but now we have a `422 Unprocessable Entity` error specifically because the Document AI call is failing with `3 INVALID_ARGUMENT: Request contains an invalid argument.`
+
+This means the request we are sending *to* the Google Cloud Document AI API from your Vercel function has a parameter that the Document AI service doesn't like.
+
+Looking at the `extractTextFromPdfWithDocumentAI` function, the most likely candidates for an invalid argument are:
+
+1.  **`name`:** The processor resource name string (`projects/.../locations/.../processors/...`) might be malformed, although it looks correct based on your input.
+2.  **`rawDocument.content`:** The Base64 encoded file content might be corrupted or in a format Document AI doesn't expect (less likely).
+3.  **`rawDocument.mimeType`:** The `mimeType` we are sending (`file.type` detected by the browser, or defaulting to `application/pdf`) might not be exactly what the Document AI processor expects for the specific PDF being uploaded. Sometimes PDFs have slightly different internal MIME types.
+4.  **Permissions (Less Likely for INVALID\_ARGUMENT):** While usually causing permission errors, sometimes misconfiguration could manifest strangely.
+
+Let's try two things to debug this:
+
+1.  **Force the MIME type:** We'll explicitly set the `mimeType` to `'application/pdf'` for the Document AI request, ignoring whatever the browser sends.
+2.  **Add More Detailed Error Logging:** We'll log the full error object coming back from Document AI in the Vercel function logs, as it might contain more specifics about *which* argument is invalid.
+
+I'll apply these changes to `app/api/extract-pdf/route.ts`.
+
+---
+
+```diff
+  // Extract text from PDF using Google Cloud Document AI
+  async function extractTextFromPdfWithDocumentAI(fileBuffer: ArrayBuffer, filename: string, mimeType: string) {
+-   console.log(`Starting Document AI text extraction for PDF: ${filename}...`);
++   console.log(`Starting Document AI text extraction for PDF: ${filename} with reported mimeType: ${mimeType}`);
+    const name = `projects/${projectId}/locations/${location}/processors/${processorId}`;
+    const buffer = Buffer.from(fileBuffer);
+      rawDocument: {
+        content: encodedImage,
+-       mimeType: mimeType || 'application/pdf', // Use provided mimeType or default
++       // Force mimeType to application/pdf for Document AI, regardless of browser detection
++       mimeType: 'application/pdf', 
+      },
+    };
+      };
+    } catch (error: any) {
+-     console.error(`Document AI extraction error for PDF ${filename}:`, error.message);
++     // Log the full error object for more details on INVALID_ARGUMENT
++     console.error(`Document AI extraction error for PDF ${filename}:`, JSON.stringify(error, null, 2)); 
+      // Add more specific error handling if needed based on Document AI errors
+      throw new Error(`Failed to process PDF with Document AI: ${error.message}`);
+```
+
+---
+
+I've made the following changes:
+
+1.  **Forced MIME Type:** In `extractTextFromPdfWithDocumentAI`, the `mimeType` in the request to Document AI is now hardcoded to `'application/pdf'`.
+2.  **Enhanced Logging:** The `catch` block in the same function will now log the *entire* error object received from the Document AI client using `JSON.stringify`. This should give us more context if the `INVALID_ARGUMENT` error occurs again.
+
+**Next Steps:**
+
+1.  **Deploy:** Commit and push these changes to trigger a new Vercel deployment.
+2.  **Test:** Try uploading one of the PDFs that previously failed (`Context.pdf` or `CCM663 - B&W plafond speaker living.pdf`).
+3.  **Check Vercel Logs:** If it fails again with the `INVALID_ARGUMENT` error, please check the **Vercel function logs** (not the browser console) for the deployment. Look for the line starting with `Document AI extraction error for PDF...`. The detailed JSON output following that line should provide more clues about which specific argument is causing the problem.
+4.  **Verify Permissions:** While we debug the code, please also double-check in your Google Cloud Console that the service account your Vercel project uses has the necessary permissions (e.g., "Document AI User" role) granted for the specific processor (`projects/219530320354/locations/eu/processors/2ffef9e90eeb6543`).
+
+---
+
+_**User**_
+
+Please look at this document @https://cloud.google.com/document-ai/docs/send-request#documentai_process_document-nodejsand @link @https://cloud.google.com/document-ai/docs/handle-response  
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+Thank you for providing the links to the official Google Cloud Document AI documentation. I've reviewed the Node.js examples for sending processing requests and handling responses.
+
+Based on the documentation and the `INVALID_ARGUMENT` error you're still seeing, the most likely culprit is the `skipHumanReview` parameter in our request.
+
+The documentation for the `processDocument` request mentions:
+
+> `skipHumanReview`: A boolean to disable human review (Supported by Human-in-the-Loop processors only.)
+>
+> *   `true` - skips human review
+> *   `false` - enables human review (default)
+
+Your processor type is **Document OCR**, which is typically *not* a Human-in-the-Loop (HITL) processor. Sending `skipHumanReview: true` to a processor that doesn't support HITL could very well result in an `INVALID_ARGUMENT` error.
+
+Let's remove the `skipHumanReview` field from the request object in `extractTextFromPdfWithDocumentAI`.
+
+---
+
+```diff
+    const request = {
+      name,
+-     skipHumanReview,
+      rawDocument: {
+        content: encodedImage,
+```
+
+---
+
+I have removed the `skipHumanReview` field from the request payload sent to the Document AI processor. Since your processor is a standard Document OCR type, this field is likely unnecessary and potentially causing the `INVALID_ARGUMENT` error.
+
+Please deploy this change and test the PDF upload again. Hopefully, this resolves the issue!
+
+---
+
+_**User**_
+
+Error: API Error: 422 "Unprocessable Entity" {}
+    at createUnhandledError (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@15.2.4_@babel+core@7.26.10_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/next/dist/client/components/errors/console-error.js:27:71)
+    at handleClientError (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@15.2.4_@babel+core@7.26.10_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/next/dist/client/components/errors/use-error-handler.js:45:56)
+    at console.error (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@15.2.4_@babel+core@7.26.10_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/next/dist/client/components/globals/intercept-console-error.js:47:56)
+    at handleSubmit (webpack-internal:///(app-pages-browser)/./app/prepare/ai-generate/page.tsx:120:25)
+
+Error: Failed to process PDF with Document AI: 3 INVALID_ARGUMENT: Request contains an invalid argument.
+    at handleSubmit (webpack-internal:///(app-pages-browser)/./app/prepare/ai-generate/page.tsx:121:23)
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+It's frustrating that the `INVALID_ARGUMENT` error persists even after removing `skipHumanReview`. The error message itself isn't giving us much detail about *which* argument is wrong.
+
+Let's try explicitly setting the API endpoint for the Document AI client, just in case the library isn't automatically picking up the correct regional endpoint (`eu-documentai.googleapis.com`) based on the processor's location (`eu`).
+
+I'll modify the client initialization in `app/api/extract-pdf/route.ts`.
+
+---
+
+```diff
+  const skipHumanReview = true; // Process automatically
+  
+- // Document AI Client Initialization
+- const docAIClient = new DocumentProcessorServiceClient();
++ // Document AI Client Initialization - Explicitly set the endpoint
++ const docAIClientOptions = { apiEndpoint: 'eu-documentai.googleapis.com' };
++ const docAIClient = new DocumentProcessorServiceClient(docAIClientOptions);
+  
+  // --- Supported File Types ---
+```
+
+---
+
+I've updated the code to initialize the `DocumentProcessorServiceClient` with the explicit `eu-documentai.googleapis.com` endpoint. This eliminates any ambiguity about which regional API the client should communicate with.
+
+**Before Deploying:**
+
+*   **Verify Service Account Permissions:** Please *double-check* that the service account associated with your Vercel deployment has the **"Document AI User"** role (or equivalent permissions that include `documentai.processors.process`) granted in your Google Cloud project (`219530320354`). Even if other Google Cloud services are working, Document AI might need specific permissions.
+*   **Verify Processor ID:** Ensure the `processorId = '2ffef9e90eeb6543'` is exactly correct and that the processor is indeed enabled in the `eu` location.
+
+**Next Steps:**
+
+1.  **Deploy:** Commit and push this change.
+2.  **Test:** Upload a PDF file again.
+3.  **Check Vercel Logs:** If it still fails with the `INVALID_ARGUMENT` error, please carefully examine the Vercel function logs for the *full JSON error object* that we added logging for in the previous step (it should appear after `Document AI extraction error for PDF...`). This detailed error might contain a `fieldViolations` section or other clues pinpointing the exact invalid argument.
+
+If this doesn't work and the logs don't reveal more, the issue might be more subtle, possibly related to the specific content of the PDF interacting negatively with the Document AI processor or an underlying configuration issue in GCP.
+
+---
+
+_**User**_
+
+can you doulble check the gcp service account has the correct rights? i have gcloud installed
+
+---
+
+_**Assistant**_
+
+
+
+---
+
 
 
 ---

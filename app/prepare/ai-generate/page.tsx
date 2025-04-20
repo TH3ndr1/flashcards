@@ -234,8 +234,8 @@ export default function AiGeneratePage() {
                   <p className="text-sm italic">{extractedTextPreview}</p>
                 </div>
                 <p className="text-xs text-muted-foreground mt-2">
-                  Note: Text is extracted using pdf-parse for PDFs (up to 100 pages) or Google Cloud Vision AI 
-                  for images. Files up to 25MB are supported.
+                  Note: PDFs are processed using Google Document AI, and images are processed using Google Vision AI.
+                  Files up to 25MB are supported.
                 </p>
               </CardContent>
             </Card>
