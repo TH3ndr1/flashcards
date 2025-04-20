@@ -21,13 +21,6 @@ const nextConfig = {
     parallelServerBuildTraces: true,
     parallelServerCompiles: true,
   },
-  // Enable API routes with proper Content-Type handling
-  api: {
-    bodyParser: {
-      sizeLimit: '25mb',
-    },
-    externalResolver: true,
-  },
 }
 
 mergeConfig(nextConfig, userConfig)
