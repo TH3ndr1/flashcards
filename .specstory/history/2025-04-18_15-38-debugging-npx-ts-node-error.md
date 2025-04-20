@@ -12966,6 +12966,79 @@ Please deploy with this simplified `vercel.json` and let me know if you encounte
 
 ---
 
+_**User**_
+
+nope, still no deployment that is starting
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+Let's completely recreate the `vercel.json` file to ensure there are no hidden characters or formatting issues:
+
+---
+
+Deleting the existing vercel.json file to recreate it from scratch
+
+---
+
+```diff
+- 
++ {
++   "functions": {
++     "app/api/extract-pdf/route.ts": {
++       "memory": 3008,
++       "maxDuration": 90
++     }
++   }
++ } 
+```
+
+---
+
+Now let's also verify that the Next.js configuration is properly set up for Vercel deployment. Let's check the `next.config.mjs` file:
+
+---
+
+Read file: next.config.mjs
+
+---
+
+The Next.js configuration looks fine. Let's try one more approach for vercel.json. We'll use a different format that is known to work well with Vercel deployments:
+
+---
+
+```diff
+  {
++   "version": 2,
+    "functions": {
+-     "app/api/extract-pdf/route.ts": {
++     "api/extract-pdf": {
+        "memory": 3008,
+        "maxDuration": 90
+```
+
+---
+
+I've updated your `vercel.json` file with a more standard format that should work better with Vercel's deployment system:
+
+1. Added `"version": 2` to explicitly specify the Vercel configuration version
+2. Changed the function path from `app/api/extract-pdf/route.ts` to `api/extract-pdf` which matches the URL path rather than the file path (this is how Vercel expects it)
+
+If the deployment still fails after this change, try these additional steps:
+
+1. Check if there's a specific error message in the Vercel deployment logs
+2. Try removing the `vercel.json` file entirely and deploying without it (the default limits might work for most of your uploads)
+3. Make sure that the API route is properly configured in your app directory structure as expected by Next.js 13+
+
+Let me know if this helps or if you need further assistance with debugging the deployment issue.
+
+---
+
 
 
 ---
