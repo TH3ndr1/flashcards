@@ -12,16 +12,42 @@ export const config = {
 };
 
 // --- Configuration ---
+// Read credentials from environment variables (set by gcpvercel.com integration)
 const projectId = process.env.GCP_PROJECT_ID;
-const location = 'eu'; // Use the 'eu' region for Document AI as specified
-const processorId = '2ffef9e90eeb6543'; // Your Document OCR processor ID
-const vertexLocation = 'us-central1'; // Keep Vertex AI location if different
+const clientEmail = process.env.GCP_SERVICE_ACCOUNT_EMAIL;
+const privateKey = process.env.GCP_PRIVATE_KEY?.replace(/\n/g, '\n'); // Ensure newlines
+
+const docAILocation = 'eu'; // Document AI processor location
+const docAIProcessorId = '2ffef9e90eeb6543'; // Your Document OCR processor ID
+const vertexLocation = 'us-central1'; // Vertex AI location
 const vertexModelName = 'gemini-2.0-flash-lite-001';
 const skipHumanReview = true; // Process automatically
 
-// Document AI Client Initialization - Explicitly set the endpoint
-const docAIClientOptions = { apiEndpoint: 'eu-documentai.googleapis.com' };
+// --- Credential Object --- 
+// Check for credentials early, before initializing clients
+if (!projectId || !clientEmail || !privateKey) {
+  console.error('[API /extract-pdf] Missing required GCP credentials (GCP_PROJECT_ID, GCP_SERVICE_ACCOUNT_EMAIL, GCP_PRIVATE_KEY) in environment variables.');
+  // Note: Can't return NextResponse here as it's top-level code.
+  // The check within POST handler will prevent execution if creds are missing.
+}
+
+const credentials = {
+  client_email: clientEmail,
+  private_key: privateKey,
+};
+
+// --- Client Initializations (Using Explicit Credentials) ---
+// Initialize clients using the credentials object
+const docAIClientOptions = { credentials, apiEndpoint: 'eu-documentai.googleapis.com' };
 const docAIClient = new DocumentProcessorServiceClient(docAIClientOptions);
+
+const visionClient = new ImageAnnotatorClient({ credentials, projectId });
+
+const vertexAI = new VertexAI({
+    project: projectId,
+    location: vertexLocation,
+    googleAuthOptions: { credentials } // Pass credentials correctly
+});
 
 // --- Supported File Types ---
 const SUPPORTED_EXTENSIONS = {
@@ -43,10 +69,10 @@ function getSupportedFileType(filename: string): 'pdf' | 'image' | null {
 
 // Extract text from IMAGE using Google Cloud Vision AI
 async function extractTextFromImage(fileBuffer: ArrayBuffer, filename: string) {
-  const visionClient = new ImageAnnotatorClient();
   const buffer = Buffer.from(fileBuffer);
   console.log(`Starting Vision AI text extraction for IMAGE: ${filename}...`);
   try {
+    // Use the pre-initialized visionClient
     const [result] = await visionClient.documentTextDetection({
       image: { content: buffer.toString('base64') }
     });
@@ -73,7 +99,7 @@ async function extractTextFromImage(fileBuffer: ArrayBuffer, filename: string) {
 // Extract text from PDF using Google Cloud Document AI
 async function extractTextFromPdfWithDocumentAI(fileBuffer: ArrayBuffer, filename: string, mimeType: string) {
   console.log(`Starting Document AI text extraction for PDF: ${filename} with reported mimeType: ${mimeType}`);
-  const name = `projects/${projectId}/locations/${location}/processors/${processorId}`;
+  const name = `projects/${projectId}/locations/${docAILocation}/processors/${docAIProcessorId}`;
   const buffer = Buffer.from(fileBuffer);
   const encodedImage = buffer.toString('base64');
 
@@ -87,7 +113,7 @@ async function extractTextFromPdfWithDocumentAI(fileBuffer: ArrayBuffer, filenam
   };
 
   try {
-    // Process the document
+    // Use the pre-initialized docAIClient
     const [result] = await docAIClient.processDocument(request);
     const { document } = result;
 
@@ -119,7 +145,7 @@ async function extractTextFromPdfWithDocumentAI(fileBuffer: ArrayBuffer, filenam
 // --- Flashcard Generation ---
 async function generateFlashcardsFromText(text: string, filename: string) {
   try {
-    const vertexAI = new VertexAI({ project: projectId!, location: vertexLocation });
+    // Use the pre-initialized vertexAI client
     const model = vertexAI.getGenerativeModel({ model: vertexModelName });
     const MAX_CHARS = 50000; 
     const truncatedText = text.length > MAX_CHARS
@@ -178,6 +204,10 @@ Example format:
 // --- API Route Handlers ---
 
 export async function GET(request: NextRequest) {
+  // Check credentials before processing
+  if (!projectId || !clientEmail || !privateKey) {
+    return NextResponse.json({ error: "Server configuration error: Missing GCP credentials." }, { status: 500 });
+  }
   return NextResponse.json({
     message: 'Document extraction API is active. Use POST method to extract text.',
     status: 'ok',
@@ -185,6 +215,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function OPTIONS(request: NextRequest) {
+  // Check credentials before processing (optional, but good practice)
+  if (!projectId || !clientEmail || !privateKey) {
+     return NextResponse.json({ error: "Server configuration error: Missing GCP credentials." }, { status: 500 });
+  }
   return new NextResponse(null, {
     status: 200,
     headers: {
@@ -196,10 +230,16 @@ export async function OPTIONS(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  console.log('POST request received to /api/extract-pdf');
+  console.log('POST request received to /api/extract-pdf (using explicit GCP_... creds)');
   let filename = 'uploaded-file'; // Default filename
   let fileType: 'pdf' | 'image' | null = null;
 
+  // Check for credentials at the start of the handler
+  if (!projectId || !clientEmail || !privateKey) {
+    console.error('[API /extract-pdf] Handler stopped: Missing required GCP credentials.');
+    return NextResponse.json({ success: false, message: "Server configuration error: Missing credentials." }, { status: 500 });
+  }
+  
   try {
     const formData = await request.formData();
     console.log('FormData parsed successfully');
@@ -266,7 +306,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error(`API error processing ${filename}:`, error.message, error.stack);
+    console.error(`API error processing ${filename} (using explicit creds):`, error.message, error.stack);
     let status = 500;
     let message = `An unexpected server error occurred: ${error.message}`;
 
