@@ -23,6 +23,16 @@ const vertexLocation = 'us-central1'; // Vertex AI location
 const vertexModelName = 'gemini-2.0-flash-lite-001';
 const skipHumanReview = true; // Process automatically
 
+// Log the Document AI configuration for debugging
+console.log(`Document AI Configuration:
+  - Project ID: ${projectId ? 'Configured' : 'Missing'}
+  - Service Account: ${clientEmail ? 'Configured' : 'Missing'}
+  - Private Key: ${privateKey ? 'Configured' : 'Missing'}
+  - Location: ${docAILocation}
+  - Processor ID: ${docAIProcessorId}
+  - Regional Endpoint: ${docAILocation}-documentai.googleapis.com
+`);
+
 // --- Credential Object --- 
 // Check for credentials early, before initializing clients
 if (!projectId || !clientEmail || !privateKey) {
@@ -38,7 +48,12 @@ const credentials = {
 
 // --- Client Initializations (Using Explicit Credentials) ---
 // Initialize clients using the credentials object
-const docAIClientOptions = { credentials, apiEndpoint: 'eu-documentai.googleapis.com' };
+// Document AI client with explicit options
+const docAIClientOptions = { 
+  credentials,
+  projectId,
+  apiEndpoint: `${docAILocation}-documentai.googleapis.com` // Explicitly set the regional endpoint
+}; 
 const docAIClient = new DocumentProcessorServiceClient(docAIClientOptions);
 
 const visionClient = new ImageAnnotatorClient({ credentials, projectId });
@@ -99,22 +114,25 @@ async function extractTextFromImage(fileBuffer: ArrayBuffer, filename: string) {
 // Extract text from PDF using Google Cloud Document AI
 async function extractTextFromPdfWithDocumentAI(fileBuffer: ArrayBuffer, filename: string, mimeType: string) {
   console.log(`Starting Document AI text extraction for PDF: ${filename} with reported mimeType: ${mimeType}`);
-  const name = `projects/${projectId}/locations/${docAILocation}/processors/${docAIProcessorId}`;
-  const buffer = Buffer.from(fileBuffer);
-  const encodedImage = buffer.toString('base64');
-
-  const request = {
-    name,
-    rawDocument: {
-      content: encodedImage,
-      // Force mimeType to application/pdf for Document AI, regardless of browser detection
-      mimeType: 'application/pdf',
-    },
-  };
-
+  
   try {
-    // Use the pre-initialized docAIClient
+    // Following the exact format from the official documentation
+    const processorName = `projects/${projectId}/locations/${docAILocation}/processors/${docAIProcessorId}`;
+    const buffer = Buffer.from(fileBuffer);
+    
+    // Create the request exactly as shown in the documentation
+    const request = {
+      name: processorName,
+      rawDocument: {
+        content: buffer.toString('base64'),
+        mimeType: 'application/pdf',
+      },
+    };
+    
+    console.log(`Sending Document AI request to processor: ${processorName}`);
     const [result] = await docAIClient.processDocument(request);
+    console.log('Document AI request completed successfully');
+    
     const { document } = result;
 
     if (!document || !document.text) {
@@ -137,7 +155,21 @@ async function extractTextFromPdfWithDocumentAI(fileBuffer: ArrayBuffer, filenam
   } catch (error: any) {
     // Log the full error object for more details on INVALID_ARGUMENT
     console.error(`Document AI extraction error for PDF ${filename}:`, JSON.stringify(error, null, 2));
-    // Add more specific error handling if needed based on Document AI errors
+    console.error(`Document AI error details:`, error.message);
+    
+    // More specific error handling
+    if (error.message.includes('INVALID_ARGUMENT')) {
+      throw new Error(`Failed to process PDF with Document AI: Invalid argument in the request. Please ensure the file is a valid PDF document.`);
+    }
+    
+    if (error.message.includes('PERMISSION_DENIED') || error.message.includes('permission')) {
+      throw new Error(`Failed to process PDF with Document AI: Permission denied. The service account may not have the required 'documentai.apiUser' role.`);
+    }
+    
+    if (error.message.includes('NOT_FOUND')) {
+      throw new Error(`Failed to process PDF with Document AI: Processor not found. Check that processor ID '${docAIProcessorId}' exists in project '${projectId}' in location '${docAILocation}'.`);
+    }
+    
     throw new Error(`Failed to process PDF with Document AI: ${error.message}`);
   }
 }
