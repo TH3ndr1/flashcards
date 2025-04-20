@@ -8797,6 +8797,224 @@ Read file: /Users/tom/dev/flashcards/next.config.mjs
 
 ---
 
+Now let's update the Next.js config to ensure API routes are properly handled:
+
+---
+
+```diff
+      parallelServerCompiles: true,
+    },
++   // Enable API routes with proper Content-Type handling
++   api: {
++     bodyParser: {
++       sizeLimit: '25mb',
++     },
++     externalResolver: true,
++   },
+  }
+  
+```
+
+---
+
+Let's also create a basic OPTIONS handler in the API route to properly support CORS preflight requests:
+
+---
+
+```diff
+    }
+  }
++ 
++ // Add OPTIONS handler to support CORS preflight requests
++ export async function OPTIONS(request: NextRequest) {
++   return new NextResponse(null, {
++     status: 200,
++     headers: {
++       'Access-Control-Allow-Origin': '*',
++       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
++       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
++     },
++   });
++ } 
+```
+
+---
+
+One more attempt to fix the API route - let's create a GET method handler as well to make sure the endpoint is accessible:
+
+---
+
+```diff
+    });
+  }
++ 
++ // Add a simple GET handler for testing connectivity
++ export async function GET(request: NextRequest) {
++   return NextResponse.json({
++     message: 'PDF extraction API is active. Use POST method to extract text from PDF files.',
++     status: 'ok',
++   });
++ } 
+```
+
+---
+
+These changes should fix the 405 Method Not Allowed error on Vercel. Here's a summary of what we've done:
+
+1. **API Route Configuration:**
+   - Updated the `config` export to specify the region and runtime
+   - Added detailed logging to trace the request flow
+   - Added OPTIONS and GET handlers to support various request types
+   - Added CORS headers for cross-origin requests
+
+2. **Frontend Request Handling:**
+   - Added proper headers to the fetch request
+   - Included credentials for same-origin requests
+   - Enhanced error handling to provide more detailed information
+
+3. **Next.js Configuration:**
+   - Added explicit API configuration for body parsing
+   - Set a generous size limit for API requests (25MB)
+   - Enabled external resolver for API routes
+
+To test if these changes fixed the issue:
+
+1. Commit these changes and push to your branch
+2. Once deployed, try the following test to see if the API route is accessible:
+   - Visit https://flashcards-azure-rho.vercel.app/api/extract-pdf in your browser
+   - You should see a JSON response stating that the API is active
+   - Then try uploading a file on the main page
+
+If you're still experiencing issues after these changes, we might need to consider a more drastic approach like using a server-side implementation or a different file upload strategy.
+
+---
+
+_**User**_
+
+Still the same issue - see console log below:
+page-7cbc593911eb157b.js:1 
+            
+            
+           POST https://flashcards-azure-rho.vercel.app/api/extract-pdf 405 (Method Not Allowed)
+l @ page-7cbc593911eb157b.js:1
+j @ page-7cbc593911eb157b.js:1
+await in j
+iG @ 47edcb22-ba7bd0d1f2accf00.js:1
+(anoniem) @ 47edcb22-ba7bd0d1f2accf00.js:1
+nS @ 47edcb22-ba7bd0d1f2accf00.js:1
+i4 @ 47edcb22-ba7bd0d1f2accf00.js:1
+ce @ 47edcb22-ba7bd0d1f2accf00.js:1
+s9 @ 47edcb22-ba7bd0d1f2accf00.js:1
+9323-4e5ee6c2b6568d3d.js:1 JSON parsing error: SyntaxError: Unexpected end of JSON input
+window.console.error @ 9323-4e5ee6c2b6568d3d.js:1
+j @ page-7cbc593911eb157b.js:1
+await in j
+iG @ 47edcb22-ba7bd0d1f2accf00.js:1
+(anoniem) @ 47edcb22-ba7bd0d1f2accf00.js:1
+nS @ 47edcb22-ba7bd0d1f2accf00.js:1
+i4 @ 47edcb22-ba7bd0d1f2accf00.js:1
+ce @ 47edcb22-ba7bd0d1f2accf00.js:1
+s9 @ 47edcb22-ba7bd0d1f2accf00.js:1
+9323-4e5ee6c2b6568d3d.js:1 Error: Error: Server returned an invalid response (405 ). Please try again later.
+    at j (page-7cbc593911eb157b.js:1:4012)
+window.console.error @ 9323-4e5ee6c2b6568d3d.js:1
+j @ page-7cbc593911eb157b.js:1
+await in j
+iG @ 47edcb22-ba7bd0d1f2accf00.js:1
+(anoniem) @ 47edcb22-ba7bd0d1f2accf00.js:1
+nS @ 47edcb22-ba7bd0d1f2accf00.js:1
+i4 @ 47edcb22-ba7bd0d1f2accf00.js:1
+ce @ 47edcb22-ba7bd0d1f2accf00.js:1
+s9 @ 47edcb22-ba7bd0d1f2accf00.js:1
+
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+It seems we're still running into that persistent 405 error on Vercel. This is quite puzzling, as we've addressed the most common causes.
+
+Based on the console log and the files provided, the request flow looks correct, but Vercel's routing or function execution is still rejecting the POST method.
+
+Let's try one more configuration adjustment. The `api` block we added in `next.config.mjs` might be intended for the older Pages Router and could be interfering with the App Router's API route handling.
+
+I'll remove that `api` block from your `next.config.mjs`.
+
+---
+
+```diff
+      parallelServerCompiles: true,
+    },
+-   // Enable API routes with proper Content-Type handling
+-   api: {
+-     bodyParser: {
+-       sizeLimit: '25mb',
+-     },
+-     externalResolver: true,
+-   },
+  }
+  
+```
+
+---
+
+Okay, I've removed the explicit `api` configuration from `next.config.mjs`. The App Router generally handles API routes without needing this specific block, and it might have been causing conflicts.
+
+Please try these steps:
+
+1.  Commit this change and push it to your branch.
+2.  Wait for the Vercel deployment to complete.
+3.  Test the file upload functionality again on the deployed site.
+4.  Check the browser console for any errors.
+
+If this still doesn't resolve the 405 error, the next step would be to dive deeper into the Vercel function logs themselves (not just the browser console) for that specific deployment to see exactly why the POST method is being disallowed at the server level.
+
+---
+
+_**User**_
+
+Please find hereby the vercel logs... it seems that it is trying to open some pdf which it cannot find, but it should not be using that pdf at all... 
+
+⨯ Error: ENOENT: no such file or directory, open './test/data/05-versions-space.pdf'
+    at 26157 (.next/server/app/api/extract-pdf/route.js:1:2203591)
+    at t (.next/server/webpack-runtime.js:1:143)
+    at 39645 (.next/server/app/api/extract-pdf/route.js:1:2371556)
+    at t (.next/server/webpack-runtime.js:1:143)
+    at o (.next/server/app/api/extract-pdf/route.js:25:617556)
+    at <unknown> (.next/server/app/api/extract-pdf/route.js:25:617613)
+    at t.X (.next/server/webpack-runtime.js:1:1285)
+    at <unknown> (.next/server/app/api/extract-pdf/route.js:25:617569) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: './test/data/05-versions-space.pdf',
+  page: '/api/extract-pdf'
+}
+Error: ENOENT: no such file or directory, open './test/data/05-versions-space.pdf'
+    at 26157 (.next/server/app/api/extract-pdf/route.js:1:2203591)
+    at t (.next/server/webpack-runtime.js:1:143)
+    at 39645 (.next/server/app/api/extract-pdf/route.js:1:2371556)
+    at t (.next/server/webpack-runtime.js:1:143)
+    at o (.next/server/app/api/extract-pdf/route.js:25:617556)
+    at <unknown> (.next/server/app/api/extract-pdf/route.js:25:617613)
+    at t.X (.next/server/webpack-runtime.js:1:1285)
+    at <unknown> (.next/server/app/api/extract-pdf/route.js:25:617569) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: './test/data/05-versions-space.pdf',
+  page: '/api/extract-pdf'
+}
+Node.js process exited with exit status: 1. The logs above can help with debugging the issue.
+
+---
+
+_**Assistant**_
+
 
 
 ---

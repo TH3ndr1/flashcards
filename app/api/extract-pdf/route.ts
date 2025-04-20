@@ -15,21 +15,12 @@ const projectId = process.env.GCP_PROJECT_ID;
 const location = 'us-central1';
 const modelName = 'gemini-2.0-flash-lite-001';
 
-// Modify the PDF parse options to be more memory-efficient
+// Modify the PDF parse options to be even more minimal
 const PDF_PARSE_OPTIONS = {
   // Reduce max pages for Vercel compatibility
-  max: 30,
-  // Only extract text, ignore other content
-  pagerender: function(pageData: any) {
-    return pageData.getTextContent()
-      .then(function(textContent: any) {
-        let text = '';
-        for (let item of textContent.items) {
-          text += item.str + ' ';
-        }
-        return text;
-      });
-  }
+  max: 30, 
+  // Try removing the pagerender function entirely to see if it avoids internal lookups
+  // pagerender: function(pageData: any) { ... } // Commented out
 };
 
 // Supported file types
