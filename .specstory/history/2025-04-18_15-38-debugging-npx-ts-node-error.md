@@ -7362,7 +7362,62 @@ The system now provides a much more flexible document processing pipeline:
 2. Images are sent directly to Vision AI for text extraction
 3. All extracted text is processed by the same AI model to generate flashcards
 
-Regarding support for Office documents (
+Regarding support for Office documents (PowerPoint, Word, Excel): These aren't directly supported by Vision AI. To implement support for these formats, we would need additional libraries to convert them to text or PDF first, which is beyond the current implementation. If you'd like to add support for these formats in the future, we can discuss a separate implementation.
+
+---
+
+_**User**_
+
+The app works fine on my local machine. It also builds properly on vercel.
+However when I upload a pdf or image file, which is processed properly locally, it gives the following error message on vercel: "The string did not match the expected pattern.". Please look at the attached print screen  
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+Based on the error message "The string did not match the expected pattern" in your screenshot, this is a common issue when deploying file upload functionality to Vercel. The problem isn't in your code itself but in how Vercel handles file uploads in its serverless environment.
+
+Here's what's happening:
+
+1. When you upload a file locally, it works fine because your development server handles the file upload correctly.
+
+2. On Vercel, the error occurs because by default, Vercel's Edge Runtime (which handles API routes) has restrictions on handling file uploads.
+
+To fix this issue:
+
+1. First, let's modify your API route configuration to explicitly use the Node.js runtime instead of the Edge runtime:
+
+---
+
+```diff
+  import pdfParse from 'pdf-parse';
+  import { ImageAnnotatorClient } from '@google-cloud/vision';
++ 
++ // Specify Node.js runtime for Vercel 
++ export const config = {
++   runtime: 'nodejs',
++   // Increase timeouts for PDF processing
++   maxDuration: 60,
++ };
+  
+  // Configuration for Vertex AI
+```
+
+---
+
+2. Second, let's make sure your form handling is robust by improving the error handling for file uploads:
+
+---
+
+Cancelled
+
+---
+
+
 
 ---
 

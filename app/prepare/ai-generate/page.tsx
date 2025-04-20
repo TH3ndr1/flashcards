@@ -50,8 +50,13 @@ export default function AiGeneratePage() {
     setError(null);
     
     try {
+      // Create a new FormData instance
       const formData = new FormData();
-      formData.append('file', file);
+      
+      // Explicitly set filename when appending to FormData
+      // This helps with Vercel's handling of files
+      const fileBlob = new Blob([await file.arrayBuffer()], { type: file.type });
+      formData.append('file', fileBlob, file.name);
       
       toast.loading("Processing file");
       
@@ -60,10 +65,16 @@ export default function AiGeneratePage() {
         body: formData,
       });
       
-      const data = await response.json();
+      // Check if the response is valid JSON
+      let data;
+      try {
+        data = await response.json();
+      } catch (jsonError) {
+        throw new Error('Server returned an invalid response. Please try again later.');
+      }
       
       if (!response.ok) {
-        throw new Error(data.message || 'Failed to generate flashcards');
+        throw new Error(data?.message || `Error: ${response.status} ${response.statusText}`);
       }
       
       setFlashcards(data.flashcards || []);

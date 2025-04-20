@@ -1,0 +1,14 @@
+{
+  "functions": {
+    "app/api/extract-pdf/route.ts": {
+      "memory": 1024,
+      "maxDuration": 60
+    }
+  },
+  "routes": [
+    {
+      "src": "/api/extract-pdf",
+      "dest": "/api/extract-pdf"
+    }
+  ]
+} 

@@ -3,6 +3,13 @@ import { VertexAI } from '@google-cloud/vertexai';
 import pdfParse from 'pdf-parse';
 import { ImageAnnotatorClient } from '@google-cloud/vision';
 
+// Specify Node.js runtime for Vercel 
+export const config = {
+  runtime: 'nodejs',
+  // Increase timeouts for PDF processing
+  maxDuration: 60,
+};
+
 // Configuration for Vertex AI
 const projectId = process.env.GCP_PROJECT_ID;
 const location = 'us-central1';
@@ -163,20 +170,50 @@ Example format:
 // Export the API route handler
 export async function POST(request: NextRequest) {
   try {
-    // Get the form data
-    const formData = await request.formData();
+    // Get the form data with more robust error handling
+    let formData;
+    try {
+      formData = await request.formData();
+    } catch (formError: any) {
+      console.error('Error parsing form data:', formError);
+      return NextResponse.json({ 
+        success: false, 
+        message: 'Error processing uploaded file. Please try again.',
+        formError: formError.message
+      }, { status: 400 });
+    }
     
-    // Get the file from the form data
-    const file = formData.get('file') as File;
+    // Get the file from the form data with better error handling
+    const file = formData.get('file');
     
     if (!file) {
-      throw new Error('No file provided');
+      return NextResponse.json({ 
+        success: false, 
+        message: 'No file provided in request'
+      }, { status: 400 });
+    }
+    
+    // Verify the file is a proper File or Blob object
+    if (!(file instanceof Blob)) {
+      return NextResponse.json({ 
+        success: false, 
+        message: 'Uploaded file is not in the expected format',
+        receivedType: typeof file
+      }, { status: 400 });
     }
 
+    // Extract filename from file object with fallback
+    const filename = 'name' in file && typeof file.name === 'string' 
+      ? file.name 
+      : 'uploaded-file';
+
     // Check if file type is supported
-    const fileType = getSupportedFileType(file.name);
+    const fileType = getSupportedFileType(filename);
     if (!fileType) {
-      throw new Error('Unsupported file type. Please upload a PDF or image file (jpg, jpeg, png, gif, bmp, webp).');
+      return NextResponse.json({ 
+        success: false, 
+        message: `Unsupported file type: "${filename}". Please upload a PDF or image file (jpg, jpeg, png, gif, bmp, webp).`
+      }, { status: 400 });
     }
 
     // Increased file size limit to 25MB
@@ -186,7 +223,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Get file information
-    const filename = file.name;
     const fileSize = file.size;
     const fileMimeType = file.type;
 
