@@ -15,6 +15,8 @@ interface Flashcard {
 // Supported file types
 const SUPPORTED_FILE_TYPES = "application/pdf, image/jpeg, image/jpg, image/png, image/gif, image/bmp, image/webp";
 const SUPPORTED_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"];
+const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
+const LARGE_FILE_SIZE = 10 * 1024 * 1024; // 10MB - Show warning but allow upload
 
 export default function AiGeneratePage() {
   const [file, setFile] = useState<File | null>(null);
@@ -46,31 +48,40 @@ export default function AiGeneratePage() {
       return;
     }
 
+    // Check file size
+    if (file.size > MAX_FILE_SIZE) {
+      setError(`File too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum size is 25MB.`);
+      return;
+    }
+
+    // Warn about large files but allow them
+    if (file.size > LARGE_FILE_SIZE) {
+      toast.info(`Large file detected (${(file.size / 1024 / 1024).toFixed(2)}MB). Processing may take longer.`);
+    }
+
     setIsLoading(true);
     setError(null);
     
     // Create a unique ID for the loading toast so we can dismiss it later
     const loadingToastId = `loading-${Date.now()}`;
     
-    // Create a safety timeout to dismiss toast after 30 seconds regardless of what happens
+    // Create a safety timeout to dismiss toast after 90 seconds regardless of what happens
     const safetyTimeout = setTimeout(() => {
       toast.dismiss(loadingToastId);
-    }, 30000);
+    }, 90000);
     
     // Show the loading toast
-    toast.loading("Processing file", { id: loadingToastId, duration: 30000 });
+    toast.loading("Processing file", { id: loadingToastId, duration: 60000 });
     
     try {
       // Create a new FormData instance
       const formData = new FormData();
       
-      // Explicitly set filename when appending to FormData
-      // This helps with Vercel's handling of files
-      const fileBlob = new Blob([await file.arrayBuffer()], { type: file.type });
-      formData.append('file', fileBlob, file.name);
+      // Simply append the file directly - Vercel's Node.js runtime should handle it
+      formData.append('file', file);
       
       // Wrap fetch in a timeout to prevent hanging indefinitely
-      const fetchWithTimeout = async (url: string, options: RequestInit, timeout = 25000) => {
+      const fetchWithTimeout = async (url: string, options: RequestInit, timeout = 60000) => {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeout);
         
@@ -81,8 +92,12 @@ export default function AiGeneratePage() {
           });
           clearTimeout(timeoutId);
           return response;
-        } catch (error) {
+        } catch (error: any) {
           clearTimeout(timeoutId);
+          // Special handling for AbortError (timeout)
+          if (error.name === 'AbortError') {
+            throw new Error('Request timed out. The file may be too large or the server is busy.');
+          }
           throw error;
         }
       };
@@ -90,12 +105,7 @@ export default function AiGeneratePage() {
       // Use the fetch with timeout
       const response = await fetchWithTimeout('/api/extract-pdf', {
         method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          // No Content-Type header when using FormData (browser sets it with boundary)
-        },
         body: formData,
-        // Include credentials for same-origin requests
         credentials: 'same-origin'
       });
       
@@ -110,6 +120,12 @@ export default function AiGeneratePage() {
       
       if (!response.ok) {
         console.error('API Error:', response.status, response.statusText, data);
+        
+        // Special handling for 413 Payload Too Large errors
+        if (response.status === 413) {
+          throw new Error(`File is too large for processing. Please try a smaller file (under 10MB).`);
+        }
+        
         throw new Error(data?.message || `Error: ${response.status} ${response.statusText}`);
       }
       
@@ -235,7 +251,7 @@ export default function AiGeneratePage() {
                 </div>
                 <p className="text-xs text-muted-foreground mt-2">
                   Note: PDFs are processed using Google Document AI, and images are processed using Google Vision AI.
-                  Files up to 25MB are supported.
+                  Files up to 25MB are supported, but for best results we recommend keeping files under 10MB.
                 </p>
               </CardContent>
             </Card>

@@ -12552,10 +12552,7 @@ Try uploading a PDF again after these changes. If you still encounter issues, th
 
 _**User**_
 
-ok it works again, this time also for vercel - thanks
-there seems to be an issue though when using bigger / more complex files 
-
-then I get: 
+It works fine for most files, but for bigger file sizes i get this error:
 
 page-5771d68decbd289b.js:1 
             
@@ -12593,44 +12590,6 @@ ce @ 47edcb22-ba7bd0d1f2accf00.js:1
 s9 @ 47edcb22-ba7bd0d1f2accf00.js:1
 
 
-or sometimes:
-
-page-5771d68decbd289b.js:1 
-            
-            
-           POST https://flashcards-azure-rho.vercel.app/api/extract-pdf 422 (Unprocessable Content)
-l @ page-5771d68decbd289b.js:1
-j @ page-5771d68decbd289b.js:1
-await in j
-iG @ 47edcb22-ba7bd0d1f2accf00.js:1
-(anoniem) @ 47edcb22-ba7bd0d1f2accf00.js:1
-nS @ 47edcb22-ba7bd0d1f2accf00.js:1
-i4 @ 47edcb22-ba7bd0d1f2accf00.js:1
-ce @ 47edcb22-ba7bd0d1f2accf00.js:1
-s9 @ 47edcb22-ba7bd0d1f2accf00.js:1
-9323-4e5ee6c2b6568d3d.js:1 API Error: 422  {success: false, message: 'Failed to process PDF with Document AI: Invalid ar…. Please ensure the file is a valid PDF document.', flashcards: Array(0)}
-window.console.error @ 9323-4e5ee6c2b6568d3d.js:1
-j @ page-5771d68decbd289b.js:1
-await in j
-iG @ 47edcb22-ba7bd0d1f2accf00.js:1
-(anoniem) @ 47edcb22-ba7bd0d1f2accf00.js:1
-nS @ 47edcb22-ba7bd0d1f2accf00.js:1
-i4 @ 47edcb22-ba7bd0d1f2accf00.js:1
-ce @ 47edcb22-ba7bd0d1f2accf00.js:1
-s9 @ 47edcb22-ba7bd0d1f2accf00.js:1
-9323-4e5ee6c2b6568d3d.js:1 Error: Error: Failed to process PDF with Document AI: Invalid argument in the request. Please ensure the file is a valid PDF document.
-    at j (page-5771d68decbd289b.js:1:4197)
-window.console.error @ 9323-4e5ee6c2b6568d3d.js:1
-j @ page-5771d68decbd289b.js:1
-await in j
-iG @ 47edcb22-ba7bd0d1f2accf00.js:1
-(anoniem) @ 47edcb22-ba7bd0d1f2accf00.js:1
-nS @ 47edcb22-ba7bd0d1f2accf00.js:1
-i4 @ 47edcb22-ba7bd0d1f2accf00.js:1
-ce @ 47edcb22-ba7bd0d1f2accf00.js:1
-s9 @ 47edcb22-ba7bd0d1f2accf00.js:1
-
-
 ---
 
 _**Assistant**_
@@ -12639,19 +12598,32 @@ _**Assistant**_
 
 ---
 
-I'll address both of the issues you're encountering with larger files:
+This error indicates that your PDF file upload is being rejected by Vercel with a "413 Payload Too Large" error. This happens because Vercel has default limits on body/payload sizes for serverless functions.
 
-### Issue 1: 413 Payload Too Large
-
-This happens because Vercel has a default body size limit of 4.5MB for serverless functions. We need to increase this limit in your `vercel.json` configuration:
+Let's fix this by updating your `vercel.json` file to increase the body size limit:
 
 ---
 
-Read file: vercel.json
+```bash
+cat vercel.json 2>/dev/null || echo "No vercel.json file found"
+```
+
+```
+{
+  "functions": {
+    "app/api/extract-pdf/route.ts": {
+      "memory": 1024,
+      "maxDuration": 60
+    }
+  }
+} %
+
+
+```
 
 ---
 
-Let's update the Vercel configuration to increase the memory and add a bodyParser configuration:
+Let's update your existing `vercel.json` file to increase the limits and add `bodyLimit` configuration:
 
 ---
 
@@ -12666,124 +12638,35 @@ Let's update the Vercel configuration to increase the memory and add a bodyParse
 +   },
 +   "routes": [
 +     {
-+       "src": "/api/extract-pdf(.*)",
-+       "dest": "/api/extract-pdf",
-+       "headers": {
-+         "Access-Control-Allow-Origin": "*",
-+         "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-+         "Access-Control-Allow-Headers": "Content-Type"
-+       }
-+     }
-+   ],
-+   "bodyParser": {
-+     "sizeLimit": "30mb"
-    }
++       "source": "/api/extract-pdf",
++       "destination": "/api/extract-pdf"
+      }
++   ]
   } 
 ```
 
 ---
 
-### Issue 2: 422 Error with Complex PDFs
-
-Let's modify our Document AI processing to handle complex PDFs better:
-
----
-
-```diff
-      const buffer = Buffer.from(fileBuffer);
-      
--     // Create the request exactly as shown in the documentation
-+     // Add processor options to handle more complex documents
-      const request = {
-        name: processorName,
-          mimeType: 'application/pdf',
-        },
-+       // Add process options to improve complex document handling
-+       processOptions: {
-+         // Limit the number of pages to prevent timeout with very large PDFs
-+         individualPageSelector: {
-+           pages: Array.from({ length: 30 }, (_, i) => i + 1), // Process max 30 pages
-+         },
-+         // Set OCR options for better text extraction
-+         ocrConfig: {
-+           enableImageQualityScores: true,
-+         }
-+       }
-      };
-      
-      console.log(`Sending Document AI request to processor: ${processorName}`);
-+     console.log(`PDF size: ${(buffer.length / 1024 / 1024).toFixed(2)}MB`);
-+     
-      const [result] = await docAIClient.processDocument(request);
-      console.log('Document AI request completed successfully');
-    } catch (error: any) {
-      // Log the full error object for more details on INVALID_ARGUMENT
--     console.error(`Document AI extraction error for PDF ${filename}:`, JSON.stringify(error, null, 2));
--     console.error(`Document AI error details:`, error.message);
-+     console.error(`Document AI extraction error for PDF ${filename}:`, error);
-+     
-+     // Try to extract more useful information from the error
-+     const errorMessage = error.message || '';
-+     const errorDetails = error.details || '';
-+     
-+     console.error(`Document AI error details:`, {
-+       message: errorMessage,
-+       details: errorDetails,
-+       code: error.code,
-+       metadata: error.metadata,
-+     });
-      
-      // More specific error handling
--     if (error.message.includes('INVALID_ARGUMENT')) {
-+     if (errorMessage.includes('INVALID_ARGUMENT')) {
-+       // For invalid argument errors, check if it's related to PDF size
-+       if (fileBuffer.byteLength > 10 * 1024 * 1024) {
-+         throw new Error(`The PDF file is too large (${(fileBuffer.byteLength / 1024 / 1024).toFixed(2)}MB) or too complex for Document AI to process. Please try with a smaller or simpler PDF document.`);
-+       }
-        throw new Error(`Failed to process PDF with Document AI: Invalid argument in the request. Please ensure the file is a valid PDF document.`);
-      }
-      
--     if (error.message.includes('PERMISSION_DENIED') || error.message.includes('permission')) {
-+     if (errorMessage.includes('PERMISSION_DENIED') || errorMessage.includes('permission')) {
-        throw new Error(`Failed to process PDF with Document AI: Permission denied. The service account may not have the required 'documentai.apiUser' role.`);
-      }
-      
--     if (error.message.includes('NOT_FOUND')) {
-+     if (errorMessage.includes('NOT_FOUND')) {
-        throw new Error(`Failed to process PDF with Document AI: Processor not found. Check that processor ID '${docAIProcessorId}' exists in project '${projectId}' in location '${docAILocation}'.`);
-      }
-      
--     throw new Error(`Failed to process PDF with Document AI: ${error.message}`);
-+     if (errorMessage.includes('DEADLINE_EXCEEDED') || errorMessage.includes('timeout')) {
-+       throw new Error(`The PDF processing timed out. The document may be too large or complex. Please try with a smaller document or fewer pages.`);
-+     }
-+     
-+     throw new Error(`Failed to process PDF with Document AI: ${errorMessage}`);
-    }
-  }
-```
-
----
-
-### Now let's also update the frontend to provide better user feedback:
+Now let's also add a client-side check to improve the error handling:
 
 ---
 
 <details>
-            <summary>Grep search for "handleSubmit.*prepare\/ai-generate\/page" • **1** files</summary>
+            <summary>Grep search for "handleSubmit" • **6** files</summary>
         
 | File | Line | Match |
 |------|------|-------|
-| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-18_15-38-debugging-npx-ts-node-error.md` | L9579 | `at handleSubmit (webpack-internal:///(app-pages-browser)/./app/prepare/ai-generate/page.tsx:121:23)` |
-| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-18_15-38-debugging-npx-ts-node-error.md` | L9585 | `at handleSubmit (webpack-internal:///(app-pages-browser)/./app/prepare/ai-generate/page.tsx:120:25)` |
-| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-18_15-38-debugging-npx-ts-node-error.md` | L9588 | `at handleSubmit (webpack-internal:///(app-pages-browser)/./app/prepare/ai-generate/page.tsx:121:23)` |
-| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-18_15-38-debugging-npx-ts-node-error.md` | L10265 | `at handleSubmit (webpack-internal:///(app-pages-browser)/./app/prepare/ai-generate/page.tsx:120:25)` |
-| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-18_15-38-debugging-npx-ts-node-error.md` | L10268 | `at handleSubmit (webpack-internal:///(app-pages-browser)/./app/prepare/ai-generate/page.tsx:121:23)` |
-| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-18_15-38-debugging-npx-ts-node-error.md` | L10388 | `at handleSubmit (webpack-internal:///(app-pages-browser)/./app/prepare/ai-generate/page.tsx:120:25)` |
-| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-18_15-38-debugging-npx-ts-node-error.md` | L10391 | `at handleSubmit (webpack-internal:///(app-pages-browser)/./app/prepare/ai-generate/page.tsx:121:23)` |
-| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-18_15-38-debugging-npx-ts-node-error.md` | L11152 | `at handleSubmit (webpack-internal:///(app-pages-browser)/./app/prepare/ai-generate/page.tsx:121:23)` |
-| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-18_15-38-debugging-npx-ts-node-error.md` | L12331 | `at handleSubmit (webpack-internal:///(app-pages-browser)/./app/prepare/ai-generate/page.tsx:120:25)` |
-| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-18_15-38-debugging-npx-ts-node-error.md` | L12334 | `at handleSubmit (webpack-internal:///(app-pages-browser)/./app/prepare/ai-generate/page.tsx:121:23)` |
+| `file:///Users/tom/dev/flashcards/components/create-deck-dialog.tsx` | L46 | `const handleSubmit = async (e: React.FormEvent) => {` |
+| `file:///Users/tom/dev/flashcards/components/create-deck-dialog.tsx` | L95 | `<form onSubmit={handleSubmit}>` |
+| `file:///Users/tom/dev/flashcards/components/study/StudySetBuilder.tsx` | L380 | `<form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">` |
+| `file:///Users/tom/dev/flashcards/app/login/page.tsx` | L89 | `const handleSubmit = async (e: React.FormEvent) => {` |
+| `file:///Users/tom/dev/flashcards/app/login/page.tsx` | L142 | `<form onSubmit={handleSubmit}>` |
+| `file:///Users/tom/dev/flashcards/app/prepare/ai-generate/page.tsx` | L33 | `const handleSubmit = async (e: React.FormEvent) => {` |
+| `file:///Users/tom/dev/flashcards/app/prepare/ai-generate/page.tsx` | L182 | `<form onSubmit={handleSubmit}>` |
+| `file:///Users/tom/dev/flashcards/app/signup/page.tsx` | L77 | `const handleSubmit = async (e: React.FormEvent) => {` |
+| `file:///Users/tom/dev/flashcards/app/signup/page.tsx` | L149 | `<form onSubmit={handleSubmit}>` |
+| `file:///Users/tom/dev/flashcards/app/prepare/ai-generate/page.tsx` | L33 | `const handleSubmit = async (e: React.FormEvent) => {` |
+| `file:///Users/tom/dev/flashcards/app/prepare/ai-generate/page.tsx` | L182 | `<form onSubmit={handleSubmit}>` |
 
 </details>
 
@@ -12793,262 +12676,7 @@ Read file: app/prepare/ai-generate/page.tsx
 
 ---
 
-Let's update the frontend to warn users about file size limits and handle error messages better:
-
----
-
-```diff
-  const SUPPORTED_FILE_TYPES = "application/pdf, image/jpeg, image/jpg, image/png, image/gif, image/bmp, image/webp";
-  const SUPPORTED_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"];
-+ const MAX_FILE_SIZE_MB = 20; // 20MB recommended max size
-+ const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
-  
-  export default function AiGeneratePage() {
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (e.target.files && e.target.files.length > 0) {
--       setFile(e.target.files[0]);
-+       const selectedFile = e.target.files[0];
-+       setFile(selectedFile);
-        setError(null);
-+       
-+       // Check file size and warn if too large
-+       if (selectedFile.size > MAX_FILE_SIZE_BYTES) {
-+         toast.warning(
-+           `File size (${(selectedFile.size / 1024 / 1024).toFixed(2)}MB) exceeds the recommended limit of ${MAX_FILE_SIZE_MB}MB. Processing may fail or take longer than expected.`,
-+           { duration: 6000 }
-+         );
-+       }
-      }
-    };
-        return;
-      }
-+     
-+     // Warn about file size again but don't prevent submission
-+     if (file.size > MAX_FILE_SIZE_BYTES) {
-+       toast.warning(
-+         `Processing a large ${(file.size / 1024 / 1024).toFixed(2)}MB file. This may take longer or fail due to size limits.`,
-+         { duration: 5000 }
-+       );
-+     }
-  
-      setIsLoading(true);
-      setError(null);
-+     setFlashcards([]);
-+     setExtractedTextPreview(null);
-      
-      // Create a unique ID for the loading toast so we can dismiss it later
-      const loadingToastId = `loading-${Date.now()}`;
-      
--     // Create a safety timeout to dismiss toast after 30 seconds regardless of what happens
-+     // Create a safety timeout to dismiss toast after 60 seconds regardless of what happens
-      const safetyTimeout = setTimeout(() => {
-        toast.dismiss(loadingToastId);
--     }, 30000);
-+       // If still loading after 60 seconds, we should show an error
-+       if (isLoading) {
-+         setIsLoading(false);
-+         setError("Processing timed out. The file may be too large or complex. Please try with a smaller file.");
-+         toast.error("Processing timed out. Try a smaller file.");
-+       }
-+     }, 60000);
-      
--     // Show the loading toast
--     toast.loading("Processing file", { id: loadingToastId, duration: 30000 });
-+     // Show the loading toast with more details
-+     toast.loading(
-+       `Processing ${fileExtension === '.pdf' ? 'PDF' : 'image'} file (${(file.size / 1024 / 1024).toFixed(2)}MB)`, 
-+       { id: loadingToastId, duration: 60000 }
-+     );
-      
-      try {
-        // Create a new FormData instance
-        const formData = new FormData();
-        
--       // Explicitly set filename when appending to FormData
--       // This helps with Vercel's handling of files
--       const fileBlob = new Blob([await file.arrayBuffer()], { type: file.type });
--       formData.append('file', fileBlob, file.name);
-+       // Append file directly without creating a new Blob to preserve original file
-+       formData.append('file', file);
-        
-        // Wrap fetch in a timeout to prevent hanging indefinitely
--       const fetchWithTimeout = async (url: string, options: RequestInit, timeout = 25000) => {
-+       const fetchWithTimeout = async (url: string, options: RequestInit, timeout = 60000) => {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), timeout);
-            clearTimeout(timeoutId);
-            return response;
--         } catch (error) {
-+         } catch (error: any) {
-            clearTimeout(timeoutId);
-+           // Check if this was an abort error (timeout)
-+           if (error.name === 'AbortError') {
-+             throw new Error("Request timed out. The server took too long to respond. Try with a smaller file.");
-+           }
-            throw error;
-          }
-        const response = await fetchWithTimeout('/api/extract-pdf', {
-          method: 'POST',
--         headers: {
--           'Accept': 'application/json',
--           // No Content-Type header when using FormData (browser sets it with boundary)
--         },
--         body: formData,
--         // Include credentials for same-origin requests
--         credentials: 'same-origin'
--       });
-+         body: formData
-+       }, 60000); // 60 second timeout
-        
-        // Check if the response is valid JSON
-        if (!response.ok) {
-          console.error('API Error:', response.status, response.statusText, data);
-+         
-+         // Handle specific error codes
-+         if (response.status === 413) {
-+           throw new Error("File is too large for the server to process. Please try a smaller file (under 20MB).");
-+         } else if (response.status === 422) {
-+           throw new Error(data?.message || "The document couldn't be processed. It may be corrupted, password-protected, or too complex.");
-+         } else {
-            throw new Error(data?.message || `Error: ${response.status} ${response.statusText}`);
-+         }
-        }
-        
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Note: PDFs are processed using Google Document AI, and images are processed using Google Vision AI.
--                   Files up to 25MB are supported.
-+                   Files up to 25MB are supported, but we recommend files under {MAX_FILE_SIZE_MB}MB for best results.
-+                   Very large PDFs will be limited to the first 30 pages.
-                  </p>
-                </CardContent>
-```
-
----
-
-Great! I've made multiple changes to improve the handling of large and complex files:
-
-### Backend Updates:
-
-1. **Improved Document AI Processing**:
-   - Added a page limit of 30 pages to prevent timeouts with large PDFs
-   - Added OCR configuration with image quality scores for better text extraction
-   - Enhanced error handling with specific messages for common error cases
-
-2. **Increased Server Resource Limits**:
-   - Updated `vercel.json` to increase memory allocation from 1024MB to 3008MB (maximum allowed)
-   - Increased maximum function duration from 60 to 90 seconds
-   - Set body parser size limit to 30MB to allow larger file uploads
-   - Added proper CORS headers in routes configuration
-
-3. **Better Error Logging**:
-   - Added more detailed logging of PDF size
-   - Improved error object inspection for more actionable error messages
-
-### Frontend Updates:
-
-1. **File Size Warnings**:
-   - Added proactive warnings when users select files larger than 20MB
-   - Shows file size in MB in the UI and toast messages
-   - Displays clearer recommendations about file size limitations
-
-2. **Improved Error Handling**:
-   - Added specific error handling for 413 (Payload Too Large) errors
-   - Added better handling for 422 (Unprocessable Content) errors
-   - Increased request timeout from 25 seconds to 60 seconds
-   - Added timeout detection with helpful error messages
-
-3. **Better User Experience**:
-   - Shows more detailed loading toast that includes file type and size
-   - Clears previous results when starting a new upload
-   - Adds informative message about the 30-page limit for PDFs
-
-These changes should significantly improve the experience with larger and more complex files. While some files might still be too large or complex for processing, users will now receive much clearer feedback about what's happening and how to resolve issues.
-
-Deploy these changes to Vercel, and users should be able to:
-1. Get warnings about file size before processing
-2. See better error messages when files are too large
-3. Process more complex PDFs (up to 30 pages instead of timing out)
-4. Have a higher size limit for uploads (now 30MB vs Vercel's default 4.5MB)
-
----
-
-_**User**_
-
-Now I get: settings-provider.tsx:24 [Settings Debug]: SettingsProvider initializing
-debug @ settings-provider.tsx:24
-SettingsProvider @ settings-provider.tsx:116
-react-stack-bottom-frame @ react-dom-client.development.js:23950
-renderWithHooks @ react-dom-client.development.js:5079
-updateFunctionComponent @ react-dom-client.development.js:8328
-beginWork @ react-dom-client.development.js:9945
-runWithFiberInDEV @ react-dom-client.development.js:1511
-performUnitOfWork @ react-dom-client.development.js:15120
-workLoopConcurrentByScheduler @ react-dom-client.development.js:15114
-renderRootConcurrent @ react-dom-client.development.js:15089
-performWorkOnRoot @ react-dom-client.development.js:14410
-performWorkOnRootViaSchedulerTask @ react-dom-client.development.js:16275
-performWorkUntilDeadline @ scheduler.development.js:45
-settings-provider.tsx:24 [Settings Debug]: SettingsProvider initializing
-debug @ settings-provider.tsx:24
-SettingsProvider @ settings-provider.tsx:116
-react-stack-bottom-frame @ react-dom-client.development.js:23950
-renderWithHooksAgain @ react-dom-client.development.js:5179
-renderWithHooks @ react-dom-client.development.js:5091
-updateFunctionComponent @ react-dom-client.development.js:8328
-beginWork @ react-dom-client.development.js:9945
-runWithFiberInDEV @ react-dom-client.development.js:1511
-performUnitOfWork @ react-dom-client.development.js:15120
-workLoopConcurrentByScheduler @ react-dom-client.development.js:15114
-renderRootConcurrent @ react-dom-client.development.js:15089
-performWorkOnRoot @ react-dom-client.development.js:14410
-performWorkOnRootViaSchedulerTask @ react-dom-client.development.js:16275
-performWorkUntilDeadline @ scheduler.development.js:45
-page.tsx:106 
-            
-            
-           POST http://localhost:3000/api/extract-pdf 422 (Unprocessable Entity)
-fetchWithTimeout @ page.tsx:106
-handleSubmit @ page.tsx:123
-executeDispatch @ react-dom-client.development.js:16427
-runWithFiberInDEV @ react-dom-client.development.js:1511
-processDispatchQueue @ react-dom-client.development.js:16477
-eval @ react-dom-client.development.js:17075
-batchedUpdates$1 @ react-dom-client.development.js:3254
-dispatchEventForPluginEventSystem @ react-dom-client.development.js:16631
-dispatchEvent @ react-dom-client.development.js:20717
-dispatchDiscreteEvent @ react-dom-client.development.js:20685
-page.tsx:138 API Error: 422 Unprocessable Entity {success: false, message: 'Failed to process PDF with Document AI: Invalid ar…. Please ensure the file is a valid PDF document.', flashcards: Array(0)}
-error @ intercept-console-error.js:50
-handleSubmit @ page.tsx:138
-await in handleSubmit
-executeDispatch @ react-dom-client.development.js:16427
-runWithFiberInDEV @ react-dom-client.development.js:1511
-processDispatchQueue @ react-dom-client.development.js:16477
-eval @ react-dom-client.development.js:17075
-batchedUpdates$1 @ react-dom-client.development.js:3254
-dispatchEventForPluginEventSystem @ react-dom-client.development.js:16631
-dispatchEvent @ react-dom-client.development.js:20717
-dispatchDiscreteEvent @ react-dom-client.development.js:20685
-page.tsx:160 Error: Error: Failed to process PDF with Document AI: Invalid argument in the request. Please ensure the file is a valid PDF document.
-    at handleSubmit (page.tsx:144:17)
-error @ intercept-console-error.js:50
-handleSubmit @ page.tsx:160
-await in handleSubmit
-executeDispatch @ react-dom-client.development.js:16427
-runWithFiberInDEV @ react-dom-client.development.js:1511
-processDispatchQueue @ react-dom-client.development.js:16477
-eval @ react-dom-client.development.js:17075
-batchedUpdates$1 @ react-dom-client.development.js:3254
-dispatchEventForPluginEventSystem @ react-dom-client.development.js:16631
-dispatchEvent @ react-dom-client.development.js:20717
-dispatchDiscreteEvent @ react-dom-client.development.js:20685
-
-
----
-
-_**Assistant**_
-
-
+Let's update the client-side to handle
 
 ---
 

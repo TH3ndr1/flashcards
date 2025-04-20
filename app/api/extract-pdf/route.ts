@@ -8,7 +8,12 @@ import { DocumentProcessorServiceClient } from '@google-cloud/documentai';
 export const config = {
   runtime: 'nodejs',
   regions: ['iad1'], // US East (N. Virginia)
-  maxDuration: 60
+  maxDuration: 90, // Increase to 90 seconds for larger files
+  api: {
+    bodyParser: {
+      sizeLimit: '26mb' // Slightly larger than the client-side limit
+    }
+  }
 };
 
 // --- Configuration ---
