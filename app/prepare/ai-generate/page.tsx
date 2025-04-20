@@ -15,8 +15,6 @@ interface Flashcard {
 // Supported file types
 const SUPPORTED_FILE_TYPES = "application/pdf, image/jpeg, image/jpg, image/png, image/gif, image/bmp, image/webp";
 const SUPPORTED_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"];
-const MAX_FILE_SIZE_MB = 20; // 20MB recommended max size
-const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
 export default function AiGeneratePage() {
   const [file, setFile] = useState<File | null>(null);
@@ -28,17 +26,8 @@ export default function AiGeneratePage() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const selectedFile = e.target.files[0];
-      setFile(selectedFile);
+      setFile(e.target.files[0]);
       setError(null);
-      
-      // Check file size and warn if too large
-      if (selectedFile.size > MAX_FILE_SIZE_BYTES) {
-        toast.warning(
-          `File size (${(selectedFile.size / 1024 / 1024).toFixed(2)}MB) exceeds the recommended limit of ${MAX_FILE_SIZE_MB}MB. Processing may fail or take longer than expected.`,
-          { duration: 6000 }
-        );
-      }
     }
   };
 
@@ -56,49 +45,32 @@ export default function AiGeneratePage() {
       setError(`Unsupported file type. Please select one of: ${SUPPORTED_EXTENSIONS.join(', ')}`);
       return;
     }
-    
-    // Warn about file size again but don't prevent submission
-    if (file.size > MAX_FILE_SIZE_BYTES) {
-      toast.warning(
-        `Processing a large ${(file.size / 1024 / 1024).toFixed(2)}MB file. This may take longer or fail due to size limits.`,
-        { duration: 5000 }
-      );
-    }
 
     setIsLoading(true);
     setError(null);
-    setFlashcards([]);
-    setExtractedTextPreview(null);
     
     // Create a unique ID for the loading toast so we can dismiss it later
     const loadingToastId = `loading-${Date.now()}`;
     
-    // Create a safety timeout to dismiss toast after 60 seconds regardless of what happens
+    // Create a safety timeout to dismiss toast after 30 seconds regardless of what happens
     const safetyTimeout = setTimeout(() => {
       toast.dismiss(loadingToastId);
-      // If still loading after 60 seconds, we should show an error
-      if (isLoading) {
-        setIsLoading(false);
-        setError("Processing timed out. The file may be too large or complex. Please try with a smaller file.");
-        toast.error("Processing timed out. Try a smaller file.");
-      }
-    }, 60000);
+    }, 30000);
     
-    // Show the loading toast with more details
-    toast.loading(
-      `Processing ${fileExtension === '.pdf' ? 'PDF' : 'image'} file (${(file.size / 1024 / 1024).toFixed(2)}MB)`, 
-      { id: loadingToastId, duration: 60000 }
-    );
+    // Show the loading toast
+    toast.loading("Processing file", { id: loadingToastId, duration: 30000 });
     
     try {
       // Create a new FormData instance
       const formData = new FormData();
       
-      // Append file directly without creating a new Blob to preserve original file
-      formData.append('file', file);
+      // Explicitly set filename when appending to FormData
+      // This helps with Vercel's handling of files
+      const fileBlob = new Blob([await file.arrayBuffer()], { type: file.type });
+      formData.append('file', fileBlob, file.name);
       
       // Wrap fetch in a timeout to prevent hanging indefinitely
-      const fetchWithTimeout = async (url: string, options: RequestInit, timeout = 60000) => {
+      const fetchWithTimeout = async (url: string, options: RequestInit, timeout = 25000) => {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeout);
         
@@ -109,12 +81,8 @@ export default function AiGeneratePage() {
           });
           clearTimeout(timeoutId);
           return response;
-        } catch (error: any) {
+        } catch (error) {
           clearTimeout(timeoutId);
-          // Check if this was an abort error (timeout)
-          if (error.name === 'AbortError') {
-            throw new Error("Request timed out. The server took too long to respond. Try with a smaller file.");
-          }
           throw error;
         }
       };
@@ -122,8 +90,14 @@ export default function AiGeneratePage() {
       // Use the fetch with timeout
       const response = await fetchWithTimeout('/api/extract-pdf', {
         method: 'POST',
-        body: formData
-      }, 60000); // 60 second timeout
+        headers: {
+          'Accept': 'application/json',
+          // No Content-Type header when using FormData (browser sets it with boundary)
+        },
+        body: formData,
+        // Include credentials for same-origin requests
+        credentials: 'same-origin'
+      });
       
       // Check if the response is valid JSON
       let data;
@@ -136,15 +110,7 @@ export default function AiGeneratePage() {
       
       if (!response.ok) {
         console.error('API Error:', response.status, response.statusText, data);
-        
-        // Handle specific error codes
-        if (response.status === 413) {
-          throw new Error("File is too large for the server to process. Please try a smaller file (under 20MB).");
-        } else if (response.status === 422) {
-          throw new Error(data?.message || "The document couldn't be processed. It may be corrupted, password-protected, or too complex.");
-        } else {
-          throw new Error(data?.message || `Error: ${response.status} ${response.statusText}`);
-        }
+        throw new Error(data?.message || `Error: ${response.status} ${response.statusText}`);
       }
       
       // Clear safety timeout as we got here successfully
@@ -269,8 +235,7 @@ export default function AiGeneratePage() {
                 </div>
                 <p className="text-xs text-muted-foreground mt-2">
                   Note: PDFs are processed using Google Document AI, and images are processed using Google Vision AI.
-                  Files up to 25MB are supported, but we recommend files under {MAX_FILE_SIZE_MB}MB for best results.
-                  Very large PDFs will be limited to the first 30 pages.
+                  Files up to 25MB are supported.
                 </p>
               </CardContent>
             </Card>

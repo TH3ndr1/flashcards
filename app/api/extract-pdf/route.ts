@@ -120,29 +120,16 @@ async function extractTextFromPdfWithDocumentAI(fileBuffer: ArrayBuffer, filenam
     const processorName = `projects/${projectId}/locations/${docAILocation}/processors/${docAIProcessorId}`;
     const buffer = Buffer.from(fileBuffer);
     
-    // Add processor options to handle more complex documents
+    // Create the request exactly as shown in the documentation
     const request = {
       name: processorName,
       rawDocument: {
         content: buffer.toString('base64'),
         mimeType: 'application/pdf',
       },
-      // Add process options to improve complex document handling
-      processOptions: {
-        // Limit the number of pages to prevent timeout with very large PDFs
-        individualPageSelector: {
-          pages: Array.from({ length: 30 }, (_, i) => i + 1), // Process max 30 pages
-        },
-        // Set OCR options for better text extraction
-        ocrConfig: {
-          enableImageQualityScores: true,
-        }
-      }
     };
     
     console.log(`Sending Document AI request to processor: ${processorName}`);
-    console.log(`PDF size: ${(buffer.length / 1024 / 1024).toFixed(2)}MB`);
-    
     const [result] = await docAIClient.processDocument(request);
     console.log('Document AI request completed successfully');
     
@@ -167,41 +154,23 @@ async function extractTextFromPdfWithDocumentAI(fileBuffer: ArrayBuffer, filenam
     };
   } catch (error: any) {
     // Log the full error object for more details on INVALID_ARGUMENT
-    console.error(`Document AI extraction error for PDF ${filename}:`, error);
-    
-    // Try to extract more useful information from the error
-    const errorMessage = error.message || '';
-    const errorDetails = error.details || '';
-    
-    console.error(`Document AI error details:`, {
-      message: errorMessage,
-      details: errorDetails,
-      code: error.code,
-      metadata: error.metadata,
-    });
+    console.error(`Document AI extraction error for PDF ${filename}:`, JSON.stringify(error, null, 2));
+    console.error(`Document AI error details:`, error.message);
     
     // More specific error handling
-    if (errorMessage.includes('INVALID_ARGUMENT')) {
-      // For invalid argument errors, check if it's related to PDF size
-      if (fileBuffer.byteLength > 10 * 1024 * 1024) {
-        throw new Error(`The PDF file is too large (${(fileBuffer.byteLength / 1024 / 1024).toFixed(2)}MB) or too complex for Document AI to process. Please try with a smaller or simpler PDF document.`);
-      }
+    if (error.message.includes('INVALID_ARGUMENT')) {
       throw new Error(`Failed to process PDF with Document AI: Invalid argument in the request. Please ensure the file is a valid PDF document.`);
     }
     
-    if (errorMessage.includes('PERMISSION_DENIED') || errorMessage.includes('permission')) {
+    if (error.message.includes('PERMISSION_DENIED') || error.message.includes('permission')) {
       throw new Error(`Failed to process PDF with Document AI: Permission denied. The service account may not have the required 'documentai.apiUser' role.`);
     }
     
-    if (errorMessage.includes('NOT_FOUND')) {
+    if (error.message.includes('NOT_FOUND')) {
       throw new Error(`Failed to process PDF with Document AI: Processor not found. Check that processor ID '${docAIProcessorId}' exists in project '${projectId}' in location '${docAILocation}'.`);
     }
     
-    if (errorMessage.includes('DEADLINE_EXCEEDED') || errorMessage.includes('timeout')) {
-      throw new Error(`The PDF processing timed out. The document may be too large or complex. Please try with a smaller document or fewer pages.`);
-    }
-    
-    throw new Error(`Failed to process PDF with Document AI: ${errorMessage}`);
+    throw new Error(`Failed to process PDF with Document AI: ${error.message}`);
   }
 }
 
