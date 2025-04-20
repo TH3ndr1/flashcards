@@ -49,6 +49,10 @@ export default function AiGeneratePage() {
     setIsLoading(true);
     setError(null);
     
+    // Create a unique ID for the loading toast so we can dismiss it later
+    const loadingToastId = `loading-${Date.now()}`;
+    toast.loading("Processing file", { id: loadingToastId });
+    
     try {
       // Create a new FormData instance
       const formData = new FormData();
@@ -57,8 +61,6 @@ export default function AiGeneratePage() {
       // This helps with Vercel's handling of files
       const fileBlob = new Blob([await file.arrayBuffer()], { type: file.type });
       formData.append('file', fileBlob, file.name);
-      
-      toast.loading("Processing file");
       
       const response = await fetch('/api/extract-pdf', {
         method: 'POST',
@@ -70,8 +72,14 @@ export default function AiGeneratePage() {
       try {
         data = await response.json();
       } catch (jsonError) {
+        console.error('JSON parsing error:', jsonError);
+        // Make sure to dismiss the loading toast
+        toast.dismiss(loadingToastId);
         throw new Error('Server returned an invalid response. Please try again later.');
       }
+      
+      // Always dismiss the loading toast whether successful or not
+      toast.dismiss(loadingToastId);
       
       if (!response.ok) {
         throw new Error(data?.message || `Error: ${response.status} ${response.statusText}`);
@@ -85,6 +93,8 @@ export default function AiGeneratePage() {
       console.error('Error:', err);
       setError(err.message || 'An error occurred while generating flashcards');
       
+      // Ensure the loading toast is dismissed in case of error
+      toast.dismiss(loadingToastId);
       toast.error(err.message || 'Failed to generate flashcards');
     } finally {
       setIsLoading(false);

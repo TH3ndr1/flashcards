@@ -15,10 +15,10 @@ const projectId = process.env.GCP_PROJECT_ID;
 const location = 'us-central1';
 const modelName = 'gemini-2.0-flash-lite-001';
 
-// Set PDF parsing options with increased limits
+// Modify the PDF parse options to be more memory-efficient
 const PDF_PARSE_OPTIONS = {
-  // Increased from 20 to 100 pages
-  max: 100,
+  // Reduce max pages for Vercel compatibility
+  max: 30,
   // Only extract text, ignore other content
   pagerender: function(pageData: any) {
     return pageData.getTextContent()
@@ -51,14 +51,16 @@ function getSupportedFileType(filename: string): string | null {
   return SUPPORTED_EXTENSIONS[extension as keyof typeof SUPPORTED_EXTENSIONS] || null;
 }
 
-// Extract text from PDF file using pdf-parse
+// Extract text from PDF file using pdf-parse with better error handling
 async function extractTextFromPdf(pdfBuffer: ArrayBuffer) {
   try {
     // Convert ArrayBuffer to Buffer
     const buffer = Buffer.from(pdfBuffer);
     
+    console.log('Starting PDF parsing with pdf-parse...');
     // Use pdf-parse with options
     const result = await pdfParse(buffer, PDF_PARSE_OPTIONS);
+    console.log(`PDF parsing complete: ${result.numpages} pages processed`);
     
     return {
       text: result.text,
@@ -68,14 +70,15 @@ async function extractTextFromPdf(pdfBuffer: ArrayBuffer) {
       }
     };
   } catch (error: any) {
-    console.error('PDF parsing error:', error.message);
+    console.error('PDF parsing error:', error.message, error.stack);
     throw new Error(`Failed to extract text: ${error.message}`);
   }
 }
 
-// Extract text from image using Google Cloud Vision API
+// Extract text from image using Google Cloud Vision API with improved logging
 async function extractTextFromImage(imageBuffer: ArrayBuffer) {
   try {
+    console.log('Starting Vision AI text extraction...');
     // Create client for Vision API
     const visionClient = new ImageAnnotatorClient();
     
@@ -89,11 +92,13 @@ async function extractTextFromImage(imageBuffer: ArrayBuffer) {
     
     const detections = result.textAnnotations;
     if (!detections || detections.length === 0) {
+      console.log('Vision AI returned no text detections');
       throw new Error('No text detected in the image');
     }
     
     // Full text is typically the first annotation
     const extractedText = detections[0].description || '';
+    console.log(`Vision AI extraction complete, extracted ${extractedText.length} characters`);
     
     return {
       text: extractedText,
@@ -103,7 +108,7 @@ async function extractTextFromImage(imageBuffer: ArrayBuffer) {
       }
     };
   } catch (error: any) {
-    console.error('Vision AI extraction error:', error.message);
+    console.error('Vision AI extraction error:', error.message, error.stack);
     throw new Error(`Failed to extract text from image: ${error.message}`);
   }
 }

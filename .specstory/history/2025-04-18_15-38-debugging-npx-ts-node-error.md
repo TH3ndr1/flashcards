@@ -7413,6 +7413,175 @@ To fix this issue:
 
 ---
 
+```diff
+      
+      try {
++       // Create a new FormData instance
+        const formData = new FormData();
+-       formData.append('file', file);
++       
++       // Explicitly set filename when appending to FormData
++       // This helps with Vercel's handling of files
++       const fileBlob = new Blob([await file.arrayBuffer()], { type: file.type });
++       formData.append('file', fileBlob, file.name);
+        
+        toast.loading("Processing file");
+        });
+        
+-       const data = await response.json();
++       // Check if the response is valid JSON
++       let data;
++       try {
++         data = await response.json();
++       } catch (jsonError) {
++         throw new Error('Server returned an invalid response. Please try again later.');
++       }
+        
+        if (!response.ok) {
+-         throw new Error(data.message || 'Failed to generate flashcards');
++         throw new Error(data?.message || `Error: ${response.status} ${response.statusText}`);
+        }
+        
+```
+
+---
+
+3. Now, let's also update your API handler to better handle file uploads from Vercel:
+
+---
+
+```diff
+  export async function POST(request: NextRequest) {
+    try {
+-     // Get the form data
+-     const formData = await request.formData();
++     // Get the form data with more robust error handling
++     let formData;
++     try {
++       formData = await request.formData();
++     } catch (formError: any) {
++       console.error('Error parsing form data:', formError);
++       return NextResponse.json({ 
++         success: false, 
++         message: 'Error processing uploaded file. Please try again.',
++         formError: formError.message
++       }, { status: 400 });
++     }
+      
+-     // Get the file from the form data
+-     const file = formData.get('file') as File;
++     // Get the file from the form data with better error handling
++     const file = formData.get('file');
+      
+      if (!file) {
+-       throw new Error('No file provided');
++       return NextResponse.json({ 
++         success: false, 
++         message: 'No file provided in request'
++       }, { status: 400 });
+      }
++     
++     // Verify the file is a proper File or Blob object
++     if (!(file instanceof Blob)) {
++       return NextResponse.json({ 
++         success: false, 
++         message: 'Uploaded file is not in the expected format',
++         receivedType: typeof file
++       }, { status: 400 });
++     }
++ 
++     // Extract filename from file object with fallback
++     const filename = 'name' in file && typeof file.name === 'string' 
++       ? file.name 
++       : 'uploaded-file';
+  
+      // Check if file type is supported
+-     const fileType = getSupportedFileType(file.name);
++     const fileType = getSupportedFileType(filename);
+      if (!fileType) {
+-       throw new Error('Unsupported file type. Please upload a PDF or image file (jpg, jpeg, png, gif, bmp, webp).');
++       return NextResponse.json({ 
++         success: false, 
++         message: `Unsupported file type: "${filename}". Please upload a PDF or image file (jpg, jpeg, png, gif, bmp, webp).`
++       }, { status: 400 });
+      }
+  
+  
+      // Get file information
+-     const filename = file.name;
+      const fileSize = file.size;
+      const fileMimeType = file.type;
+```
+
+---
+
+4. Let's also add a `vercel.json` configuration file to handle uploads properly:
+
+---
+
+```diff
+- 
++ {
++   "functions": {
++     "app/api/extract-pdf/route.ts": {
++       "memory": 1024,
++       "maxDuration": 60
++     }
++   },
++   "routes": [
++     {
++       "src": "/api/extract-pdf",
++       "dest": "/api/extract-pdf"
++     }
++   ]
++ } 
+```
+
+---
+
+These changes address four key issues that could be causing the "The string did not match the expected pattern" error on Vercel:
+
+1. **Runtime Configuration**: We've explicitly set the API route to use the Node.js runtime instead of the Edge runtime, which handles file uploads differently.
+
+2. **Blob Handling**: We've improved how files are sent to the server by creating a proper Blob with explicit filename, which helps with Vercel's form data handling.
+
+3. **Error Handling**: We've added more robust error handling throughout the process to catch and properly report various failure points.
+
+4. **Vercel Configuration**: We've added a `vercel.json` configuration file to allocate more memory and time for your file processing endpoint.
+
+After making these changes:
+
+1. Deploy your application to Vercel again
+2. Try uploading a file 
+3. If you still encounter issues, the enhanced error reporting should provide more specific details about what's going wrong
+
+The error you're seeing is a common issue with file uploads on Vercel's serverless functions, and these changes address the most likely causes. If problems persist, we can further diagnose based on the more detailed error messages.
+
+---
+
+_**User**_
+
+1. After the above changes, I get in vercel "Server returned an invalid response. Please try again later."
+2.Can you update the project documentation based on the history of this chat? To do so, investigate our action plan and then highlight what has been done and how it has bbeen implemented.@project-documentation.md
+3. The sonner message is stuck on "Processing file". It never goes away, even after the file has been processed an q&a has been generated.  See printscreen attached . I also cannot click on the "x" to close the messages.
+
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+I'll address each issue and update the documentation:
+
+## 1. Fixing the Server Response Error
+
+The "invalid response" error typically happens when Vercel's serverless function encounters memory or time limitations. Let's update the API route to be more Vercel-friendly:
+
+---
+
 Cancelled
 
 ---
