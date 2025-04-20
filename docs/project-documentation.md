@@ -573,7 +573,7 @@ graph TD
         AP[app/prepare/ai-generate/page.tsx] --> AQ[components/ai/FileUpload.tsx]
         AP --> AR[components/ai/QnaReview.tsx]
         AQ --> AS[lib/actions/aiUploadAction.ts] # Example name
-        AR --> AT[lib/actions/cardActions.ts # createMultipleCards]
+        AT[lib/actions/cardActions.ts # createMultipleCards]
         AS --> AU[lib/ai-utils.ts # extractText]
         AU --> AV[lib/actions/aiGenerateAction.ts] # Example name
         AV --> AR
@@ -746,47 +746,75 @@ The core SM-2 logic resides in the `calculateSm2State` function within `lib/srs.
 *(Actual implementation in `lib/srs.ts` provides the precise calculations)*
 
 ### 6.3 AI Q&A Generation Workflow (Google Cloud)
-This workflow enables users to automatically generate flashcards from uploaded PDF documents or images using Google Cloud AI services.
+This workflow enables users to automatically generate flashcards from uploaded documents.
+
+#### Current Implementation Status:
+- The following components have been implemented:
+  - PDF and image upload with validation
+  - Multi-method text extraction (pdf-parse for PDFs, Vision AI for images)
+  - Flashcard generation using Google Vertex AI (Gemini)
+  - Error handling with cascading fallbacks
+  - Flashcard review UI with extracted text preview
+  - Vercel deployment optimizations (memory, timeouts, error handling)
+
+The complete workflow includes:
 
 1.  **Upload (Client -> Server Action/API):**
-    *   User selects a PDF or image file via the frontend interface on `/prepare/ai-generate`.
+    *   User selects a PDF or Image file via the frontend interface on `/prepare/ai-generate`.
     *   Files are validated for type and size (up to 25MB).
     *   File is converted to a Blob with explicit filename preservation for Vercel compatibility.
     *   File is sent to the `/api/extract-pdf` endpoint using FormData.
 
-2.  **Text Extraction - Multi-method Approach:**
+2.  **Pre-process & Text Extraction (Server-Side):**
     *   **For PDFs:**
         *   Primary method: `pdf-parse` library extracts text (limited to 30 pages for serverless compatibility).
         *   Fallback method: Google Cloud Vision AI for PDFs that can't be processed by pdf-parse.
-    *   **For Images:**
-        *   Google Cloud Vision AI's `documentTextDetection` extracts text from images.
-    *   Extensive error handling with cascading fallbacks ensures maximum text extraction success.
+    *   **For Images:** 
+        *   Google Cloud Vision AI (`@google-cloud/vision`) OCR API extracts text.
+    *   Handle potential errors during extraction with cascading fallbacks.
 
 3.  **Text Processing & AI Generation:**
-    *   Extracted text is truncated if necessary (currently at 50,000 characters) to meet model limitations.
-    *   Google Vertex AI (Gemini 2.0 Flash Lite) generates the Q&A pairs based on a specialized prompt.
-    *   The prompt is designed to create educational flashcards that focus on understanding rather than rote memorization.
-    *   AI response is parsed to extract the JSON array of question/answer pairs.
+    *   Extracted text is truncated (currently to 50,000 characters) to meet model limitations.
+    *   The text is sent to Google Vertex AI (Gemini) for Q&A generation.
+    *   A specialized prompt instructs the model to create educational flashcards.
+    *   Response is parsed to extract the JSON array of question/answer pairs.
 
 4.  **User Review & Interaction:**
     *   Generated flashcards are displayed to the user in the UI.
-    *   Extracted text preview is shown to provide context for the generated content.
+    *   Extracted text preview provides context for the generated content.
     *   Users can save the generated flashcards as a JSON file.
-    *   Toast notifications provide real-time feedback about the process status.
+    *   Sonner notifications provide real-time feedback.
 
-5.  **Error Handling & Resilience Features:**
-    *   Multi-stage fallback mechanisms for text extraction.
-    *   Comprehensive error reporting with toast notifications.
-    *   Detailed console logging for debugging.
-    *   Vercel-optimized configuration (`vercel.json`) for serverless execution.
+5.  **Infrastructure & Error Handling:**
+    *   Uses Node.js runtime with increased memory (3008MB) and time (90 seconds).
+    *   Implemented unique toast IDs to prevent stuck notification states.
+    *   Enhanced error handling for each potential failure point.
+    *   Detailed server-side logging for debugging.
 
-6.  **Infrastructure Configuration:**
-    *   Uses Node.js runtime with increased memory (3008MB) and execution time (90 seconds).
-    *   Custom toast notification management with unique IDs to prevent stuck UI states.
-    *   Optimized file handling for Vercel's serverless environment.
+6.  **User Review & Selection (Client):**
+    *   Send the validated, generated Q&A pairs back to the client.
+    *   Display pairs in the `<QnaReview />` component on `/prepare/ai-generate`.
+    *   Allow the user to:
+        *   Review each pair.
+        *   Edit the question or answer content.
+        *   Select/deselect pairs for import.
+        *   Choose a target deck for importing.
 
-The implementation provides a seamless experience for generating flashcards from various document types while managing the complexity of distributed text extraction and AI processing.
+7.  **Save Selected Cards (Client -> Server Action):**
+    *   User clicks "Import Selected".
+    *   Client sends the final list of selected (and potentially edited) Q&A pairs along with the target `deck_id` to a Server Action (`cardActions.createMultipleCards`).
+    *   Action performs a batch insert into the `cards` table, setting `front_content` and `back_content` accordingly, associating them with the correct `user_id` and `deck_id`.
+    *   Provide feedback to the user (success/failure).
 
+8.  **Cleanup (Server-Side):**
+    *   Delete the temporary file from storage after processing.
+
+#### Future Enhancements (Not Yet Implemented):
+*   Integration with deck management to directly import flashcards into a specific deck.
+*   Ability to edit generated flashcards before saving.
+*   Select/deselect individual flashcards for import.
+*   Temporary storage cleanup for uploaded files.
+*   More advanced text chunking strategies for longer documents.
 ---
 
 ## 7. Component Breakdown (Key Components)
@@ -990,7 +1018,7 @@ The implementation provides a seamless experience for generating flashcards from
     *   [ ] Implement `isTransitioning` state fully (optional refinement for smoother flips).
 *   [x] Add main navigation links for new sections (Tags, Study Sets, Study Select).
 
-**Phase 4: AI Flashcard Generator (Completed)**
+**Phase 4: AI Flashcard Generator**
 *   [x] Task 1.1: AI Key Setup (Google Cloud Credentials, Env Vars for API Keys).
 *   [x] Task 1.2: Install AI Dependencies (`pdf-parse`, `@google-cloud/vision`, `@google/generative-ai`).
 *   [x] Task 1.3: Implement Upload Action/Route & File Handling (Blobs, FormData).
@@ -999,19 +1027,24 @@ The implementation provides a seamless experience for generating flashcards from
 *   [x] Task 2.2: Implement Q&A Generation using Gemini API.
 *   [x] Task 3.1: Implement Upload Component UI (supports PDF/images with validation).
 *   [x] Task 3.2: Implement AI Generate Page with responsive layout.
-*   [x] Task 3.3: Implement Flashcard Review UI with extracted text preview.
+*   [ ] Task 3.3: Implement Flashcard Review UI with extracted text preview.
 *   [x] Task 4.1: Implement JSON Export for generated flashcards.
 *   [x] Task 4.2: Add comprehensive error handling and toast notifications.
-*   [x] Task 4.3: Optimize for Vercel deployment (memory, timeout, error handling).
+*   [ ] Task 4.3: Add AI Gen Entry Point in Main UI (Sidebar Link).
 *   [x] Task 5.1: Implement Vercel-specific configurations.
 
-**Implementation Highlights:**
-- Multi-layered extraction approach (pdf-parse → Vision AI fallback)
-- Support for multiple document types (PDFs + 6 image formats)
-- Serverless optimizations (memory limits, timeouts, streaming)
-- Custom error handling specific to each failure mode
-- Enhanced toast notifications with proper lifecycle management
-- Detailed logging to aid in production debugging
+**Recently Completed Tasks:**
+- Optimized for Vercel deployment with memory and timeout configurations
+- Fixed file upload handling in serverless environment
+- Added proper toast notification lifecycle management
+- Implemented multi-method text extraction with fallbacks
+- Enhanced error handling for all failure modes
+
+**Remaining Tasks:**
+- [ ] Task 6.1: Integrate with deck management to allow direct import to decks.
+- [ ] Task 6.2: Add ability to edit generated flashcards before saving.
+- [ ] Task 6.3: Add select/deselect functionality for individual flashcards.
+- [ ] Task 6.4: Implement temporary file cleanup logic.
 
 **Notable Technical Challenges Overcome:**
 1. Managing file uploads in Vercel's serverless environment

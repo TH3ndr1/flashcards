@@ -75,13 +75,14 @@ export default function AiGeneratePage() {
         console.error('JSON parsing error:', jsonError);
         // Make sure to dismiss the loading toast
         toast.dismiss(loadingToastId);
-        throw new Error('Server returned an invalid response. Please try again later.');
+        throw new Error(`Server returned an invalid response (${response.status} ${response.statusText}). Please try again later.`);
       }
       
       // Always dismiss the loading toast whether successful or not
       toast.dismiss(loadingToastId);
       
       if (!response.ok) {
+        console.error('API Error:', response.status, response.statusText, data);
         throw new Error(data?.message || `Error: ${response.status} ${response.statusText}`);
       }
       
