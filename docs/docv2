@@ -1,0 +1,349 @@
+# Project Documentation & Implementation Plan: StudyCards App
+
+**Version:** 3.0 (Consolidated Architecture & AI Generation Plan)
+**Date:** 2025-04-09 (Placeholder)
+
+**(Generated based on user requirements and iterative AI discussions)**
+
+---
+
+## Table of Contents
+
+1.  [Executive Summary](#1-executive-summary)
+2.  [Conceptual Overview: Prepare vs. Practice](#2-conceptual-overview-prepare-vs-practice)
+3.  [Functional Requirements](#3-functional-requirements)
+    *   [3.1 Core Features](#31-core-features)
+    *   [3.2 Prepare Mode Features](#32-prepare-mode-features)
+    *   [3.3 Practice Mode Features](#33-practice-mode-features)
+    *   [3.4 Accessibility & Inclusivity](#34-accessibility--inclusivity)
+4.  [Technical Architecture](#4-technical-architecture)
+    *   [4.1 Technology Stack](#41-technology-stack)
+    *   [4.2 Frontend Architecture](#42-frontend-architecture)
+    *   [4.3 Backend Architecture](#43-backend-architecture)
+    *   [4.4 Database Schema](#44-database-schema)
+    *   [4.5 Navigation Structure](#45-navigation-structure)
+5.  [Core Feature Implementation Details](#5-core-feature-implementation-details)
+    *   [5.1 Study Session Initiation & Execution Flow](#51-study-session-initiation--execution-flow)
+    *   [5.2 SRS Algorithm: SM-2 Implementation](#52-srs-algorithm-sm-2-implementation)
+    *   [5.3 AI Q&A Generation Workflow (Google Cloud)](#53-ai-qa-generation-workflow-google-cloud)
+6.  [Component Breakdown (Key Components)](#6-component-breakdown-key-components)
+7.  [Security Considerations](#7-security-considerations)
+8.  [Development & Deployment Workflow](#8-development--deployment-workflow)
+9.  [Known Issues / Future Roadmap](#9-known-issues--future-roadmap)
+10. [References](#10-references)
+11. [Changelog](#11-changelog)
+12. [Implementation Action Plan & Status](#12-implementation-action-plan--status)
+
+---
+
+## 1. Executive Summary
+
+### Purpose and Objectives
+StudyCards is a modern, multilingual learning platform designed for maximum learning efficiency and inclusivity. It aims to enhance the study experience through:
+*   **Effective Spaced Repetition:** Implementing proven SRS algorithms (starting with SM-2) integrated into flexible study modes.
+*   **Flexible Content Management:** Allowing users to organize content via decks and tags, and create custom study sessions using "Smart Playlists" (Study Sets).
+*   **AI-Powered Content Creation:** Enabling users to automatically generate flashcards from uploaded PDF documents or images.
+*   **Accessibility:** Providing features specifically designed to support learners with dyslexia, ADHD, and other challenges (font choices, colors, TTS, simple UI).
+*   **Multi-modal Learning:** Supporting text and audio (TTS).
+
+### Target Users
+Students of all ages, language learners, self-learners, teachers, particularly benefiting those seeking efficient study methods and users with learning differences.
+
+### Key Differentiators
+*   Robust and flexible SRS implementation.
+*   Seamless AI-powered card generation from user documents/images.
+*   Strong focus on accessibility and inclusivity features.
+*   Clean, intuitive, distraction-free user interface optimized for learning.
+
+## 2. Conceptual Overview: Prepare vs. Practice
+
+The application's functionality is divided into two main modes:
+
+*   **Prepare Mode:** Encompasses all aspects of content creation, organization, and setup. This includes managing decks, creating/editing individual cards, managing tags, creating/editing Study Sets ("Smart Playlists"), and using the AI Flashcard Generator.
+*   **Practice Mode:** Focuses entirely on the active learning and review process using the prepared content. This includes initiating study sessions (via decks, tags, playlists, or global review), interacting with flashcards (flipping, grading), and leveraging the SRS scheduling.
+
+This conceptual separation guides the UI navigation and feature organization.
+
+## 3. Functional Requirements
+
+### 3.1 Core Features
+*   User Authentication (Supabase Auth).
+*   Multi-language support (UI and potentially content).
+*   Responsive design (Mobile, Tablet, Desktop).
+*   User Settings management.
+
+### 3.2 Prepare Mode Features
+*   **Deck Management:** Create, view, edit, delete decks.
+*   **Card Management:** Create, view, edit, delete individual cards within decks.
+    *   Support for front text, back text.
+    *   *(Update)* Fields now use `front_content`, `back_content`.
+*   **Tag Management:**
+    *   Create, view, delete user-specific tags (`/tags` page via `<TagManager />`).
+    *   Assign/remove tags to/from specific cards (via `<CardTagEditor />` in card editing view).
+*   **Study Set ("Smart Playlist") Management:**
+    *   Create/Save complex filter criteria as named Study Sets (`/study/sets/new` via `<StudySetBuilder />`).
+    *   View/List saved Study Sets (`/study/sets` page).
+    *   Edit existing Study Sets (`/study/sets/[id]/edit` via `<StudySetBuilder />`).
+    *   Delete saved Study Sets (`/study/sets` page).
+    *   **Filter Criteria:** Support filtering by Deck(s), Included Tags (Any/All), Excluded Tags, Date ranges (Created, Updated, Last Reviewed, Next Due - including 'never', 'isDue'), SRS Level (equals, <, >).
+*   **AI Flashcard Generator:**
+    *   Upload PDF or Image files.
+    *   Extract text content (PDF parsing / OCR via Google Vision AI).
+    *   Generate Q&A pairs using AI (Google Gemini).
+    *   Allow user review, editing, and selection of generated pairs.
+    *   Import selected pairs as new cards into a chosen deck.
+
+### 3.3 Practice Mode Features
+*   **Study Session Initiation:** Start sessions based on:
+    *   A specific Deck.
+    *   All user cards.
+    *   A specific Tag (Future UI).
+    *   A saved Study Set ("Smart Playlist").
+    *   A dynamic query (e.g., "All Due Cards" - implicitly via Study Set Selector).
+*   **Study Mode Selection:** Choose between:
+    *   **Learn Mode:** Reviews *all* selected cards, repeating cards answered incorrectly within the session until a configurable consecutive correct answer threshold (`mastery_threshold` / `learn_mode_success_threshold` in settings) is met *for that session*.
+    *   **Review Mode (SRS):** Reviews *only* cards from the selection that are due (`next_review_due <= now()` or `next_review_due IS NULL`), prioritized by due date.
+*   **Study Interface:**
+    *   Display current card (`<StudyFlashcardView />`).
+    *   Allow flipping between front and back.
+    *   Provide grading buttons (e.g., Again, Hard, Good, Easy - mapped to grades 1-4).
+    *   Display session progress (e.g., Card X / Y).
+    *   Display session completion feedback.
+*   **SRS Engine:**
+    *   Utilize SM-2 algorithm initially (`calculateSm2State`).
+    *   Calculate and update card SRS state (`srs_level`, `easiness_factor`, `interval_days`, `next_review_due`, `last_reviewed_at`, `last_review_grade`) after *every* card review, regardless of study mode.
+    *   Persist SRS state updates to the database (`progressActions.updateCardProgress`).
+*   **Text-to-Speech (TTS):**
+    *   Read card front/back content aloud using Google Cloud TTS.
+    *   Determine language based on card's deck (`primary_language`, `secondary_language`) or potential future card-level overrides.
+    *   Allow user to enable/disable TTS in settings.
+
+### 3.4 Accessibility & Inclusivity
+*   **Dyslexia Support:**
+    *   User-selectable dyslexia-friendly fonts (e.g., OpenDyslexic, Atkinson Hyperlegible) via Settings.
+    *   Adjustable font size, line spacing via Settings.
+    *   Multiple low-contrast color themes / adjustable background/text colors via Settings.
+    *   High-quality TTS.
+*   **ADHD Support:**
+    *   Clean, minimalist, distraction-free UI during study.
+    *   Optional session timers (e.g., Pomodoro).
+    *   Clear progress indicators & goal setting options.
+    *   Concise card content encouraged.
+    *   Chunking of study material via Decks/Tags/Study Sets.
+*   **Dysorthographia/General:**
+    *   TTS bypasses reading difficulties.
+    *   Image support (future) provides visual cues.
+    *   Focus on recall over perfect input (if typed answers are added).
+
+## 4. Technical Architecture
+
+### 4.1 Technology Stack
+*   Frontend: Next.js 15+ (App Router), React 19+, TypeScript
+*   Backend: Serverless via Next.js Server Actions
+*   Database: Supabase (PostgreSQL)
+*   Database Functions: `resolve_study_query` (pl/pgsql) for complex card selection.
+*   Authentication: Supabase Auth via `@supabase/ssr`
+*   State Management: Zustand (`studySessionStore`), React Context (`SettingsProvider`, `AuthProvider`)
+*   UI: Tailwind CSS, `shadcn/ui`
+*   Forms: `react-hook-form`, `zod`
+*   Audio: Google Cloud TTS API (`@google-cloud/text-to-speech`)
+*   AI (Q&A Gen): Google Cloud Vision AI (`@google-cloud/vision`) for OCR, Google AI Gemini (`@google/generative-ai`) for generation.
+*   File Parsing: `pdf-parse` (server-side)
+*   File Storage: Supabase Storage (temporary uploads)
+*   Utilities: `date-fns`, `lucide-react`, `sonner`
+
+### 4.2 Frontend Architecture
+*   **Structure:** Next.js App Router (`app/`). Client (`'use client'`) and Server Components.
+*   **Navigation:** Responsive layout using `app/layout.tsx`, `components/layout/site-header.tsx`, `components/layout/site-sidebar.tsx`. Mobile uses `Sheet` sidebar toggled via Hamburger in Header (state managed by `hooks/use-mobile-sidebar.ts` Zustand store). Desktop uses persistent left sidebar. Main content area adjusts padding accordingly (`md:pl-64`).
+*   **State:**
+    *   Global Auth: `AuthProvider` context / `useAuth` hook.
+    *   Global Settings: `SettingsProvider` context / `useSettingsContext` hook.
+    *   Study Session Params: `useStudySessionStore` (Zustand) for passing `input`/`mode` between selection and session pages.
+    *   Data Fetching/Caching: Custom hooks (`useDecks`, `useTags`, `useStudySets`, `useCardTags`) calling Server Actions. Consider SWR/TanStack Query for more advanced caching/refetching later.
+    *   Study Session Logic: `useStudySession` hook encapsulates fetching cards for session, managing queue based on mode, triggering SRS calcs, handling answers.
+    *   Local UI State: `useState` within components (e.g., `isFlipped`, `isSaving`, popover open states).
+*   **Components:** Reusable UI elements (`components/ui/`), feature-specific components (`components/study/`, `components/tags/`, etc.), layout components (`components/layout/`).
+
+### 4.3 Backend Architecture
+*   **Primary Mechanism:** Next.js Server Actions (`lib/actions/`) for data mutations and queries. Use `'use server'` directive.
+*   **Supabase Client:** Use dedicated client creation functions for actions (`createActionClient` from `lib/supabase/server.ts`) leveraging `@supabase/ssr`. Ensure authentication is checked within actions.
+*   **Key Actions:**
+    *   `cardActions`: `createCard`, `updateCard`, `deleteCard`, `getCardsByIds` (includes nested deck languages).
+    *   `deckActions`: `createDeck` (needs implementation), `updateDeck` (needs implementation), `deleteDeck` (needs implementation), `getDecks`, `getDeckWithCards` (needs implementation).
+    *   `tagActions`: `createTag`, `getTags`, `deleteTag`, `addTagToCard`, `removeTagFromCard`, `getCardTags`.
+    *   `studySetActions`: `createStudySet`, `getUserStudySets`, `getStudySet`, `updateStudySet`, `deleteStudySet`.
+    *   `progressActions`: `updateCardProgress` (saves SRS state).
+    *   `studyQueryActions`: `resolveStudyQuery` (calls DB function).
+*   **Database Function (`resolve_study_query`):** (Defined in migration, called via RPC) Handles complex filtering logic for card selection based on `queryCriteria` JSONB (decks, tags, dates, SRS level, etc.) and `user_id`. Returns `TABLE(card_id uuid)`.
+*   **API Routes:** Used sparingly for specific needs (e.g., `/api/tts/route.ts`, potentially AI processing steps `/api/process-upload`, `/api/extract-text`, `/api/generate-qna`).
+*   **Utilities (`lib/`):**
+    *   `srs.ts`: Contains `calculateSm2State` (pure function for SM-2 logic).
+    *   `ai-utils.ts` (New): Will contain `chunkText` and potentially helper functions for interacting with Vision/Gemini APIs.
+    *   `utils.ts`: General helpers (e.g., `debounce`).
+*   **Error Handling:** Actions return `{ data, error }` structure. Use `try...catch`, handle specific DB errors (e.g., unique constraints), log errors server-side.
+
+### 4.4 Database Schema
+*(Refers to the final schema defined previously, including `settings`, `decks`, `cards` (with SRS fields, `user_id`, `front_content`, `back_content`), `tags`, `card_tags`, `study_sets`. Ensure `cards.id` has `DEFAULT uuid_generate_v4()` and `cards(user_id, next_review_due)` index exists)*
+
+### 4.5 Navigation Structure
+*   **Sidebar (Primary Navigation):**
+    *   Practice: "Start Session" (`/study/select`), "Smart Playlists" (`/study/sets`).
+    *   Prepare: "Decks" (`/`), "Manage Tags" (`/tags`).
+    *   Other: "Settings" (`/settings`), Auth links.
+*   **Header:** App Title/Logo (links to `/`), global icons (Settings, Profile/Auth), mobile Hamburger menu.
+*   **Contextual Navigation:**
+    *   Deck List (`/`): Links to Edit Deck (`/edit/[deckId]`), Learn/Review buttons navigate to `/study/session` via store. "+ Create Deck" button.
+    *   Study Set List (`/study/sets`): Links to Edit Set (`/study/sets/[id]/edit`), Learn/Review buttons navigate to `/study/session` via store. Delete buttons. "+ Create Playlist" button links to `/study/sets/new`.
+
+## 5. Core Feature Implementation Details
+
+### 5.1 Study Session Initiation & Execution Flow
+*(This section contains the detailed 2-phase description from the previous documentation version: Phase 1 for Card Selection based on criteria/deck/tags/set, Phase 2 for Study Mode Execution (Learn vs Review) managed by `useStudySession`)*
+
+### 5.2 SRS Algorithm: SM-2 Implementation
+*(This section contains the detailed description and code snippet for `calculateSm2State` from the previous documentation version)*
+
+### 5.3 AI Q&A Generation Workflow (Google Cloud)
+*(This section outlines the multi-step workflow defined previously: Upload -> Store (Supabase) -> Pre-process (pdf-parse/Vision AI OCR) -> Chunk Text -> Generate (Gemini API via `@google/generative-ai`) -> Parse/Validate -> User Review UI -> Save (batch card creation action))*
+
+## 6. Component Breakdown (Key Components)
+*   **Layout:** `RootLayout`, `SiteHeader`, `SiteSidebar`.
+*   **Providers:** `AuthProvider`, `SettingsProvider`, `ThemeProvider`.
+*   **Core Study:** `StudySessionPage`, `StudyFlashcardView`, `DifficultyIndicator`.
+*   **Study Setup:** `StudySetSelector`, `StudySetBuilder`.
+*   **Deck/Card Management:** `DeckList`, `CardEditor`, `EditableCardTable` (or integrated into Edit Deck Page).
+*   **Tag Management:** `TagManager`, `CardTagEditor`.
+*   **Study Set Management:** List page (`app/study/sets/page.tsx`), New page (`.../new`), Edit page (`.../[id]/edit`).
+*   **AI Generation (New):** `FileUpload`, `QnaReview`, Orchestrator page (`app/prepare/ai-generate/page.tsx`).
+*   **Hooks:** `useAuth`, `useSettingsContext`, `useMobileSidebar`, `useStudySessionStore`, `useDecks`, `useTags`, `useCardTags`, `useStudySets`, `useStudySession`, `useTTS`.
+
+## 7. Security Considerations
+*(Points remain as before: Supabase Auth, RLS on all user data tables, Server Action validation, HTTPS, Environment Variables, Parameterization/safe quoting in DB functions)*
+
+## 8. Development & Deployment Workflow
+*(Points remain as before: Git workflow, Supabase local dev + Migrations, Linting/Formatting/Typing, Testing, Vercel Deployment)*
+
+## 9. Known Issues / Future Roadmap
+*   **Known Issues:**
+    *   TTS Language determination relies on joined deck data; need robust handling if deck data is missing.
+    *   `StudyFlashcardView` needs final prop implementation (`isTransitioning`?).
+    *   Learn mode card ordering/repetition logic is basic (random shuffle/push to end).
+    *   Need comprehensive testing (Unit, Integration, E2E).
+    *   Database backfilling script required for existing users' cards (`user_id`, SRS defaults).
+*   **Future Roadmap:**
+    *   Implement FSRS algorithm & parameter optimization.
+    *   Implement remaining `StudySetBuilder` filters (other SRS props, text search).
+    *   Sharing Decks/Study Sets.
+    *   System-generated Study Sets.
+    *   Enhanced Analytics/Stats page.
+    *   Refine UI/UX, animations.
+    *   Import/Export features.
+    *   Image support on cards.
+    *   Alternative answer input (typing, speech-to-text).
+    *   Offline support (PWA).
+
+## 10. References
+*(List remains as before)*
+
+## 11. Changelog
+*   **v3.0 (YYYY-MM-DD):** Consolidated architecture, added AI Generation plan.
+*   **v2.1 (2025-04-09):** Refactored study session flow, added Study Modes, completed Study Set CRUD & UI structure, implemented Tagging system, finalized core SRS integration (SM-2).
+*   **v2.0 (2025-04-07):** Initial integration plan for SRS, Tags, Study Sets.
+*   **v1.0 (Previous Date):** Basic deck/card management, auth, TTS.
+
+## 12. Implementation Action Plan & Status
+
+**(Status Key: `[x]`=Done, `[/]`=In Progress, `[ ]`=Pending)**
+
+**Phase 0: Foundational Setup (Assumed Mostly Done)**
+*   [x] Next.js project setup with App Router.
+*   [x] Supabase project setup.
+*   [x] Supabase Auth integration (`@supabase/ssr`, Middleware, AuthProvider).
+*   [x] `shadcn/ui` and Tailwind setup.
+*   [x] Basic layout components (Header, Footer - pre-refactor).
+*   [x] Initial Deck/Card CRUD (pre-refactor).
+*   [x] TTS Integration (`useTTS`, `/api/tts`).
+*   [x] Settings Provider/Service initial setup.
+*   [x] Supabase Type Generation initial setup.
+
+**Phase 1: DB Schema & Core Backend Refactor (Completed)**
+*   [x] Add SRS fields & `user_id` to `cards` table schema.
+*   [x] Create `tags`, `card_tags`, `study_sets`, `settings` table schemas.
+*   [x] Implement Supabase migrations for all schema changes. (`..._add_srs_study_sets.sql`, `..._add_card_id_default.sql`, `..._enhance_resolve_study_query.sql`, etc.)
+*   [x] Finalize Supabase type definitions (`types/database.ts` or equivalent) and integrate imports.
+*   [x] Implement core SM-2 calculation logic (`lib/srs.ts`).
+*   [x] Implement `progressActions.updateCardProgress`.
+*   [x] Implement `settingsService` updates (`fetchSettings`, `updateSettings` including `srs_algorithm`).
+*   [x] Implement `cardActions.getCardsByIds` including nested deck languages.
+*   [x] Implement `deckActions.getDecks`.
+*   [x] Implement `resolve_study_query` DB function (handling Deck, Tags, Dates, SRS Level).
+*   [x] Implement `studyQueryActions.resolveStudyQuery` Server Action (handling criteria and studySetId).
+*   [x] Implement `tagActions.ts` (CRUD, link/unlink).
+*   [x] Implement `studySetActions.ts` (CRUD).
+*   [x] Implement `cardActions.createCard` action.
+*   [x] Ensure correct Supabase client creation in all Server Actions (`createActionClient`).
+
+**Phase 2: Core Study Flow Refactoring (Completed)**
+*   [x] Implement Zustand store (`store/studySessionStore.ts`).
+*   [x] Refactor `useStudySession` hook (initialize via store, handle Learn/Review modes, fetch data via actions, trigger SRS calcs, save progress).
+*   [x] Refactor `app/study/session/page.tsx` (use store, use refactored hook, render view, handle loading/error/complete/redirect/cleanup).
+*   [x] Refactor `components/study-flashcard-view.tsx` (accept `DbCard`, use `front/back_content`, handle nested languages for TTS, use `onAnswer`).
+
+**Phase 3: UI Implementation & Integration (Mostly Complete)**
+*   [x] Implement Responsive Navigation (`SiteHeader`, `SiteSidebar`, `useMobileSidebar` hook, update `RootLayout`).
+*   [x] Implement `TagManager` component (`components/tags/TagManager.tsx`).
+*   [x] Create `app/tags/page.tsx` to host `TagManager`.
+*   [x] Implement `CardTagEditor` component (`components/CardTagEditor.tsx`).
+*   [x] Implement `useTags` and `useCardTags` hooks.
+*   [x] Integrate `CardTagEditor` into `CardEditor` component.
+*   [x] Refactor `CardEditor` to handle new cards correctly (no client ID, explicit save).
+*   [x] Implement `StudySetBuilder` component (`components/study/StudySetBuilder.tsx`):
+    *   [x] Basic structure, form setup, name/description fields.
+    *   [x] `useDecks` integration & Deck selector UI.
+    *   [x] `useTags` integration & Multi-Select Combobox UI for Tags.
+    *   [x] Zod schema updated for all implemented filters.
+    *   [x] Date Picker UI (createdDate, updatedDate, lastReviewed, nextReviewDue) implemented.
+    *   [x] SRS Level filter UI implemented.
+    *   [x] `onSubmit` mapping logic fully implemented for all current UI filters.
+*   [x] Implement `useStudySets` hook.
+*   [x] Create "New Study Set" Page (`app/study/sets/new/page.tsx`) using `StudySetBuilder` and `createStudySet` action.
+*   [x] Create "List Study Sets" Page (`app/study/sets/page.tsx`) using `useStudySets`, linking to edit/new, implementing Delete, and initiating study sessions via store.
+*   [x] Create "Edit Study Set" Page (`app/study/sets/[studySetId]/edit/page.tsx`) fetching data, using `StudySetBuilder` with `initialData`, and calling `updateStudySet` action.
+*   [x] Implement `StudySetSelector` component handling All/Deck/Study Set choices + Mode choice.
+*   [x] Create Study Setup Page (`app/study/select/page.tsx`) using `StudySetSelector` and Zustand store.
+*   [x] Update Deck List component UI to use new study initiation flow (set store, navigate).
+*   [/] Implement Settings Page UI (`app/settings/page.tsx`) - **Partially Done** (Service updated, UI needs implementation)
+    *   [ ] Add controls for `srs_algorithm`.
+    *   [ ] Add control for `learn_mode_success_threshold`.
+    *   [ ] Connect UI to Settings Context/Service for saving.
+*   [/] Finalize Study Session Page UI (`app/study/session/page.tsx`) - **Partially Done**
+    *   [x] Core rendering, hook usage, flip state, settings prop passing.
+    *   [ ] Implement clear "Session Complete" / "No Cards Found" UI distinctions.
+    *   [ ] Implement child-friendly end-of-session summary (requires adding tracking to `useStudySession`).
+    *   [ ] Implement `isTransitioning` state fully (optional refinement).
+*   [ ] Add main navigation links for new sections (Tags, Study Sets, Study Select).
+
+**Phase 5: AI Flashcard Generator (Pending)**
+*   [ ] Task 1.1: AI Key Setup (Env Vars)
+*   [ ] Task 1.2: Install AI Dependencies (`pdf-parse`, `@google-cloud/vision`, `@google/generative-ai`)
+*   [ ] Task 1.3: Implement Upload API Route/Action
+*   [ ] Task 1.4: Implement Text Extraction API Route/Action (PDF & OCR)
+*   [ ] Task 2.1: Implement Text Chunking Utility
+*   [ ] Task 2.2: Implement Q&A Generation API Route/Action (Gemini)
+*   [ ] Task 3.1: Implement Upload Component UI
+*   [ ] Task 3.2: Implement Orchestrator Page UI
+*   [ ] Task 3.3: Implement Q&A Review Component UI
+*   [ ] Task 4.1: Implement `cardActions.createMultipleCards` Action
+*   [ ] Task 4.2: Connect Review UI to Save Action
+*   [ ] Task 4.3: Add AI Gen Entry Point in Main UI
+
+**Phase 6: Testing & Polish (Pending)**
+*   [ ] Database Backfilling script creation & testing (Staging).
+*   [ ] Unit testing (SRS utils, helpers).
+*   [ ] Integration testing (Server Actions, Hooks).
+*   [ ] E2E testing (Core user flows: create deck, add card, tag card, create study set, study learn mode, study review mode, use AI gen).
+*   [ ] Manual cross-browser/device testing.
+*   [ ] UI/UX polish (animations, layout consistency, wording).
+*   [ ] Performance review & optimization (DB queries, indexes).
+
+---

@@ -1,0 +1,58 @@
+[
+  {
+    "question": "Explain the core architectural difference between a Next.js application and a traditional React application that's not using server-side rendering or a framework like Next.js.",
+    "answer": "Next.js provides a hybrid architecture, supporting both server-side and client-side rendering, and static site generation. A traditional React app primarily relies on client-side rendering, meaning the browser executes the JavaScript to build the user interface. Next.js offloads some of this work to the server or build time, improving initial load times and SEO."
+  },
+  {
+    "question": "How does Next.js handle different environments (development, production)? What are the key considerations?",
+    "answer": "Next.js differentiates between development and production environments through environment variables and build configurations. During development, it offers features like hot reloading and fast refresh. In production, it optimizes the build for performance, serving pre-rendered content or using serverless functions. Key considerations include setting appropriate environment variables and configuring the build process for performance."
+  },
+  {
+    "question": "How do React components in a Next.js app differ functionally from React components in a traditional React SPA?",
+    "answer": "Functionally, React components are the same, the building blocks of the UI. The difference arises in how they are rendered. In Next.js, components can be rendered on the server (SSR), at build time (SSG), or on the client-side. This renders the initial HTML of a component on the server for SEO and better initial load times. In a traditional React SPA, rendering is exclusively done on the client-side."
+  },
+  {
+    "question": "What state management strategies would you typically employ when building a complex Next.js application, and why?",
+    "answer": "For complex Next.js applications, you can choose a state management library or using the built-in Context API.  Libraries like Zustand or Redux, or even the React Context API are often used to manage global application state.  These options allow you to maintain state across multiple components, facilitating data consistency and efficient updates.  The choice depends on the complexity of the application and your preferred development style."
+  },
+  {
+    "question": "Distinguish between Server-Side Rendering (SSR) and Client-Side Rendering (CSR) in terms of their impact on SEO and initial load time.",
+    "answer": "SSR generates the initial HTML on the server, sending a fully rendered page to the client. This benefits SEO because search engine crawlers can easily index the content. CSR renders content in the browser using JavaScript.  CSR often leads to slower initial load times because the client needs to download and execute JavaScript before the page becomes interactive, which negatively impacts SEO."
+  },
+  {
+    "question": "What are the advantages and disadvantages of Static Site Generation (SSG) compared to Server-Side Rendering (SSR) and Client Side Rendering (CSR), and when would you choose one over the other?",
+    "answer": "SSG is used at build time, creating static HTML files, leading to very fast initial load times and excellent SEO. SSR renders on the server for each request, providing up-to-date content. CSR renders in the browser. SSG is best for content that doesn't change often (blogs, documentation). SSR is good when content changes frequently, and CSR is suitable for apps that require high interactivity and benefit from the client-side logic. "
+  },
+  {
+    "question": "Describe the primary data fetching strategies in Next.js, including their key features and use cases.",
+    "answer": "Next.js primarily offers three ways to fetch data: `getStaticProps`, `getServerSideProps`, and Client-side fetching. `getStaticProps` fetches data at build time, suitable for content that rarely changes. `getServerSideProps` fetches data on each request, perfect for frequently changing data. Client-side fetching (using `useEffect` or similar) is suited for dynamic data that doesn't need to be SEO-friendly."
+  },
+  {
+    "question": "Explain how you'd use `getStaticProps` and `getStaticPaths` together to create dynamic routes in Next.js. Provide a concrete example.",
+    "answer": "`getStaticProps` fetches data for a specific page. `getStaticPaths` defines the paths for pre-rendered pages.  For example, to create a blog with individual post pages,  `getStaticPaths` would generate all the route paths `/posts/[id]` from the blog posts ids, and `getStaticProps` would then fetch the content and data from the database for each id specified by the routes, so the user would access the different posts and see the posts' content."
+  },
+  {
+    "question": "How is routing handled in Next.js, and how does it differ from routing in a typical React application using a library like React Router?",
+    "answer": "Next.js uses a file-system-based router. Each file in the `pages` directory becomes a route automatically.  For dynamic routes, you use bracket notation (`/posts/[id].js`). This is simpler compared to React Router, which requires explicit route configuration. The Next.js router handles more automatically. React Router gives you more control."
+  },
+  {
+    "question": "Explain how you would implement nested routing in a Next.js application, and give an example of a common use case.",
+    "answer": "Nested routing in Next.js is achieved through nested folders within the `pages` directory. For example, a file located at `pages/blog/first-post.js` would generate a route at `/blog/first-post`. A common use case is organizing content hierarchically, such as blog sections or product categories."
+  },
+  {
+    "question": "What is the purpose of API routes in Next.js, and how are they structured?",
+    "answer": "API routes in Next.js allow you to create API endpoints within your Next.js application, using serverless functions. These routes are structured within the `pages/api` directory. Each file in this directory defines an API endpoint.  You can use the request and response objects to handle HTTP methods (GET, POST, etc.) and return data to the client."
+  },
+  {
+    "question": "How can you use Server Components in conjunction with API Routes and explain how this can improve application performance.",
+    "answer": "Server Components allow you to execute code on the server.  You could use a server component to fetch data from your API routes before rendering the page to the user.  This can improve performance because data fetching happens on the server instead of on the client.  This speeds up initial load times and improves SEO."
+  },
+  {
+    "question": "Describe some key deployment strategies for Next.js applications and their pros and cons.",
+    "answer": "Popular deployment strategies include deploying to Vercel, Netlify, and cloud providers like AWS or Google Cloud. Vercel and Netlify provide easy deployments with automatic optimizations. Self-hosting requires more configuration but offers greater control. Considerations include build times, server costs, scalability, and CDNs."
+  },
+  {
+    "question": "What optimization techniques can you apply to improve the performance of a Next.js application, and explain how each works.",
+    "answer": "Optimizations include code splitting, image optimization (using the `next/image` component), font optimization, and prefetching (using `<Link>` component). Code splitting ensures the user downloads only the necessary JavaScript for the current page.  Image optimization automatically optimizes images for different devices. Prefetching loads resources in the background."
+  }
+]

@@ -1,0 +1,139 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { VertexAI } from '@google-cloud/vertexai';
+
+// Configuration for Vertex AI
+const projectId = process.env.GCP_PROJECT_ID;
+const location = 'us-central1';
+const modelName = 'gemini-2.0-flash-lite-001';
+
+// Topics to generate flashcards for
+const defaultTopics = [
+  'Next.js fundamentals and architecture',
+  'React components and state management',
+  'Server-side rendering vs. client-side rendering',
+  'Data fetching strategies in Next.js',
+  'Routing and navigation in Next.js',
+  'API routes and server components',
+  'Deployment and optimization techniques'
+];
+
+// Function to generate flashcards based on topics
+async function generateFlashcardsFromTopics(topics: string[], filename: string) {
+  try {
+    // Initialize Vertex AI client
+    const vertexAI = new VertexAI({
+      project: projectId!,
+      location
+    });
+
+    const model = vertexAI.getGenerativeModel({ model: modelName });
+
+    const prompt = `
+Create flashcard-style question and answer pairs about the following topics.
+These topics are related to a document titled "${filename}".
+Format each pair as a JSON object with "question" and "answer" fields.
+Make the questions test understanding rather than just recall.
+Return an array of these objects.
+Keep answers concise but complete (under 100 words).
+Create at least 2 high-quality pairs for each of these topics:
+
+Topics:
+${topics.map(topic => `- ${topic}`).join('\n')}
+
+Example format:
+[
+  {
+    "question": "What is the main principle of X?",
+    "answer": "X primarily works by doing Y, which enables Z"
+  }
+]`;
+
+    // Generate content
+    const result = await model.generateContent(prompt);
+    const response = result.response;
+    const text = response?.candidates?.[0]?.content?.parts?.[0]?.text;
+    
+    if (!text) {
+      throw new Error('No text generated');
+    }
+
+    // Extract and parse JSON
+    const jsonStr = text.substring(text.indexOf('['), text.lastIndexOf(']') + 1);
+    return JSON.parse(jsonStr);
+  } catch (error: any) {
+    console.error('Error generating flashcards:', error.message);
+    throw error;
+  }
+}
+
+// Function to extract text from a PDF (in a more Vercel-friendly way)
+// Note: For a complete solution, you would need a client-side component to handle the file upload
+async function extractTextFromPDF(formData: FormData) {
+  try {
+    // Get the file from the form data
+    const file = formData.get('pdfFile') as File;
+    
+    if (!file) {
+      throw new Error('No PDF file provided');
+    }
+    
+    // For now, we're not actually extracting text from the PDF
+    // Instead, we'll use the filename to infer topics and generate flashcards
+    const filename = file.name;
+    
+    // Generate topics based on filename
+    let topics = [...defaultTopics];
+    
+    // Check filename for keywords to customize topics
+    if (filename.toLowerCase().includes('react')) {
+      topics = [
+        'React component lifecycle',
+        'Hooks vs class components in React',
+        'React state management patterns',
+        'React context API and Redux',
+        'React performance optimization'
+      ];
+    } else if (filename.toLowerCase().includes('nextjs') || filename.toLowerCase().includes('next.js')) {
+      topics = [
+        'Next.js file-based routing system',
+        'Next.js data fetching methods',
+        'Server components vs client components in Next.js',
+        'Next.js middleware functionality',
+        'Next.js image optimization'
+      ];
+    }
+    
+    // Generate flashcards based on topics
+    const flashcards = await generateFlashcardsFromTopics(topics, filename);
+    return { flashcards, topics };
+  } catch (error: any) {
+    console.error('Error processing PDF:', error.message);
+    throw error;
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    // Get the form data
+    const formData = await request.formData();
+    
+    // Process the PDF and generate flashcards
+    const { flashcards, topics } = await extractTextFromPDF(formData);
+    
+    // Return the results
+    return NextResponse.json({ 
+      success: true, 
+      flashcards,
+      topics,
+      count: flashcards.length,
+      message: 'Flashcards generated successfully'
+    });
+  } catch (error: any) {
+    console.error('API error:', error.message);
+    return NextResponse.json({ 
+      success: false, 
+      message: `Error generating flashcards: ${error.message}`,
+      flashcards: []
+    }, { status: 500 });
+  }
+} 

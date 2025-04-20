@@ -9,6 +9,7 @@ import { ArrowLeft, Plus, Save, Trash2, Loader2 as IconLoader } from "lucide-rea
 import Link from "next/link"
 import { CardEditor } from "@/components/card-editor"
 // import { TableEditor } from "@/components/table-editor" // Comment out until refactored
+import { EditableCardTable } from "@/components/deck/EditableCardTable"
 import { useDecks } from "@/hooks/use-decks"
 import type { Tables } from "@/types/database" // Import Tables
 import type { UpdateDeckParams } from "@/hooks/use-decks"
@@ -278,6 +279,18 @@ export default function EditDeckPage() {
     }
   }, [deck]); // Depend on deck state to access originalCard
 
+  // Handler for updates originating from the EditableCardTable
+  const handleCardUpdateFromTable = (updatedCard: DbCard) => {
+    console.log("[EditDeckPage] Received update from table for Card ID:", updatedCard.id);
+    setDeck((prevDeck: DeckEditState | null) => {
+      if (!prevDeck) return null;
+      return {
+          ...prevDeck,
+          cards: prevDeck.cards.map((c: Partial<DbCard>) => c.id === updatedCard.id ? updatedCard : c) as Array<Partial<DbCard>>
+      };
+    });
+  };
+
   const handleDeleteCard = (cardId: string) => {
     if (deck) {
       // Add type to prevDeck and card
@@ -494,14 +507,26 @@ export default function EditDeckPage() {
           )}
         </TabsContent>
         <TabsContent value="table" className="mt-6">
-           {/* Commented out TableEditor until it's refactored */}
-           {/* <TableEditor
-            cards={deck.cards}
-            onUpdate={handleUpdateCard}
-            onDelete={handleDeleteCard}
-            onAdd={handleAddCard}
-          /> */}
-          <p className="text-center text-muted-foreground">Table Editor view needs refactoring.</p>
+           {deck.cards.length > 0 ? (
+              <EditableCardTable 
+                initialCards={deck.cards as DbCard[]}
+                deckId={deck.id} 
+                onCardUpdated={handleCardUpdateFromTable}
+              />
+           ) : (
+              <Card>
+                 <CardContent className="flex flex-col items-center justify-center p-6 h-40">
+                   <p className="text-muted-foreground text-center mb-4">No cards to display in table view.</p>
+                 </CardContent>
+               </Card>
+           )}
+           {/* Add Button Below Table (if cards exist or even if empty) */}
+           <div className="flex justify-center mt-6">
+             <Button onClick={handleAddCard}>
+               <Plus className="mr-2 h-4 w-4" />
+               Add Card
+             </Button>
+           </div>
         </TabsContent>
       </Tabs>
       
