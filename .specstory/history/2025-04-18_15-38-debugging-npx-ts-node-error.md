@@ -14839,6 +14839,337 @@ It seems like the path to the `AuthProvider` is incorrect. Let me quickly fix th
 
 ---
 
+```diff
+  import { toast } from 'sonner';
+  import { useSupabase } from '@/hooks/use-supabase';
+- import { useAuth } from '@/providers/AuthProvider';
++ import { useAuth } from '@/hooks/useAuth';
+  import { v4 as uuidv4 } from 'uuid';
+  
+```
+
+---
+
+It seems I'm having trouble locating the `useAuth` hook. Let me try the original path again, maybe there was a temporary issue.
+
+---
+
+```diff
+  import { toast } from 'sonner';
+  import { useSupabase } from '@/hooks/use-supabase';
+- import { useAuth } from '@/hooks/useAuth';
++ import { useAuth } from '@/providers/AuthProvider';
+  import { v4 as uuidv4 } from 'uuid';
+  
+```
+
+---
+
+It seems there's definitely an issue with how `useAuth` is being imported or where it's located. Let me search the codebase to find the correct location of the `useAuth` hook or the `AuthProvider`.
+
+---
+
+<details>
+            <summary>Searched codebase "export function useAuth" • **25** results</summary>
+        
+| File | Lines |
+|------|-------|
+| `hooks/use-auth.tsx` | L274-299 |
+| `hooks/use-auth.tsx` | L28-38 |
+| `hooks/use-auth.tsx` | L1-28 |
+| `hooks/use-auth.tsx` | L43-76 |
+| `hooks/use-auth.tsx` | L232-274 |
+| `hooks/use-auth.tsx` | L132-163 |
+| `hooks/use-auth.tsx` | L163-203 |
+| `hooks/use-auth.tsx` | L38-43 |
+| `hooks/use-auth.tsx` | L109-132 |
+| `hooks/use-auth.tsx` | L203-232 |
+| `hooks/use-auth.tsx` | L76-109 |
+| `app/page.tsx` | L1-42 |
+| `providers/settings-provider.tsx` | L1-15 |
+| `app/profile/page.tsx` | L1-57 |
+| `app/login/page.tsx` | L1-27 |
+| `app/login/page.tsx` | L27-63 |
+| `providers/settings-provider.tsx` | L113-161 |
+| `hooks/use-supabase.tsx` | L9-52 |
+| `app/signup/page.tsx` | L31-76 |
+| `app/login/page.tsx` | L63-108 |
+| `hooks/use-decks.tsx` | L56-93 |
+| `app/signup/page.tsx` | L1-31 |
+| `hooks/use-decks.tsx` | L1-23 |
+| `components/ClientProviders.tsx` | L1-26 |
+| `app/signup/page.tsx` | L76-141 |
+
+</details>
+
+---
+
+Okay, the search result confirms that the `useAuth` hook is defined within `hooks/use-auth.tsx`. My apologies for the incorrect paths earlier.
+
+Let's fix the import path in `app/prepare/ai-generate/page.tsx` one last time.
+
+---
+
+```diff
+  import { toast } from 'sonner';
+  import { useSupabase } from '@/hooks/use-supabase';
+- import { useAuth } from '@/providers/AuthProvider';
++ import { useAuth } from '@/hooks/use-auth';
+  import { v4 as uuidv4 } from 'uuid';
+  
+```
+
+---
+
+Alright, the import path for `useAuth` should now be correct.
+
+This client-side upload approach is the standard way to handle large files with Supabase Storage and Next.js, avoiding the limitations of server actions or API routes for large payloads.
+
+Give the upload another try (especially with a file > 10MB). It should now:
+
+1.  Upload the file directly to your `ai-uploads` Supabase bucket from the browser.
+2.  Send only the resulting file path to your `/api/extract-pdf` endpoint.
+3.  The API endpoint will then download the file from Supabase Storage using the path and process it.
+
+---
+
+_**User**_
+
+It is working fine - I notice one limitation though in relation to google document ai processing. I notice that there is a page limit of 30 pages for (imageless mode online/synchronous requests) as documented by google. Batch/offline/asynchronous requests should get 500 pages. Can we change it to asynchronous requests? What are the consequences?
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+You are correct. The standard synchronous `processDocument` endpoint for Document AI has a limit of 30 pages for files processed directly (online processing), as you noted. The asynchronous `batchProcessDocuments` endpoint increases this limit significantly, often up to 500 pages or more depending on the processor type and configuration.
+
+Switching to asynchronous requests is definitely possible, but it comes with significant consequences and increased complexity, especially in a serverless environment like Vercel:
+
+**Consequences of Switching to Asynchronous Batch Processing:**
+
+1.  **Latency (User Experience):**
+    *   **No Instant Results:** The biggest change is that the user will **not** get flashcards immediately. Batch processing takes time (minutes to potentially hours for very large jobs).
+    *   **New Workflow:** Instead of uploading and waiting, the user submits a job. They need a way to check the status later or be notified upon completion.
+
+2.  **Increased Complexity:**
+    *   **Google Cloud Storage (GCS) Required:** Batch processing *requires* the input file(s) to be in a GCS bucket and outputs the results to another GCS bucket/prefix.
+        *   Your upload flow needs to change: Large PDFs must be uploaded to GCS first (instead of Supabase Storage or direct API).
+        *   You need to create and configure GCS buckets for input and output.
+    *   **Long-Running Operations (LROs):** The `batchProcessDocuments` call initiates an LRO and returns immediately with an operation ID. Your backend needs to:
+        *   Store this operation ID (e.g., in your Supabase database).
+        *   Periodically check the status of the LRO until it completes.
+    *   **Polling/Notifications:** Checking the LRO status is tricky in Vercel:
+        *   **Polling from Vercel Functions:** Standard functions have timeouts (max 90s on Hobby plan), making long-term polling infeasible from the function that started the job.
+        *   **Vercel Cron Jobs:** You could set up a cron job to periodically check the status of pending jobs, but managing state between the initial request and the cron job adds complexity.
+        *   **Google Pub/Sub:** The most robust way is to configure Document AI to send a Pub/Sub message upon completion, triggering another function to process the results. This adds Pub/Sub setup to your infrastructure.
+    *   **Result Handling:** Once the job is complete, your backend needs to:
+        *   Read the result JSON file(s) from the GCS output bucket.
+        *   Parse the potentially large JSON output to extract the text.
+        *   *Then* trigger the flashcard generation process.
+        *   Update the job status in your database.
+        *   Notify the user or make the results available.
+
+3.  **Infrastructure Changes:**
+    *   Requires setting up and managing GCS buckets and permissions.
+    *   May require adding a database table to track batch job status (`job_id`, `lro_id`, `user_id`, `input_gcs_path`, `output_gcs_path`, `status`, `result_text`, `created_at`, `completed_at`).
+    *   May require setting up Pub/Sub or Vercel Cron Jobs.
+
+4.  **Cost:** Batch processing and GCS storage have their own costs, potentially different from online processing.
+
+**In summary:** While switching to async allows processing much larger documents (up to 500 pages), it fundamentally changes the user experience from synchronous to asynchronous and significantly increases the backend complexity, requiring GCS integration, LRO management, and a reliable way to handle job completion notifications or polling.
+
+**Alternative: Chunking (Synchronous)**
+
+A less complex alternative (though still involved) is to:
+1.  Detect PDFs larger than 30 pages.
+2.  Split the PDF into chunks of < 30 pages on the server (using a library like `pdf-lib`).
+3.  Send multiple *synchronous* `processDocument` requests (one per chunk) either sequentially or in parallel.
+4.  Combine the text results from all chunks.
+5.  Proceed with flashcard generation.
+This avoids LROs and GCS but adds PDF manipulation logic and requires careful handling of potentially long-running *synchronous* requests within Vercel's timeout limits.
+
+**Recommendation:**
+
+Given the substantial increase in complexity, I recommend carefully considering if the 500-page limit is a critical requirement *right now*.
+
+*   If **yes**, we can proceed with the asynchronous implementation, but be prepared for a significant development effort involving GCS, LRO handling, and likely a job status tracking system.
+*   If **no**, sticking with the current 30-page synchronous limit (or implementing the synchronous chunking method) might be more practical for now.
+
+Do you understand the trade-offs and want to proceed with implementing the asynchronous batch processing flow?
+
+---
+
+_**User**_
+
+Let's stick to the 30 page limit for now. But I do want an explicit check and error message. Now we get dirty errors like 
+
+page-478eb71500dc41e8.js:1 
+            
+            
+           POST https://flashcards-azure-rho.vercel.app/api/extract-pdf 422 (Unprocessable Content)
+n @ page-478eb71500dc41e8.js:1
+A @ page-478eb71500dc41e8.js:1
+iG @ 47edcb22-ba7bd0d1f2accf00.js:1
+(anoniem) @ 47edcb22-ba7bd0d1f2accf00.js:1
+nS @ 47edcb22-ba7bd0d1f2accf00.js:1
+i4 @ 47edcb22-ba7bd0d1f2accf00.js:1
+ce @ 47edcb22-ba7bd0d1f2accf00.js:1
+s9 @ 47edcb22-ba7bd0d1f2accf00.js:1
+9323-4e5ee6c2b6568d3d.js:1 API Error: 422  {success: false, message: 'Failed to process PDF with Document AI: Invalid ar…. Please ensure the file is a valid PDF document.', flashcards: Array(0)}
+window.console.error @ 9323-4e5ee6c2b6568d3d.js:1
+A @ page-478eb71500dc41e8.js:1
+await in A
+iG @ 47edcb22-ba7bd0d1f2accf00.js:1
+(anoniem) @ 47edcb22-ba7bd0d1f2accf00.js:1
+nS @ 47edcb22-ba7bd0d1f2accf00.js:1
+i4 @ 47edcb22-ba7bd0d1f2accf00.js:1
+ce @ 47edcb22-ba7bd0d1f2accf00.js:1
+s9 @ 47edcb22-ba7bd0d1f2accf00.js:1
+9323-4e5ee6c2b6568d3d.js:1 Error during handleSubmit: Error: Failed to process PDF with Document AI: Invalid argument in the request. Please ensure the file is a valid PDF document.
+    at A (page-478eb71500dc41e8.js:1:6282)
+window.console.error @ 9323-4e5ee6c2b6568d3d.js:1
+A @ page-478eb71500dc41e8.js:1
+await in A
+iG @ 47edcb22-ba7bd0d1f2accf00.js:1
+(anoniem) @ 47edcb22-ba7bd0d1f2accf00.js:1
+nS @ 47edcb22-ba7bd0d1f2accf00.js:1
+i4 @ 47edcb22-ba7bd0d1f2accf00.js:1
+ce @ 47edcb22-ba7bd0d1f2accf00.js:1
+s9 @ 47edcb22-ba7bd0d1f2accf00.js:1
+
+
+Or this - although it looks to have a different reason (too large file, but to small to go to supabase?) 4.49MB: 
+
+page-478eb71500dc41e8.js:1 
+            
+            
+           POST https://flashcards-azure-rho.vercel.app/api/extract-pdf 413 (Payload Too Large)
+n @ page-478eb71500dc41e8.js:1
+A @ page-478eb71500dc41e8.js:1
+iG @ 47edcb22-ba7bd0d1f2accf00.js:1
+(anoniem) @ 47edcb22-ba7bd0d1f2accf00.js:1
+nS @ 47edcb22-ba7bd0d1f2accf00.js:1
+i4 @ 47edcb22-ba7bd0d1f2accf00.js:1
+ce @ 47edcb22-ba7bd0d1f2accf00.js:1
+s9 @ 47edcb22-ba7bd0d1f2accf00.js:1
+9323-4e5ee6c2b6568d3d.js:1 JSON parsing error: SyntaxError: Unexpected token 'R', "Request En"... is not valid JSON
+window.console.error @ 9323-4e5ee6c2b6568d3d.js:1
+A @ page-478eb71500dc41e8.js:1
+await in A
+iG @ 47edcb22-ba7bd0d1f2accf00.js:1
+(anoniem) @ 47edcb22-ba7bd0d1f2accf00.js:1
+nS @ 47edcb22-ba7bd0d1f2accf00.js:1
+i4 @ 47edcb22-ba7bd0d1f2accf00.js:1
+ce @ 47edcb22-ba7bd0d1f2accf00.js:1
+s9 @ 47edcb22-ba7bd0d1f2accf00.js:1
+9323-4e5ee6c2b6568d3d.js:1 Error during handleSubmit: Error: Server returned an invalid response (413 ). Please try again later.
+    at A (page-478eb71500dc41e8.js:1:5964)
+window.console.error @ 9323-4e5ee6c2b6568d3d.js:1
+A @ page-478eb71500dc41e8.js:1
+await in A
+iG @ 47edcb22-ba7bd0d1f2accf00.js:1
+(anoniem) @ 47edcb22-ba7bd0d1f2accf00.js:1
+nS @ 47edcb22-ba7bd0d1f2accf00.js:1
+i4 @ 47edcb22-ba7bd0d1f2accf00.js:1
+ce @ 47edcb22-ba7bd0d1f2accf00.js:1
+s9 @ 47edcb22-ba7bd0d1f2accf00.js:1
+
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+Okay, that makes sense. We definitely need clearer error messages for both the page limit and the direct upload size limit.
+
+Let's address these two issues:
+
+**1. Explicit 30-Page Limit Check for PDFs**
+
+We'll modify the API route to check the PDF page count *before* sending it to Document AI. We can use the `pdf-lib` library for this.
+
+First, let's install `pdf-lib`:
+
+
+---
+
+Cancelled
+
+---
+
+_**User**_
+
+is pdf lib compatible with vercel?
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+Yes, `pdf-lib` is **generally compatible** with Vercel, especially when using the standard **Node.js runtime** for your serverless functions (which your `/api/extract-pdf` route is already configured to use).
+
+Here's why:
+
+1.  **Pure JavaScript:** `pdf-lib` is written entirely in JavaScript/TypeScript. It doesn't rely on native binaries or system dependencies that might be unavailable in Vercel's serverless environment.
+2.  **Standard Node.js Runtime:** It works well within the standard Vercel Node.js runtime. You might encounter issues trying to use it in the more restricted Edge runtime, but your function is set to Node.js.
+3.  **Memory/Duration:** Parsing PDFs can be memory-intensive. You've already increased the memory for your function in `vercel.json` (3008MB), which helps. Getting the page count is usually a fast operation and shouldn't hit duration limits unless the PDF is exceptionally large or corrupted.
+
+So, it's a good choice for checking the page count before calling Document AI.
+
+Let's proceed with installing it:
+
+---
+
+```bash
+pnpm install pdf-lib
+```
+
+```
+tom@MBP-van-Tom flashcards % pnpm install pdf-lib
+ WARN  deprecated @supabase/auth-helpers-nextjs@0.10.0: This package is now deprecated - please use the @supabase/ssr package instea
+d.
+ WARN  6 deprecated subdependencies found: @supabase/auth-helpers-shared@0.7.0, @types/long@5.0.0, abab@2.0.6, domexception@4.0.0, g
+lob@7.2.3, inflight@1.0.6
+Already up to date
+Progress: resolved 770, reused 713, downloaded 0, added 0, done
+ WARN  Issues with peer dependencies found
+.
+├─┬ @testing-library/react-hooks 8.0.1
+│ ├── ✕ unmet peer @types/react@"^16.9.0 || ^17.0.0": found 19.0.12
+│ ├── ✕ unmet peer react@"^16.9.0 || ^17.0.0": found 19.1.0
+│ └── ✕ unmet peer react-dom@"^16.9.0 || ^17.0.0": found 19.1.0
+├─┬ react-day-picker 8.10.1
+│ ├── ✕ unmet peer react@"^16.8.0 || ^17.0.0 || ^18.0.0": found 19.1.0
+│ └── ✕ unmet peer date-fns@"^2.28.0 || ^3.0.0": found 4.1.0
+├─┬ vaul 0.9.9
+│ ├── ✕ unmet peer react@"^16.8 || ^17.0 || ^18.0": found 19.1.0
+│ └── ✕ unmet peer react-dom@"^16.8 || ^17.0 || ^18.0": found 19.1.0
+└─┬ jest-environment-jsdom 29.7.0
+  ├── ✕ unmet peer canvas@^2.5.0: found 3.1.0
+  └─┬ jsdom 20.0.3
+    └── ✕ unmet peer canvas@^2.5.0: found 3.1.0
+Done in 1.7s using pnpm v10.6.3
+tom@MBP-van-Tom flashcards %
+```
+
+---
+
+Now, let's modify the API route (`/api/extract-pdf/route.ts`) to use `pdf-lib` to check the page count for PDF files before processing.
+
+
+
+---
+
 Cancelled
 
 ---

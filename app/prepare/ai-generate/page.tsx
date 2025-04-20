@@ -18,9 +18,8 @@ interface Flashcard {
 // Supported file types
 const SUPPORTED_FILE_TYPES = "application/pdf, image/jpeg, image/jpg, image/png, image/gif, image/bmp, image/webp";
 const SUPPORTED_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"];
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
-const LARGE_FILE_SIZE = 10 * 1024 * 1024; // Use Supabase Storage for files larger than this
-const DIRECT_UPLOAD_LIMIT = 10 * 1024 * 1024; // Max size for direct API upload
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB (Supabase limit)
+const DIRECT_UPLOAD_LIMIT = 4 * 1024 * 1024; // 4MB - Use Supabase Storage for files larger than this
 const UPLOAD_BUCKET = 'ai-uploads'; // Bucket name
 
 export default function AiGeneratePage() {
@@ -64,14 +63,14 @@ export default function AiGeneratePage() {
       return;
     }
 
-    // Check file size
+    // Check file size against MAX_FILE_SIZE (50MB)
     if (file.size > MAX_FILE_SIZE) {
       setError(`File too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum size is 50MB.`);
       return;
     }
 
-    // Warn about large files
-    if (file.size > LARGE_FILE_SIZE) {
+    // Warn if file is larger than DIRECT_UPLOAD_LIMIT (4MB)
+    if (file.size > DIRECT_UPLOAD_LIMIT) {
       toast.info(`Large file detected (${(file.size / 1024 / 1024).toFixed(2)}MB). Using secure storage for processing.`);
     }
 

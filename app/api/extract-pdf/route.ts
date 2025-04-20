@@ -4,6 +4,7 @@ import { ImageAnnotatorClient } from '@google-cloud/vision';
 // Import Document AI Client
 import { DocumentProcessorServiceClient } from '@google-cloud/documentai';
 import { getFileFromStorage } from '@/lib/actions/storageActions';
+import { PDFDocument } from 'pdf-lib'; // Import pdf-lib
 
 // Specify Node.js runtime for Vercel with explicit configuration
 export const config = {
@@ -335,6 +336,30 @@ export async function POST(request: NextRequest) {
       fileMimeType = fileType === 'pdf' ? 'application/pdf' : `image/${filename.split('.').pop()}`;
     }
 
+    // --- Page Count Check for PDFs --- 
+    if (fileType === 'pdf') {
+      try {
+        const pdfDoc = await PDFDocument.load(arrayBuffer);
+        const pageCount = pdfDoc.getPageCount();
+        console.log(`[Page Check] PDF '${filename}' has ${pageCount} pages.`);
+        const MAX_PAGES_SYNC = 30;
+        if (pageCount > MAX_PAGES_SYNC) {
+          throw new Error(`PDF has ${pageCount} pages, exceeding the ${MAX_PAGES_SYNC}-page limit for direct processing. Please use a smaller document.`);
+        }
+      } catch (pdfError: any) {
+        console.error(`[Page Check] Error checking PDF page count for '${filename}':`, pdfError.message);
+        // If we can't check page count, let Document AI try, but throw a specific error if it fails later
+        // Or, throw immediately if pdfError suggests it's not a valid PDF
+        if (pdfError.message.includes('Invalid PDF') || pdfError.message.includes('encrypted')) {
+             throw new Error(`Failed to parse PDF '${filename}'. It might be corrupted or password-protected.`);
+        }
+        // Otherwise, maybe let it proceed? Or throw a generic parsing error?
+        // Let's throw a generic error for now to be safe if page count fails
+        throw new Error(`Could not verify page count for PDF '${filename}'. Processing aborted.`);
+      }
+    }
+    // --- End Page Count Check --- 
+
     // --- Call appropriate extraction function --- 
     let extractResult;
     let extractionMethod: string;
@@ -376,24 +401,36 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error(`API error processing ${filename} (using explicit creds):`, error.message, error.stack);
+    console.error(`API error processing ${filename}:`, error.message, error.stack);
     let status = 500;
     let message = `An unexpected server error occurred: ${error.message}`;
 
-    // Set specific statuses based on error type
-    if (error.message.includes("No file provided")) status = 400;
-    if (error.message.includes("Unsupported file type")) status = 400;
-    if (error.message.includes("File too large")) status = 413;
-    if (error.message.includes("could not detect any text")) status = 422;
-    if (error.message.includes("Failed to process PDF with Document AI")) status = 422;
-    if (error.message.includes("Failed to extract text from image")) status = 422;
-    if (error.message.includes("AI model did not return")) status = 502; // Bad Gateway from AI
-    if (error.message.includes("Failed to parse flashcards")) status = 502;
-
-    // Use the specific message from the error if it's one we threw intentionally
-    if (status !== 500 && status !== 502) {
-        message = error.message; 
+    // --- Update Error Handling --- 
+    if (error.message.includes("exceeding the") && error.message.includes("-page limit")) {
+        status = 413; // Payload Too Large (or 422 Unprocessable Content)
+        message = error.message; // Use the specific page limit error
+    } else if (error.message.includes("Could not verify page count")) {
+        status = 422; // Unprocessable Content
+        message = error.message;
+    } else if (error.message.includes("Failed to parse PDF")) {
+        status = 422; // Unprocessable Content
+        message = error.message;
+    } else if (error.message.includes("No file provided")) status = 400;
+    else if (error.message.includes("Unsupported file type")) status = 400;
+    else if (error.message.includes("File too large")) status = 413;
+    else if (error.message.includes("could not detect any text")) status = 422;
+    else if (error.message.includes("Failed to process PDF with Document AI")) status = 422;
+    else if (error.message.includes("Failed to extract text from image")) status = 422;
+    else if (error.message.includes("AI model did not return")) status = 502; 
+    else if (error.message.includes("Failed to parse flashcards")) status = 502;
+    else if (error.message.includes('Permission denied')) status = 403;
+    else if (error.message.includes('Processor not found')) status = 404;
+    
+    // Only use generic message for true 500 errors
+    if (status === 500) {
+        message = `An unexpected server error occurred processing '${filename}'. Please try again later.`;
     }
+    // --- End Update Error Handling --- 
 
     return NextResponse.json({
       success: false,
