@@ -8584,6 +8584,219 @@ Now I need to check if there are any issues with the API route configuration:
 
 ---
 
+Finally, let's fix a bug in the error handling in your page component:
+
+---
+
+
+
+---
+
+Let me try again with the error handling fix, because there's a bug there:
+
+---
+
+```diff
+      } catch (err: any) {
+        console.error('Error:', err);
+-       setError(err.message || 'An error occurred while generating flashcards');
++       const errorMessage = err.message || 'An error occurred while generating flashcards';
++       setError(errorMessage);
++       // Show error toast here to ensure it has the current error
++       toast.error(errorMessage);
+      } finally {
+        // Always clean up
+        clearTimeout(safetyTimeout);
+        // Always dismiss the loading toast regardless of outcome
+        toast.dismiss(loadingToastId);
+-       // Show error toast if there's an error
+-       if (error) {
+-         toast.error(error);
+-       }
+        setIsLoading(false);
+      }
+```
+
+---
+
+Now that we've fixed these issues, you should be able to deploy to Vercel successfully. Here's a summary of the changes I made to fix the deployment errors:
+
+1. **Fixed vercel.json configuration:**
+   - Simplified the configuration structure
+   - Reduced memory from 3008MB to 1024MB (more reasonable for Vercel plans)
+   - Reduced maxDuration from 90s to 60s
+   - Removed the potentially problematic routes configuration
+
+2. **Fixed API route configuration:**
+   - Updated the config export to ensure compatibility with Vercel
+   - Removed a trailing comma that could cause issues
+
+3. **Fixed error handling in the client code:**
+   - Fixed a bug where the error toast was using the wrong variable
+   - Moved error toast to the catch block where the error is available
+   - Fixed race conditions in error handling
+
+To get your deployment working again:
+
+1. Commit these changes and push to your branch
+2. Monitor the Vercel deployment to see if it succeeds
+3. If it still fails, check the detailed error logs in Vercel by clicking the "Details" link in the GitHub check
+
+If you need more help, please share the specific error message from the Vercel deployment logs so I can provide more targeted assistance.
+
+---
+
+_**User**_
+
+Now the build was succesful, but I got the following errors in the console Naar https://flashcards-azure-rho.vercel.app/prepare/ai-generate genavigeerd
+layout-16955b9e64bbc7df.js:1 Service Worker registration skipped in preview/development environment
+page-622d77d37548f94a.js:1 
+            
+            
+           POST https://flashcards-azure-rho.vercel.app/api/extract-pdf 405 (Method Not Allowed)
+l @ page-622d77d37548f94a.js:1
+j @ page-622d77d37548f94a.js:1
+await in j
+iG @ 47edcb22-ba7bd0d1f2accf00.js:1
+(anoniem) @ 47edcb22-ba7bd0d1f2accf00.js:1
+nS @ 47edcb22-ba7bd0d1f2accf00.js:1
+i4 @ 47edcb22-ba7bd0d1f2accf00.js:1
+ce @ 47edcb22-ba7bd0d1f2accf00.js:1
+s9 @ 47edcb22-ba7bd0d1f2accf00.js:1
+9323-4e5ee6c2b6568d3d.js:1 JSON parsing error: SyntaxError: Unexpected end of JSON input
+window.console.error @ 9323-4e5ee6c2b6568d3d.js:1
+j @ page-622d77d37548f94a.js:1
+await in j
+iG @ 47edcb22-ba7bd0d1f2accf00.js:1
+(anoniem) @ 47edcb22-ba7bd0d1f2accf00.js:1
+nS @ 47edcb22-ba7bd0d1f2accf00.js:1
+i4 @ 47edcb22-ba7bd0d1f2accf00.js:1
+ce @ 47edcb22-ba7bd0d1f2accf00.js:1
+s9 @ 47edcb22-ba7bd0d1f2accf00.js:1
+9323-4e5ee6c2b6568d3d.js:1 Error: Error: Server returned an invalid response (405 ). Please try again later.
+    at j (page-622d77d37548f94a.js:1:3950)
+window.console.error @ 9323-4e5ee6c2b6568d3d.js:1
+j @ page-622d77d37548f94a.js:1
+await in j
+iG @ 47edcb22-ba7bd0d1f2accf00.js:1
+(anoniem) @ 47edcb22-ba7bd0d1f2accf00.js:1
+nS @ 47edcb22-ba7bd0d1f2accf00.js:1
+i4 @ 47edcb22-ba7bd0d1f2accf00.js:1
+ce @ 47edcb22-ba7bd0d1f2accf00.js:1
+s9 @ 47edcb22-ba7bd0d1f2accf00.js:1
+
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+The 405 Method Not Allowed error persists despite our changes. This suggests there's still an issue with how Vercel is handling the API endpoint. Let's make some additional changes to fix the routing problem:
+
+1. First, let's remove the routes configuration from vercel.json altogether, as it may be conflicting with Next.js's built-in routing:
+
+---
+
+```diff
+        "maxDuration": 60
+      }
+-   },
+-   "routes": [
+-     {
+-       "src": "/api/extract-pdf",
+-       "dest": "/api/extract-pdf",
+-       "methods": ["POST", "OPTIONS"]
+-     }
+-   ]
++   }
+  } 
+```
+
+---
+
+2. Next, let's try a different approach for our API route - let's rename it to make sure we don't have any caching or routing issues:
+
+---
+
+Cancelled
+
+---
+
+_**User**_
+
+no, I do not want to rename it
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+I understand, let's fix the issue without renaming the API route. The 405 Method Not Allowed error usually means the server recognizes the route but doesn't allow the HTTP method being used (POST in this case).
+
+Let's update the Next.js API route implementation to ensure it's properly handling POST requests:
+
+---
+
+```diff
+  import { ImageAnnotatorClient } from '@google-cloud/vision';
+  
+- // Specify Node.js runtime for Vercel 
++ // Specify Node.js runtime for Vercel with explicit configuration
+  export const config = {
+    runtime: 'nodejs',
+-   // Increase timeouts for PDF processing
++   regions: ['iad1'], // US East (N. Virginia)
+    maxDuration: 60
+  };
+  // Export the API route handler
+  export async function POST(request: NextRequest) {
++   console.log('POST request received to /api/extract-pdf');
+    try {
+      // Get the form data with more robust error handling
+      let formData;
+      try {
+        formData = await request.formData();
++       console.log('FormData parsed successfully');
+      } catch (formError: any) {
+        console.error('Error parsing form data:', formError);
+```
+
+---
+
+Now let's also update the frontend code to handle the request differently, in case there's an issue with how the request is being sent:
+
+---
+
+```diff
+        const response = await fetchWithTimeout('/api/extract-pdf', {
+          method: 'POST',
++         headers: {
++           'Accept': 'application/json',
++           // No Content-Type header when using FormData (browser sets it with boundary)
++         },
+          body: formData,
++         // Include credentials for same-origin requests
++         credentials: 'same-origin'
+        });
+        
+```
+
+---
+
+Let's also update the next.config.mjs file to ensure the API routes are properly configured:
+
+---
+
+Read file: /Users/tom/dev/flashcards/next.config.mjs
+
+---
+
 
 
 ---

@@ -90,7 +90,13 @@ export default function AiGeneratePage() {
       // Use the fetch with timeout
       const response = await fetchWithTimeout('/api/extract-pdf', {
         method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          // No Content-Type header when using FormData (browser sets it with boundary)
+        },
         body: formData,
+        // Include credentials for same-origin requests
+        credentials: 'same-origin'
       });
       
       // Check if the response is valid JSON

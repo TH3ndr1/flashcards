@@ -3,10 +3,10 @@ import { VertexAI } from '@google-cloud/vertexai';
 import pdfParse from 'pdf-parse';
 import { ImageAnnotatorClient } from '@google-cloud/vision';
 
-// Specify Node.js runtime for Vercel 
+// Specify Node.js runtime for Vercel with explicit configuration
 export const config = {
   runtime: 'nodejs',
-  // Increase timeouts for PDF processing
+  regions: ['iad1'], // US East (N. Virginia)
   maxDuration: 60
 };
 
@@ -174,11 +174,13 @@ Example format:
 
 // Export the API route handler
 export async function POST(request: NextRequest) {
+  console.log('POST request received to /api/extract-pdf');
   try {
     // Get the form data with more robust error handling
     let formData;
     try {
       formData = await request.formData();
+      console.log('FormData parsed successfully');
     } catch (formError: any) {
       console.error('Error parsing form data:', formError);
       return NextResponse.json({ 
@@ -325,4 +327,24 @@ export async function POST(request: NextRequest) {
       flashcards: []
     }, { status: 500 });
   }
+}
+
+// Add OPTIONS handler to support CORS preflight requests
+export async function OPTIONS(request: NextRequest) {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  });
+}
+
+// Add a simple GET handler for testing connectivity
+export async function GET(request: NextRequest) {
+  return NextResponse.json({
+    message: 'PDF extraction API is active. Use POST method to extract text from PDF files.',
+    status: 'ok',
+  });
 } 
