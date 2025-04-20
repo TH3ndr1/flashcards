@@ -51,7 +51,14 @@ export default function AiGeneratePage() {
     
     // Create a unique ID for the loading toast so we can dismiss it later
     const loadingToastId = `loading-${Date.now()}`;
-    toast.loading("Processing file", { id: loadingToastId });
+    
+    // Create a safety timeout to dismiss toast after 30 seconds regardless of what happens
+    const safetyTimeout = setTimeout(() => {
+      toast.dismiss(loadingToastId);
+    }, 30000);
+    
+    // Show the loading toast
+    toast.loading("Processing file", { id: loadingToastId, duration: 30000 });
     
     try {
       // Create a new FormData instance
@@ -62,7 +69,26 @@ export default function AiGeneratePage() {
       const fileBlob = new Blob([await file.arrayBuffer()], { type: file.type });
       formData.append('file', fileBlob, file.name);
       
-      const response = await fetch('/api/extract-pdf', {
+      // Wrap fetch in a timeout to prevent hanging indefinitely
+      const fetchWithTimeout = async (url: string, options: RequestInit, timeout = 25000) => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+        
+        try {
+          const response = await fetch(url, {
+            ...options,
+            signal: controller.signal
+          });
+          clearTimeout(timeoutId);
+          return response;
+        } catch (error) {
+          clearTimeout(timeoutId);
+          throw error;
+        }
+      };
+      
+      // Use the fetch with timeout
+      const response = await fetchWithTimeout('/api/extract-pdf', {
         method: 'POST',
         body: formData,
       });
@@ -73,18 +99,18 @@ export default function AiGeneratePage() {
         data = await response.json();
       } catch (jsonError) {
         console.error('JSON parsing error:', jsonError);
-        // Make sure to dismiss the loading toast
-        toast.dismiss(loadingToastId);
         throw new Error(`Server returned an invalid response (${response.status} ${response.statusText}). Please try again later.`);
       }
-      
-      // Always dismiss the loading toast whether successful or not
-      toast.dismiss(loadingToastId);
       
       if (!response.ok) {
         console.error('API Error:', response.status, response.statusText, data);
         throw new Error(data?.message || `Error: ${response.status} ${response.statusText}`);
       }
+      
+      // Clear safety timeout as we got here successfully
+      clearTimeout(safetyTimeout);
+      // Dismiss the loading toast
+      toast.dismiss(loadingToastId);
       
       setFlashcards(data.flashcards || []);
       setExtractedTextPreview(data.extractedTextPreview || null);
@@ -93,11 +119,15 @@ export default function AiGeneratePage() {
     } catch (err: any) {
       console.error('Error:', err);
       setError(err.message || 'An error occurred while generating flashcards');
-      
-      // Ensure the loading toast is dismissed in case of error
-      toast.dismiss(loadingToastId);
-      toast.error(err.message || 'Failed to generate flashcards');
     } finally {
+      // Always clean up
+      clearTimeout(safetyTimeout);
+      // Always dismiss the loading toast regardless of outcome
+      toast.dismiss(loadingToastId);
+      // Show error toast if there's an error
+      if (error) {
+        toast.error(error);
+      }
       setIsLoading(false);
     }
   };
