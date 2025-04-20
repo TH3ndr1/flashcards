@@ -6,6 +6,9 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Loader2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
+import { useSupabase } from '@/hooks/use-supabase';
+import { useAuth } from '@/hooks/use-auth';
+import { v4 as uuidv4 } from 'uuid';
 
 interface Flashcard {
   question: string;
@@ -15,8 +18,10 @@ interface Flashcard {
 // Supported file types
 const SUPPORTED_FILE_TYPES = "application/pdf, image/jpeg, image/jpg, image/png, image/gif, image/bmp, image/webp";
 const SUPPORTED_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"];
-const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
-const LARGE_FILE_SIZE = 10 * 1024 * 1024; // 10MB - Show warning but allow upload
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+const LARGE_FILE_SIZE = 10 * 1024 * 1024; // Use Supabase Storage for files larger than this
+const DIRECT_UPLOAD_LIMIT = 10 * 1024 * 1024; // Max size for direct API upload
+const UPLOAD_BUCKET = 'ai-uploads'; // Bucket name
 
 export default function AiGeneratePage() {
   const [file, setFile] = useState<File | null>(null);
@@ -25,6 +30,8 @@ export default function AiGeneratePage() {
   const [error, setError] = useState<string | null>(null);
   const [extractedTextPreview, setExtractedTextPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { supabase } = useSupabase();
+  const { user } = useAuth();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -35,6 +42,15 @@ export default function AiGeneratePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!supabase) {
+      setError('Database connection not ready. Please wait a moment and try again.');
+      return;
+    }
+    if (!user) {
+      setError('You must be logged in to upload files.');
+      return;
+    }
     
     if (!file) {
       setError('Please select a file');
@@ -50,66 +66,94 @@ export default function AiGeneratePage() {
 
     // Check file size
     if (file.size > MAX_FILE_SIZE) {
-      setError(`File too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum size is 25MB.`);
+      setError(`File too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum size is 50MB.`);
       return;
     }
 
-    // Warn about large files but allow them
+    // Warn about large files
     if (file.size > LARGE_FILE_SIZE) {
-      toast.info(`Large file detected (${(file.size / 1024 / 1024).toFixed(2)}MB). Processing may take longer.`);
+      toast.info(`Large file detected (${(file.size / 1024 / 1024).toFixed(2)}MB). Using secure storage for processing.`);
     }
 
     setIsLoading(true);
     setError(null);
+    setFlashcards([]);
+    setExtractedTextPreview(null);
     
-    // Create a unique ID for the loading toast so we can dismiss it later
     const loadingToastId = `loading-${Date.now()}`;
-    
-    // Create a safety timeout to dismiss toast after 90 seconds regardless of what happens
-    const safetyTimeout = setTimeout(() => {
-      toast.dismiss(loadingToastId);
-    }, 90000);
-    
-    // Show the loading toast
-    toast.loading("Processing file", { id: loadingToastId, duration: 60000 });
+    const safetyTimeout = setTimeout(() => toast.dismiss(loadingToastId), 90000);
+    toast.loading("Processing file...", { id: loadingToastId, duration: 60000 });
     
     try {
-      // Create a new FormData instance
-      const formData = new FormData();
-      
-      // Simply append the file directly - Vercel's Node.js runtime should handle it
-      formData.append('file', file);
-      
-      // Wrap fetch in a timeout to prevent hanging indefinitely
-      const fetchWithTimeout = async (url: string, options: RequestInit, timeout = 60000) => {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeout);
+      let response;
+      let filePath: string | null = null;
+      let finalFilename = file.name;
+
+      if (file.size > DIRECT_UPLOAD_LIMIT) {
+        toast.loading("Uploading to secure storage...", { id: `${loadingToastId}-upload` });
         
-        try {
-          const response = await fetch(url, {
-            ...options,
-            signal: controller.signal
+        const fileExt = file.name.split('.').pop();
+        const storageFileName = `${uuidv4()}.${fileExt}`;
+        const storagePath = `${user.id}/${storageFileName}`;
+        finalFilename = file.name;
+
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from(UPLOAD_BUCKET)
+          .upload(storagePath, file, {
+            upsert: false,
           });
-          clearTimeout(timeoutId);
-          return response;
-        } catch (error: any) {
-          clearTimeout(timeoutId);
-          // Special handling for AbortError (timeout)
-          if (error.name === 'AbortError') {
-            throw new Error('Request timed out. The file may be too large or the server is busy.');
-          }
-          throw error;
+
+        toast.dismiss(`${loadingToastId}-upload`);
+
+        if (uploadError) {
+          console.error('Client-side Supabase upload error:', uploadError);
+          throw new Error(`Failed to upload file to secure storage: ${uploadError.message}`);
         }
-      };
+
+        filePath = uploadData.path;
+        console.log('File uploaded to Supabase Storage:', filePath);
+        toast.loading("Processing from secure storage...", { id: loadingToastId });
+        
+        response = await fetch('/api/extract-pdf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filePath: filePath, filename: finalFilename }),
+          credentials: 'same-origin'
+        });
+
+      } else {
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const fetchWithTimeout = async (url: string, options: RequestInit, timeout = 60000) => {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), timeout);
+          
+          try {
+            const response = await fetch(url, {
+              ...options,
+              signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+            return response;
+          } catch (error: any) {
+            clearTimeout(timeoutId);
+            if (error.name === 'AbortError') {
+              throw new Error('Request timed out. The file may be too large or the server is busy.');
+            }
+            throw error;
+          }
+        };
+        
+        response = await fetchWithTimeout('/api/extract-pdf', {
+          method: 'POST',
+          body: formData,
+          credentials: 'same-origin'
+        });
+      }
       
-      // Use the fetch with timeout
-      const response = await fetchWithTimeout('/api/extract-pdf', {
-        method: 'POST',
-        body: formData,
-        credentials: 'same-origin'
-      });
-      
-      // Check if the response is valid JSON
+      if (!response) throw new Error("No response received from server.");
+
       let data;
       try {
         data = await response.json();
@@ -121,17 +165,14 @@ export default function AiGeneratePage() {
       if (!response.ok) {
         console.error('API Error:', response.status, response.statusText, data);
         
-        // Special handling for 413 Payload Too Large errors
         if (response.status === 413) {
-          throw new Error(`File is too large for processing. Please try a smaller file (under 10MB).`);
+          throw new Error(`File is too large for direct processing. Please try again and we'll use our secure storage method.`);
         }
         
         throw new Error(data?.message || `Error: ${response.status} ${response.statusText}`);
       }
       
-      // Clear safety timeout as we got here successfully
       clearTimeout(safetyTimeout);
-      // Dismiss the loading toast
       toast.dismiss(loadingToastId);
       
       setFlashcards(data.flashcards || []);
@@ -139,16 +180,14 @@ export default function AiGeneratePage() {
       
       toast.success(`Successfully created ${data.flashcards.length} flashcards`);
     } catch (err: any) {
-      console.error('Error:', err);
-      const errorMessage = err.message || 'An error occurred while generating flashcards';
+      console.error('Error during handleSubmit:', err);
+      const errorMessage = err.message || 'An error occurred';
       setError(errorMessage);
-      // Show error toast here to ensure it has the current error
       toast.error(errorMessage);
     } finally {
-      // Always clean up
       clearTimeout(safetyTimeout);
-      // Always dismiss the loading toast regardless of outcome
       toast.dismiss(loadingToastId);
+      toast.dismiss(`${loadingToastId}-upload`);
       setIsLoading(false);
     }
   };
@@ -251,7 +290,7 @@ export default function AiGeneratePage() {
                 </div>
                 <p className="text-xs text-muted-foreground mt-2">
                   Note: PDFs are processed using Google Document AI, and images are processed using Google Vision AI.
-                  Files up to 25MB are supported, but for best results we recommend keeping files under 10MB.
+                  Files up to 50MB are supported through our secure storage system.
                 </p>
               </CardContent>
             </Card>

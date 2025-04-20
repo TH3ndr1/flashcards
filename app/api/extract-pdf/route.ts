@@ -3,6 +3,7 @@ import { VertexAI } from '@google-cloud/vertexai';
 import { ImageAnnotatorClient } from '@google-cloud/vision';
 // Import Document AI Client
 import { DocumentProcessorServiceClient } from '@google-cloud/documentai';
+import { getFileFromStorage } from '@/lib/actions/storageActions';
 
 // Specify Node.js runtime for Vercel with explicit configuration
 export const config = {
@@ -278,29 +279,61 @@ export async function POST(request: NextRequest) {
   }
   
   try {
-    const formData = await request.formData();
-    console.log('FormData parsed successfully');
+    // Parse the request - can be either FormData (direct upload) or JSON (Supabase Storage path)
+    const contentType = request.headers.get('content-type') || '';
+    
+    let arrayBuffer: ArrayBuffer;
+    let fileMimeType: string;
+    
+    if (contentType.includes('multipart/form-data')) {
+      // Handle direct file upload (original approach)
+      const formData = await request.formData();
+      console.log('FormData parsed successfully');
 
-    const file = formData.get('file');
-    if (!file) throw new Error('No file provided in request');
-    if (!(file instanceof Blob)) throw new Error('Uploaded item is not a Blob/File');
+      const file = formData.get('file');
+      if (!file) throw new Error('No file provided in request');
+      if (!(file instanceof Blob)) throw new Error('Uploaded item is not a Blob/File');
 
-    filename = 'name' in file && typeof file.name === 'string' ? file.name : filename;
-    console.log(`Processing file: ${filename}`);
+      filename = 'name' in file && typeof file.name === 'string' ? file.name : filename;
+      console.log(`Processing file: ${filename}`);
 
-    fileType = getSupportedFileType(filename);
-    if (!fileType) {
-      throw new Error(`Unsupported file type: "${filename}". Please upload a supported PDF or image file.`);
+      fileType = getSupportedFileType(filename);
+      if (!fileType) {
+        throw new Error(`Unsupported file type: "${filename}". Please upload a supported PDF or image file.`);
+      }
+
+      const MAX_FILE_SIZE = 25 * 1024 * 1024;
+      if (file.size > MAX_FILE_SIZE) {
+        throw new Error(`File too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum size is 25MB.`);
+      }
+
+      fileMimeType = file.type;
+      arrayBuffer = await file.arrayBuffer();
+      console.log(`File ${filename} converted to ArrayBuffer, size: ${arrayBuffer.byteLength}`);
+    } else {
+      // Handle Supabase Storage reference
+      const jsonData = await request.json();
+      console.log('Processing file from Supabase Storage');
+      
+      if (!jsonData.filePath) {
+        throw new Error('No file path provided in request');
+      }
+      
+      filename = jsonData.filename || 'uploaded-file';
+      console.log(`Processing file from storage: ${filename}`);
+      
+      fileType = getSupportedFileType(filename);
+      if (!fileType) {
+        throw new Error(`Unsupported file type: "${filename}". Please upload a supported PDF or image file.`);
+      }
+      
+      // Get the file from Supabase Storage
+      arrayBuffer = await getFileFromStorage(jsonData.filePath);
+      console.log(`File retrieved from storage, size: ${arrayBuffer.byteLength}`);
+      
+      // Set MIME type based on file extension
+      fileMimeType = fileType === 'pdf' ? 'application/pdf' : `image/${filename.split('.').pop()}`;
     }
-
-    const MAX_FILE_SIZE = 25 * 1024 * 1024;
-    if (file.size > MAX_FILE_SIZE) {
-      throw new Error(`File too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum size is 25MB.`);
-    }
-
-    const fileMimeType = file.type;
-    const arrayBuffer = await file.arrayBuffer();
-    console.log(`File ${filename} converted to ArrayBuffer, size: ${arrayBuffer.byteLength}`);
 
     // --- Call appropriate extraction function --- 
     let extractResult;
@@ -332,7 +365,7 @@ export async function POST(request: NextRequest) {
       flashcards,
       fileInfo: {
         name: filename,
-        size: file.size,
+        size: arrayBuffer.byteLength,
         type: fileMimeType,
         fileType: fileType,
         pages: extractInfo.pages,

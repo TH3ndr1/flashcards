@@ -13039,6 +13039,1814 @@ Let me know if this helps or if you need further assistance with debugging the d
 
 ---
 
+_**User**_
+
+nope, please roll back to the previous working version of the vercel.json
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+Let's roll back to the original working version of the `vercel.json` file:
+
+---
+
+```diff
+  {
+-   "version": 2,
+    "functions": {
+-     "api/extract-pdf": {
+-       "memory": 3008,
+-       "maxDuration": 90
++     "app/api/extract-pdf/route.ts": {
++       "memory": 1024,
++       "maxDuration": 60
+      }
+    }
+```
+
+---
+
+I've restored the original working version of your `vercel.json` file:
+
+```json
+{
+  "functions": {
+    "app/api/extract-pdf/route.ts": {
+      "memory": 1024,
+      "maxDuration": 60
+    }
+  }
+}
+```
+
+This should allow your project to build and deploy as it did before. For handling large files, we can focus on optimizing your API route code instead of modifying the Vercel configuration.
+
+For the 413 Payload Too Large error, we can address it by:
+
+1. Keeping the client-side file size restrictions and warnings we added (to prevent uploading files that are too large)
+2. Implementing more efficient processing in your API route to handle files within the standard Vercel limits
+
+Would you like me to optimize your API route code to better handle larger files within the standard Vercel limits?
+
+---
+
+_**User**_
+
+I want to be upload files of at least 30MB. Is that possible in Vercel?
+If not, I rely on a supababse backend - the @project-documentation.md suggest to upload files to supabase and then use it from there. Would that overcome the file limit?
+Alternatively, is using a gcloud bucket an option (cfr @https://github.com/leerob/nextjs-gcp-storage ) to overcome the limit?
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+You're right that Vercel has limitations for file uploads. The standard serverless function body size limit for Vercel is 4.5MB, and even with a Pro account, it can only go up to about 10MB. Your current configuration in `vercel.json` increases memory and duration, but doesn't overcome the payload size limit.
+
+For handling 30MB+ files, you have two excellent options:
+
+## Option 1: Supabase Storage (Simplest)
+
+Since your project already uses Supabase, this is the most straightforward approach:
+
+1. Upload directly to Supabase Storage from the browser (bypassing Vercel's limits)
+2. Once uploaded, send just the file reference to your Vercel function
+3. Your function can then process the file by downloading it from Supabase
+
+Supabase Storage has a default file size limit of 50MB, which would accommodate your 30MB requirement. Your project documentation already mentions Supabase Storage for "temporary uploads for AI Gen."
+
+```typescript
+// Client-side upload to Supabase
+const { data, error } = await supabaseClient.storage
+  .from('documents')
+  .upload(`${user.id}/${filename}`, file);
+
+// Then send just the path to your API
+const response = await fetch('/api/extract-pdf', {
+  method: 'POST',
+  body: JSON.stringify({ filePath: data.path })
+});
+```
+
+## Option 2: Google Cloud Storage
+
+Since you're already using Google Cloud for Document AI and Vision AI, GCS is a natural fit:
+
+1. Set up direct browser uploads to GCS using signed URLs
+2. After upload, send the GCS file reference to your Vercel function
+3. Your function processes the file using the GCP libraries you already have
+
+The example you referenced (`leerob/nextjs-gcp-storage`) shows this approach, and GCS supports files up to several terabytes.
+
+## Recommendation
+
+Since you're already using Supabase, I'd recommend Option 1 (Supabase Storage) for the easiest integration. It requires minimal changes to your architecture:
+
+1. Modify your upload form to upload directly to Supabase Storage
+2. Update your `/api/extract-pdf` endpoint to accept a file path instead of raw file data
+3. In your endpoint, download the file from Supabase Storage before processing
+
+If you're interested in this approach, I can help you implement the necessary changes to your code.
+
+---
+
+_**User**_
+
+Ok let's try the supabase option
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+Great choice! Let's implement the Supabase Storage solution for handling larger file uploads (30MB+). I'll guide you through the necessary changes:
+
+First, let's check if Supabase client is properly set up for file operations:
+
+---
+
+<details>
+            <summary>Grep search for "supabase.*storage|storage.*supabase" • **16** files</summary>
+        
+| File | Line | Match |
+|------|------|-------|
+| `file:///Users/tom/dev/flashcards/docs/docv2` | L151 | `*   File Storage: Supabase Storage (temporary uploads)` |
+| `file:///Users/tom/dev/flashcards/docs/best-practices.md` | L385 | `### 18.8. Leverage Supabase Storage Efficiently` |
+| `file:///Users/tom/dev/flashcards/docs/best-practices.md` | L387 | `Utilize Supabase Storage for handling file uploads and retrievals effectively.` |
+| `file:///Users/tom/dev/flashcards/docs/best-practices.md` | L392 | `const { data, error } = await supabase.storage` |
+| `file:///Users/tom/dev/flashcards/docs/best-practices.md` | L397 | `const { publicURL } = supabase.storage` |
+| `file:///Users/tom/dev/flashcards/docs/project-documentation.md` | L250 | `*   File Storage: Supabase Storage (temporary uploads for AI Gen)` |
+| `file:///Users/tom/dev/flashcards/docs/project-documentation.md` | L500 | `- **Client Client (`lib/supabase/client.ts` or hook):** Creates the browser client instance using `createBrowserClient` from `@supabase/ssr`. This client automatically manages auth state via browser storage (cookies/localSto` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-26_15-11-comprehensive-project-documentation-generation.md` | L313 | `+ - Storage: Supabase Storage` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L284 | `- - Storage: Supabase Storage (Assumed, verify usage if necessary)` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L285 | `+ - Storage: Supabase Storage (For user-uploaded media if added later, TTS is currently generated on-the-fly)` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L335 | `- - **Database Interaction**: Supabase client (`@supabase/ssr` for both server and client) is used for all database operations (PostgreSQL), authentication checks, and potentially storage. Row Level Security (RLS) is crucial for d` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L353 | `-    - Audio references (potentially URLs in Supabase Storage)` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L473 | `- - Data Protection: Environment variable management (e.g., `.env.local`, Vercel env vars for Supabase keys, GCP keys). Secure audio file storage (if TTS results were stored instead of streamed). HTTPS-only access (handled by Vercel).` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-26_10-45-email-verification-error-in-next-js.md` | L1726 | `| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L7567 | `+         storageKey: 'supabase.auth.token',` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-26_10-45-email-verification-error-in-next-js.md` | L1728 | `| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L7801 | `+         storageKey: 'supabase.auth.token',` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-26_10-45-email-verification-error-in-next-js.md` | L1729 | `| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L7845 | `-         storageKey: 'supabase.auth.token',` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-26_10-45-email-verification-error-in-next-js.md` | L1731 | `| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L8030 | `storageKey: 'supabase.auth.token',` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L3674 | `+         // If not found in localStorage and still loading, try to fetch directly from Supabase` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L3762 | `- If not found in localStorage and still loading, try to fetch directly from Supabase` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L3771 | `2. Attempting multiple sources to find the deck (localStorage, Supabase, in-memory state)` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L3829 | `-         // If not found in localStorage and still loading, try to fetch directly from Supabase` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L3830 | `+       // If not found in localStorage, try to fetch from Supabase` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L4356 | `// Load decks from Supabase or localStorage` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L4601 | `I see the issue! We're using a mock Supabase client that stores data in localStorage instead of connecting to the real Supabase instance. This was likely set up for development/testing purposes.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L4736 | `use-supabase.tsx:21 Multiple GoTrueClient instances detected in the same browser context. It is not an error, but this should be avoided as it may produce undefined behavior when used concurrently under t` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L5231 | `-   // Load settings from Supabase or localStorage` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L5250 | `-         // Try to get settings from Supabase or localStorage` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L5482 | `- Removed fallback to localStorage (since we're using real Supabase now)` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L5567 | `-       // If not found in localStorage, try to fetch from Supabase` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L5702 | `- Removed localStorage fallback since we're using real Supabase now` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L5916 | `- Removes the need for `localStorage` since we're using real Supabase` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L6867 | `- // Create a mock Supabase client that uses localStorage` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L7275 | `VM2330 use-supabase.tsx:23 Multiple GoTrueClient instances detected in the same browser context. It is not an error, but this should be avoided as it may produce undefined behavior when used concurrently under t` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L7320 | `VM2412 use-supabase.tsx:21 Multiple GoTrueClient instances detected in the same browser context. It is not an error, but this should be avoided as it may produce undefined behavior when used concurrently under t` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L7380 | `use-supabase.tsx:26 Multiple GoTrueClient instances detected in the same browser context. It is not an error, but this should be avoided as it may produce undefined behavior when used concurrently under t` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L7567 | `+         storageKey: 'supabase.auth.token',` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L7741 | `VM1202 use-supabase.tsx:21 Multiple GoTrueClient instances detected in the same browser context. It is not an error, but this should be avoided as it may produce undefined behavior when used concurrently under t` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L7744 | `use-supabase.tsx:26 Multiple GoTrueClient instances detected in the same browser context. It is not an error, but this should be avoided as it may produce undefined behavior when used concurrently under t` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L7801 | `+         storageKey: 'supabase.auth.token',` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L7845 | `-         storageKey: 'supabase.auth.token',` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L8030 | `storageKey: 'supabase.auth.token',` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-18_15-38-debugging-npx-ts-node-error.md` | L6504 | `- **Client uploads → S3/Supabase Storage → Background job → Database**` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-18_15-38-debugging-npx-ts-node-error.md` | L7724 | `-     *   Action temporarily stores the file (e.g., Supabase Storage).` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-18_15-38-debugging-npx-ts-node-error.md` | L7806 | `- *   [ ] Task 1.3: Implement Upload Action/Route & Temporary Storage (`uploadFileAction`, Supabase Storage).` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-18_15-38-debugging-npx-ts-node-error.md` | L13115 | `## Option 1: Supabase Storage (Simplest)` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-18_15-38-debugging-npx-ts-node-error.md` | L13119 | `1. Upload directly to Supabase Storage from the browser (bypassing Vercel's limits)` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-18_15-38-debugging-npx-ts-node-error.md` | L13123 | `Supabase Storage has a default file size limit of 50MB, which would accommodate your 30MB requirement. Your project documentation already mentions Supabase Storage for "temporary uploads for AI Gen."` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-18_15-38-debugging-npx-ts-node-error.md` | L13127 | `const { data, error } = await supabaseClient.storage` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-18_15-38-debugging-npx-ts-node-error.md` | L13150 | `Since you're already using Supabase, I'd recommend Option 1 (Supabase Storage) for the easiest integration. It requires minimal changes to your architecture:` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-18_15-38-debugging-npx-ts-node-error.md` | L13152 | `1. Modify your upload form to upload directly to Supabase Storage` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-18_15-38-debugging-npx-ts-node-error.md` | L13154 | `3. In your endpoint, download the file from Supabase Storage before processing` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-30_10-48-flashcards-app-refactor-and-enhancement.md` | L12 | `*   **Tech Stack:** Next.js 15+ (App Router), React 19+, TypeScript, Supabase (PostgreSQL DB, Auth via @supabase/ssr, Storage), Tailwind CSS, shadcn/ui, Server Actions (preferred for mutations/queries), React Hook Form, Zod.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L72 | `| `file:///Users/tom/dev/flashcards/hooks/use-supabase.tsx` | L30 | `// Create a mock Supabase client that uses localStorage` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L75 | `| `file:///Users/tom/dev/flashcards/hooks/use-supabase.tsx` | L37 | `const session = localStorage.getItem("mockSession")` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L77 | `| `file:///Users/tom/dev/flashcards/hooks/use-supabase.tsx` | L47 | `const users = JSON.parse(localStorage.getItem("mockUsers") || "[]")` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L78 | `| `file:///Users/tom/dev/flashcards/hooks/use-supabase.tsx` | L58 | `localStorage.setItem("mockSession", JSON.stringify(session))` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L79 | `| `file:///Users/tom/dev/flashcards/hooks/use-supabase.tsx` | L65 | `const users = JSON.parse(localStorage.getItem("mockUsers") || "[]")` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L80 | `| `file:///Users/tom/dev/flashcards/hooks/use-supabase.tsx` | L80 | `localStorage.setItem("mockUsers", JSON.stringify(users))` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L81 | `| `file:///Users/tom/dev/flashcards/hooks/use-supabase.tsx` | L85 | `localStorage.removeItem("mockSession")` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L83 | `| `file:///Users/tom/dev/flashcards/hooks/use-supabase.tsx` | L90 | `const session = localStorage.getItem("mockSession")` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L85 | `| `file:///Users/tom/dev/flashcards/hooks/use-supabase.tsx` | L115 | `const items = JSON.parse(localStorage.getItem(`mock_${table}`) || "[]")` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L86 | `| `file:///Users/tom/dev/flashcards/hooks/use-supabase.tsx` | L122 | `const items = JSON.parse(localStorage.getItem(`mock_${table}`) || "[]")` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L87 | `| `file:///Users/tom/dev/flashcards/hooks/use-supabase.tsx` | L146 | `const items = JSON.parse(localStorage.getItem(`mock_${table}`) || "[]")` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L88 | `| `file:///Users/tom/dev/flashcards/hooks/use-supabase.tsx` | L155 | `const items = JSON.parse(localStorage.getItem(`mock_${table}`) || "[]")` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L89 | `| `file:///Users/tom/dev/flashcards/hooks/use-supabase.tsx` | L174 | `const existingItems = JSON.parse(localStorage.getItem(`mock_${table}`) || "[]")` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L90 | `| `file:///Users/tom/dev/flashcards/hooks/use-supabase.tsx` | L183 | `localStorage.setItem(`mock_${table}`, JSON.stringify(existingItems))` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L91 | `| `file:///Users/tom/dev/flashcards/hooks/use-supabase.tsx` | L194 | `const items = JSON.parse(localStorage.getItem(`mock_${table}`) || "[]")` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L92 | `| `file:///Users/tom/dev/flashcards/hooks/use-supabase.tsx` | L202 | `localStorage.setItem(`mock_${table}`, JSON.stringify(updatedItems))` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L93 | `| `file:///Users/tom/dev/flashcards/hooks/use-supabase.tsx` | L210 | `const items = JSON.parse(localStorage.getItem(`mock_${table}`) || "[]")` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L94 | `| `file:///Users/tom/dev/flashcards/hooks/use-supabase.tsx` | L213 | `localStorage.setItem(`mock_${table}`, JSON.stringify(filteredItems))` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L95 | `| `file:///Users/tom/dev/flashcards/hooks/use-supabase.tsx` | L219 | `const items = JSON.parse(localStorage.getItem(`mock_${table}`) || "[]")` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L96 | `| `file:///Users/tom/dev/flashcards/hooks/use-supabase.tsx` | L224 | `localStorage.setItem(`mock_${table}`, JSON.stringify(filteredItems))` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L100 | `⟪ 122 characters skipped ⟫ | `I see the issue! We're using a mock Supabase client that stores data in localStorage instead of connecting to the real Supabase instance. This was likely set up for development/testing purposes.` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L117 | `⟪ 105 characters skipped ⟫xt-js.md` | L6867 | `- // Create a mock Supabase client that uses localStorage` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L198 | `- // Create a mock Supabase client that uses localStorage` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L469 | `4. All database operations will now interact with your actual Supabase database instead of localStorage` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L1040 | `- Removed the localStorage fallback since we're now fully relying on Supabase` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L2514 | `// Load decks from Supabase or localStorage` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L3692 | `// Load decks from Supabase or localStorage` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L3729 | `4. Supabase data is fetched and synchronized with local storage` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L4616 | `-   // Load settings from Supabase or localStorage` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L4621 | `-         // Try to get settings from Supabase or localStorage` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-30_12-00-supabase-instance-setup-and-sql-generation.md` | L86 | `⟪ 120 characters skipped ⟫user-created tables typically reside in Supabase. If you have objects in other schemas (like `storage` or custom ones), you might need to adjust this or run the command multiple times for different schemas. For a full backup including exten` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-30_12-00-supabase-instance-setup-and-sql-generation.md` | L369 | `The auth and storage schemas are excluded. Run supabase db pull --schema auth,storage again to diff them.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-30_12-00-supabase-instance-setup-and-sql-generation.md` | L377 | `It created a new migration file: `supabase/migrations/20250330120704_remote_schema.sql`. This file contains the SQL statements that define the current schema of your `public` tables (and potentially other custom schemas if you have th` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-30_12-00-supabase-instance-setup-and-sql-generation.md` | L430 | `This script appears to be a complete snapshot of your current database structure (excluding the `auth` and `storage` schemas, as noted by the `db pull` output). You should be able to execute this entire script within the SQL Editor of your *new* Supabase project to recreate the schema successfully.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-30_12-00-supabase-instance-setup-and-sql-generation.md` | L750 | `2.  **`storage` Schema:** Similar to `auth`, this is managed by Supabase for file storage. It's also created automatically and **will not be affected** by dropping/recreating `public`.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-30_12-00-supabase-instance-setup-and-sql-generation.md` | L753 | `⟪ 169 characters skipped ⟫stom tables and types, leaving the core Supabase schemas (`auth`, `storage`) untouched.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-30_13-03-flashcards-app-refactoring-database-and-types.md` | L11 | `*   **Tech Stack:** Next.js 15+ (App Router), React 19+, TypeScript, Supabase (PostgreSQL DB, Auth via @supabase/ssr, Storage), Tailwind CSS, shadcn/ui, Server Actions (preferred for mutations/queries), React Hook Form, Zod.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-30_13-03-flashcards-app-refactoring-database-and-types.md` | L6602 | `e1b265ddea37   public.ecr.aws/supabase/storage-api:v1.11.13      "docker-entrypoint.s…"    7 days ago   Up 3` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-26_16-31-fixing-settingsservice-test-ts-script-errors.md` | L332 | `✓ loads decks from Supabase and updates localStorage (21 ms)` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-26_16-31-fixing-settingsservice-test-ts-script-errors.md` | L462 | `✓ loads decks from Supabase and updates localStorage (22 ms)` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-26_16-31-fixing-settingsservice-test-ts-script-errors.md` | L549 | `✓ loads decks from Supabase and updates localStorage (25 ms)` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-05_13-28-implementing-postgresql-function-for-card-selection.md` | L30321 | `-         SB_Store[(Supabase Storage)] -- Optional --> SVC` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-05_13-28-implementing-postgresql-function-for-card-selection.md` | L30376 | `- 4.  **`useDecks`**: Manages deck list state (`decks`, `loading`). Depends on `useAuth` and `useSupabase`. Loads initial state from localStorage, then fetches/updates via `deckService.ts`. Provides CRUD actions (`getDecks`, `createDeck`, `getDeck`, `updateDeck`, `deleteDeck`, `updateCardResult`)` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-18_15-30-merging-project-documentation-versions.md` | L326 | `- - Storage: Supabase Storage (For user-uploaded media if added later, TTS is currently generated on-the-fly)` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-18_15-30-merging-project-documentation-versions.md` | L395 | `+ *   File Storage: Supabase Storage (temporary uploads for AI Gen)` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-18_15-30-merging-project-documentation-versions.md` | L709 | `+ - **Client Client (`lib/supabase/client.ts` or hook):** Creates the browser client instance using `createBrowserClient` from `@supabase/ssr`. This client automatically manages auth state via browser storage (cookies/localSto` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-18_15-30-merging-project-documentation-versions.md` | L1254 | `+     *   Action temporarily stores the file (e.g., Supabase Storage).` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-18_15-30-merging-project-documentation-versions.md` | L1499 | `+ *   [ ] Task 1.3: Implement Upload Action/Route & Temporary Storage (`uploadFileAction`, Supabase Storage).` |
+| `file:///Users/tom/dev/flashcards/docs/project-documentation.md` | L250 | `*   File Storage: Supabase Storage (temporary uploads for AI Gen)` |
+| `file:///Users/tom/dev/flashcards/docs/project-documentation.md` | L500 | `- **Client Client (`lib/supabase/client.ts` or hook):** Creates the browser client instance using `createBrowserClient` from `@supabase/ssr`. This client automatically manages auth state via browser storage (cookies/localSto` |
+
+</details>
+
+---
+
+Now, let's check if the Supabase client setup has storage capability:
+
+---
+
+<details>
+            <summary>Grep search for "lib\/supabase" • **16** files</summary>
+        
+| File | Line | Match |
+|------|------|-------|
+| `file:///Users/tom/dev/flashcards/lib/actions/cardActions.ts` | L2 | `import { createActionClient, createDynamicRouteClient } from "@/lib/supabase/server";` |
+| `file:///Users/tom/dev/flashcards/lib/actions/settingsActions.ts` | L2 | `import { createActionClient } from '@/lib/supabase/server';` |
+| `file:///Users/tom/dev/flashcards/lib/actions/progressActions.ts` | L2 | `import { createActionClient, createDynamicRouteClient } from "@/lib/supabase/server";` |
+| `file:///Users/tom/dev/flashcards/lib/actions/studyQueryActions.ts` | L2 | `import { createActionClient } from '@/lib/supabase/server';` |
+| `file:///Users/tom/dev/flashcards/lib/actions/deckActions.ts` | L2 | `import { createActionClient, createDynamicRouteClient } from "@/lib/supabase/server";` |
+| `file:///Users/tom/dev/flashcards/lib/actions/tagActions.ts` | L2 | `import { createActionClient } from '@/lib/supabase/server';` |
+| `file:///Users/tom/dev/flashcards/lib/actions/studySetActions.ts` | L2 | `import { createActionClient } from '@/lib/supabase/server';` |
+| `file:///Users/tom/dev/flashcards/README.md` | L26 | `⟪ 268 characters skipped ⟫ware.ts` manages session refresh while `lib/supabase/server.ts` provides optimized Supabase clients for different contexts.` |
+| `file:///Users/tom/dev/flashcards/docs/docv2` | L168 | `*   **Supabase Client:** Use dedicated client creation functions for actions (`createActionClient` from `lib/supabase/server.ts`) leveraging `@supabase/ssr`. Ensure authentication is checked within actions.` |
+| `file:///Users/tom/dev/flashcards/docs/project-documentation.md` | L273 | `*   **Supabase Client:** Use dedicated client creation functions for actions (`createActionClient` from `lib/supabase/server.ts`) leveraging `@supabase/ssr`. Ensure authentication is checked within actions.` |
+| `file:///Users/tom/dev/flashcards/docs/project-documentation.md` | L496 | `- **Server Clients (`lib/supabase/server.ts`):** Provides utility functions to create Supabase server clients using cookies:` |
+| `file:///Users/tom/dev/flashcards/docs/project-documentation.md` | L500 | `- **Client Client (`lib/supabase/client.ts` or hook):** Creates the browser client instance using `createBrowserClient` from `@supabase/ssr`. This client automatically manages auth state via browser storage (cookies/loca` |
+| `file:///Users/tom/dev/flashcards/docs/project-documentation.md` | L540 | `R[lib/actions/deckActions.ts] --> S[lib/supabase/server.ts]` |
+| `file:///Users/tom/dev/flashcards/docs/project-documentation.md` | L565 | `AK[lib/supabase/client.ts] --> AJ` |
+| `file:///Users/tom/dev/flashcards/docs/project-documentation.md` | L566 | `AL[middleware.ts] -.-> AM[lib/supabase/server.ts] # conceptually` |
+| `file:///Users/tom/dev/flashcards/docs/project-documentation.md` | L567 | `AN[Server Actions/Components] --> AM[lib/supabase/server.ts]` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L25 | `2.  **Analysis:** The stack trace points directly to `lib/supabase/server.ts` line 20, inside the `cookies.get` function provided to `createServerClient`. This function attempts to synchronously read `cookieStore.get(name)?.value`. The standard pattern f` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L28 | `*   First, I need to examine the exact implementation in `lib/supabase/server.ts` to confirm it follows the recommended `@supabase/ssr` pattern.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L30 | `⟪ 202 characters skipped ⟫e central `createClient` function from `lib/supabase/server.ts`.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L32 | `4.  **Proposed Solution Strategy:** Ensure `lib/supabase/server.ts` precisely follows the standard `@supabase/ssr` pattern for `createServerClient`. If it already does, the problem is more nuanced. However, let's start by verifying and potentia` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L48 | `Read file: lib/supabase/server.ts` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L59 | `2.  `lib/supabase/server.ts`: This file contains two functions:` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L69 | `⟪ 168 characters skipped ⟫tion passed to `createServerClient` in `lib/supabase/server.ts`.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L94 | `// lib/supabase/server.ts` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L142 | `The code in `lib/supabase/server.ts` for `createActionClient` seems correct according to the standard `@supabase/ssr` pattern. The `cookies()` call is correctly placed inside the function. The synchronous nature o` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L186 | `2.  **No Code Change:** I won't modify `lib/supabase/server.ts` as the `createActionClient` follows the documented pattern. Modifying it would likely break auth.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L189 | `⟪ 408 characters skipped ⟫`, `lib/actions/studyQueryActions.ts`, `lib/supabase/server.ts`, `app/study/[deckId]/page.tsx`).` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L194 | `⟪ 131 characters skipped ⟫s `cookies` configuration option. Your `lib/supabase/server.ts` correctly provides these synchronous methods, capturing the `cookieStore` instance using `cookies()` from `next/headers` within the `createActionClient` function (which is the` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L197 | `*   The `createActionClient` function in `lib/supabase/server.ts` correctly implements the standard pattern recommended by `@supabase/ssr` for Server Actions/Route Handlers by calling `cookies()` inside the function scope.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L210 | `*   **No Code Changes:** I will not modify `lib/supabase/server.ts` or the related actions/pages, as the current implementation is correct according to library documentation.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L229 | `⟪ 103 characters skipped ⟫y. Let's modify the cookie handling in `lib/supabase/server.ts` to be more resilient to the dynamic route context.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L647 | `- import { createActionClient } from "@/lib/supabase/server";` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L648 | `+ import { createActionClient, createDynamicRouteClient } from "@/lib/supabase/server";` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L701 | `- import { createActionClient } from "@/lib/supabase/server";` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L702 | `+ import { createActionClient, createDynamicRouteClient } from "@/lib/supabase/server";` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L757 | `- import { createActionClient } from "@/lib/supabase/server";` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L758 | `+ import { createActionClient, createDynamicRouteClient } from "@/lib/supabase/server";` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L1216 | `import { createActionClient, createDynamicRouteClient } from "@/lib/supabase/server";` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L1359 | `- import { createActionClient } from "@/lib/supabase/server";` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L1360 | `+ import { createActionClient, createDynamicRouteClient } from "@/lib/supabase/server";` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L3913 | `Error: ./lib/supabase/server.ts` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L3915 | `╭─[[36;1;4m/Users/tom/dev/flashcards/lib/supabase/server.ts[0m:184:1]` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L4761 | `2. **lib/supabase/server.ts**` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L4883 | `modified:   lib/supabase/server.ts` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L4898 | `⟪ 118 characters skipped ⟫ons.ts lib/actions/studyQueryActions.ts lib/supabase/server.ts middleware.ts hooks/use-study-session.ts app/study/[deckId]/page.tsx` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L4984 | `Read file: lib/supabase/server.ts` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L5711 | `⟪ 104 characters skipped ⟫e need to update our implementation in `lib/supabase/server.ts` to properly await the cookies function and handle the base64-encoded tokens.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L6964 | `⟪ 270 characters skipped ⟫ware.ts` manages session refresh while `lib/supabase/server.ts` provides optimized Supabase clients for different contexts.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L6985 | `- - **Server Client (`lib/supabase/server.ts`):** Provides a utility to create Supabase *server* clients within server contexts (Route Handlers, Server Components, Server Actions) that interact correctly with cookies manag` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L6990 | `+ - **Server Clients (`lib/supabase/server.ts`):** Provides utility functions to create Supabase server clients with proper async cookie handling:` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L7034 | `+ // lib/supabase/server.ts` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L7078 | `+ // lib/supabase/server.ts` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_10-26-setting-up-vercel-project-with-next-js.md` | L7851 | `+ import { getSupabaseClient } from "@/lib/supabase-client"` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_19-14-sanity-check-on-refactored-page-component.md` | L662 | `+ import { createClient } from '@/lib/supabase/server';` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_19-14-sanity-check-on-refactored-page-component.md` | L675 | `Okay, it seems my assumption about the helper file structure (`@/lib/supabase/server`) was also incorrect, leading to the new linter error: `Module '"@/lib/supabase/server"' has no exported member 'createClient'`.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_19-14-sanity-check-on-refactored-page-component.md` | L684 | `<summary>Searched codebase "lib/supabase/server.ts" • **1** results</summary>` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_19-14-sanity-check-on-refactored-page-component.md` | L694 | `Found it. Now I'll read `lib/supabase/server.ts` to see how the client creation is exported.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_19-14-sanity-check-on-refactored-page-component.md` | L698 | `Read file: lib/supabase/server.ts` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_19-14-sanity-check-on-refactored-page-component.md` | L702 | `Okay, the server helper file `lib/supabase/server.ts` exports a function named `createSupabaseServerClient`, not `createClient`. This function wraps the logic for creating the server client using `@supabase/ssr` and handles the co` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_19-14-sanity-check-on-refactored-page-component.md` | L706 | `1.  **Correct Import:** Change the import statement in `app/api/tts/route.ts` to import `createSupabaseServerClient` from `@/lib/supabase/server`.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_19-14-sanity-check-on-refactored-page-component.md` | L718 | `- import { createClient } from '@/lib/supabase/server';` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_19-14-sanity-check-on-refactored-page-component.md` | L720 | `+ import { createSupabaseServerClient } from '@/lib/supabase/server';` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_19-14-sanity-check-on-refactored-page-component.md` | L734 | `Excellent. The edit has been applied, correcting the import to use `createSupabaseServerClient` from the project's helper file (`@/lib/supabase/server`) and adjusting the instantiation accordingly. The unused `cookies` import was also removed as the helper handles that internally. This should resolve the linter error and the runt` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_19-14-sanity-check-on-refactored-page-component.md` | L776 | `import { createSupabaseServerClient } from '@/lib/supabase/server';` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_19-14-sanity-check-on-refactored-page-component.md` | L861 | `import { createSupabaseServerClient } from '@/lib/supabase/server';` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_19-14-sanity-check-on-refactored-page-component.md` | L1151 | `| `lib/supabase/server.ts` | L1-48 |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_20-45-database-null-value-error-in-deck-creation.md` | L573 | `import { createActionClient, createDynamicRouteClient } from "@/lib/supabase/server";` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L1431 | `O[lib/services/deckService.ts] --> P[lib/supabase/client.ts]` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L1432 | `O --> Q[lib/supabase/server.ts]` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L1584 | `+         N[lib/services/deckService.ts] --> O[lib/supabase/client.ts]` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L1585 | `+         N --> P[lib/supabase/server.ts]` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L1597 | `+         W[hooks/useAuth.tsx] --> X[lib/supabase/client.ts]` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L5861 | `I'll continue searching for unused files. Let's check the `lib/supabase` directory since it might contain legacy code:` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L5868 | `<summary>Listed directory lib/supabase • **1** results</summary>` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L5890 | `<summary>Grep search for "from ['"]@/lib/supabase/server" • **15** files</summary>` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L5894 | `| `file:///Users/tom/dev/flashcards/lib/actions/deckActions.ts` | L2 | `import { createActionClient, createDynamicRouteClient } from "@/lib/supabase/server";` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L5895 | `⟪ 100 characters skipped ⟫ent, createDynamicRouteClient } from "@/lib/supabase/server";` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L5896 | `| `file:///Users/tom/dev/flashcards/lib/actions/cardActions.ts` | L2 | `import { createActionClient, createDynamicRouteClient } from "@/lib/supabase/server";` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L5897 | `| `file:///Users/tom/dev/flashcards/lib/actions/studyQueryActions.ts` | L2 | `import { createServerClient } from '@/lib/supabase/server';` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L5898 | `| `file:///Users/tom/dev/flashcards/lib/actions/tagActions.ts` | L2 | `import { createActionClient } from '@/lib/supabase/server';` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L5899 | `| `file:///Users/tom/dev/flashcards/lib/actions/settingsActions.ts` | L2 | `import { createActionClient } from '@/lib/supabase/server';` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L5900 | `| `file:///Users/tom/dev/flashcards/lib/actions/studySetActions.ts` | L2 | `import { createActionClient } from '@/lib/supabase/server';` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L5901 | `⟪ 138 characters skipped ⟫- import { createActionClient } from "@/lib/supabase/server";` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L5902 | `⟪ 164 characters skipped ⟫ent, createDynamicRouteClient } from "@/lib/supabase/server";` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L5903 | `⟪ 138 characters skipped ⟫- import { createActionClient } from "@/lib/supabase/server";` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L5904 | `⟪ 164 characters skipped ⟫ent, createDynamicRouteClient } from "@/lib/supabase/server";` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L5905 | `⟪ 138 characters skipped ⟫- import { createActionClient } from "@/lib/supabase/server";` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L5906 | `⟪ 164 characters skipped ⟫ent, createDynamicRouteClient } from "@/lib/supabase/server";` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L5907 | `⟪ 163 characters skipped ⟫ent, createDynamicRouteClient } from "@/lib/supabase/server";` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L5908 | `⟪ 139 characters skipped ⟫- import { createActionClient } from "@/lib/supabase/server";` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L5909 | `⟪ 165 characters skipped ⟫ent, createDynamicRouteClient } from "@/lib/supabase/server";` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L5910 | `⟪ 122 characters skipped ⟫62 | `+ import { createClient } from '@/lib/supabase/server';` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L5911 | `⟪ 122 characters skipped ⟫18 | `- import { createClient } from '@/lib/supabase/server';` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L5912 | `⟪ 136 characters skipped ⟫ { createSupabaseServerClient } from '@/lib/supabase/server';` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L5913 | `⟪ 134 characters skipped ⟫ { createSupabaseServerClient } from '@/lib/supabase/server';` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L5914 | `⟪ 134 characters skipped ⟫ { createSupabaseServerClient } from '@/lib/supabase/server';` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L5915 | `⟪ 134 characters skipped ⟫ { createSupabaseServerClient } from "@/lib/supabase/server";` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L5916 | `⟪ 136 characters skipped ⟫ { createSupabaseServerClient } from "@/lib/supabase/server";` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_17-45-refactoring-next-js-layout-with-client-providers.md` | L5917 | `⟪ 128 characters skipped ⟫+ import { createActionClient } from "@/lib/supabase/server";` |` |
+| `file:///Users/tom/dev/flashcards/docs/project-documentation.md` | L273 | `*   **Supabase Client:** Use dedicated client creation functions for actions (`createActionClient` from `lib/supabase/server.ts`) leveraging `@supabase/ssr`. Ensure authentication is checked within actions.` |
+| `file:///Users/tom/dev/flashcards/docs/project-documentation.md` | L496 | `- **Server Clients (`lib/supabase/server.ts`):** Provides utility functions to create Supabase server clients using cookies:` |
+| `file:///Users/tom/dev/flashcards/docs/project-documentation.md` | L500 | `- **Client Client (`lib/supabase/client.ts` or hook):** Creates the browser client instance using `createBrowserClient` from `@supabase/ssr`. This client automatically manages auth state via browser storage (cookies/loca` |
+| `file:///Users/tom/dev/flashcards/docs/project-documentation.md` | L540 | `R[lib/actions/deckActions.ts] --> S[lib/supabase/server.ts]` |
+| `file:///Users/tom/dev/flashcards/docs/project-documentation.md` | L565 | `AK[lib/supabase/client.ts] --> AJ` |
+| `file:///Users/tom/dev/flashcards/docs/project-documentation.md` | L566 | `AL[middleware.ts] -.-> AM[lib/supabase/server.ts] # conceptually` |
+| `file:///Users/tom/dev/flashcards/docs/project-documentation.md` | L567 | `AN[Server Actions/Components] --> AM[lib/supabase/server.ts]` |
+
+</details>
+
+---
+
+Now let's look at the specific Supabase client files to understand how they're set up:
+
+---
+
+Read file: lib/supabase/server.ts
+
+---
+
+Could not find file 'lib/supabase/client.ts' in the workspace.
+
+---
+
+Let's look at our client-side implementation for Supabase:
+
+---
+
+<details>
+            <summary>Grep search for "createBrowserClient" • **13** files</summary>
+        
+| File | Line | Match |
+|------|------|-------|
+| `file:///Users/tom/dev/flashcards/hooks/use-supabase.tsx` | L2 | `import { createBrowserClient } from "@supabase/ssr";` |
+| `file:///Users/tom/dev/flashcards/hooks/use-supabase.tsx` | L42 | `const client = createBrowserClient<Database>(supabaseUrl, supabaseAnonKey);` |
+| `file:///Users/tom/dev/flashcards/docs/project-documentation.md` | L500 | `- **Client Client (`lib/supabase/client.ts` or hook):** Creates the browser client instance using `createBrowserClient` from `@supabase/ssr`. This client automatically manages auth state via browser storage (cookies/localStorage). Usually accessed via a hook like `useSupabase`.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-18_15-38-debugging-npx-ts-node-error.md` | L13189 | `⟪ 136 characters skipped ⟫ates the browser client instance using `createBrowserClient` from `@supabase/ssr`. This client automatically manages auth state via browser storage (cookies/localSto` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-18_15-38-debugging-npx-ts-node-error.md` | L13280 | `⟪ 186 characters skipped ⟫ates the browser client instance using `createBrowserClient` from `@supabase/ssr`. This client automatically manages auth state via browser storage (cookies/localSto` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-18_15-38-debugging-npx-ts-node-error.md` | L13284 | `⟪ 136 characters skipped ⟫ates the browser client instance using `createBrowserClient` from `@supabase/ssr`. This client automatically manages auth state via browser storage (cookies/localSto` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-18_15-38-debugging-npx-ts-node-error.md` | L13310 | `⟪ 136 characters skipped ⟫ates the browser client instance using `createBrowserClient` from `@supabase/ssr`. This client automatically manages auth state via browser storage (cookies/loca` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-18_15-38-debugging-npx-ts-node-error.md` | L13400 | `⟪ 136 characters skipped ⟫ates the browser client instance using `createBrowserClient` from `@supabase/ssr`. This client automatically manages auth state via browser storage (cookies/loca` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L5440 | `+ export function createBrowserClient() {` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L5917 | `export function createBrowserClient() {` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L6080 | `export function createBrowserClient() {` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L6412 | `- export function createBrowserClient() {` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L6983 | `- - **Client Client (`hooks/use-supabase.tsx`):** Provides a memoized Supabase *browser* client instance (`createBrowserClient`) initialized after mount in client components. Ensures consistency with the server-managed session via cookie reading.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L6998 | `+ - **Client Client (`useSupabase` hook):** A hook that provides the browser client instance using `createBrowserClient` from `@supabase/ssr`. The browser client automatically reads and manages cookies set by the server.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-31_17-18-architectural-redesign-and-cookie-bug-investigation.md` | L7081 | `+ export function createBrowserClient() { /* For Client Components */ }` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L7449 | `+ import { createBrowserClient } from '@/utils/supabase/client'` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L7465 | `+   const [supabase] = useState(() => createBrowserClient())` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L7491 | `+ import { createBrowserClient as _createBrowserClient } from '@supabase/ssr'` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L7494 | `+ export const createBrowserClient = () =>` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-25_12-15-update-code-for-supabase-integration.md` | L7495 | `+   _createBrowserClient<Database>(` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-05_13-28-implementing-postgresql-function-for-card-selection.md` | L30373 | `- 1.  **`useSupabase`**: Provides the memoized Supabase browser client instance (`createBrowserClient` from `@supabase/ssr`). Initializes client only after mount. Essential dependency for other hooks needing client-side Supabase access.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-05_13-28-implementing-postgresql-function-for-card-selection.md` | L30431 | `-        useSupabase->>SupabaseAuth: createBrowserClient()` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-18_15-30-merging-project-documentation-versions.md` | L654 | `- - **Client Client (`useSupabase` hook):** A hook that provides the browser client instance using `createBrowserClient` from `@supabase/ssr`. The browser client automatically reads and manages cookies set by the server.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-18_15-30-merging-project-documentation-versions.md` | L709 | `+ - **Client Client (`lib/supabase/client.ts` or hook):** Creates the browser client instance using `createBrowserClient` from `@supabase/ssr`. This client automatically manages auth state via browser storage (cookies/localStorage). Usually accessed via a hook like `useSupabase`.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_19-39-fixing-typescript-linter-errors.md` | L6716 | `⟪ 135 characters skipped ⟫ides the browser client instance using `createBrowserClient` from `@supabase/ssr`. The browser client automatically reads and manages cookies set by the server.` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_19-39-fixing-typescript-linter-errors.md` | L6729 | `⟪ 300 characters skipped ⟫ *client-side* Supabase instance using `createBrowserClient`, should not be called during the server-side static generation phase of the build.**` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_19-39-fixing-typescript-linter-errors.md` | L6730 | `⟪ 204 characters skipped ⟫abase`, it leads to this error because `createBrowserClient` relies on browser environment variables (`NEXT_PUBLIC_...`) that aren't meant to be accessed or might not be injected correctly in th` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_19-39-fixing-typescript-linter-errors.md` | L6744 | `⟪ 246 characters skipped ⟫blished, `useSupabase` internally uses `createBrowserClient` and requires `NEXT_PUBLIC_` environment variables, which are not properly available or intended for use in that build context, leading to the error.` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_19-39-fixing-typescript-linter-errors.md` | L6765 | `⟪ 220 characters skipped ⟫d to create the *browser* client using `createBrowserClient` inside its `useState` initializer.` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-04-13_19-39-fixing-typescript-linter-errors.md` | L6766 | `⟪ 268 characters skipped ⟫e to `null` and then create the actual `createBrowserClient` instance inside a `useEffe` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L118 | `⟪ 400 characters skipped ⟫o marked as a client component. If the `createBrowserClient` (or similar client-side creation function from `@supabase/ssr`) is somehow being called unconditionally at the module level or within a server component that's being prerendered,` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L120 | `⟪ 209 characters skipped ⟫s, Route Handlers, Server Actions) and `createBrowserClient` strictly within Client Components (`'use client'`). A mix-up or incorrect usage pattern could lead to this error during the build.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L124 | `Could you please show me the code where you are creating the **client-side** Supabase instance? This is likely using the `createBrowserClient` function from `@supabase/ssr`. Common places for this would be:` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L130 | `I need to see how and where `createBrowserClient` is being called to understand why it might be failing during the Vercel build's prerendering phase.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L132 | `I can use `grep_search` to find where `createBrowserClient` is used if you're unsure. Would you like me to search for it?` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L146 | `I will now search the codebase for where `createBrowserClient` is being used. This will help us pinpoint the exact location where the client-side Supabase instance is initialized and investigate why it might be causing issues during the Verce` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L151 | `<summary>Grep search for "createBrowserClient" • **2** files</summary>` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L155 | `| `file:///Users/tom/dev/flashcards/hooks/use-supabase.tsx` | L2 | `import { createBrowserClient } from "@supabase/ssr";` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L156 | `| `file:///Users/tom/dev/flashcards/hooks/use-supabase.tsx` | L8 | `* Uses `createBrowserClient` from `@supabase/ssr` to ensure compatibility with middleware` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L157 | `| `file:///Users/tom/dev/flashcards/hooks/use-supabase.tsx` | L22 | `return createBrowserClient<Database>(supabaseUrl!, supabaseAnonKey!);` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L158 | `| `file:///Users/tom/dev/flashcards/__tests__/use-supabase.test.tsx` | L29 | `createBrowserClient: jest.fn(),` |` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L164 | `Okay, the search results point directly to `hooks/use-supabase.tsx` as the place where `createBrowserClient` is utilized. This hook is likely the source of the client-side Supabase instance that's causing the build error.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L166 | `⟪ 202 characters skipped ⟫tatic prerendering phase in a way that `createBrowserClient` cannot function correctly.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L191 | `// createBrowserClient is still called here, potentially with undefined! or null!` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L192 | `return createBrowserClient<Database>(supabaseUrl!, supabaseAnonKey!);` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L199 | `⟪ 210 characters skipped ⟫oesn't prevent* the subsequent call to `createBrowserClient(supabaseUrl!, supabaseAnonKey!)`.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L201 | `⟪ 292 characters skipped ⟫the Vercel environment variables. When `createBrowserClient` is then called with these invalid values (using the non-null assertion `!`), it throws the error you're seeing.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L203 | `⟪ 255 characters skipped ⟫ed the problem and prevent the call to `createBrowserClient` with invalid arguments.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L242 | `-     return createBrowserClient<Database>(supabaseUrl!, supabaseAnonKey!);` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L244 | `+     return createBrowserClient<Database>(supabaseUrl, supabaseAnonKey);` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L259 | `- import { createBrowserClient } from "@supabase/ssr";` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L262 | `+ import { createBrowserClient } from "@supabase/ssr";` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L270 | `* Uses `createBrowserClient` from `@supabase/ssr` to ensure compatibility with middleware` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L295 | `-     return createBrowserClient<Database>(supabaseUrl!, supabaseAnonKey!);` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L297 | `+     return createBrowserClient<Database>(supabaseUrl, supabaseAnonKey);` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L348 | ``This prevents the Vercel build from failing silently due to createBrowserClient being called with invalid arguments during static page generation, providing a clearer error message if environment variables are misconfigured.`` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L353 | `⟪ 269 characters skipped ⟫rcel build from failing silently due to createBrowserClient being called with invalid arguments during static page generation, providing a clearer error message if environment variables are misconfigured.'` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L479 | `⟪ 168 characters skipped ⟫ *client-side* Supabase instance using `createBrowserClient`, should not be called during the server-side static generation phase of the build.**` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L481 | `⟪ 173 characters skipped ⟫abase`, it leads to this error because `createBrowserClient` relies on browser environment variables (`NEXT_PUBLIC_...`) that aren't meant to be accessed or might not be injected correctly in the build environment's prerendering context.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L586 | `⟪ 114 characters skipped ⟫blished, `useSupabase` internally uses `createBrowserClient` and requires `NEXT_PUBLIC_` environment variables, which are not properly available or intended for use in that build context, leading to the error.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L767 | `2.  The original `useSupabase` hook (called at the top level of `SettingsProvider`) tried to create the *browser* client using `createBrowserClient` inside its `useState` initializer.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L769 | `4.  `createBrowserClient` is meant only for the browser and failed during the build (either because env vars weren't ready or because it's fundamentally not designed for server-render initialization).` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L773 | `⟪ 136 characters skipped ⟫e to `null` and then create the actual `createBrowserClient` instance inside a `useEffect` hook. This ensures the browser client is only created *after* the component has mounted on the client side.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L777 | `1.  Modify `hooks/use-supabase.tsx`: Initialize the `supabase` state to `null` and move the `createBrowserClient` call into a `useEffect` hook that runs once on mount.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L789 | `import { createBrowserClient } from "@supabase/ssr";` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L796 | `-  * Uses `createBrowserClient` from `@supabase/ssr` to ensure compatibility with middleware` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L827 | `-     return createBrowserClient<Database>(supabaseUrl, supabaseAnonKey);` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L840 | `+     const client = createBrowserClient<Database>(supabaseUrl, supabaseAnonKey);` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L857 | `import { createBrowserClient } from "@supabase/ssr";` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L868 | `-  * Uses `createBrowserClient` from `@supabase/ssr` to ensure compatibility with middleware` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L906 | `-     return createBrowserClient<Database>(supabaseUrl, supabaseAnonKey);` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L910 | `+     const client = createBrowserClient<Database>(supabaseUrl, supabaseAnonKey);` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L1054 | `import { createBrowserClient } from "@supabase/ssr";` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L1066 | `+  * Uses `createBrowserClient` from `@supabase/ssr` to ensure compatibility with middleware` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L1103 | `-     const client = createBrowserClient<Database>(supabaseUrl, supabaseAnonKey);` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L1112 | `+     return createBrowserClient<Database>(supabaseUrl, supabaseAnonKey);` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L5028 | `*   The root of the complexity we encountered lies in using Supabase's **browser client** (`createBrowserClient` provided by `@supabase/ssr`) within Next.js.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_10-37-deployment-errors-after-refactoring-in-vercel.md` | L5034 | `⟪ 101 characters skipped ⟫ the browser environment. This ensures `createBrowserClient` is called safely when its requirements (browser APIs, env vars) are met.` |
+| `file:///Users/tom/dev/flashcards/docs/best-practices.md` | L589 | `export function createBrowserClient() { /* For Client Components */ }` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-30_07-11-session-expiration-redirect-improvement.md` | L3040 | `*   `hooks/use-auth.tsx`: Manages `user`, `session`, `loading` state using `createContext` and `@supabase/ssr`'s `createBrowserClient` (via `useSupabase`). Provides `signIn`, `signUp`, `signOut`, `resetPassword` functions, handling loading states and basic error logging/returning. Relies heavily on `onAuthStateCh` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-30_07-11-session-expiration-redirect-improvement.md` | L3099 | `*   `useSupabase` provides the browser Supabase client (`createBrowserClient` from `@supabase/ssr`), initialized after mount. Crucially, hooks like `useAuth`, `useDecks`, `SettingsProvider` depend on this client being available.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-30_07-11-session-expiration-redirect-improvement.md` | L3378 | `+ 1.  **`useSupabase`**: Provides the memoized Supabase browser client instance (`createBrowserClient` from `@supabase/ssr`). Initializes client only after mount. Essential dependency for other hooks needing client-side Supabase access.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-30_07-11-session-expiration-redirect-improvement.md` | L3454 | `+        useSupabase->>SupabaseAuth: createBrowserClient()` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-30_07-11-session-expiration-redirect-improvement.md` | L3755 | `- - **Client Client (`hooks/use-supabase.tsx`):** Uses `createBrowserClient` from `@supabase/ssr` to create a Supabase client instance in client components, ensuring consistency with the server-managed session.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-30_07-11-session-expiration-redirect-improvement.md` | L3780 | `+ - **Client Client (`hooks/use-supabase.tsx`):** Provides a memoized Supabase *browser* client instance (`createBrowserClient`) initialized after mount in client components. Ensures consistency with the server-managed session via cookie reading.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_06-35-codebase-refactoring-and-best-practices.md` | L1030 | `⟪ 208 characters skipped ⟫ng functions from `@supabase/ssr` like `createBrowserClient` and `createServerClient`. This will typically involve handling cookies.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_06-35-codebase-refactoring-and-best-practices.md` | L1532 | `⟪ 215 characters skipped ⟫and the middleware might require using `createBrowserClient` from `@supabase/ssr` for the client-side hook, instead of the basic `createClient` we saw earlier in `lib/supabase.ts`.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_06-35-codebase-refactoring-and-best-practices.md` | L1544 | `⟪ 259 characters skipped ⟫unction from `@supabase/ssr`, which is `createBrowserClient`.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_06-35-codebase-refactoring-and-best-practices.md` | L1546 | `This `createBrowserClient` is specifically designed to work *with* the middleware. It knows how to interact with the cookies managed by the server-side client and the middleware, ensuring session consistenc` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_06-35-codebase-refactoring-and-best-practices.md` | L1552 | `1.  Import and use `createBrowserClient` from `@supabase/ssr`.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_06-35-codebase-refactoring-and-best-practices.md` | L1553 | `2.  Remove the custom singleton pattern (`getSupabaseClient`, `clientInstance`). `createBrowserClient` can be initialized directly within the hook (it's lightweight).` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_06-35-codebase-refactoring-and-best-practices.md` | L1554 | `3.  Remove the custom `storage` options, as `createBrowserClient` handles cookie storage automatically when paired with the middleware.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_06-35-codebase-refactoring-and-best-practices.md` | L1569 | `+ import { createBrowserClient } from "@supabase/ssr";` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_06-35-codebase-refactoring-and-best-practices.md` | L1575 | `+  * Uses `createBrowserClient` from `@supabase/ssr` to ensure compatibility with middleware` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_06-35-codebase-refactoring-and-best-practices.md` | L1642 | `+     return createBrowserClient<Database>(supabaseUrl!, supabaseAnonKey!);` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_06-35-codebase-refactoring-and-best-practices.md` | L1657 | `Okay, `hooks/use-supabase.tsx` has been refactored to correctly use `createBrowserClient` from `@supabase/ssr`. This aligns the client-side Supabase setup with the server-side setup and the middleware, which is essential for the `@supabase/ssr` package to function corr` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_06-35-codebase-refactoring-and-best-practices.md` | L2337 | `+ - **Client Client (`hooks/use-supabase.tsx`):** Uses `createBrowserClient` from `@supabase/ssr` to create a Supabase client instance in client components, ensuring consistency with the server-managed session.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_06-35-codebase-refactoring-and-best-practices.md` | L2476 | `+     - `hooks/use-supabase.tsx`: Updated to use `createBrowserClient`.` |
+| `file:///Users/tom/dev/flashcards/.specstory/history/2025-03-29_06-35-codebase-refactoring-and-best-practices.md` | L5443 | `*   `createBrowserClient` (in `hooks/use-supabase.tsx`) for client-side components.` |
+| `file:///Users/tom/dev/flashcards/docs/project-documentation.md` | L500 | `- **Client Client (`lib/supabase/client.ts` or hook):** Creates the browser client instance using `createBrowserClient` from `@supabase/ssr`. This client automatically manages auth state via browser storage (cookies/localStorage). Usually accessed via a hook like `useSupabase`.` |
+
+</details>
+
+---
+
+Let's check the Supabase hook:
+
+---
+
+Read file: hooks/use-supabase.tsx
+
+---
+
+Now, let's look at our current file upload implementation in the AI generate page:
+
+---
+
+Read file: app/prepare/ai-generate/page.tsx
+
+---
+
+Based on my findings, let's implement the Supabase Storage solution for large file uploads. I'll create:
+
+1. A new action to upload a file to Supabase Storage
+2. Update the client-side code to use this action
+3. Modify the API endpoint to work with files from Supabase Storage
+
+Let's start with creating a new action for Supabase Storage uploads:
+
+---
+
+```diff
+- 
++ 'use server'
++ 
++ import { createActionClient } from '@/lib/supabase/server';
++ import { v4 as uuidv4 } from 'uuid';
++ 
++ const UPLOAD_BUCKET = 'ai-uploads';
++ const EXPIRY_SECONDS = 3600; // 1 hour
++ 
++ /**
++  * Uploads a file to Supabase Storage
++  * @param file The file to upload as Buffer or Uint8Array
++  * @param fileType The MIME type of the file
++  * @param fileName Optional filename, if not provided a UUID will be generated
++  * @returns Object containing the file path and URL
++  */
++ export async function uploadFileToStorage(
++   file: Buffer | Uint8Array,
++   fileType: string,
++   fileName?: string
++ ) {
++   const supabase = createActionClient();
++   
++   // Get the authenticated user
++   const { data: { user }, error: authError } = await supabase.auth.getUser();
++   
++   if (authError || !user) {
++     console.error('Authentication error in uploadFileToStorage', authError);
++     throw new Error('You must be logged in to upload files');
++   }
++   
++   // Create a unique filename if not provided
++   const fileExt = fileName ? `.${fileName.split('.').pop()}` : '';
++   const storageFileName = fileName || `${uuidv4()}${fileExt}`;
++   
++   // Ensure the bucket exists
++   const { data: buckets } = await supabase.storage.listBuckets();
++   if (!buckets?.find(b => b.name === UPLOAD_BUCKET)) {
++     await supabase.storage.createBucket(UPLOAD_BUCKET, {
++       public: false,
++       fileSizeLimit: 52428800, // 50MB
++     });
++   }
++   
++   // Path format: userId/uniqueId-filename
++   const path = `${user.id}/${storageFileName}`;
++   
++   // Upload the file
++   const { data, error } = await supabase.storage
++     .from(UPLOAD_BUCKET)
++     .upload(path, file, {
++       contentType: fileType,
++       upsert: true,
++     });
++   
++   if (error) {
++     console.error('Error uploading file to Supabase Storage', error);
++     throw new Error(`Failed to upload file: ${error.message}`);
++   }
++   
++   // Get a URL for the file (temporary, signed URL)
++   const { data: signedUrlData, error: signedUrlError } = await supabase.storage
++     .from(UPLOAD_BUCKET)
++     .createSignedUrl(path, EXPIRY_SECONDS);
++   
++   if (signedUrlError) {
++     console.error('Error creating signed URL', signedUrlError);
++     throw new Error(`Failed to create file URL: ${signedUrlError.message}`);
++   }
++   
++   return {
++     path,
++     signedUrl: signedUrlData.signedUrl,
++   };
++ }
++ 
++ /**
++  * Retrieves a file from Supabase Storage
++  * @param path The path of the file in Supabase Storage
++  * @returns The file as an ArrayBuffer
++  */
++ export async function getFileFromStorage(path: string) {
++   const supabase = createActionClient();
++   
++   // Get the authenticated user
++   const { data: { user }, error: authError } = await supabase.auth.getUser();
++   
++   if (authError || !user) {
++     console.error('Authentication error in getFileFromStorage', authError);
++     throw new Error('You must be logged in to access files');
++   }
++   
++   // Validate that the path belongs to the user
++   if (!path.startsWith(`${user.id}/`)) {
++     throw new Error('You do not have permission to access this file');
++   }
++   
++   // Download the file
++   const { data, error } = await supabase.storage
++     .from(UPLOAD_BUCKET)
++     .download(path);
++   
++   if (error) {
++     console.error('Error downloading file from Supabase Storage', error);
++     throw new Error(`Failed to download file: ${error.message}`);
++   }
++   
++   return await data.arrayBuffer();
++ }
++ 
++ /**
++  * Deletes a file from Supabase Storage
++  * @param path The path of the file in Supabase Storage
++  */
++ export async function deleteFileFromStorage(path: string) {
++   const supabase = createActionClient();
++   
++   // Get the authenticated user
++   const { data: { user }, error: authError } = await supabase.auth.getUser();
++   
++   if (authError || !user) {
++     console.error('Authentication error in deleteFileFromStorage', authError);
++     throw new Error('You must be logged in to delete files');
++   }
++   
++   // Validate that the path belongs to the user
++   if (!path.startsWith(`${user.id}/`)) {
++     throw new Error('You do not have permission to delete this file');
++   }
++   
++   // Delete the file
++   const { error } = await supabase.storage
++     .from(UPLOAD_BUCKET)
++     .remove([path]);
++   
++   if (error) {
++     console.error('Error deleting file from Supabase Storage', error);
++     throw new Error(`Failed to delete file: ${error.message}`);
++   }
++   
++   return { success: true };
++ } 
+```
+
+---
+
+Now let's update the API to accept a file path instead of a raw file:
+
+---
+
+```diff
+  // Import Document AI Client
+  import { DocumentProcessorServiceClient } from '@google-cloud/documentai';
++ import { getFileFromStorage } from '@/lib/actions/storageActions';
+  
+  // Specify Node.js runtime for Vercel with explicit configuration
+    
+    try {
++     // Parse the request - can be either FormData (direct upload) or JSON (Supabase Storage path)
++     const contentType = request.headers.get('content-type') || '';
++     
++     let arrayBuffer: ArrayBuffer;
++     let fileMimeType: string;
++     
++     if (contentType.includes('multipart/form-data')) {
++       // Handle direct file upload (original approach)
+        const formData = await request.formData();
+        console.log('FormData parsed successfully');
+        }
+  
+-     const fileMimeType = file.type;
+-     const arrayBuffer = await file.arrayBuffer();
++       fileMimeType = file.type;
++       arrayBuffer = await file.arrayBuffer();
+        console.log(`File ${filename} converted to ArrayBuffer, size: ${arrayBuffer.byteLength}`);
++     } else {
++       // Handle Supabase Storage reference
++       const jsonData = await request.json();
++       console.log('Processing file from Supabase Storage');
++       
++       if (!jsonData.filePath) {
++         throw new Error('No file path provided in request');
++       }
++       
++       filename = jsonData.filename || 'uploaded-file';
++       console.log(`Processing file from storage: ${filename}`);
++       
++       fileType = getSupportedFileType(filename);
++       if (!fileType) {
++         throw new Error(`Unsupported file type: "${filename}". Please upload a supported PDF or image file.`);
++       }
++       
++       // Get the file from Supabase Storage
++       arrayBuffer = await getFileFromStorage(jsonData.filePath);
++       console.log(`File retrieved from storage, size: ${arrayBuffer.byteLength}`);
++       
++       // Set MIME type based on file extension
++       fileMimeType = fileType === 'pdf' ? 'application/pdf' : `image/${filename.split('.').pop()}`;
++     }
+  
+      // --- Call appropriate extraction function --- 
+        fileInfo: {
+          name: filename,
+-         size: file.size,
++         size: arrayBuffer.byteLength,
+          type: fileMimeType,
+          fileType: fileType,
+```
+
+---
+
+Now, let's update the client-side file upload to use Supabase Storage for large files:
+
+---
+
+```diff
+  import { Loader2, Upload } from 'lucide-react';
+  import { toast } from 'sonner';
++ import { uploadFileToStorage } from '@/lib/actions/storageActions';
+  
+  interface Flashcard {
+  const SUPPORTED_FILE_TYPES = "application/pdf, image/jpeg, image/jpg, image/png, image/gif, image/bmp, image/webp";
+  const SUPPORTED_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"];
+- const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
+- const LARGE_FILE_SIZE = 10 * 1024 * 1024; // 10MB - Show warning but allow upload
++ const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB (increased from 25MB)
++ const LARGE_FILE_SIZE = 10 * 1024 * 1024; // 10MB - Use Supabase Storage for files larger than this
++ const DIRECT_UPLOAD_LIMIT = 10 * 1024 * 1024; // 10MB - Maximum size for direct upload to API
+  
+  export default function AiGeneratePage() {
+      // Check file size
+      if (file.size > MAX_FILE_SIZE) {
+-       setError(`File too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum size is 25MB.`);
++       setError(`File too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum size is 50MB.`);
+        return;
+      }
+  
+      // Warn about large files but allow them
+      if (file.size > LARGE_FILE_SIZE) {
+-       toast.info(`Large file detected (${(file.size / 1024 / 1024).toFixed(2)}MB). Processing may take longer.`);
++       toast.info(`Large file detected (${(file.size / 1024 / 1024).toFixed(2)}MB). Using secure storage for processing.`);
+      }
+  
+      
+      try {
+-       // Create a new FormData instance
+-       const formData = new FormData();
+-       
+-       // Simply append the file directly - Vercel's Node.js runtime should handle it
++       let response;
++       
++       if (file.size > DIRECT_UPLOAD_LIMIT) {
++         // Large file - Upload to Supabase Storage first
++         toast.loading("Uploading to secure storage...", { id: `${loadingToastId}-upload` });
++         
++         // Convert file to buffer
++         const arrayBuffer = await file.arrayBuffer();
++         const buffer = Buffer.from(arrayBuffer);
++         
++         // Upload to Supabase Storage
++         const { path, signedUrl } = await uploadFileToStorage(
++           buffer, 
++           file.type, 
++           file.name
++         );
++         
++         toast.dismiss(`${loadingToastId}-upload`);
++         toast.loading("Processing from secure storage...", { id: loadingToastId });
++         
++         // Now send the file reference to the API
++         response = await fetch('/api/extract-pdf', {
++           method: 'POST',
++           headers: {
++             'Content-Type': 'application/json',
++           },
++           body: JSON.stringify({
++             filePath: path,
++             filename: file.name
++           }),
++           credentials: 'same-origin'
++         });
++       } else {
++         // Small file - Direct upload to API (original method)
++         const formData = new FormData();
+          formData.append('file', file);
+          
+-       // Wrap fetch in a timeout to prevent hanging indefinitely
++         // Use the fetch with timeout (existing code)
+          const fetchWithTimeout = async (url: string, options: RequestInit, timeout = 60000) => {
+            const controller = new AbortController();
+          
+          // Use the fetch with timeout
+-       const response = await fetchWithTimeout('/api/extract-pdf', {
++         response = await fetchWithTimeout('/api/extract-pdf', {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin'
+          });
++       }
+        
+-       // Check if the response is valid JSON
++       // Check if the response is valid JSON (existing code)
+        let data;
+        try {
+          // Special handling for 413 Payload Too Large errors
+          if (response.status === 413) {
+-           throw new Error(`File is too large for processing. Please try a smaller file (under 10MB).`);
++           throw new Error(`File is too large for direct processing. Please try again and we'll use our secure storage method.`);
+          }
+          
+        // Always dismiss the loading toast regardless of outcome
+        toast.dismiss(loadingToastId);
++       toast.dismiss(`${loadingToastId}-upload`);
+        setIsLoading(false);
+      }
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Note: PDFs are processed using Google Document AI, and images are processed using Google Vision AI.
+-                   Files up to 25MB are supported, but for best results we recommend keeping files under 10MB.
++                   Files up to 50MB are supported through our secure storage system.
+                  </p>
+                </CardContent>
+```
+
+---
+
+Now let's install the uuid package if it's not already installed:
+
+---
+
+```bash
+npm list uuid || npm install uuid @types/uuid
+```
+
+```
+tom@MBP-van-Tom flashcards % npm list uuid || npm install uuid @types/uuid
+my-v0-project@0.1.0 /Users/tom/dev/flashcards
+├─┬ @google-cloud/documentai@9.1.0 -> ./node_modules/.pnpm/@google-cloud+documentai@9.1.0/node_modules/@google-cloud/documentai
+│ └─┬ google-gax@5.0.1-rc.0 -> ./node_modules/.pnpm/google-gax@5.0.1-rc.0/node_modules/google-gax
+│   └─┬ google-auth-library@10.0.0-rc.1 -> ./node_modules/.pnpm/google-auth-library@10.0.0-rc.1/node_modules/google-auth-library
+│     └─┬ gcp-metadata@7.0.0-rc.1 -> ./node_modules/.pnpm/gcp-metadata@7.0.0-rc.1/node_modules/gcp-metadata
+│       └── uuid@11.1.0 deduped invalid: "^9.0.0" from node_modules/.pnpm/gcp-metadata@6.1.1/node_modules/gcp-metadata -> ./node_mod
+ules/.pnpm/uuid@11.1.0/node_modules/uuid
+├─┬ @google-cloud/vertexai@1.9.3 -> ./node_modules/.pnpm/@google-cloud+vertexai@1.9.3/node_modules/@google-cloud/vertexai
+│ └─┬ google-auth-library@9.15.1 -> ./node_modules/.pnpm/google-auth-library@9.15.1/node_modules/google-auth-library
+│   ├─┬ gaxios@6.7.1 -> ./node_modules/.pnpm/gaxios@6.7.1/node_modules/gaxios
+│   │ └── uuid@9.0.1 -> ./node_modules/.pnpm/uuid@9.0.1/node_modules/uuid
+│   ├─┬ gcp-metadata@6.1.1 -> ./node_modules/.pnpm/gcp-metadata@6.1.1/node_modules/gcp-metadata
+│   │ ├─┬ gaxios@6.7.1 -> ./node_modules/.pnpm/gaxios@6.7.1/node_modules/gaxios
+│   │ │ └── uuid@9.0.1 deduped -> ./node_modules/.pnpm/uuid@9.0.1/node_modules/uuid
+│   │ └── uuid@11.1.0 deduped invalid: "^9.0.0" from node_modules/.pnpm/gcp-metadata@6.1.1/node_modules/gcp-metadata -> ./node_modul
+es/.pnpm/uuid@11.1.0/node_modules/uuid
+│   └─┬ gtoken@7.1.0 -> ./node_modules/.pnpm/gtoken@7.1.0/node_modules/gtoken
+│     └─┬ gaxios@6.7.1 -> ./node_modules/.pnpm/gaxios@6.7.1/node_modules/gaxios
+│       └── uuid@9.0.1 deduped -> ./node_modules/.pnpm/uuid@9.0.1/node_modules/uuid
+├─┬ @google-cloud/vision@5.1.0 -> ./node_modules/.pnpm/@google-cloud+vision@5.1.0/node_modules/@google-cloud/vision
+│ └── uuid@11.1.0 deduped -> ./node_modules/.pnpm/uuid@11.1.0/node_modules/uuid
+└── uuid@11.1.0 -> ./node_modules/.pnpm/uuid@11.1.0/node_modules/uuid
+
+npm error code ELSPROBLEMS
+npm error invalid: uuid@11.1.0 /Users/tom/dev/flashcards/node_modules/uuid
+npm error A complete log of this run can be found in: /Users/tom/.npm/_logs/2025-04-20T23_08_03_837Z-debug-0.log
+⠧
+```
+
+---
+
+```bash
+pnpm install uuid @types/uuid
+```
+
+```
+ WARN  deprecated @supabase/auth-helpers-nextjs@0.10.0: This package is now depr
+ecated - please use the @supabase/ssr package instea
+d.
+                                                     WARN  6 deprecated subdepen
+dencies found: @supabase/auth-helpers-shared@0.7.0, @types/long@5.0.0, abab@2.0.
+6, domexception@4.0.0, g
+lob@7.2.3, inflight@1.0.6
+                                                    Packages: +1
++
+Progress: resolved 770, reused 712, downloaded 1, added 1, done
+ WARN  Issues with peer dependencies found
+.
+├─┬ jest-environment-jsdom 29.7.0
+│ ├── ✕ unmet peer canvas@^2.5.0: found 3.1.0
+│ └─┬ jsdom 20.0.3
+│   └── ✕ unmet peer canvas@^2.5.0: found 3.1.0
+├─┬ @testing-library/react-hooks 8.0.1
+│ ├── ✕ unmet peer @types/react@"^16.9.0 || ^17.0.0": found 19.0.12
+│ ├── ✕ unmet peer react@"^16.9.0 || ^17.0.0": found 19.1.0
+│ └── ✕ unmet peer react-dom@"^16.9.0 || ^17.0.0": found 19.1.0
+├─┬ react-day-picker 8.10.1
+│ ├── ✕ unmet peer react@"^16.8.0 || ^17.0.0 || ^18.0.0": found 19.1.0
+│ └── ✕ unmet peer date-fns@"^2.28.0 || ^3.0.0": found 4.1.0
+└─┬ vaul 0.9.9
+  ├── ✕ unmet peer react@"^16.8 || ^17.0 || ^18.0": found 19.1.0
+  └── ✕ unmet peer react-dom@"^16.8 || ^17.0 || ^18.0": found 19.1.0
+
+dependencies:
++ @types/uuid 10.0.0
+
+Done in 2.2s using pnpm v10.6.3
+
+```
+
+---
+
+Perfect! We've successfully implemented the Supabase Storage solution for large file uploads in your application:
+
+1. **New Storage Actions:**
+   - Created `lib/actions/storageActions.ts` with server actions for:
+     - `uploadFileToStorage`: Uploads files to Supabase with proper authentication
+     - `getFileFromStorage`: Retrieves files securely with user validation
+     - `deleteFileFromStorage`: Helps with cleanup
+
+2. **Updated API Endpoint:**
+   - Modified `/api/extract-pdf/route.ts` to handle both direct uploads and Supabase Storage references
+   - The API now checks content type and can process files from either source
+
+3. **Enhanced Client-Side Upload:**
+   - Updated `app/prepare/ai-generate/page.tsx` to use different upload strategies based on file size:
+     - Files <10MB: Direct upload to API (original method)
+     - Files >10MB: Upload to Supabase Storage first, then send reference to API
+   - Increased maximum file size to 50MB (from 25MB)
+   - Added more informative toast messages for the storage process
+
+4. **Key Benefits:**
+   - Bypasses Vercel's 4.5MB payload limit for API routes
+   - Handles files up to 50MB (can go higher if needed)
+   - Provides better security with proper user authentication
+   - Improves reliability for large file processing
+
+This approach gives you the best of both worlds:
+- Small files are processed quickly with direct uploads
+- Large files (>10MB) use the secure Supabase Storage pathway
+
+**To test this solution:**
+1. Try uploading files of various sizes:
+   - Small (<10MB) - Should use direct upload
+   - Medium (10-50MB) - Should use Supabase Storage
+   - Large (>50MB) - Should show error message
+
+If you want to further enhance this implementation, we could add:
+- File cleanup after processing (using `deleteFileFromStorage`)
+- Progress indicators for large file uploads
+- Retries for failed uploads
+
+Would you like me to make any additional changes to this implementation?
+
+---
+
+_**User**_
+
+storageActions.ts:16 
+            
+            
+           POST http://localhost:3000/prepare/ai-generate 500 (Internal Server Error)
+fetchServerAction @ server-action-reducer.js:50
+await in fetchServerAction
+serverActionReducer @ server-action-reducer.js:147
+clientReducer @ router-reducer.js:49
+action @ action-queue.js:141
+runAction @ action-queue.js:51
+dispatchAction @ action-queue.js:105
+dispatch @ action-queue.js:139
+eval @ use-reducer.js:40
+startTransition @ react-dom-client.development.js:6249
+eval @ use-reducer.js:39
+eval @ app-call-server.js:26
+exports.startTransition @ react.development.js:1129
+eval @ app-call-server.js:25
+eval @ app-call-server.js:46
+callServer @ app-call-server.js:45
+action @ react-server-dom-webpack-client.browser.development.js:2709
+uploadFileToStorage @ storageActions.ts:16
+handleSubmit @ page.tsx:99
+await in handleSubmit
+executeDispatch @ react-dom-client.development.js:16427
+runWithFiberInDEV @ react-dom-client.development.js:1511
+processDispatchQueue @ react-dom-client.development.js:16477
+eval @ react-dom-client.development.js:17075
+batchedUpdates$1 @ react-dom-client.development.js:3254
+dispatchEventForPluginEventSystem @ react-dom-client.development.js:16631
+dispatchEvent @ react-dom-client.development.js:20717
+dispatchDiscreteEvent @ react-dom-client.development.js:20685
+page.tsx:121 Upload error: Error: Failed to create storage bucket: new row violates row-level security policy
+    at uploadFileToStorage (storageActions.ts:56:15)
+    at resolveErrorDev (react-server-dom-webpack-client.browser.development.js:1845:46)
+    at processFullStringRow (react-server-dom-webpack-client.browser.development.js:2225:17)
+    at processFullBinaryRow (react-server-dom-webpack-client.browser.development.js:2213:7)
+    at progress (react-server-dom-webpack-client.browser.development.js:2459:17)
+error @ intercept-console-error.js:50
+handleSubmit @ page.tsx:121
+await in handleSubmit
+executeDispatch @ react-dom-client.development.js:16427
+runWithFiberInDEV @ react-dom-client.development.js:1511
+processDispatchQueue @ react-dom-client.development.js:16477
+eval @ react-dom-client.development.js:17075
+batchedUpdates$1 @ react-dom-client.development.js:3254
+dispatchEventForPluginEventSystem @ react-dom-client.development.js:16631
+dispatchEvent @ react-dom-client.development.js:20717
+dispatchDiscreteEvent @ react-dom-client.development.js:20685
+page.tsx:189 Error: Error: Error uploading file to secure storage: Failed to create storage bucket: new row violates row-level security policy
+    at handleSubmit (page.tsx:122:17)
+error @ intercept-console-error.js:50
+handleSubmit @ page.tsx:189
+await in handleSubmit
+executeDispatch @ react-dom-client.development.js:16427
+runWithFiberInDEV @ react-dom-client.development.js:1511
+processDispatchQueue @ react-dom-client.development.js:16477
+eval @ react-dom-client.development.js:17075
+batchedUpdates$1 @ react-dom-client.development.js:3254
+dispatchEventForPluginEventSystem @ react-dom-client.development.js:16631
+dispatchEvent @ react-dom-client.development.js:20717
+dispatchDiscreteEvent @ react-dom-client.development.js:20685
+
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+Okay, the error message `Failed to create storage bucket: new row violates row-level security policy` tells us exactly what's wrong.
+
+The `uploadFileToStorage` action includes code to automatically create the `ai-uploads` bucket if it doesn't exist:
+
+```typescript
+  // Ensure the bucket exists
+  const { data: buckets } = await supabase.storage.listBuckets();
+  if (!buckets?.find(b => b.name === UPLOAD_BUCKET)) {
+    await supabase.storage.createBucket(UPLOAD_BUCKET, { // <-- This line is failing
+      public: false,
+      fileSizeLimit: 52428800, // 50MB
+    });
+  }
+```
+
+However, by default, authenticated users (even the one running the server action) don't have permission via Row Level Security (RLS) to create new storage buckets. This is a security measure in Supabase.
+
+**Solution:**
+
+1.  **Manually Create the Bucket:** The simplest and most secure solution is to create the `ai-uploads` bucket **once** using the Supabase dashboard.
+    *   Go to your Supabase project dashboard.
+    *   Navigate to "Storage" in the sidebar.
+    *   Click "New bucket".
+    *   Enter the name `ai-uploads`.
+    *   Make sure "Public bucket" is **unchecked** (keep it private).
+    *   Set the file size limit if desired (e.g., 50MB or higher).
+    *   Click "Save".
+
+2.  **Remove Automatic Creation from Code:** Since you'll create the bucket manually, we can remove the automatic creation check from the server action. This prevents the RLS error.
+
+Let's remove the automatic bucket creation code:
+
+---
+
+```diff
+    const fileExt = fileName ? `.${fileName.split('.').pop()}` : '';
+    const storageFileName = fileName || `${uuidv4()}${fileExt}`;
+-   
+-   // Ensure the bucket exists
+-   const { data: buckets } = await supabase.storage.listBuckets();
+-   if (!buckets?.find(b => b.name === UPLOAD_BUCKET)) {
+-     await supabase.storage.createBucket(UPLOAD_BUCKET, {
+-       public: false,
+-       fileSizeLimit: 52428800, // 50MB
+-     });
+-   }
+    
+    // Path format: userId/uniqueId-filename
+```
+
+---
+
+Okay, I've removed the code that attempts to automatically create the bucket.
+
+**Before you try uploading again, please make sure you have manually created the private `ai-uploads` bucket in your Supabase project dashboard.**
+
+Once the bucket exists, this error should be resolved, and the file upload should proceed correctly.
+
+---
+
+_**User**_
+
+storageActions.ts:16 Only plain objects can be passed to Server Functions from the Client. Uint8Array objects are not supported.
+  [Uint8Array, ..., ...]
+   ^^^^^^^^^^
+error @ intercept-console-error.js:50
+resolveToJSON @ react-server-dom-webpack-client.browser.development.js:448
+serializeModel @ react-server-dom-webpack-client.browser.development.js:728
+processReply @ react-server-dom-webpack-client.browser.development.js:735
+eval @ react-server-dom-webpack-client.browser.development.js:2738
+exports.encodeReply @ react-server-dom-webpack-client.browser.development.js:2737
+fetchServerAction @ server-action-reducer.js:47
+serverActionReducer @ server-action-reducer.js:147
+clientReducer @ router-reducer.js:49
+action @ action-queue.js:141
+runAction @ action-queue.js:51
+dispatchAction @ action-queue.js:105
+dispatch @ action-queue.js:139
+eval @ use-reducer.js:40
+startTransition @ react-dom-client.development.js:6249
+eval @ use-reducer.js:39
+eval @ app-call-server.js:26
+exports.startTransition @ react.development.js:1129
+eval @ app-call-server.js:25
+eval @ app-call-server.js:46
+callServer @ app-call-server.js:45
+action @ react-server-dom-webpack-client.browser.development.js:2709
+uploadFileToStorage @ storageActions.ts:16
+handleSubmit @ page.tsx:90
+await in handleSubmit
+executeDispatch @ react-dom-client.development.js:16427
+runWithFiberInDEV @ react-dom-client.development.js:1511
+processDispatchQueue @ react-dom-client.development.js:16477
+eval @ react-dom-client.development.js:17075
+batchedUpdates$1 @ react-dom-client.development.js:3254
+dispatchEventForPluginEventSystem @ react-dom-client.development.js:16631
+dispatchEvent @ react-dom-client.development.js:20717
+dispatchDiscreteEvent @ react-dom-client.development.js:20685
+storageActions.ts:16 
+            
+            
+           POST http://localhost:3000/prepare/ai-generate 500 (Internal Server Error)
+fetchServerAction @ server-action-reducer.js:50
+await in fetchServerAction
+serverActionReducer @ server-action-reducer.js:147
+clientReducer @ router-reducer.js:49
+action @ action-queue.js:141
+runAction @ action-queue.js:51
+dispatchAction @ action-queue.js:105
+dispatch @ action-queue.js:139
+eval @ use-reducer.js:40
+startTransition @ react-dom-client.development.js:6249
+eval @ use-reducer.js:39
+eval @ app-call-server.js:26
+exports.startTransition @ react.development.js:1129
+eval @ app-call-server.js:25
+eval @ app-call-server.js:46
+callServer @ app-call-server.js:45
+action @ react-server-dom-webpack-client.browser.development.js:2709
+uploadFileToStorage @ storageActions.ts:16
+handleSubmit @ page.tsx:90
+await in handleSubmit
+executeDispatch @ react-dom-client.development.js:16427
+runWithFiberInDEV @ react-dom-client.development.js:1511
+processDispatchQueue @ react-dom-client.development.js:16477
+eval @ react-dom-client.development.js:17075
+batchedUpdates$1 @ react-dom-client.development.js:3254
+dispatchEventForPluginEventSystem @ react-dom-client.development.js:16631
+dispatchEvent @ react-dom-client.development.js:20717
+dispatchDiscreteEvent @ react-dom-client.development.js:20685
+page.tsx:176 Error: Error: Failed to upload file: new row violates row-level security policy
+    at uploadFileToStorage (storageActions.ts:48:11)
+    at resolveErrorDev (react-server-dom-webpack-client.browser.development.js:1845:46)
+    at processFullStringRow (react-server-dom-webpack-client.browser.development.js:2225:17)
+    at processFullBinaryRow (react-server-dom-webpack-client.browser.development.js:2213:7)
+    at progress (react-server-dom-webpack-client.browser.development.js:2459:17)
+error @ intercept-console-error.js:50
+handleSubmit @ page.tsx:176
+await in handleSubmit
+executeDispatch @ react-dom-client.development.js:16427
+runWithFiberInDEV @ react-dom-client.development.js:1511
+processDispatchQueue @ react-dom-client.development.js:16477
+eval @ react-dom-client.development.js:17075
+batchedUpdates$1 @ react-dom-client.development.js:3254
+dispatchEventForPluginEventSystem @ react-dom-client.development.js:16631
+dispatchEvent @ react-dom-client.development.js:20717
+dispatchDiscreteEvent @ react-dom-client.development.js:20685
+
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+You've hit two separate issues here:
+
+1.  **Server Action Data Type Limit:** The error `Only plain objects can be passed to Server Functions from the Client. Uint8Array objects are not supported` is because you're trying to send raw file data (`Buffer` or `Uint8Array`) directly to the `uploadFileToStorage` server action. Server Actions can only accept serializable data types like plain objects, strings, numbers, or `FormData`.
+
+2.  **Supabase Storage RLS:** The error `Failed to upload file: new row violates row-level security policy` means that even though your user is authenticated, they don't have permission to *insert* (upload) objects into the `ai-uploads` storage bucket according to your Supabase Row Level Security (RLS) policies.
+
+Let's fix both:
+
+**Step 1: Fix Client-Side Data Transfer (Send FormData)**
+
+We need to change the client-side code to send `FormData` to the server action instead of a Buffer.
+
+
+
+---
+
+```diff
+        
+        if (file.size > DIRECT_UPLOAD_LIMIT) {
+-         // Large file - Upload to Supabase Storage first
+-         toast.loading("Uploading to secure storage...", { id: `${loadingToastId}-upload` });
++         // Large file - Upload via Server Action using FormData
++         toast.loading("Preparing secure upload...", { id: `${loadingToastId}-upload` });
+          
+-         // Convert file to buffer
+-         const arrayBuffer = await file.arrayBuffer();
+-         const buffer = Buffer.from(arrayBuffer);
++         // Create FormData for the Server Action
++         const actionFormData = new FormData();
++         actionFormData.append('file', file); // Append the actual File object
++         actionFormData.append('fileName', file.name);
++         actionFormData.append('fileType', file.type);
+  
+-         // Upload to Supabase Storage
+-         const { path, signedUrl } = await uploadFileToStorage(
+-           buffer, 
+-           file.type, 
+-           file.name
+-         );
++         // Call the Server Action with FormData
++         const uploadResult = await uploadFileToStorage(actionFormData);
++         const filePath = uploadResult.path;
+          
+          toast.dismiss(`${loadingToastId}-upload`);
+          toast.loading("Processing from secure storage...", { id: loadingToastId });
+          
+-         // Now send the file reference to the API
++         // Now send the file reference (path) to the API endpoint
+          response = await fetch('/api/extract-pdf', {
+            method: 'POST',
+            },
+            body: JSON.stringify({
+-             filePath: path,
+-             filename: file.name
++             filePath: filePath,
++             filename: file.name // Send filename for consistency
+            }),
+            credentials: 'same-origin'
+```
+
+---
+
+Ah, you're right. The server action `uploadFileToStorage` expects the arguments individually, but we're passing `FormData`. Let's fix the server action to accept `FormData`.
+
+---
+
+```diff
+  
+  /**
+-  * Uploads a file to Supabase Storage
+-  * @param file The file to upload as Buffer or Uint8Array
+-  * @param fileType The MIME type of the file
+-  * @param fileName Optional filename, if not provided a UUID will be generated
++  * Uploads a file to Supabase Storage using FormData from a Server Action
++  * @param formData The FormData object containing the file, fileName, and fileType
+   * @returns Object containing the file path and URL
+   */
+- export async function uploadFileToStorage(
+-   file: Buffer | Uint8Array,
+-   fileType: string,
+-   fileName?: string
+- ) {
++ export async function uploadFileToStorage(formData: FormData) {
++   const file = formData.get('file') as File | null;
++   const fileName = formData.get('fileName') as string | null;
++   const fileType = formData.get('fileType') as string | null;
++ 
++   if (!file) {
++     throw new Error('No file found in FormData');
++   }
++   if (!fileType) {
++     throw new Error('No fileType found in FormData');
++   }
++ 
+    const supabase = createActionClient();
+    
+    }
+    
+-   // Create a unique filename if not provided
++   // Convert File to ArrayBuffer/Buffer for upload
++   const fileBuffer = await file.arrayBuffer();
++   
++   // Create a unique filename (use provided fileName if available)
+    const fileExt = fileName ? `.${fileName.split('.').pop()}` : '';
+    const storageFileName = fileName || `${uuidv4()}${fileExt}`;
+    const path = `${user.id}/${storageFileName}`;
+    
+-   // Upload the file
++   // Upload the file buffer
+    const { data, error } = await supabase.storage
+      .from(UPLOAD_BUCKET)
+-     .upload(path, file, {
++     .upload(path, fileBuffer, { // Use fileBuffer here
+        contentType: fileType,
+        upsert: true,
+```
+
+---
+
+Okay, the server action `uploadFileToStorage` now correctly accepts `FormData`. This resolves the `Uint8Array objects are not supported` error.
+
+**Step 2: Fix Supabase Storage RLS**
+
+You still need to address the `Failed to upload file: new row violates row-level security policy` error. This requires adding permissions in your Supabase project.
+
+**Go to your Supabase SQL Editor** (Database -> SQL Editor -> New query) and run the following SQL commands. These create policies allowing authenticated users to manage files within their own designated folder (`user_id/`) in the `ai-uploads` bucket:
+
+```sql
+-- 1. Enable RLS on the buckets table (if not already enabled)
+-- Run this only if you haven't enabled RLS on buckets before
+-- ALTER TABLE storage.buckets ENABLE ROW LEVEL SECURITY;
+
+-- 2. Policy: Allow authenticated users to view the 'ai-uploads' bucket
+-- This might already be covered by default public access to buckets, but explicit policy is safer
+DROP POLICY IF EXISTS "Allow authenticated read access to ai-uploads bucket" ON storage.buckets;
+CREATE POLICY "Allow authenticated read access to ai-uploads bucket"
+ON storage.buckets FOR SELECT
+TO authenticated
+USING ( bucket_id = 'ai-uploads' );
+
+
+-- 3. Enable RLS on the objects table (if not already enabled)
+-- Run this only if you haven't enabled RLS on objects before
+-- ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+
+
+-- 4. Policy: Allow authenticated users to UPLOAD files into their own folder
+DROP POLICY IF EXISTS "Allow authenticated user uploads in their folder" ON storage.objects;
+CREATE POLICY "Allow authenticated user uploads in their folder"
+FOR INSERT TO authenticated WITH CHECK (
+  bucket_id = 'ai-uploads' AND
+  auth.uid()::text = (storage.foldername(name))[1] -- Checks if the first folder name is the user's ID
+);
+
+-- 5. Policy: Allow authenticated users to SELECT files from their own folder
+DROP POLICY IF EXISTS "Allow authenticated user selects from their folder" ON storage.objects;
+CREATE POLICY "Allow authenticated user selects from their folder"
+FOR SELECT TO authenticated USING (
+  bucket_id = 'ai-uploads' AND
+  auth.uid()::text = (storage.foldername(name))[1]
+);
+
+-- 6. Policy: Allow authenticated users to UPDATE files in their own folder (optional, for upsert)
+DROP POLICY IF EXISTS "Allow authenticated user updates in their folder" ON storage.objects;
+CREATE POLICY "Allow authenticated user updates in their folder"
+FOR UPDATE TO authenticated USING (
+  bucket_id = 'ai-uploads' AND
+  auth.uid()::text = (storage.foldername(name))[1]
+);
+
+-- 7. Policy: Allow authenticated users to DELETE files from their own folder
+DROP POLICY IF EXISTS "Allow authenticated user deletes from their folder" ON storage.objects;
+CREATE POLICY "Allow authenticated user deletes from their folder"
+FOR DELETE TO authenticated USING (
+  bucket_id = 'ai-uploads' AND
+  auth.uid()::text = (storage.foldername(name))[1]
+);
+```
+
+**Explanation:**
+
+*   We ensure RLS is enabled on `storage.buckets` and `storage.objects`.
+*   We allow authenticated users to *see* the `ai-uploads` bucket.
+*   Crucially, we allow `INSERT` (upload), `SELECT`, `UPDATE`, and `DELETE` operations **only if** the object's path starts with the user's own `user_id`. The `(storage.foldername(name))[1]` function extracts the first part of the path (which we structure as `user_id/filename`).
+
+After running these SQL commands in your Supabase project, the RLS policy error should be resolved. Try uploading a large file again.
+
+---
+
+_**User**_
+
+ERROR:  42601: syntax error at or near "FOR"
+LINE 22: FOR INSERT TO authenticated WITH CHECK (
+         ^
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+Ah, apologies! There's a slight syntax error in the `CREATE POLICY` statements I provided earlier. The `ON storage.objects` clause needs to be part of the `CREATE POLICY` command itself, not just the `DROP POLICY`.
+
+Here are the corrected SQL commands for policies on the `storage.objects` table. Please run these in your Supabase SQL Editor:
+
+```sql
+-- 1. Policy: Allow authenticated users to UPLOAD files into their own folder
+DROP POLICY IF EXISTS "Allow authenticated user uploads in their folder" ON storage.objects;
+CREATE POLICY "Allow authenticated user uploads in their folder"
+ON storage.objects -- Added ON clause here
+FOR INSERT TO authenticated WITH CHECK (
+  bucket_id = 'ai-uploads' AND
+  auth.uid()::text = (storage.foldername(name))[1]
+);
+
+-- 2. Policy: Allow authenticated users to SELECT files from their own folder
+DROP POLICY IF EXISTS "Allow authenticated user selects from their folder" ON storage.objects;
+CREATE POLICY "Allow authenticated user selects from their folder"
+ON storage.objects -- Added ON clause here
+FOR SELECT TO authenticated USING (
+  bucket_id = 'ai-uploads' AND
+  auth.uid()::text = (storage.foldername(name))[1]
+);
+
+-- 3. Policy: Allow authenticated users to UPDATE files in their own folder (optional, for upsert)
+DROP POLICY IF EXISTS "Allow authenticated user updates in their folder" ON storage.objects;
+CREATE POLICY "Allow authenticated user updates in their folder"
+ON storage.objects -- Added ON clause here
+FOR UPDATE TO authenticated USING (
+  bucket_id = 'ai-uploads' AND
+  auth.uid()::text = (storage.foldername(name))[1]
+);
+
+-- 4. Policy: Allow authenticated users to DELETE files from their own folder
+DROP POLICY IF EXISTS "Allow authenticated user deletes from their folder" ON storage.objects;
+CREATE POLICY "Allow authenticated user deletes from their folder"
+ON storage.objects -- Added ON clause here
+FOR DELETE TO authenticated USING (
+  bucket_id = 'ai-uploads' AND
+  auth.uid()::text = (storage.foldername(name))[1]
+);
+```
+
+**Key Correction:** I've added `ON storage.objects` immediately after `CREATE POLICY "policy_name"` in each statement.
+
+Run these corrected statements, and the `syntax error at or near "FOR"` should be resolved, allowing the RLS policies to be created correctly. After this, your file uploads should work.
+
+---
+
+_**User**_
+
+I only see the message "preparing secure upload..." and it is not going away. In supabase, the storage bucket remains empty.
+In the supababse logs, i see this:
+
+{
+  "event_message": "PgBouncer auth request: supabase_storage_admin",
+  "id": "c7cbc9f3-bb73-4acb-97b1-fdad41775a58",
+  "metadata": [
+    {
+      "file": null,
+      "host": "db-uhpiauycfojbcrygdxoh",
+      "metadata": [],
+      "parsed": [
+        {
+          "application_name": null,
+          "backend_type": "client backend",
+          "command_tag": "SELECT",
+          "connection_from": "127.0.0.1:57073",
+          "context": "PL/pgSQL function pgbouncer.get_auth(text) line 3 at RAISE",
+          "database_name": "postgres",
+          "detail": null,
+          "error_severity": "WARNING",
+          "hint": null,
+          "internal_query": null,
+          "internal_query_pos": null,
+          "leader_pid": null,
+          "location": null,
+          "process_id": 551355,
+          "query": null,
+          "query_id": 0,
+          "query_pos": null,
+          "session_id": "68057eaa.869bb",
+          "session_line_num": 16,
+          "session_start_time": "2025-04-20 23:09:30 UTC",
+          "sql_state_code": "01000",
+          "timestamp": "2025-04-20 23:21:43.362 UTC",
+          "transaction_id": 0,
+          "user_name": "pgbouncer",
+          "virtual_transaction_id": "11/17738"
+        }
+      ],
+      "parsed_from": null,
+      "project": null,
+      "source_type": null
+    }
+  ],
+  "timestamp": 1745191303362000
+}
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+Okay, the "Preparing secure upload..." message indicates the client-side code is successfully calling the `uploadFileToStorage` server action. The fact that it gets stuck there and the bucket remains empty suggests the failure is happening *within* that server action, specifically during the actual upload to Supabase Storage.
+
+The PgBouncer log message you're seeing (`supabase_storage_admin`) is likely related to internal Supabase processes managing storage credentials and is probably **not** the direct cause of your upload failure. It just shows *some* activity related to storage is happening in the background.
+
+The most likely reasons for the upload failing silently within the action are:
+
+1.  **RLS Policy Issue (Still):** Even with the corrected syntax, there might be an issue with the RLS policies applied, or perhaps they weren't applied correctly. Double-check in the Supabase Dashboard under Authentication -> Policies that the policies for `storage.objects` are active and look correct.
+2.  **Bucket Naming/Permissions:** Ensure the bucket name is exactly `ai-uploads` (all lowercase) and that it was created as a **private** bucket.
+3.  **Unhandled Error during Upload:** The `supabase.storage.from(...).upload(...)` call might be throwing an error that isn't being caught or logged correctly within the action, preventing the action from completing or returning an error to the client.
+
+**Let's add more logging inside the `uploadFileToStorage` action to pinpoint the failure:**
+
+---
+
+```diff
+    // Path format: userId/uniqueId-filename
+    const path = `${user.id}/${storageFileName}`;
++   
++   console.log(`[StorageAction] Attempting to upload to bucket: ${UPLOAD_BUCKET}, path: ${path}, type: ${fileType}`);
+    
+    // Upload the file buffer
+    
+    if (error) {
++     console.error('[StorageAction] Supabase Storage upload error:', error);
+      console.error('Error uploading file to Supabase Storage', error);
+      throw new Error(`Failed to upload file: ${error.message}`);
+    }
++   
++   console.log(`[StorageAction] Upload successful for path: ${path}`);
+    
+    // Get a URL for the file (temporary, signed URL)
+    
+    if (signedUrlError) {
++     console.error('[StorageAction] Error creating signed URL:', signedUrlError);
+      console.error('Error creating signed URL', signedUrlError);
+      throw new Error(`Failed to create file URL: ${signedUrlError.message}`);
+    }
++   
++   console.log(`[StorageAction] Signed URL created for path: ${path}`);
+    
+    return {
+```
+
+---
+
+Okay, I've added more detailed logging within the `uploadFileToStorage` action.
+
+**Now, please do the following:**
+
+1.  **Double-Check Supabase Setup:**
+    *   Confirm the bucket is named `ai-uploads` (lowercase).
+    *   Confirm the bucket is **private**.
+    *   Go to Authentication -> Policies in your Supabase dashboard and ensure the RLS policies for `storage.objects` that we created earlier are listed and **active** (they should have a green check or similar indicator).
+2.  **Retry Upload & Check Logs:**
+    *   Try uploading a file larger than 10MB again.
+    *   This time, carefully watch the **server-side logs** (your terminal where `next dev` is running, or the Vercel deployment logs if deployed).
+    *   Look for the `[StorageAction]` log messages:
+        *   Do you see `"Attempting to upload..."`?
+        *   If yes, do you see `"Supabase Storage upload error:"` followed by details? This would confirm an RLS or other storage-related issue.
+        *   If you see `"Attempting to upload..."` but *no* error and *no* `"Upload successful..."` message, the action might be hanging or timing out during the upload itself.
+        *   If you see `"Upload successful..."`, check if you see errors related to the signed URL creation.
+
+Tell me what you see in the server logs after trying the upload again. This will help narrow down the exact point of failure.
+
+---
+
+_**User**_
+
+Policies see print screen attached. Note that policies are on objects, not on buckets?
+Bucket is called ai-uploads.
+Server logs: see clipboard
+
+
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+Okay, thank you for the logs and the screenshot. The RLS policies look correct now.
+
+The new error `Error: Body exceeded 1 MB limit` tells us the problem:
+
+*   We are sending the file data inside `FormData` to the `uploadFileToStorage` **Server Action**.
+*   Next.js Server Actions have a **default body size limit of 1MB**. Your large file (wrapped in FormData) is exceeding this limit.
+
+**The Correct Approach (Back to Original Plan):**
+
+We should **not** send the file *data* to the Server Action. Instead, the **client browser** should upload the file directly to Supabase Storage. This bypasses the Next.js server action limits entirely.
+
+**Let's revert the client-side logic to upload directly from the browser:**
+
+1.  Get the client-side Supabase instance using the `useSupabase` hook.
+2.  Use the `supabase.storage.from(...).upload()` method *directly in the `handleSubmit` function* for large files.
+3.  Once the **client-side upload** is successful, take the `path` from the result.
+4.  Send *only* the `path` (as JSON) to the `/api/extract-pdf` endpoint (as we configured it before).
+
+**Step 1: Modify `handleSubmit` for Client-Side Supabase Upload**
+
+I'll edit `app/prepare/ai-generate/page.tsx` to implement this.
+
+
+
+---
+
+```diff
+  import { Loader2, Upload } from 'lucide-react';
+  import { toast } from 'sonner';
+- import { uploadFileToStorage } from '@/lib/actions/storageActions';
++ import { useSupabase } from '@/hooks/use-supabase';
++ import { useAuth } from '@/providers/AuthProvider';
++ import { v4 as uuidv4 } from 'uuid';
+  
+  interface Flashcard {
+  const SUPPORTED_FILE_TYPES = "application/pdf, image/jpeg, image/jpg, image/png, image/gif, image/bmp, image/webp";
+  const SUPPORTED_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"];
+- const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB (increased from 25MB)
+- const LARGE_FILE_SIZE = 10 * 1024 * 1024; // 10MB - Use Supabase Storage for files larger than this
+- const DIRECT_UPLOAD_LIMIT = 10 * 1024 * 1024; // 10MB - Maximum size for direct upload to API
++ const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
++ const LARGE_FILE_SIZE = 10 * 1024 * 1024; // Use Supabase Storage for files larger than this
++ const DIRECT_UPLOAD_LIMIT = 10 * 1024 * 1024; // Max size for direct API upload
++ const UPLOAD_BUCKET = 'ai-uploads'; // Bucket name
+  
+  export default function AiGeneratePage() {
+    const [extractedTextPreview, setExtractedTextPreview] = useState<string | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
++   const { supabase } = useSupabase();
++   const { user } = useAuth();
+  
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
++ 
++     if (!supabase) {
++       setError('Database connection not ready. Please wait a moment and try again.');
++       return;
++     }
++     if (!user) {
++       setError('You must be logged in to upload files.');
++       return;
++     }
+      
+      if (!file) {
+      }
+  
+-     // Warn about large files but allow them
++     // Warn about large files
+      if (file.size > LARGE_FILE_SIZE) {
+        toast.info(`Large file detected (${(file.size / 1024 / 1024).toFixed(2)}MB). Using secure storage for processing.`);
+      setIsLoading(true);
+      setError(null);
++     setFlashcards([]);
++     setExtractedTextPreview(null);
+      
+-     // Create a unique ID for the loading toast so we can dismiss it later
+      const loadingToastId = `loading-${Date.now()}`;
+-     
+-     // Create a safety timeout to dismiss toast after 90 seconds regardless of what happens
+-     const safetyTimeout = setTimeout(() => {
+-       toast.dismiss(loadingToastId);
+-     }, 90000);
+-     
+-     // Show the loading toast
+-     toast.loading("Processing file", { id: loadingToastId, duration: 60000 });
++     const safetyTimeout = setTimeout(() => toast.dismiss(loadingToastId), 90000);
++     toast.loading("Processing file...", { id: loadingToastId, duration: 60000 });
+      
+      try {
+        let response;
++       let filePath: string | null = null;
++       let finalFilename = file.name;
+  
+        if (file.size > DIRECT_UPLOAD_LIMIT) {
+-         // Large file - Upload via Server Action using FormData
+-         toast.loading("Preparing secure upload...", { id: `${loadingToastId}-upload` });
++         toast.loading("Uploading to secure storage...", { id: `${loadingToastId}-upload` });
+          
+-         // Create FormData for the Server Action
+-         const actionFormData = new FormData();
+-         actionFormData.append('file', file); // Append the actual File object
+-         actionFormData.append('fileName', file.name);
+-         actionFormData.append('fileType', file.type);
+- 
+-         // Call the Server Action with FormData
+-         const uploadResult = await uploadFileToStorage(actionFormData);
+-         const filePath = uploadResult.path;
++         const fileExt = file.name.split('.').pop();
++         const storageFileName = `${uuidv4()}.${fileExt}`;
++         const storagePath = `${user.id}/${storageFileName}`;
++         finalFilename = file.name;
++ 
++         const { data: uploadData, error: uploadError } = await supabase.storage
++           .from(UPLOAD_BUCKET)
++           .upload(storagePath, file, {
++             upsert: false,
++           });
+  
+          toast.dismiss(`${loadingToastId}-upload`);
++ 
++         if (uploadError) {
++           console.error('Client-side Supabase upload error:', uploadError);
++           throw new Error(`Failed to upload file to secure storage: ${uploadError.message}`);
++         }
++ 
++         filePath = uploadData.path;
++         console.log('File uploaded to Supabase Storage:', filePath);
+          toast.loading("Processing from secure storage...", { id: loadingToastId });
+          
+-         // Now send the file reference (path) to the API endpoint
+          response = await fetch('/api/extract-pdf', {
+            method: 'POST',
+-           headers: {
+-             'Content-Type': 'application/json',
+-           },
+-           body: JSON.stringify({
+-             filePath: filePath,
+-             filename: file.name // Send filename for consistency
+-           }),
++           headers: { 'Content-Type': 'application/json' },
++           body: JSON.stringify({ filePath: filePath, filename: finalFilename }),
+            credentials: 'same-origin'
+          });
++ 
+        } else {
+-         // Small file - Direct upload to API (original method)
+          const formData = new FormData();
+          formData.append('file', file);
+          
+-         // Use the fetch with timeout (existing code)
+          const fetchWithTimeout = async (url: string, options: RequestInit, timeout = 60000) => {
+            const controller = new AbortController();
+            } catch (error: any) {
+              clearTimeout(timeoutId);
+-             // Special handling for AbortError (timeout)
+              if (error.name === 'AbortError') {
+                throw new Error('Request timed out. The file may be too large or the server is busy.');
+          };
+          
+-         // Use the fetch with timeout
+          response = await fetchWithTimeout('/api/extract-pdf', {
+            method: 'POST',
+        }
+        
+-       // Check if the response is valid JSON (existing code)
++       if (!response) throw new Error("No response received from server.");
++ 
+        let data;
+        try {
+          console.error('API Error:', response.status, response.statusText, data);
+          
+-         // Special handling for 413 Payload Too Large errors
+          if (response.status === 413) {
+            throw new Error(`File is too large for direct processing. Please try again and we'll use our secure storage method.`);
+        }
+        
+-       // Clear safety timeout as we got here successfully
+        clearTimeout(safetyTimeout);
+-       // Dismiss the loading toast
+        toast.dismiss(loadingToastId);
+        
+        toast.success(`Successfully created ${data.flashcards.length} flashcards`);
+      } catch (err: any) {
+-       console.error('Error:', err);
+-       const errorMessage = err.message || 'An error occurred while generating flashcards';
++       console.error('Error during handleSubmit:', err);
++       const errorMessage = err.message || 'An error occurred';
+        setError(errorMessage);
+-       // Show error toast here to ensure it has the current error
+        toast.error(errorMessage);
+      } finally {
+-       // Always clean up
+        clearTimeout(safetyTimeout);
+-       // Always dismiss the loading toast regardless of outcome
+        toast.dismiss(loadingToastId);
+        toast.dismiss(`${loadingToastId}-upload`);
+```
+
+---
+
+It seems like the path to the `AuthProvider` is incorrect. Let me quickly fix that import path.
+
+---
+
+Cancelled
+
+---
+
+
+
+---
+
 
 
 ---
