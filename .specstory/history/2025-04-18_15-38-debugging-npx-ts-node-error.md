@@ -12676,7 +12676,293 @@ Read file: app/prepare/ai-generate/page.tsx
 
 ---
 
-Let's update the client-side to handle
+Let's update the client-side to handle the larger file size error better and also increase the client timeout:
+
+---
+
+```diff
+  const SUPPORTED_FILE_TYPES = "application/pdf, image/jpeg, image/jpg, image/png, image/gif, image/bmp, image/webp";
+  const SUPPORTED_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"];
++ const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
++ const LARGE_FILE_SIZE = 10 * 1024 * 1024; // 10MB - Show warning but allow upload
+  
+  export default function AiGeneratePage() {
+        return;
+      }
++ 
++     // Check file size
++     if (file.size > MAX_FILE_SIZE) {
++       setError(`File too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum size is 25MB.`);
++       return;
++     }
++ 
++     // Warn about large files but allow them
++     if (file.size > LARGE_FILE_SIZE) {
++       toast.info(`Large file detected (${(file.size / 1024 / 1024).toFixed(2)}MB). Processing may take longer.`);
++     }
+  
+      setIsLoading(true);
+      const loadingToastId = `loading-${Date.now()}`;
+      
+-     // Create a safety timeout to dismiss toast after 30 seconds regardless of what happens
++     // Create a safety timeout to dismiss toast after 90 seconds regardless of what happens
+      const safetyTimeout = setTimeout(() => {
+        toast.dismiss(loadingToastId);
+-     }, 30000);
++     }, 90000);
+      
+      // Show the loading toast
+-     toast.loading("Processing file", { id: loadingToastId, duration: 30000 });
++     toast.loading("Processing file", { id: loadingToastId, duration: 60000 });
+      
+      try {
+        // Create a new FormData instance
+        const formData = new FormData();
+        
+-       // Explicitly set filename when appending to FormData
+-       // This helps with Vercel's handling of files
+-       const fileBlob = new Blob([await file.arrayBuffer()], { type: file.type });
+-       formData.append('file', fileBlob, file.name);
++       // Simply append the file directly - Vercel's Node.js runtime should handle it
++       formData.append('file', file);
+        
+        // Wrap fetch in a timeout to prevent hanging indefinitely
+-       const fetchWithTimeout = async (url: string, options: RequestInit, timeout = 25000) => {
++       const fetchWithTimeout = async (url: string, options: RequestInit, timeout = 60000) => {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), timeout);
+            clearTimeout(timeoutId);
+            return response;
+-         } catch (error) {
++         } catch (error: any) {
+            clearTimeout(timeoutId);
++           // Special handling for AbortError (timeout)
++           if (error.name === 'AbortError') {
++             throw new Error('Request timed out. The file may be too large or the server is busy.');
++           }
+            throw error;
+          }
+        const response = await fetchWithTimeout('/api/extract-pdf', {
+          method: 'POST',
+-         headers: {
+-           'Accept': 'application/json',
+-           // No Content-Type header when using FormData (browser sets it with boundary)
+-         },
+          body: formData,
+-         // Include credentials for same-origin requests
+          credentials: 'same-origin'
+        });
+        if (!response.ok) {
+          console.error('API Error:', response.status, response.statusText, data);
++         
++         // Special handling for 413 Payload Too Large errors
++         if (response.status === 413) {
++           throw new Error(`File is too large for processing. Please try a smaller file (under 10MB).`);
++         }
++         
+          throw new Error(data?.message || `Error: ${response.status} ${response.statusText}`);
+        }
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Note: PDFs are processed using Google Document AI, and images are processed using Google Vision AI.
+-                   Files up to 25MB are supported.
++                   Files up to 25MB are supported, but for best results we recommend keeping files under 10MB.
+                  </p>
+                </CardContent>
+```
+
+---
+
+Now let's also update the backend file upload handling to accommodate larger files:
+
+---
+
+```diff
+    runtime: 'nodejs',
+    regions: ['iad1'], // US East (N. Virginia)
+-   maxDuration: 60
++   maxDuration: 90, // Increase to 90 seconds for larger files
++   api: {
++     bodyParser: {
++       sizeLimit: '26mb' // Slightly larger than the client-side limit
++     }
++   }
+  };
+  
+```
+
+---
+
+I've made several important changes to improve handling of large file uploads:
+
+1. **In Vercel.json**:
+   - Increased memory allocation from 1024MB to 3008MB (the maximum allowed)
+   - Increased maxDuration from 60 to 90 seconds
+   - Added explicit route configuration for the API endpoint
+
+2. **In the client-side code** (app/prepare/ai-generate/page.tsx):
+   - Added explicit file size constants (25MB max, 10MB warning threshold)
+   - Added client-side file size validation to prevent attempting to upload files that are too large
+   - Added a warning for large files (>10MB) to set user expectations
+   - Increased the client-side timeout from 25s to 60s
+   - Simplified the file upload approach by directly appending the file to FormData
+   - Added specific error handling for "413 Payload Too Large" errors
+   - Updated user-facing messages to recommend keeping files under 10MB for best results
+   - Added special handling for timeout errors with a more user-friendly message
+
+3. **In the API route config** (app/api/extract-pdf/route.ts):
+   - Increased maxDuration from 60 to 90 seconds
+   - Added bodyParser configuration with a sizeLimit of 26MB
+
+These changes should resolve the "413 Payload Too Large" error by:
+
+1. Increasing the server-side limits for body/payload size
+2. Improving client-side validation to prevent uploading files that are too large
+3. Adding better error handling for cases where the file is still too large
+
+After deploying these changes, you should be able to upload larger files up to 25MB, though I've added a recommendation to keep files under 10MB for optimal performance.
+
+---
+
+_**User**_
+
+
+The `vercel.json` schema validation failed with the following message: `routes[0]` should NOT have additional property `source`
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+The error occurs because the `routes` configuration in your `vercel.json` file is incorrect according to the Vercel schema validation. Let's fix it by updating the file with the correct format:
+
+---
+
+```diff
+      }
+    },
+-   "routes": [
++   "headers": [
+      {
+        "source": "/api/extract-pdf",
+-       "destination": "/api/extract-pdf"
++       "headers": [
++         {
++           "key": "Content-Type",
++           "value": "application/json"
++         }
++       ]
+      }
+    ]
+```
+
+---
+
+The schema validation failed because we were using the `routes` configuration incorrectly. In Vercel's configuration:
+
+1. There isn't a need to specify a `routes` entry that simply maps an endpoint to itself (like mapping `/api/extract-pdf` to `/api/extract-pdf`).
+
+2. I've replaced it with a `headers` configuration instead, which is valid in Vercel's schema and adds the `Content-Type: application/json` header to the API endpoint.
+
+For handling large file uploads with Vercel, the most important parts of your configuration are already correct:
+
+1. The `functions` configuration with increased memory (3008MB) and maxDuration (90 seconds)
+2. The runtime configuration in your API route that specifies `nodejs` runtime
+
+The code in your API route (`app/api/extract-pdf/route.ts`) already has the proper configuration for handling large files:
+
+```typescript
+export const config = {
+  runtime: 'nodejs',
+  regions: ['iad1'], // US East (N. Virginia)
+  maxDuration: 90, // Increase to 90 seconds for larger files
+  api: {
+    bodyParser: {
+      sizeLimit: '26mb' // Slightly larger than the client-side limit
+    }
+  }
+};
+```
+
+Deploy your application with this updated `vercel.json` file, and the schema validation error should be resolved while maintaining the capability to handle large file uploads.
+
+---
+
+_**User**_
+
+nope, now it even does not want to start the build - deployment failed according to git
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+Let's simplify the `vercel.json` file to just include the essential configuration:
+
+---
+
+```diff
+        "maxDuration": 90
+      }
+-   },
+-   "headers": [
+-     {
+-       "source": "/api/extract-pdf",
+-       "headers": [
+-         {
+-           "key": "Content-Type",
+-           "value": "application/json"
+-         }
+-       ]
+-     }
+-   ]
++   }
+  } 
+```
+
+---
+
+I've simplified the `vercel.json` file to include only the essential configuration needed for handling large files:
+
+```json
+{
+  "functions": {
+    "app/api/extract-pdf/route.ts": {
+      "memory": 3008,
+      "maxDuration": 90
+    }
+  }
+}
+```
+
+This simplified configuration should pass Vercel's schema validation while still providing the increased memory and execution time needed for processing large files.
+
+For large file handling, we're now relying on:
+
+1. This `vercel.json` configuration for increased memory and execution time
+2. The API route configuration in your code for the bodyParser size limit:
+
+```typescript
+export const config = {
+  runtime: 'nodejs',
+  regions: ['iad1'],
+  maxDuration: 90,
+  api: {
+    bodyParser: {
+      sizeLimit: '26mb'
+    }
+  }
+};
+```
+
+The `headers` section was likely causing the validation error since Vercel has specific requirements for how headers should be configured.
+
+Please deploy with this simplified `vercel.json` and let me know if you encounter any further issues. If the build still fails, we might need to check the deployment logs to understand the specific error.
 
 ---
 
