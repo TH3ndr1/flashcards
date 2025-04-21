@@ -4,104 +4,6 @@
 
 _**User**_
 
-I want to run npx ts-node test-gcp-apis.ts but I get an error (see clipboard)
-
----
-
-_**Assistant**_
-
-
-
----
-
-Okay, I see the error `ERR_UNKNOWN_FILE_EXTENSION` in your terminal output. This typically happens when Node.js tries to run a TypeScript (`.ts`) file directly using its ES Module loader but doesn't recognize the `.ts` extension, or when `ts-node` isn't configured correctly to hook into the module loading process.
-
-Looking at your `tsconfig.json`, you have `"esm": true` within the `"ts-node"` configuration block, indicating you intend to run `ts-node` in ESM mode. However, you also have `"module": "CommonJS"` nested within `"ts-node"."compilerOptions"`. This combination can sometimes lead to issues.
-
-The recommended way to execute TypeScript files as ES Modules with `ts-node` is often to use Node.js's `--loader` flag. This explicitly tells Node how to handle the `.ts` files.
-
-Could you try running your script using this command instead?
-
-```bash
-node --loader ts-node/esm test-gcp-apis.ts
-```
-
-Let me know if that resolves the error! This approach directly integrates `ts-node` with Node's native ESM handling.
-
----
-
-_**User**_
-
-can you do it? than you can see the results directly?
-
----
-
-_**Assistant**_
-
-
-
----
-
-Okay, I can certainly try running that command for you. This will execute the `test-gcp-apis.ts` script using Node.js with the `ts-node/esm` loader, which should correctly handle the TypeScript and ES Module aspects.
-
-
-
----
-
-```bash
-node --loader ts-node/esm test-gcp-apis.ts
-```
-
-```
-(node:8277) ExperimentalWarning: `--experimental-loader` may be removed in the f
-uture; instead use `register
-()`:
-                            --import 'data:text/javascript,import { register } f
-rom "node:module"; import { pathToFileURL } from "node:u
-rl"; register("ts-node/esm", pathToFileURL("./"));'
-                            (Use `node --trace-warnings ...` to show where the w
-arning was created)
-node:internal/modules/esm/loader:309
-        throw new ERR_REQUIRE_CYCLE_MODULE(message);
-              ^
-
-Error [ERR_REQUIRE_CYCLE_MODULE]: Cannot require() ES Module /Users/tom/dev/flas
-hcards/test-gcp-apis.ts in a
- cycle.
-                                at ModuleLoader.importSyncForRequire (node:inter
-nal/modules/esm/loader:309:15)
-    at loadESMFromCJS (node:internal/modules/cjs/loader:1371:24)
-    at Module._compile (node:internal/modules/cjs/loader:1511:5)
-    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
-    at Module.load (node:internal/modules/cjs/loader:1275:32)
-    at Module._load (node:internal/modules/cjs/loader:1096:12)
-    at cjsLoader (node:internal/modules/esm/translators:298:15)
-    at ModuleWrap.<anonymous> (node:internal/modules/esm/translators:240:7)
-    at ModuleJob.run (node:internal/modules/esm/module_job:263:25)
-    at async ModuleLoader.import (node:internal/modules/esm/loader:540:24) {
-  code: 'ERR_REQUIRE_CYCLE_MODULE'
-}
-
-Node.js v20.19.0
-
-```
-
----
-
-It seems like running the command with `--loader` led to a different error: `Error [ERR_REQUIRE_CYCLE_MODULE]: Cannot require() ES Module /Users/tom/dev/flashcards/test-gcp-apis.ts in a cycle.`
-
-This usually indicates a circular dependency involving CommonJS (`require`) and ES Modules (`import`). It might be happening if:
-
-1.  `test-gcp-apis.ts` (or a file it imports) is using `require` to import a module that, in turn, tries to `import` or `require` `test-gcp-apis.ts` back.
-2.  There's a mix of `import` and `require` syntax within the files involved in the cycle, and Node's ESM/CJS interop mechanism is hitting a snag.
-3.  Sometimes, the configuration in `tsconfig.json` can contribute, especially the interplay between the main `compilerOptions` and the `ts-node` specific ones.
-
-To investigate this, could you show me the contents of the `test-gcp-apis.ts` file? That should help pinpoint where the circular dependency might be originating.
-
----
-
-_**User**_
-
 @test-gcp-apis.ts 
 
 ---
@@ -22877,6 +22779,352 @@ On Vercel we seem to have an issue when the combined file size of all uploads ex
 _**Assistant**_
 
 
+
+---
+
+Yes, this is expected behavior with Vercel's serverless functions. Vercel has a payload size limit of 4.5MB for API routes, regardless of how individual files are organized in the request.
+
+Your current implementation checks if ANY individual file exceeds the 4MB threshold:
+
+```typescript
+const isAnyFileLarge = currentFiles.some(file => file.size > DIRECT_UPLOAD_LIMIT * 1024 * 1024);
+```
+
+However, this doesn't account for when multiple smaller files combine to exceed the 4.5MB Vercel limit.
+
+Let's modify the code to check the combined file size and use Supabase storage when the total exceeds a safe threshold:
+
+---
+
+```diff
+        // Determine if any file is large BEFORE deciding fetch method
+        const isAnyFileLarge = currentFiles.some(file => file.size > DIRECT_UPLOAD_LIMIT * 1024 * 1024);
++ 
++       // Calculate total size of all files combined
++       const totalSizeMB = currentFiles.reduce((sum, file) => sum + (file.size / (1024 * 1024)), 0);
++       const COMBINED_SIZE_LIMIT = 4; // 4MB safe threshold for combined files (below Vercel's 4.5MB limit)
+  
+        let response;
+        
+-       // **** NEW LOGIC: If ANY file is large, upload ALL to storage first ****
+-       if (isAnyFileLarge) {
+-         toast.info(`One or more large files detected. Uploading all files to secure storage...`, { id: `${loadingToastId}-multi-upload`, duration: 60000 });
++       // **** NEW LOGIC: If ANY file is large OR combined size is large, upload ALL to storage first ****
++       if (isAnyFileLarge || totalSizeMB > COMBINED_SIZE_LIMIT) {
++         const uploadReason = isAnyFileLarge 
++           ? "Large file(s) detected" 
++           : `Combined file size (${totalSizeMB.toFixed(2)}MB) exceeds direct upload limit`;
++         
++         toast.info(`${uploadReason}. Uploading all files to secure storage...`, { id: `${loadingToastId}-multi-upload`, duration: 60000 });
+  
+          const fileReferences: { filename: string; filePath: string }[] = [];
+```
+
+---
+
+Now let's also update the comments and logging to ensure the change is properly documented:
+
+---
+
+```diff
+  const MAX_FILE_SIZE = 25; // 25MB
+  const DIRECT_UPLOAD_LIMIT = 4; // 4MB - Use Supabase Storage for files larger than this
++ const COMBINED_SIZE_LIMIT = 4; // 4MB - Maximum combined size for direct API uploads (Vercel payload limit is 4.5MB)
+  const UPLOAD_BUCKET = 'ai-uploads'; // Bucket name
+  
+        // Calculate total size of all files combined
+        const totalSizeMB = currentFiles.reduce((sum, file) => sum + (file.size / (1024 * 1024)), 0);
+-       const COMBINED_SIZE_LIMIT = 4; // 4MB safe threshold for combined files (below Vercel's 4.5MB limit)
+  
+        let response;
+              
+              console.log(`Uploaded ${file.name} to:`, uploadData.path);
++             fileReferences.push({ filename: file.name, filePath: uploadData.path });
+              return { filename: file.name, filePath: uploadData.path };
+            } catch (err) {
+```
+
+---
+
+Now we should fix any inconsistent code in the handling of file upload results:
+
+---
+
+```diff
+          toast.info(`${uploadReason}. Uploading all files to secure storage...`, { id: `${loadingToastId}-multi-upload`, duration: 60000 });
+  
++         // Create array to store file references for API call
+          const fileReferences: { filename: string; filePath: string }[] = [];
+          const uploadPromises = currentFiles.map(async (file) => {
+              
+              console.log(`Uploaded ${file.name} to:`, uploadData.path);
+-             fileReferences.push({ filename: file.name, filePath: uploadData.path });
+-             return { filename: file.name, filePath: uploadData.path };
++             return { filename: file.name, filePath: uploadData.path }; // Return reference for Promise.all
+            } catch (err) {
+              console.error(`Error during upload of ${file.name}:`, err);
+```
+
+---
+
+These changes will now handle both cases:
+
+1. When any single file exceeds the 4MB DIRECT_UPLOAD_LIMIT
+2. When the combined size of all files exceeds the 4MB COMBINED_SIZE_LIMIT (safely below Vercel's 4.5MB limit)
+
+In either case, all files will be uploaded to Supabase storage first, and then the API will be called with the file references instead of the actual file data.
+
+The code now:
+1. Calculates the total size of all files using `reduce()`
+2. Compares this total against a safe threshold (4MB, slightly below Vercel's 4.5MB limit)
+3. Uses Supabase storage if either condition is met
+4. Provides a clear toast message indicating which condition triggered the storage upload
+5. Properly manages the file reference array for the API call
+
+This change will prevent the "Payload too large" errors on Vercel when multiple smaller files combine to exceed the limit, improving the reliability of your application's file processing capabilities.
+
+---
+
+_**User**_
+
+Ok things now work as they should.
+I would like to make the toast messages more dynamic.
+Now I see "Processing (6) files from secure storage" (or alternative if direct upload).
+I would like to see the toast message being updated dynamically... E.g. "Processing file 1/6 - <file name>" then when it completes, the next one "Processing file 2/6 - <file name>", etc...
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+I'll update the toast messages to show dynamic progress through the files being processed. Since we don't get real-time updates from the backend about which file is currently being processed, I'll implement a simulated progress indicator that cycles through the files:
+
+---
+
+```diff
+    const { supabase } = useSupabase();
+    const { user } = useAuth();
++   const progressTimerRef = useRef<NodeJS.Timeout | null>(null);
++   const currentFileIndexRef = useRef<number>(0);
+  
+    // handleFilesSelected now directly updates the state, which is correct
+      setProcessingSummary(null);
+      
++     // Create a unique ID for this loading process
+      const loadingToastId = `loading-${Date.now()}`;
+-     const safetyTimeout = setTimeout(() => toast.dismiss(loadingToastId), 90000);
+-     toast.loading(`Processing ${currentFiles.length} file${currentFiles.length > 1 ? 's' : ''}...`, { id: loadingToastId, duration: 60000 });
++     currentFileIndexRef.current = 0; // Reset file progress index
++     
++     // Clear any existing timers
++     if (progressTimerRef.current) {
++       clearInterval(progressTimerRef.current);
++     }
++     
++     // Initial loading toast
++     const totalFiles = currentFiles.length;
++     toast.loading(`Preparing ${totalFiles} file${totalFiles > 1 ? 's' : ''} for processing...`, { 
++       id: loadingToastId, 
++       duration: 90000 // Set to match our safetyTimeout
++     });
++     
++     // Set a safety timeout to dismiss toasts if something goes wrong
++     const safetyTimeout = setTimeout(() => {
++       toast.dismiss(loadingToastId);
++       if (progressTimerRef.current) {
++         clearInterval(progressTimerRef.current);
++         progressTimerRef.current = null;
++       }
++     }, 90000);
+      
+      try {
+            : `Combined file size (${totalSizeMB.toFixed(2)}MB) exceeds direct upload limit`;
+          
+-         toast.info(`${uploadReason}. Uploading all files to secure storage...`, { id: `${loadingToastId}-multi-upload`, duration: 60000 });
++         toast.loading(`${uploadReason}. Uploading to secure storage...`, { 
++           id: loadingToastId 
++         });
++         
++         // Show dynamic progress for uploads
++         let uploadedCount = 0;
+          
+          // Create array to store file references for API call
+          const fileReferences: { filename: string; filePath: string }[] = [];
+-         const uploadPromises = currentFiles.map(async (file) => {
++         const uploadPromises = currentFiles.map(async (file, index) => {
+            const fileExt = file.name.split('.').pop();
+            const storageFileName = `${uuidv4()}.${fileExt}`;
+            const storagePath = `${user.id}/${storageFileName}`;
+            
+            try {
++             // Update toast to show which file is being uploaded
++             toast.loading(`Uploading file ${index + 1}/${totalFiles}: ${file.name}`, { 
++               id: loadingToastId 
++             });
++             
+              const { data: uploadData, error: uploadError } = await supabase.storage
+                .from(UPLOAD_BUCKET)
+                throw new Error(`Storage upload failed for ${file.name}`); // Propagate error
+              }
++             
++             // Update upload count and toast after successful upload
++             uploadedCount++;
++             toast.loading(`Uploaded ${uploadedCount}/${totalFiles} files - Processing: ${file.name}`, { 
++               id: loadingToastId 
++             });
+              
+              console.log(`Uploaded ${file.name} to:`, uploadData.path);
+  
+          const uploadResults = await Promise.all(uploadPromises);
+-         toast.dismiss(`${loadingToastId}-multi-upload`);
+  
+          // Filter out failed uploads
+            throw new Error('All file uploads failed. Cannot proceed.');
+          }
++ 
++         // Start showing dynamic progress for processing
++         const filesToProcess = successfulUploads.map(upload => upload.filename);
++         startProgressIndicator(loadingToastId, filesToProcess);
+          
+          // Proceed with API call using storage paths
+-         toast.loading(`Processing ${successfulUploads.length} file(s) from secure storage...`, { id: loadingToastId });
+          response = await fetch('/api/extract-pdf', {
+            method: 'POST',
+        } else {
+          // **** EXISTING LOGIC: All files are small, use FormData ****
++         // Start showing dynamic progress for processing
++         const filesToProcess = currentFiles.map(file => file.name);
++         startProgressIndicator(loadingToastId, filesToProcess);
++         
++         // All files are small, use FormData
+          const formData = new FormData();
+          for (let i = 0; i < currentFiles.length; i++) {
+      } finally {
+        setIsLoading(false);
+-       // Ensure toasts are dismissed
++       // Ensure toast and timer are cleaned up
+        clearTimeout(safetyTimeout);
++       if (progressTimerRef.current) {
++         clearInterval(progressTimerRef.current);
++         progressTimerRef.current = null;
++       }
+        toast.dismiss(loadingToastId);
+      }
+      return groupedCards;
+    };
++ 
++   // Function to simulate progress through files
++   const startProgressIndicator = (toastId: string, fileNames: string[]) => {
++     const totalFiles = fileNames.length;
++     const averageTimePerFile = 3000; // Simulate ~3 seconds per file
++     
++     // Clear any existing interval
++     if (progressTimerRef.current) {
++       clearInterval(progressTimerRef.current);
++     }
++     
++     // Update toast with initial processing message
++     toast.loading(`Processing file 1/${totalFiles}: ${fileNames[0]}`, { id: toastId });
++     currentFileIndexRef.current = 0;
++     
++     // Set interval to update progress
++     progressTimerRef.current = setInterval(() => {
++       currentFileIndexRef.current++;
++       
++       // If we've gone through all files, show a "finalizing" message
++       if (currentFileIndexRef.current >= totalFiles) {
++         toast.loading(`Finalizing processing of ${totalFiles} files...`, { id: toastId });
++         clearInterval(progressTimerRef.current as NodeJS.Timeout);
++         progressTimerRef.current = null;
++         return;
++       }
++       
++       // Update toast with current file
++       const currentFile = fileNames[currentFileIndexRef.current];
++       toast.loading(`Processing file ${currentFileIndexRef.current + 1}/${totalFiles}: ${currentFile}`, { id: toastId });
++     }, averageTimePerFile);
++   };
+  
+    return (
+```
+
+---
+
+We need to remove the duplicate import of useRef:
+
+---
+
+
+
+---
+
+Let's check the existing imports at the top of the file and fix them:
+
+---
+
+Read file: /Users/tom/dev/flashcards/app/prepare/ai-generate/page.tsx
+
+---
+
+Perfect! The imports are already correct and the code changes look good. Now we have:
+
+1. Added dynamic progress indicators for file uploads and processing
+2. Each file upload shows a specific toast message: "Uploading file X/Y: filename"
+3. For file processing, we use a simulated progress indicator that cycles through files
+4. Added a "Finalizing" message when all files have been simulated
+5. Ensured proper cleanup of all timers and toast messages
+
+The simulated progress indicator uses a 3-second interval per file, which should give users a sense of progress while not being so fast that it feels fake. If a file actually processes faster or slower than our simulation, that's fine - this is just to give users feedback that something is happening.
+
+Key improvements:
+1. Files show progress through a sequence of toast messages that rotate through file names
+2. Each upload shows its own progress message with a counter
+3. "Finalizing" message appears when all files have been displayed
+4. All timers and toasts are properly cleared on completion or error
+
+These changes provide a much more dynamic and engaging user experience during file processing, even though we don't have actual per-file progress information from the backend.
+
+---
+
+_**User**_
+
+what does this mean? what happens when a file takes more time to be processed? or less time?
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+The progress indicator we implemented is a **simulated** progress meter that shows updates at fixed intervals (3 seconds per file), regardless of the actual processing time of each file. 
+
+Here's what this means:
+
+### When Files Take Longer Than Expected:
+- The toast messages will cycle through files every 3 seconds
+- You might reach the "Finalizing..." message before actual processing completes
+- When the real API response finally arrives, all toast messages will be dismissed
+- Users see the final results (successful or error) only when actual processing completes
+
+### When Files Process Faster Than Expected:
+- The toast messages will still change slowly (every 3 seconds)
+- The API might finish before all files have been shown in the toast
+- As soon as the API completes, all toast messages are dismissed
+- The simulated progress might be cut short by the actual completion
+
+The simulation isn't tied to the actual processing progress - it's just giving users visual feedback that something is happening, even though we don't know the real-time status of individual files on the server.
+
+This approach works well in user experience terms because:
+1. It shows activity even when server processing is silent
+2. It prevents the UI from appearing frozen
+3. It helps set expectations about the files being processed
+
+However, it's important to recognize this is just a visual approximation for user comfort, not a true progress indicator of backend processing.
 
 ---
 

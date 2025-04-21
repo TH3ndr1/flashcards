@@ -34,6 +34,8 @@ export default function AiGeneratePage() {
   const [processingSummary, setProcessingSummary] = useState<string | null>(null);
   const { supabase } = useSupabase();
   const { user } = useAuth();
+  const progressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const currentFileIndexRef = useRef<number>(0);
 
   // handleFilesSelected now directly updates the state, which is correct
   const handleFilesSelected = (selectedFiles: File[]) => {
@@ -86,9 +88,30 @@ export default function AiGeneratePage() {
     setExtractedTextPreview(null);
     setProcessingSummary(null);
     
+    // Create a unique ID for this loading process
     const loadingToastId = `loading-${Date.now()}`;
-    const safetyTimeout = setTimeout(() => toast.dismiss(loadingToastId), 90000);
-    toast.loading(`Processing ${currentFiles.length} file${currentFiles.length > 1 ? 's' : ''}...`, { id: loadingToastId, duration: 60000 });
+    currentFileIndexRef.current = 0; // Reset file progress index
+    
+    // Clear any existing timers
+    if (progressTimerRef.current) {
+      clearInterval(progressTimerRef.current);
+    }
+    
+    // Initial loading toast
+    const totalFiles = currentFiles.length;
+    toast.loading(`Preparing ${totalFiles} file${totalFiles > 1 ? 's' : ''} for processing...`, { 
+      id: loadingToastId, 
+      duration: 90000 // Set to match our safetyTimeout
+    });
+    
+    // Set a safety timeout to dismiss toasts if something goes wrong
+    const safetyTimeout = setTimeout(() => {
+      toast.dismiss(loadingToastId);
+      if (progressTimerRef.current) {
+        clearInterval(progressTimerRef.current);
+        progressTimerRef.current = null;
+      }
+    }, 90000);
     
     try {
       // Determine if any file is large BEFORE deciding fetch method
@@ -105,16 +128,26 @@ export default function AiGeneratePage() {
           ? "Large file(s) detected" 
           : `Combined file size (${totalSizeMB.toFixed(2)}MB) exceeds direct upload limit`;
         
-        toast.info(`${uploadReason}. Uploading all files to secure storage...`, { id: `${loadingToastId}-multi-upload`, duration: 60000 });
-
+        toast.loading(`${uploadReason}. Uploading to secure storage...`, { 
+          id: loadingToastId 
+        });
+        
+        // Show dynamic progress for uploads
+        let uploadedCount = 0;
+        
         // Create array to store file references for API call
         const fileReferences: { filename: string; filePath: string }[] = [];
-        const uploadPromises = currentFiles.map(async (file) => {
+        const uploadPromises = currentFiles.map(async (file, index) => {
           const fileExt = file.name.split('.').pop();
           const storageFileName = `${uuidv4()}.${fileExt}`;
           const storagePath = `${user.id}/${storageFileName}`;
           
           try {
+            // Update toast to show which file is being uploaded
+            toast.loading(`Uploading file ${index + 1}/${totalFiles}: ${file.name}`, { 
+              id: loadingToastId 
+            });
+            
             const { data: uploadData, error: uploadError } = await supabase.storage
               .from(UPLOAD_BUCKET)
               .upload(storagePath, file, { upsert: false });
@@ -123,6 +156,12 @@ export default function AiGeneratePage() {
               console.error(`Failed to upload ${file.name} to storage:`, uploadError);
               throw new Error(`Storage upload failed for ${file.name}`); // Propagate error
             }
+            
+            // Update upload count and toast after successful upload
+            uploadedCount++;
+            toast.loading(`Uploaded ${uploadedCount}/${totalFiles} files - Processing: ${file.name}`, { 
+              id: loadingToastId 
+            });
             
             console.log(`Uploaded ${file.name} to:`, uploadData.path);
             return { filename: file.name, filePath: uploadData.path }; // Return reference for Promise.all
@@ -134,7 +173,6 @@ export default function AiGeneratePage() {
         });
 
         const uploadResults = await Promise.all(uploadPromises);
-        toast.dismiss(`${loadingToastId}-multi-upload`);
 
         // Filter out failed uploads
         const successfulUploads = uploadResults.filter(result => result !== null) as { filename: string; filePath: string }[];
@@ -148,8 +186,11 @@ export default function AiGeneratePage() {
           throw new Error('All file uploads failed. Cannot proceed.');
         }
 
+        // Start showing dynamic progress for processing
+        const filesToProcess = successfulUploads.map(upload => upload.filename);
+        startProgressIndicator(loadingToastId, filesToProcess);
+        
         // Proceed with API call using storage paths
-        toast.loading(`Processing ${successfulUploads.length} file(s) from secure storage...`, { id: loadingToastId });
         response = await fetch('/api/extract-pdf', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -159,6 +200,11 @@ export default function AiGeneratePage() {
 
       } else {
         // **** EXISTING LOGIC: All files are small, use FormData ****
+        // Start showing dynamic progress for processing
+        const filesToProcess = currentFiles.map(file => file.name);
+        startProgressIndicator(loadingToastId, filesToProcess);
+        
+        // All files are small, use FormData
         const formData = new FormData();
         for (let i = 0; i < currentFiles.length; i++) {
           formData.append('file', currentFiles[i]);
@@ -343,9 +389,13 @@ export default function AiGeneratePage() {
       setProcessingSummary(null); // Clear summary on error
     } finally {
       setIsLoading(false);
-      // Ensure toasts are dismissed
+      // Ensure toast and timer are cleaned up
       clearTimeout(safetyTimeout);
-      toast.dismiss(loadingToastId); 
+      if (progressTimerRef.current) {
+        clearInterval(progressTimerRef.current);
+        progressTimerRef.current = null;
+      }
+      toast.dismiss(loadingToastId);
     }
   };
 
@@ -403,6 +453,38 @@ export default function AiGeneratePage() {
     });
     
     return groupedCards;
+  };
+
+  // Function to simulate progress through files
+  const startProgressIndicator = (toastId: string, fileNames: string[]) => {
+    const totalFiles = fileNames.length;
+    const averageTimePerFile = 3000; // Simulate ~3 seconds per file
+    
+    // Clear any existing interval
+    if (progressTimerRef.current) {
+      clearInterval(progressTimerRef.current);
+    }
+    
+    // Update toast with initial processing message
+    toast.loading(`Processing file 1/${totalFiles}: ${fileNames[0]}`, { id: toastId });
+    currentFileIndexRef.current = 0;
+    
+    // Set interval to update progress
+    progressTimerRef.current = setInterval(() => {
+      currentFileIndexRef.current++;
+      
+      // If we've gone through all files, show a "finalizing" message
+      if (currentFileIndexRef.current >= totalFiles) {
+        toast.loading(`Finalizing processing of ${totalFiles} files...`, { id: toastId });
+        clearInterval(progressTimerRef.current as NodeJS.Timeout);
+        progressTimerRef.current = null;
+        return;
+      }
+      
+      // Update toast with current file
+      const currentFile = fileNames[currentFileIndexRef.current];
+      toast.loading(`Processing file ${currentFileIndexRef.current + 1}/${totalFiles}: ${currentFile}`, { id: toastId });
+    }, averageTimePerFile);
   };
 
   return (
