@@ -414,17 +414,17 @@ export async function POST(request: NextRequest) {
 
     // --- Update Error Handling --- 
     if (error.message.includes("exceeding the") && error.message.includes("-page limit")) {
-        status = 413; // Payload Too Large (or 422 Unprocessable Content)
+        status = 422; // Changed from 413 to 422 Unprocessable Content
         message = error.message; // Use the specific page limit error
     } else if (error.message.includes("Could not verify page count")) {
-        status = 422; // Unprocessable Content
+        status = 422; 
         message = error.message;
     } else if (error.message.includes("Failed to parse PDF")) {
-        status = 422; // Unprocessable Content
+        status = 422; 
         message = error.message;
     } else if (error.message.includes("No file provided")) status = 400;
     else if (error.message.includes("Unsupported file type")) status = 400;
-    else if (error.message.includes("File too large")) status = 413;
+    else if (error.message.includes("File too large")) status = 413; // Keep 413 for actual file size limit
     else if (error.message.includes("could not detect any text")) status = 422;
     else if (error.message.includes("Failed to process PDF with Document AI")) status = 422;
     else if (error.message.includes("Failed to extract text from image")) status = 422;

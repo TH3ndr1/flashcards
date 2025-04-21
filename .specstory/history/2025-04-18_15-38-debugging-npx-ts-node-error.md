@@ -15709,6 +15709,131 @@ This should resolve the confusion and give the user the correct feedback about t
 
 ---
 
+_**User**_
+
+I no longer get the google messages, but i still get the ugly console message:
+
+page-fa1ce50d75169f30.js:1 File uploaded to Supabase Storage: 842b7885-669f-4943-b5be-0b6f28bf6b46/8f61617a-efaa-4546-9d26-90660a440ef3.pdf
+page-fa1ce50d75169f30.js:1 
+            
+            
+           POST https://flashcards-azure-rho.vercel.app/api/extract-pdf 413 (Payload Too Large)
+A @ page-fa1ce50d75169f30.js:1
+await in A
+iG @ 47edcb22-ba7bd0d1f2accf00.js:1
+(anoniem) @ 47edcb22-ba7bd0d1f2accf00.js:1
+nS @ 47edcb22-ba7bd0d1f2accf00.js:1
+i4 @ 47edcb22-ba7bd0d1f2accf00.js:1
+ce @ 47edcb22-ba7bd0d1f2accf00.js:1
+s9 @ 47edcb22-ba7bd0d1f2accf00.js:1
+9323-4e5ee6c2b6568d3d.js:1 API Error: 413  {success: false, message: 'PDF has 37 pages, exceeding the 30-page limit for direct processing. Please use a smaller document.', flashcards: Array(0)}
+window.console.error @ 9323-4e5ee6c2b6568d3d.js:1
+A @ page-fa1ce50d75169f30.js:1
+await in A
+iG @ 47edcb22-ba7bd0d1f2accf00.js:1
+(anoniem) @ 47edcb22-ba7bd0d1f2accf00.js:1
+nS @ 47edcb22-ba7bd0d1f2accf00.js:1
+i4 @ 47edcb22-ba7bd0d1f2accf00.js:1
+ce @ 47edcb22-ba7bd0d1f2accf00.js:1
+s9 @ 47edcb22-ba7bd0d1f2accf00.js:1
+9323-4e5ee6c2b6568d3d.js:1 Error during handleSubmit: Error: PDF has 37 pages, exceeding the 30-page limit for direct processing. Please use a smaller document.
+    at A (page-fa1ce50d75169f30.js:1:6147)
+window.console.error @ 9323-4e5ee6c2b6568d3d.js:1
+A @ page-fa1ce50d75169f30.js:1
+await in A
+iG @ 47edcb22-ba7bd0d1f2accf00.js:1
+(anoniem) @ 47edcb22-ba7bd0d1f2accf00.js:1
+nS @ 47edcb22-ba7bd0d1f2accf00.js:1
+i4 @ 47edcb22-ba7bd0d1f2accf00.js:1
+ce @ 47edcb22-ba7bd0d1f2accf00.js:1
+s9 @ 47edcb22-ba7bd0d1f2accf00.js:1
+
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+That's actually the expected and correct behavior now!
+
+Let's break down what you're seeing in the console:
+
+1.  `File uploaded to Supabase Storage: ...`
+    *   Confirms the client-side upload for the large file (>4MB) worked.
+2.  `POST ... 413 (Payload Too Large)`
+    *   This status code is technically incorrect in this context (it should probably be 422 Unprocessable Content, as the payload *to the API* was small JSON, but the underlying *reason* for the failure was the page limit). However, the server *is* correctly identifying the page limit issue and sending back an error response with a 4xx status. We explicitly set it to 413 in the API's error handling for this case.
+3.  `API Error: 413 {success: false, message: 'PDF has 37 pages...', flashcards: Array(0)}`
+    *   This is your `console.error` on the **client-side** logging the details received from the API *before* throwing the final error. It shows the correct message from the server is being received.
+4.  `Error during handleSubmit: Error: PDF has 37 pages...`
+    *   This is the **client-side** `console.error` inside the main `catch` block logging the *final error object* that was thrown. Again, it shows the correct, specific error message.
+
+**Why it looks "ugly":**
+
+*   `console.error` naturally includes stack traces in the browser developer console. This is extremely helpful for debugging but can look messy if you're not expecting it.
+*   The 413 status code is slightly misleading given the fix (we could change it to 422 in the API if preferred, but 413 isn't strictly wrong as the *effective* payload size for Document AI was too large).
+
+**The important part is:**
+
+*   The server correctly identified the >30 page issue.
+*   The server sent back the correct error message ("PDF has 37 pages...").
+*   The client received this message.
+*   The `toast.error(errorMessage)` call in your `handleSubmit` function's `catch` block should be displaying the user-friendly message: **"PDF has 37 pages, exceeding the 30-page limit for direct processing. Please use a smaller document."**
+
+The console logs are just showing the behind-the-scenes error handling working as intended. You've successfully implemented the explicit check and error message!
+
+---
+
+_**User**_
+
+Please turn it it into a 422 Unprocessable content. 413 is far fetched in this case
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+Understood. You're right, 422 (Unprocessable Content) is a more accurate status code here, as the server understood the request but couldn't process the PDF due to its page count exceeding the limit, rather than the request *payload* itself being too large.
+
+Let's change the status code in the API's error handler.
+
+
+
+---
+
+```diff
+      // --- Update Error Handling --- 
+      if (error.message.includes("exceeding the") && error.message.includes("-page limit")) {
+-         status = 413; // Payload Too Large (or 422 Unprocessable Content)
++         status = 422; // Changed from 413 to 422 Unprocessable Content
+          message = error.message; // Use the specific page limit error
+      } else if (error.message.includes("Could not verify page count")) {
+-         status = 422; // Unprocessable Content
++         status = 422; 
+          message = error.message;
+      } else if (error.message.includes("Failed to parse PDF")) {
+-         status = 422; // Unprocessable Content
++         status = 422; 
+          message = error.message;
+      } else if (error.message.includes("No file provided")) status = 400;
+      else if (error.message.includes("Unsupported file type")) status = 400;
+-     else if (error.message.includes("File too large")) status = 413;
++     else if (error.message.includes("File too large")) status = 413; // Keep 413 for actual file size limit
+      else if (error.message.includes("could not detect any text")) status = 422;
+      else if (error.message.includes("Failed to process PDF with Document AI")) status = 422;
+```
+
+---
+
+Done
+
+---
+
 
 
 ---
