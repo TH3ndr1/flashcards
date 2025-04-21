@@ -197,24 +197,35 @@ I have a document titled "${filename}" with the following extracted text:
 ${truncatedText}
 """
 
-You are a professor who is an expert in the field of the document.
-Based on this document content, please create high-quality flashcard-style question and answer pairs.
-Capture the essence of the document in the flashcards so that if a student were to read the flashcards, they would have a good understanding of the document and pass the exam.
-Provide as many flashcards as needed to cover the document but do it in a way that is efficient and effective and that is not redundant.
-In any case, do not provide more than 50 flashcards.
-Keep answers concise but complete (under 100 words).
-Format each pair as a JSON object with "question" and "answer" fields.
-Make the questions test understanding rather than just recall.
-Return an array of these objects.
+Instructions:
 
-Example format:
+Determine Document Type: Analyze the file content to determine if it's a translation vocabulary list (pairs of words like "word1 - word2") or knowledge-based text (regular prose or factual information).
+Apply Appropriate Mode:
 
-[
-  {
-    "question": "What is the main principle of X?",
-    "answer": "X primarily works by doing Y, which enables Z"
-  }
-]`;
+Mode 1: Translation Vocabulary: If the document is a translation vocabulary list, create one flashcard per word pair.
+
+"question": The word in the source language.
+"answer": Its translation in the target language.
+Mode 2: Knowledge-Based Text: If the document is knowledge-based text, create at least two high-quality question-answer pairs for each provided topic.
+
+Make questions test understanding, not just recall.
+Keep answers concise (under 100 words).
+Use the same language as the document for both questions and answers. If the document contains two languages, create questions and answers in the respective language.
+Format Output: Format each flashcard as a JSON object with "question" and "answer" fields. Return an array of these objects.
+Example Mode 1:
+
+[ { "question": "Tafel", "answer": "Table" }, { "question": "Stuhl", "answer": "Chair" } ]
+
+Example Mode 2:
+
+[ { "question": "What is the main function of photosynthesis?", "answer": "Photosynthesis converts light energy into chemical energy in the form of glucose, using water and carbon dioxide." }, { "question": "How does chlorophyll contribute to photosynthesis?", "answer": "Chlorophyll absorbs light energy, which is then used to drive the chemical reactions of photosynthesis." } ]
+
+Important:
+
+Do not mix modes in the same question.
+Ensure formatting consistency.
+Use the provided topics only if the document is knowledge-based.
+For translation vocabulary, use the original languages detected in the document.`;
     const result = await model.generateContent(prompt);
     const response = result.response;
     const responseText = response?.candidates?.[0]?.content?.parts?.[0]?.text;

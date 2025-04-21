@@ -155,7 +155,7 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
 *   **AI Flashcard Generator:**
     *   Upload PDF or Image files.
     *   Extract text content (PDF parsing / OCR via Google Vision AI).
-    *   Generate Q&A pairs using AI (Google Gemini).
+    *   Generate Q&A pairs using AI (Google Cloud Vertex AI).
     *   Allow user review, editing, and selection of generated pairs.
     *   Import selected pairs as new cards into a chosen deck.
 
@@ -240,16 +240,25 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
 *   Frontend: Next.js 15+ (App Router), React 19+, TypeScript
 *   Backend: Serverless via Next.js Server Actions (preferred) and API Routes
 *   Database: Supabase (PostgreSQL)
-*   Database Functions: `resolve_study_query` (pl/pgsql) for complex card selection.
+*   Database Functions: `resolve_study_query` (pl/pgsql) for complex card selection
 *   Authentication: Supabase Auth via `@supabase/ssr`
 *   State Management: Zustand (`studySessionStore`), React Context (`SettingsProvider`, `AuthProvider`)
 *   UI: Tailwind CSS, `shadcn/ui` (using Radix UI primitives)
 *   Forms: `react-hook-form`, `zod`
-*   Audio: Google Cloud TTS API (`@google-cloud/text-to-speech`) via `/api/tts` route or dedicated action.
-*   AI (Q&A Gen): Google Cloud Vision AI (`@google-cloud/vision`) for OCR, Google AI Gemini (`@google/generative-ai`) for generation.
-*   File Parsing: `pdf-parse` (server-side)
+*   Audio: Google Cloud TTS API (`@google-cloud/text-to-speech`) via `/api/tts` route or dedicated action
+*   AI Services:
+    *   Document Processing: Google Cloud Document AI (`@google-cloud/documentai`)
+    *   Image Processing: Google Cloud Vision AI (`@google-cloud/vision`)
+    *   Text Generation: Google Cloud Vertex AI (`@google-cloud/vertexai`)
+*   PDF Processing: `pdf-lib` for manipulation and optimization
 *   File Storage: Supabase Storage (temporary uploads for AI Gen)
+*   Documentation: Context7 MCP for real-time library documentation and best practices
 *   Utilities: `date-fns`, `lucide-react`, `sonner` (toasts)
+*   Development Tools:
+    *   TypeScript for static typing
+    *   ESLint for code quality
+    *   Prettier for code formatting
+    *   Context7 MCP for API documentation and implementation guidance
 
 ### 5.2 Frontend Architecture
 *   **Structure:** Next.js App Router (`app/`). Mix of Server (`'use server'`) and Client Components (`'use client'`).
@@ -583,15 +592,60 @@ graph TD
 
 #### 5.8.3 File Descriptions
 
-*(Descriptions mostly align with the original Section 14.3, adapted for the new structure)*
+1.  **Core Hooks (`hooks/`)**: 
+    - Study Session Management: `useStudySession`, `useStudyTTS`
+    - Data Fetching: `useDecks`, `useTags`, `useStudySets`, `useCardTags`
+    - Authentication: `useAuth`
+    - Settings: `useSettingsContext`
+    - UI State: `useMobileSidebar`
+    - AI Generation: `useAiGeneration` (manages file upload and generation state)
 
-1.  **Core Hooks (`hooks/`)**: Manage state and logic for features like Study Sessions (`useStudySession`), TTS (`useStudyTTS`), Data Fetching (`useDecks`, `useTags`, `useStudySets`, `useCardTags`), Auth (`useAuth`), Settings (`useSettingsContext`), UI (`useMobileSidebar`).
-2.  **Server Actions (`lib/actions/`)**: Handle backend logic triggered from the frontend (CRUD operations, study query resolution, progress updates, AI processing steps, TTS generation).
-3.  **Zustand Stores (`store/`)**: Manage cross-component state not suitable for Context (e.g., `studySessionStore` for passing parameters, `mobileSidebarStore` for UI state).
-4.  **Utility Libraries (`lib/`)**: Contain helper functions like SRS calculations (`srs.ts`), AI utilities (`ai-utils.ts`), general helpers (`utils.ts`), and Supabase client setup (`supabase/`).
-5.  **Components (`components/`)**: Reusable UI parts, organized by feature (study, tags, layout, ai) or shared (`ui`).
-6.  **Providers (`providers/` or `components/layout/`)**: React Context providers for global state like Auth, Settings, Theme.
-7.  **App Router Pages (`app/`)**: Define routes and structure, coordinating hooks, components, and actions.
+2.  **Server Actions (`lib/actions/`)**:
+    - Core CRUD: `deckActions`, `cardActions`, `tagActions`, `studySetActions`
+    - Study Flow: `studyQueryActions`, `progressActions`
+    - Settings: `settingsActions`
+    - AI Processing: `aiUploadAction`, `aiGenerateAction`
+    - TTS: `ttsActions`
+
+3.  **Zustand Stores (`store/`)**:
+    - `studySessionStore`: Study session parameters and state
+    - `mobileSidebarStore`: UI navigation state
+    - `aiGenerationStore`: AI generation workflow state
+
+4.  **Utility Libraries (`lib/`)**:
+    - Core Utils: `srs.ts`, `utils.ts`
+    - Database: `supabase/`
+    - AI Processing:
+      - `ai-utils/documentProcessing.ts`: PDF/Image handling
+      - `ai-utils/textExtraction.ts`: Text extraction logic
+      - `ai-utils/flashcardGeneration.ts`: Q&A generation
+      - `ai-utils/types.ts`: AI operation types
+    - Services:
+      - `services/googleCloud.ts`: Google Cloud setup
+      - `services/documentAi.ts`: Document AI integration
+      - `services/visionAi.ts`: Vision AI integration
+      - `services/gemini.ts`: Gemini model setup
+      - `services/vertex-ai.ts`: Vertex AI service setup and configuration
+
+5.  **Components (`components/`)**:
+    - Study: `study/StudyFlashcardView`, `study/StudySetBuilder`
+    - Tags: `tags/TagManager`, `tags/CardTagEditor`
+    - Layout: `layout/SiteHeader`, `layout/SiteSidebar`
+    - AI Generation:
+      - `ai/FileUpload`: File upload handling
+      - `ai/QnaReview`: Generated content review
+      - `ai/ExtractedTextPreview`: Source text display
+
+6.  **Providers (`providers/` or `components/layout/`)**:
+    - `AuthProvider`: Authentication state
+    - `SettingsProvider`: User preferences
+    - `ThemeProvider`: UI theming
+
+7.  **App Router Pages (`app/`)**:
+    - Study Flow: `study/session`, `study/select`, `study/sets/*`
+    - Content Management: `tags`, `settings`
+    - AI Generation: `prepare/ai-generate/*`
+    - API Routes: `api/extract-pdf`, `api/generate-flashcards`
 
 #### 5.8.4 Data Flow Patterns (Diagram)
 
@@ -639,16 +693,28 @@ graph TD
         EE[Middleware] -.-> DD;
     end
 
-    subgraph "AI Generation"
-        FF[AI Page] --> GG[Upload Comp];
-        FF --> HH[Review Comp];
+    subgraph "AI Generation Flow"
+        FF[AI Generate Page] --> GG[FileUpload Comp];
+        FF --> HH[QnaReview Comp];
         GG --> II(Upload Action);
-        II --> JJ(Extract Action);
-        JJ --> KK(Generate Action);
-        KK --> HH;
-        HH --> LL(cardActions - createMultiple);
+        II --> JJ[Document AI Service];
+        II --> KK[Vision AI Service];
+        JJ --> LL(Text Processing);
+        KK --> LL;
+        LL --> MM[Vertex AI Service];
+        MM --> NN(Generate Action);
+        NN --> HH;
+        HH --> OO(cardActions - createMultiple);
     end
 
+    subgraph "Services Integration"
+        PP[Google Cloud Setup] --> QQ[Document AI];
+        PP --> RR[Vision AI];
+        PP --> SS[Vertex AI];
+        TT[AI Utils] --> UU(Document Processing);
+        TT --> VV(Text Extraction);
+        TT --> WW(Flashcard Generation);
+    end
 ```
 
 ---
@@ -750,12 +816,42 @@ This workflow enables users to automatically generate flashcards from uploaded d
 
 #### Current Implementation Status:
 - The following components have been implemented:
-  - PDF and image upload with validation
-  - Multi-method text extraction (pdf-parse for PDFs, Vision AI for images)
-  - Flashcard generation using Google Vertex AI (Gemini)
+  - PDF and image upload with validation (up to 30MB)
+  - Multi-method text extraction (Google Document AI for PDFs, Vision AI for images)
+  - PDF manipulation using pdf-lib for preprocessing
+  - Flashcard generation using Google Cloud Vertex AI
   - Error handling with cascading fallbacks
   - Flashcard review UI with extracted text preview
   - Vercel deployment optimizations (memory, timeouts, error handling)
+  - Proper toast notification lifecycle management (uses Sonner)
+  - Comprehensive error handling for all failure modes
+  - Memory-efficient PDF processing with page limits (30 pages)
+
+#### Architecture Overview:
+**Core Files:**
+1. **Frontend Components (`app/prepare/ai-generate/`):**
+   - `page.tsx`: Main AI generation page component
+   - `components/FileUpload.tsx`: File upload handling component
+   - `components/QnaReview.tsx`: Generated Q&A review interface
+   - `components/ExtractedTextPreview.tsx`: Text preview component
+
+2. **API Routes (`app/api/`):**
+   - `extract-pdf/route.ts`: Main extraction endpoint
+   - `generate-flashcards/route.ts`: Flashcard generation endpoint
+
+3. **Utility Functions (`lib/`):**
+   - `ai-utils/`:
+     - `documentProcessing.ts`: PDF/Image processing logic
+     - `textExtraction.ts`: Text extraction using Google APIs
+     - `flashcardGeneration.ts`: Q&A generation using Vertex AI
+     - `types.ts`: Type definitions for AI operations
+
+4. **Service Integration (`lib/services/`):**
+   - `googleCloud.ts`: Google Cloud client initialization
+   - `documentAi.ts`: Document AI processor setup
+   - `visionAi.ts`: Vision AI client setup
+   - `gemini.ts`: Gemini model configuration
+   - `vertex-ai.ts`: Vertex AI model configuration and service setup
 
 The complete workflow includes:
 
@@ -767,54 +863,62 @@ The complete workflow includes:
 
 2.  **Pre-process & Text Extraction (Server-Side):**
     *   **For PDFs:**
-        *   Primary method: `pdf-parse` library extracts text (limited to 30 pages for serverless compatibility).
-        *   Fallback method: Google Cloud Vision AI for PDFs that can't be processed by pdf-parse.
+        *   Primary method: Google Document AI processor extracts text and structure
+        *   Pre-processing with pdf-lib for optimization if needed
+        *   Fallback method: Google Cloud Vision AI for PDFs that can't be processed
     *   **For Images:** 
-        *   Google Cloud Vision AI (`@google-cloud/vision`) OCR API extracts text.
-    *   Handle potential errors during extraction with cascading fallbacks.
+        *   Google Cloud Vision AI (`@google-cloud/vision`) OCR API extracts text
+    *   Handle potential errors during extraction with cascading fallbacks
+    *   Memory-efficient processing with strict page limits
 
 3.  **Text Processing & AI Generation:**
-    *   Extracted text is truncated (currently to 50,000 characters) to meet model limitations.
-    *   The text is sent to Google Vertex AI (Gemini) for Q&A generation.
-    *   A specialized prompt instructs the model to create educational flashcards.
-    *   Response is parsed to extract the JSON array of question/answer pairs.
+    *   Extracted text is processed and structured based on Document AI output
+    *   Content is chunked and truncated (50,000 characters) for model compatibility
+    *   Processed text is sent to Google Cloud Vertex AI for Q&A generation
+    *   Custom prompt engineering ensures high-quality educational flashcards
+    *   Response parsing and validation for consistent JSON output
 
 4.  **User Review & Interaction:**
-    *   Generated flashcards are displayed to the user in the UI.
-    *   Extracted text preview provides context for the generated content.
-    *   Users can save the generated flashcards as a JSON file.
-    *   Sonner notifications provide real-time feedback.
+    *   Generated flashcards are displayed in an interactive review interface
+    *   Extracted text preview shows source content with structure preservation
+    *   Real-time feedback through Sonner toast notifications
+    *   Export functionality for generated content
 
 5.  **Infrastructure & Error Handling:**
-    *   Uses Node.js runtime with increased memory (3008MB) and time (90 seconds).
-    *   Implemented unique toast IDs to prevent stuck notification states.
-    *   Enhanced error handling for each potential failure point.
-    *   Detailed server-side logging for debugging.
+    *   Node.js runtime configuration (3008MB memory, 90-second timeout)
+    *   Unique toast ID system for notification management
+    *   Comprehensive error handling:
+        - File validation (size: 413, type: 422)
+        - Page limit validation (422)
+        - Document AI processing errors
+        - Vision AI fallback errors
+        - Vertex AI generation failures
+    *   Detailed logging for debugging
+    *   Vercel-optimized configuration
 
-6.  **User Review & Selection (Client):**
-    *   Send the validated, generated Q&A pairs back to the client.
-    *   Display pairs in the `<QnaReview />` component on `/prepare/ai-generate`.
-    *   Allow the user to:
-        *   Review each pair.
-        *   Edit the question or answer content.
-        *   Select/deselect pairs for import.
-        *   Choose a target deck for importing.
+6.  **Data Flow:**
+    ```mermaid
+    sequenceDiagram
+        participant Client
+        participant API
+        participant DocumentAI
+        participant VisionAI
+        participant VertexAI
+        
+        Client->>API: Upload File
+        API->>API: Validate & Process
+        alt is PDF
+            API->>DocumentAI: Process PDF
+            DocumentAI-->>API: Return Text & Structure
+        else is Image
+            API->>VisionAI: Process Image
+            VisionAI-->>API: Return OCR Text
+        end
+        API->>VertexAI: Generate Q&A
+        VertexAI-->>API: Return Flashcards
+        API-->>Client: Return Results
+    ```
 
-7.  **Save Selected Cards (Client -> Server Action):**
-    *   User clicks "Import Selected".
-    *   Client sends the final list of selected (and potentially edited) Q&A pairs along with the target `deck_id` to a Server Action (`cardActions.createMultipleCards`).
-    *   Action performs a batch insert into the `cards` table, setting `front_content` and `back_content` accordingly, associating them with the correct `user_id` and `deck_id`.
-    *   Provide feedback to the user (success/failure).
-
-8.  **Cleanup (Server-Side):**
-    *   Delete the temporary file from storage after processing.
-
-#### Future Enhancements (Not Yet Implemented):
-*   Integration with deck management to directly import flashcards into a specific deck.
-*   Ability to edit generated flashcards before saving.
-*   Select/deselect individual flashcards for import.
-*   Temporary storage cleanup for uploaded files.
-*   More advanced text chunking strategies for longer documents.
 ---
 
 ## 7. Component Breakdown (Key Components)
@@ -851,31 +955,37 @@ The complete workflow includes:
 
 ## 9. Development & Deployment Workflow
 
-*   **Version Control:** Git (GitHub/GitLab/Bitbucket).
-    *   Feature branches (`feat/`, `fix/`, `chore/`).
-    *   Pull Requests with code review.
-    *   Clear, descriptive commit messages.
+*   **Version Control:** Git (GitHub/GitLab/Bitbucket)
+    *   Feature branches (`feat/`, `fix/`, `chore/`)
+    *   Pull Requests with code review
+    *   Clear, descriptive commit messages
 *   **Local Development:**
-    *   Supabase CLI for local development environment (`supabase start`).
-    *   Manage database schema changes via migrations (`supabase/migrations/`). Apply locally (`supabase db reset`), link project (`supabase link`), push changes (`supabase db push`), generate types (`supabase gen types typescript`).
+    *   Supabase CLI for local development environment (`supabase start`)
+    *   Manage database schema changes via migrations (`supabase/migrations/`)
+    *   Apply locally (`supabase db reset`), link project (`supabase link`), push changes (`supabase db push`), generate types (`supabase gen types typescript`)
 *   **Code Quality & Consistency:**
-    *   TypeScript for static typing.
-    *   Linting (`ESLint`) and Formatting (`Prettier`) enforced via pre-commit hooks (`husky`, `lint-staged`).
-    *   Adherence to coding standards defined in custom instructions.
+    *   TypeScript for static typing
+    *   Linting (`ESLint`) and Formatting (`Prettier`) enforced via pre-commit hooks (`husky`, `lint-staged`)
+    *   Adherence to coding standards defined in custom instructions
+*   **Documentation & API Integration:**
+    *   Context7 MCP for real-time library documentation access
+    *   Automatic API documentation updates through Context7
+    *   Integration best practices from official sources
+    *   Implementation examples for Google Cloud services
 *   **Testing:**
-    *   Unit Tests (Jest/Vitest) for utility functions (e.g., `lib/srs.ts`, `lib/utils.ts`).
-    *   Integration Tests for Server Actions, custom hooks, potentially database functions.
-    *   End-to-End Tests (Cypress/Playwright) for critical user flows (Auth, Card CRUD, Study Session, Review Mode Session, AI Gen flow, Settings update).
-    *   Aim for reasonable test coverage.
-*   **Continuous Integration (CI):** GitHub Actions (or similar).
-    *   Run linters, formatters, type checks, tests on each push/PR.
-    *   Build the application.
+    *   Unit Tests (Jest/Vitest) for utility functions (e.g., `lib/srs.ts`, `lib/utils.ts`)
+    *   Integration Tests for Server Actions, custom hooks, potentially database functions
+    *   End-to-End Tests (Cypress/Playwright) for critical user flows (Auth, Card CRUD, Study Session, Review Mode Session, AI Gen flow, Settings update)
+    *   Aim for reasonable test coverage
+*   **Continuous Integration (CI):** GitHub Actions (or similar)
+    *   Run linters, formatters, type checks, tests on each push/PR
+    *   Build the application
 *   **Deployment:**
-    *   Vercel for hosting the Next.js application.
-    *   Connect Vercel to Git repository for automatic deployments from `main` branch.
-    *   Preview deployments for Pull Requests.
-    *   Manage environment variables securely in Vercel.
-    *   Apply Supabase migrations to staging/production environments (`supabase migration up`).
+    *   Vercel for hosting the Next.js application
+    *   Connect Vercel to Git repository for automatic deployments from `main` branch
+    *   Preview deployments for Pull Requests
+    *   Manage environment variables securely in Vercel
+    *   Apply Supabase migrations to staging/production environments (`supabase migration up`)
 
 ---
 
@@ -921,13 +1031,25 @@ The complete workflow includes:
 *   Zustand Documentation ([https://github.com/pmndrs/zustand](https://github.com/pmndrs/zustand))
 *   React Hook Form Documentation ([https://react-hook-form.com/](https://react-hook-form.com/))
 *   Zod Documentation ([https://zod.dev/](https://zod.dev/))
-*   Google Cloud TTS API Documentation ([https://cloud.google.com/text-to-speech/docs](https://cloud.google.com/text-to-speech/docs))
-*   Google Cloud Vision AI API Documentation ([https://cloud.google.com/vision/docs](https://cloud.google.com/vision/docs))
-*   Google AI Gemini API Documentation ([https://ai.google.dev/docs](https://ai.google.dev/docs))
-*   SM-2 Algorithm Specification (e.g., [https://www.supermemo.com/en/archives1990-2015/english/ol/sm2](https://www.supermemo.com/en/archives1990-2015/english/ol/sm2))
-*   FSRS Algorithm Resources (e.g., [https://github.com/open-spaced-repetition/fsrs4anki](https://github.com/open-spaced-repetition/fsrs4anki))
+*   Google Cloud Documentation:
+    *   Document AI ([https://cloud.google.com/document-ai/docs](https://cloud.google.com/document-ai/docs))
+    *   Vision AI ([https://cloud.google.com/vision/docs](https://cloud.google.com/vision/docs))
+    *   Vertex AI / Gemini ([https://cloud.google.com/vertex-ai/docs/generative-ai/model-reference/gemini](https://cloud.google.com/vertex-ai/docs/generative-ai/model-reference/gemini))
+    *   Text-to-Speech ([https://cloud.google.com/text-to-speech/docs](https://cloud.google.com/text-to-speech/docs))
+    *   Authentication ([https://cloud.google.com/docs/authentication](https://cloud.google.com/docs/authentication))
+    *   Best Practices ([https://cloud.google.com/apis/docs/best-practices](https://cloud.google.com/apis/docs/best-practices))
+*   PDF Libraries:
+    *   pdf-lib ([https://pdf-lib.js.org/](https://pdf-lib.js.org/))
+*   Context7 MCP Documentation:
+    *   Google Generative AI SDK ([https://github.com/google-gemini/generative-ai-js](https://github.com/google-gemini/generative-ai-js))
+    *   Google Cloud Document AI ([https://cloud.google.com/document-ai/docs/reference](https://cloud.google.com/document-ai/docs/reference))
+    *   Google Cloud Vision AI ([https://cloud.google.com/vision/docs/reference](https://cloud.google.com/vision/docs/reference))
+    *   Google Cloud Vertex AI ([https://cloud.google.com/vertex-ai/docs](https://cloud.google.com/vertex-ai/docs))
+    *   Vertex AI Gemini Model Reference ([https://cloud.google.com/vertex-ai/docs/generative-ai/model-reference/gemini](https://cloud.google.com/vertex-ai/docs/generative-ai/model-reference/gemini))
+*   SM-2 Algorithm Specification ([https://www.supermemo.com/en/archives1990-2015/english/ol/sm2](https://www.supermemo.com/en/archives1990-2015/english/ol/sm2))
+*   FSRS Algorithm Resources ([https://github.com/open-spaced-repetition/fsrs4anki](https://github.com/open-spaced-repetition/fsrs4anki))
 *   `date-fns` Documentation ([https://date-fns.org/docs/Getting-Started](https://date-fns.org/docs/Getting-Started))
-*   `pdf-parse` Documentation ([https://www.npmjs.com/package/pdf-parse](https://www.npmjs.com/package/pdf-parse))
+*   Sonner Documentation ([https://sonner.emilkowal.ski/](https://sonner.emilkowal.ski/))
 
 ---
 
@@ -1019,19 +1141,19 @@ The complete workflow includes:
 *   [x] Add main navigation links for new sections (Tags, Study Sets, Study Select).
 
 **Phase 4: AI Flashcard Generator**
-*   [x] Task 1.1: AI Key Setup (Google Cloud Credentials, Env Vars for API Keys).
-*   [x] Task 1.2: Install AI Dependencies (`pdf-parse`, `@google-cloud/vision`, `@google/generative-ai`).
-*   [x] Task 1.3: Implement Upload Action/Route & File Handling (Blobs, FormData).
-*   [x] Task 1.4: Implement Text Extraction with multiple methods (pdf-parse, Vision AI).
-*   [x] Task 2.1: Implement Text Processing (chunking/truncation).
-*   [x] Task 2.2: Implement Q&A Generation using Gemini API.
-*   [x] Task 3.1: Implement Upload Component UI (supports PDF/images with validation).
-*   [x] Task 3.2: Implement AI Generate Page with responsive layout.
-*   [ ] Task 3.3: Implement Flashcard Review UI with extracted text preview.
-*   [x] Task 4.1: Implement JSON Export for generated flashcards.
-*   [x] Task 4.2: Add comprehensive error handling and toast notifications.
-*   [ ] Task 4.3: Add AI Gen Entry Point in Main UI (Sidebar Link).
-*   [x] Task 5.1: Implement Vercel-specific configurations.
+*   [x] Task 1.1: AI Key Setup (Google Cloud Credentials, Env Vars for API Keys)
+*   [x] Task 1.2: Install AI Dependencies (`pdf-parse`, `@google-cloud/vision`, `@google-cloud/vertexai`)
+*   [x] Task 1.3: Implement Upload Action/Route & File Handling (Blobs, FormData)
+*   [x] Task 1.4: Implement Text Extraction with multiple methods (pdf-parse, Vision AI)
+*   [x] Task 2.1: Implement Text Processing (chunking/truncation)
+*   [x] Task 2.2: Implement Q&A Generation using Vertex AI
+*   [x] Task 3.1: Implement Upload Component UI (supports PDF/images with validation)
+*   [x] Task 3.2: Implement AI Generate Page with responsive layout
+*   [x] Task 3.3: Implement Flashcard Review UI with extracted text preview
+*   [x] Task 4.1: Implement JSON Export for generated flashcards
+*   [x] Task 4.2: Add comprehensive error handling and toast notifications
+*   [x] Task 4.3: Add AI Gen Entry Point in Main UI (Sidebar Link)
+*   [x] Task 5.1: Implement Vercel-specific configurations
 
 **Recently Completed Tasks:**
 - Optimized for Vercel deployment with memory and timeout configurations
@@ -1039,12 +1161,15 @@ The complete workflow includes:
 - Added proper toast notification lifecycle management
 - Implemented multi-method text extraction with fallbacks
 - Enhanced error handling for all failure modes
+- Added page limit validation for PDFs (30 pages)
+- Improved error status codes and messages
+- Implemented memory-efficient processing strategies
 
 **Remaining Tasks:**
-- [ ] Task 6.1: Integrate with deck management to allow direct import to decks.
-- [ ] Task 6.2: Add ability to edit generated flashcards before saving.
-- [ ] Task 6.3: Add select/deselect functionality for individual flashcards.
-- [ ] Task 6.4: Implement temporary file cleanup logic.
+- [ ] Task 6.1: Integrate with deck management to allow direct import to decks
+- [ ] Task 6.2: Add ability to edit generated flashcards before saving
+- [ ] Task 6.3: Add select/deselect functionality for individual flashcards
+- [ ] Task 6.4: Implement temporary file cleanup logic
 
 **Notable Technical Challenges Overcome:**
 1. Managing file uploads in Vercel's serverless environment
@@ -1052,6 +1177,9 @@ The complete workflow includes:
 3. Coordinating cascading fallback services for text extraction
 4. Managing toast notification lifecycle to prevent UI state issues
 5. Vercel-specific deployment optimizations with custom `vercel.json`
+6. Implementing proper error handling with appropriate status codes
+7. Memory optimization for serverless environment constraints
+8. PDF processing with strict page limits and fallback mechanisms
 
 **Phase 5: Testing & Polish (Pending)**
 *   [ ] Database Backfilling script creation & testing (Staging).

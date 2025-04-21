@@ -35,6 +35,7 @@ Format each pair as a JSON object with "question" and "answer" fields.
 Make the questions test understanding rather than just recall.
 Return an array of these objects.
 Keep answers concise but complete (under 100 words).
+Always sse the Dutch language.
 Create at least 2 high-quality pairs for each of these topics:
 
 Topics:
