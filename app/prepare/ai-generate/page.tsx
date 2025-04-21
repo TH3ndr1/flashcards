@@ -1,14 +1,14 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Loader2, Upload } from 'lucide-react';
+import { Loader2, Download, Camera, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSupabase } from '@/hooks/use-supabase';
 import { useAuth } from '@/hooks/use-auth';
 import { v4 as uuidv4 } from 'uuid';
+import { MediaCaptureTabs } from '@/components/media-capture-tabs';
 
 interface Flashcard {
   question: string;
@@ -16,25 +16,27 @@ interface Flashcard {
 }
 
 // Supported file types
-const SUPPORTED_FILE_TYPES = "application/pdf, image/jpeg, image/jpg, image/png, image/gif, image/bmp, image/webp";
+const SUPPORTED_FILE_TYPES = "PDF, JPG, JPEG, PNG, GIF, BMP, WEBP";
 const SUPPORTED_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"];
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB (Supabase limit)
-const DIRECT_UPLOAD_LIMIT = 4 * 1024 * 1024; // 4MB - Use Supabase Storage for files larger than this
+const MAX_FILE_SIZE = 25; // 25MB
+const DIRECT_UPLOAD_LIMIT = 4; // 4MB - Use Supabase Storage for files larger than this
 const UPLOAD_BUCKET = 'ai-uploads'; // Bucket name
 
 export default function AiGeneratePage() {
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [extractedTextPreview, setExtractedTextPreview] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const { supabase } = useSupabase();
   const { user } = useAuth();
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setFile(e.target.files[0]);
+  const handleFilesSelected = (selectedFiles: File[]) => {
+    if (selectedFiles && selectedFiles.length > 0) {
+      // If multiple files are selected, just use the first one for now
+      // In the future, we could process multiple files
+      const file = selectedFiles[0];
+      setFiles([file]);
       setError(null);
     }
   };
@@ -51,10 +53,12 @@ export default function AiGeneratePage() {
       return;
     }
     
-    if (!file) {
-      setError('Please select a file');
+    if (!files.length) {
+      setError('Please select or capture at least one file');
       return;
     }
+
+    const file = files[0]; // For now, we're processing just the first file
 
     // Check if file extension is supported
     const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
@@ -63,15 +67,16 @@ export default function AiGeneratePage() {
       return;
     }
 
-    // Check file size against MAX_FILE_SIZE (50MB)
-    if (file.size > MAX_FILE_SIZE) {
-      setError(`File too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum size is 50MB.`);
+    // Check file size against MAX_FILE_SIZE 
+    const fileSizeMB = file.size / (1024 * 1024);
+    if (fileSizeMB > MAX_FILE_SIZE) {
+      setError(`File too large (${fileSizeMB.toFixed(2)}MB). Maximum size is ${MAX_FILE_SIZE}MB.`);
       return;
     }
 
-    // Warn if file is larger than DIRECT_UPLOAD_LIMIT (4MB)
-    if (file.size > DIRECT_UPLOAD_LIMIT) {
-      toast.info(`Large file detected (${(file.size / 1024 / 1024).toFixed(2)}MB). Using secure storage for processing.`);
+    // Warn if file is larger than DIRECT_UPLOAD_LIMIT
+    if (fileSizeMB > DIRECT_UPLOAD_LIMIT) {
+      toast.info(`Large file detected (${fileSizeMB.toFixed(2)}MB). Using secure storage for processing.`);
     }
 
     setIsLoading(true);
@@ -88,7 +93,8 @@ export default function AiGeneratePage() {
       let filePath: string | null = null;
       let finalFilename = file.name;
 
-      if (file.size > DIRECT_UPLOAD_LIMIT) {
+      // Handle large files via storage
+      if (fileSizeMB > DIRECT_UPLOAD_LIMIT) {
         toast.loading("Uploading to secure storage...", { id: `${loadingToastId}-upload` });
         
         const fileExt = file.name.split('.').pop();
@@ -121,6 +127,7 @@ export default function AiGeneratePage() {
         });
 
       } else {
+        // Direct upload for smaller files
         const formData = new FormData();
         formData.append('file', file);
         
@@ -163,7 +170,6 @@ export default function AiGeneratePage() {
       
       if (!response.ok) {
         console.error('API Error:', response.status, response.statusText, data);
-        
         throw new Error(data?.message || `Error: ${response.status} ${response.statusText}`);
       }
       
@@ -188,13 +194,10 @@ export default function AiGeneratePage() {
   };
 
   const handleClear = () => {
-    setFile(null);
+    setFiles([]);
     setFlashcards([]);
     setError(null);
     setExtractedTextPreview(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
   };
 
   const handleSaveFlashcards = useCallback(() => {
@@ -224,45 +227,57 @@ export default function AiGeneratePage() {
         <div>
           <Card>
             <CardHeader>
-              <CardTitle>Upload Document</CardTitle>
+              <CardTitle>Upload or Capture Documents</CardTitle>
               <CardDescription>
-                Upload a PDF or image file to generate flashcards using AI
+                Upload a document or use your camera to capture text for flashcard generation
               </CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit}>
                 <div className="mb-4">
-                  <Input
-                    ref={fileInputRef}
-                    type="file"
-                    accept={SUPPORTED_FILE_TYPES}
-                    onChange={handleFileChange}
-                    disabled={isLoading}
+                  {/* New component for file and camera capture */}
+                  <MediaCaptureTabs
+                    onFilesSelected={handleFilesSelected}
+                    supportedFileTypes={SUPPORTED_FILE_TYPES}
+                    supportedExtensions={SUPPORTED_EXTENSIONS}
+                    maxFileSize={MAX_FILE_SIZE}
+                    maxImages={5}
                   />
-                  {file && (
-                    <p className="text-sm mt-2">
-                      Selected: <span className="font-medium">{file.name}</span> ({(file.size / 1024 / 1024).toFixed(2)} MB)
-                    </p>
+                  
+                  {files.length > 0 && (
+                    <div className="mt-4 p-3 bg-muted rounded-md">
+                      <h4 className="font-medium text-sm mb-1">Selected file:</h4>
+                      <p className="text-sm">
+                        <span className="font-medium">{files[0].name}</span> ({(files[0].size / 1024 / 1024).toFixed(2)} MB)
+                      </p>
+                    </div>
                   )}
+                  
                   {error && <p className="text-sm text-red-500 mt-2">{error}</p>}
                 </div>
                 
                 <div className="flex items-center space-x-2">
-                  <Button type="submit" disabled={!file || isLoading}>
+                  <Button 
+                    type="submit" 
+                    disabled={isLoading || files.length === 0}
+                    className="w-full"
+                  >
                     {isLoading ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Generating...
+                        Processing...
                       </>
                     ) : (
-                      <>
-                        <Upload className="mr-2 h-4 w-4" />
-                        Generate Flashcards
-                      </>
+                      'Generate Flashcards'
                     )}
                   </Button>
-                  {file && (
-                    <Button type="button" variant="outline" onClick={handleClear} disabled={isLoading}>
+                  
+                  {files.length > 0 && !isLoading && (
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={handleClear}
+                    >
                       Clear
                     </Button>
                   )}
@@ -270,64 +285,75 @@ export default function AiGeneratePage() {
               </form>
             </CardContent>
           </Card>
-
-          {extractedTextPreview && (
-            <Card className="mt-6">
-              <CardHeader>
-                <CardTitle>Extracted Text Preview</CardTitle>
-                <CardDescription>
-                  Preview of the text extracted from your document
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="bg-muted p-3 rounded-md">
-                  <p className="text-sm italic">{extractedTextPreview}</p>
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Note: PDFs are processed using Google Document AI, and images are processed using Google Vision AI.
-                  Files up to 50MB are supported through our secure storage system.
-                </p>
-              </CardContent>
-            </Card>
-          )}
         </div>
-
+        
         <div>
-          {flashcards.length > 0 ? (
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <h2 className="text-xl font-bold">Generated Flashcards ({flashcards.length})</h2>
-                <Button onClick={handleSaveFlashcards} size="sm">
-                  Save Flashcards
-                </Button>
-              </div>
-              
-              {flashcards.map((card, index) => (
-                <Card key={index}>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Question {index + 1}</CardTitle>
-                    <CardDescription className="font-medium text-base">
-                      {card.question}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="bg-muted p-3 rounded-md">
-                      <p className="text-sm font-medium">Answer:</p>
-                      <p className="text-sm">{card.answer}</p>
+          <Card className="h-full flex flex-col">
+            <CardHeader>
+              <CardTitle className="flex justify-between items-center">
+                <span>Generated Flashcards</span>
+                {flashcards.length > 0 && (
+                  <Button variant="outline" size="sm" onClick={handleSaveFlashcards}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Save
+                  </Button>
+                )}
+              </CardTitle>
+              <CardDescription>
+                {flashcards.length > 0 
+                  ? `${flashcards.length} flashcards generated`
+                  : 'Flashcards will appear here after processing'
+                }
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex-grow overflow-auto">
+              {flashcards.length > 0 ? (
+                <div className="space-y-4">
+                  {flashcards.map((card, index) => (
+                    <div key={index} className="border rounded-md p-4">
+                      <h3 className="font-medium mb-2">Question {index + 1}:</h3>
+                      <p className="mb-3">{card.question}</p>
+                      <h3 className="font-medium mb-2">Answer:</h3>
+                      <p>{card.answer}</p>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            !isLoading && (
-              <div className="border border-dashed rounded-lg p-10 text-center">
-                <p className="text-muted-foreground">
-                  Upload a file and generate flashcards to see results here
-                </p>
-              </div>
-            )
-          )}
+                  ))}
+                </div>
+              ) : extractedTextPreview ? (
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-medium">Extracted Text Preview:</h3>
+                    <span className="text-xs text-muted-foreground">First 500 characters</span>
+                  </div>
+                  <div className="bg-muted p-3 rounded-md">
+                    <p className="text-sm whitespace-pre-line">
+                      {extractedTextPreview.substring(0, 500)}
+                      {extractedTextPreview.length > 500 && '...'}
+                    </p>
+                  </div>
+                  <div className="mt-4 text-sm text-muted-foreground">
+                    <p>Extraction method:</p>
+                    <ul className="list-disc list-inside mt-1">
+                      <li>PDFs: Processed with pdf-parse, with Google Vision AI as fallback</li>
+                      <li>Images: Processed with Google Vision AI for text recognition</li>
+                    </ul>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Eye className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                  <p>Preview will appear here</p>
+                </div>
+              )}
+            </CardContent>
+            {flashcards.length > 0 && (
+              <CardFooter className="border-t px-6 py-4">
+                <Button variant="secondary" className="w-full" onClick={handleSaveFlashcards}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Save Flashcards as JSON
+                </Button>
+              </CardFooter>
+            )}
+          </Card>
         </div>
       </div>
     </div>

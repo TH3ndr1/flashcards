@@ -1,5 +1,0 @@
-External PDF extraction tools (pdftotext, pdf2text) are not available on your system. 
-                      Please install them or use the topic-based generation method.
-                      
-                      You can install pdftotext on macOS using: brew install poppler
-                      On Ubuntu: sudo apt-get install poppler-utils

@@ -7,8 +7,7 @@
     "build": "next build",
     "start": "next start",
     "test": "jest --verbose",
-    "lint": "next lint",
-    "generate-flashcards": "node scripts/generate-flashcards.mjs"
+    "lint": "next lint"
   },
   "dependencies": {
     "@google-cloud/documentai": "^9.1.0",
