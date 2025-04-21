@@ -432,21 +432,74 @@ export async function POST(request: NextRequest) {
     } 
     // **** HANDLE MULTIPART/FORM-DATA (existing logic for small files) ****
     else if (contentType.includes('multipart/form-data')) {
+        console.log('[API /extract-pdf] Handling multipart/form-data request.');
         const formData = await request.formData();
-        const files = formData.getAll('file') as File[];
+        const files = formData.getAll('file') as File[]; // Assuming these are File objects
         
         if (!files || files.length === 0) {
+          console.log('[API /extract-pdf] No files found in FormData.');
           return NextResponse.json({ success: false, message: 'No files provided in form-data' }, { status: 400 });
         }
         
-        console.log(`[API /extract-pdf] Processing ${files.length} files from FormData.`);
+        console.log(`[API /extract-pdf] Received ${files.length} file entries from FormData.`);
         
-        // Process each file from FormData (existing loop)
-        for (const file of files) {
-           // ... (existing try/catch logic for processing form files) ...
-           // This includes the page limit check within extractTextFromPdfWithDocumentAI
-           // and adding to skippedFiles if errors occur
-        }
+        // Process each file from FormData
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          // **** ADDED LOGGING ****
+          console.log(`[API /extract-pdf] Processing file ${i+1}/${files.length}: Name: ${file.name}, Size: ${file.size}, Type: ${file.type}`);
+          if (!file.name || file.size === 0) {
+            console.warn(`[API /extract-pdf] Skipping file ${i+1} due to missing name or zero size.`);
+            skippedFiles.push({ filename: file.name || `Unnamed File ${i+1}`, reason: 'Invalid file data (missing name or zero size)' });
+            continue;
+          }
+          // Check if crucial methods exist
+          if (typeof file.arrayBuffer !== 'function') {
+              console.error(`[API /extract-pdf] Skipping file ${file.name}: Missing arrayBuffer method.`);
+              skippedFiles.push({ filename: file.name, reason: 'Invalid file object received (no arrayBuffer)' });
+              continue;
+          }
+          // **** END ADDED LOGGING ****
+
+          try {
+            const arrayBuffer = await file.arrayBuffer(); // Potential point of failure on mobile?
+            console.log(`[API /extract-pdf] Successfully got arrayBuffer for ${file.name}`);
+            const fileType = getSupportedFileType(file.name);
+            
+            if (!fileType) {
+              // ... skip logic ...
+              continue;
+            }
+            
+            // --- Start actual processing --- 
+            let result;
+            if (fileType === 'pdf') {
+               result = await extractTextFromPdfWithDocumentAI(arrayBuffer, file.name, 'application/pdf');
+            } else {
+               result = await extractTextFromImage(arrayBuffer, file.name);
+            }
+            // --- End actual processing --- 
+                      
+            // Store the extraction result
+            const fileResult = { filename: file.name, type: fileType, text: result.text, info: result.info };
+            allResults.push(fileResult);
+            
+            // ... update metrics, combinedPreview, generate flashcards ...
+            console.log(`[API /extract-pdf] Successfully processed ${file.name}.`);
+
+          } catch (fileError: any) {
+             console.error(`[API /extract-pdf] Error processing file ${file.name} from FormData:`, fileError.message);
+             // Handle page limit error specifically
+             if (fileError.message.startsWith('PDF_PAGE_LIMIT_EXCEEDED::')) {
+               const [, fname, pageCountStr] = fileError.message.split('::');
+               const pageCount = parseInt(pageCountStr, 10);
+               skippedFiles.push({ filename: fname, pages: pageCount, reason: `Exceeds 30-page limit (${pageCount} pages)` });
+             } else {
+               skippedFiles.push({ filename: file.name, reason: `Processing error: ${fileError.message}` });
+             }
+             continue; // Continue to next file
+          }
+        } // End for loop
     } 
     // **** HANDLE UNSUPPORTED CONTENT TYPE ****
     else {

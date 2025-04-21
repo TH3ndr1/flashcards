@@ -22347,11 +22347,37 @@ This ensures that large files are handled correctly even in multi-file uploads, 
 
 _**User**_
 
-For some reason, upload files no longer works on iphone. Files are added to the dialog, but I always get "Successfully processed 0 files".
+Since implementing the upload of multiple files,  there is an issue on mobile phones / ipads / iphones. 
+Files are added to the dialog. Upon clicicking "Generate Flashcards", the toast message "processing 2 files is shown", alwayes followed by the toast message "Successfully created 0 FlashCards from 2 files".
+
 
 ---
 
 _**Assistant**_
+
+
+
+---
+
+This sounds like a frustrating issue, often related to how mobile browsers handle file uploads and `FormData`. When it works on desktop but fails silently (processes 0 files despite showing them) on mobile, the discrepancy usually lies in how the file data is packaged or received on the backend.
+
+Here's a breakdown of potential causes and how we can investigate:
+
+1.  **Mobile FormData Quirks:** Mobile browsers sometimes have subtle differences in how they construct or send `FormData` compared to desktop browsers, especially with multiple files.
+2.  **Backend Parsing:** The Next.js backend (running on Vercel's Node.js runtime) might be having trouble parsing the `multipart/form-data` request specifically when it originates from iOS/iPadOS.
+3.  **File Object Issues:** It's possible the `File` objects received from the mobile file picker lack certain properties or methods (like `arrayBuffer()`) that the backend expects, causing the processing loop to fail silently for each file.
+
+**Debugging Strategy:**
+
+The best way to pinpoint this is to add logging on the **backend** inside the API route (`/api/extract-pdf/route.ts`) to see exactly what's arriving when the request comes from a mobile device.
+
+**Let's add detailed logging:**
+
+---
+
+Cancelled
+
+---
 
 
 
