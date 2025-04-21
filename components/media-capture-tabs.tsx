@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useCallback } from 'react';
 import { FileUpload } from '@/components/file-upload';
 
 interface MediaCaptureTabsProps {
@@ -18,10 +18,14 @@ export function MediaCaptureTabs({
   maxFileSize = 25,
   maxImages = 5
 }: MediaCaptureTabsProps) {
-  const handleFileUpload = (files: File[]) => {
-    if (!files || files.length === 0) return;
-    onFilesSelected(files);
-  };
+  // Use a memoized callback to avoid re-renders
+  const handleFileUpload = useCallback((files: File[]) => {
+    console.log(`MediaCaptureTabs received ${files ? files.length : 0} files from FileUpload`);
+    // Only propagate the update if we have valid inputs
+    if (files && Array.isArray(files)) {
+      onFilesSelected(files);
+    }
+  }, [onFilesSelected]);
 
   return (
     <FileUpload

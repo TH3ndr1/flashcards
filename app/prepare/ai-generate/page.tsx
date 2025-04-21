@@ -39,15 +39,42 @@ export default function AiGeneratePage() {
 
   // handleFilesSelected now directly updates the state, which is correct
   const handleFilesSelected = (selectedFiles: File[]) => {
+    console.log(`App received ${selectedFiles.length} files from FileUpload component`);
+    
     // This function receives the complete, updated list from FileUpload
-    setFiles(selectedFiles);
+    setFiles(Array.isArray(selectedFiles) ? [...selectedFiles] : []);
+    
+    // Clear the error when files are updated
+    if (!selectedFiles || selectedFiles.length === 0) {
+      console.log('No files received, clearing state');
+    } else {
+      console.log(`Files updated: ${selectedFiles.map(f => f.name).join(', ')}`);
+    }
     setError(null);
   };
 
   // handleSubmit uses the state directly
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("Form submitted");
 
+    // Double check files state to ensure it's valid
+    if (!files || !Array.isArray(files) || files.length === 0) {
+      console.error('No files available for processing');
+      setError('Please select or capture at least one file');
+      return;
+    }
+    
+    // Check that files is still a valid array with actual File objects
+    const validFiles = files.filter(f => f instanceof File && f.name && f.size > 0);
+    if (validFiles.length === 0) {
+      console.error('No valid files found in state:', files);
+      setError('No valid files found');
+      return;
+    }
+    
+    console.log(`Submit triggered with ${validFiles.length} files:`, validFiles.map(f => f.name));
+    
     if (!supabase) {
       setError('Database connection not ready. Please wait a moment and try again.');
       return;
@@ -57,14 +84,10 @@ export default function AiGeneratePage() {
       return;
     }
     
-    // Use the component's state directly
+    // Get fresh files state from the component to ensure we're using the most current value
     const currentFiles = files;
+    console.log(`Submit triggered with ${currentFiles.length} files`);
     
-    if (!currentFiles || currentFiles.length === 0) { // Check for empty array
-      setError('Please select or capture at least one file');
-      return;
-    }
-
     // Validate all files
     for (const file of currentFiles) {
       // Check if file extension is supported
@@ -488,22 +511,22 @@ export default function AiGeneratePage() {
   };
 
   return (
-    <div className="container mx-auto py-8">
-      <h1 className="text-3xl font-bold mb-6">AI Flashcard Generator</h1>
+    <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
+      <h1 className="text-2xl sm:text-3xl font-bold mb-4 sm:mb-6">AI Flashcard Generator</h1>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
         <div>
           <Card>
-            <CardHeader>
+            <CardHeader className="px-4 sm:px-6 py-4 sm:py-6">
               <CardTitle>Upload Documents</CardTitle>
               <CardDescription>
                 Upload documents or use your device's camera to take pictures for flashcard generation
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
               <form onSubmit={handleSubmit}>
                 <div className="mb-4">
-                  {/* New component for file and camera capture */}
+                  {/* File upload component */}
                   <MediaCaptureTabs
                     onFilesSelected={handleFilesSelected}
                     supportedFileTypes={SUPPORTED_FILE_TYPES}
@@ -512,26 +535,13 @@ export default function AiGeneratePage() {
                     maxImages={5}
                   />
                   
-                  {files.length > 0 && (
-                    <div className="mt-4 p-3 bg-muted rounded-md">
-                      <h4 className="font-medium text-sm mb-1">Selected files: {files.length}</h4>
-                      <div className="max-h-32 overflow-y-auto">
-                        {files.map((file, index) => (
-                          <p key={index} className="text-sm">
-                            <span className="font-medium">{file.name}</span> ({(file.size / 1024 / 1024).toFixed(2)} MB)
-                          </p>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  
                   {error && <p className="text-sm text-red-500 mt-2">{error}</p>}
                 </div>
                 
-                <div className="flex items-center space-x-2">
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-0 sm:items-center sm:space-x-2">
                   <Button 
                     type="submit" 
-                    disabled={isLoading || files.length === 0}
+                    disabled={isLoading || !files || files.length === 0}
                     className="w-full"
                   >
                     {isLoading ? (
@@ -549,6 +559,7 @@ export default function AiGeneratePage() {
                       type="button" 
                       variant="outline" 
                       onClick={handleClear}
+                      className="sm:w-auto"
                     >
                       Clear
                     </Button>
@@ -561,14 +572,14 @@ export default function AiGeneratePage() {
         
         <div>
           <Card className="h-full flex flex-col">
-            <CardHeader>
-              <CardTitle className="flex justify-between items-center">
-                <span>Generated Flashcards</span>
+            <CardHeader className="px-4 sm:px-6 py-4 sm:py-6">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                <CardTitle>Generated Flashcards</CardTitle>
                 <div className="flex items-center gap-2">
                   {flashcards.length > 0 && (
                     <>
                       <Button variant="outline" size="sm" onClick={handleClearResults}>
-                        Clear Results
+                        Clear
                       </Button>
                       <Button variant="outline" size="sm" onClick={handleSaveFlashcards}>
                         <Download className="mr-2 h-4 w-4" />
@@ -577,23 +588,18 @@ export default function AiGeneratePage() {
                     </>
                   )}
                 </div>
-              </CardTitle>
-              <CardDescription>
+              </div>
+              <CardDescription className="mt-2">
                 {processingSummary ? (
                   <div className="text-xs space-y-1 mt-2 border-t pt-2">
                     {processingSummary.split('\n').map((line, index) => (
-                      <p key={index} className="flex items-center">
-                        {line.includes('Skipped') ? (
-                          <>
-                            <span className="text-orange-500 mr-1.5">⚠️</span> 
-                            <span className="text-muted-foreground">{line.replace(/^- /, '')}</span>
-                          </>
-                        ) : (
-                          <>
-                            <span className="text-green-500 mr-1.5">✓</span> 
-                            <span>{line.replace(/^- /, '')}</span>
-                          </>
-                        )}
+                      <p key={index} className="flex items-start">
+                        <span className={`flex-shrink-0 ${line.includes('Skipped') ? 'text-orange-500' : 'text-green-500'} mr-1.5`}>
+                          {line.includes('Skipped') ? '⚠️' : '✓'}
+                        </span> 
+                        <span className={line.includes('Skipped') ? 'text-muted-foreground' : ''}>
+                          {line.replace(/^- /, '')}
+                        </span>
                       </p>
                     ))}
                   </div>
@@ -605,38 +611,40 @@ export default function AiGeneratePage() {
                 )}
               </CardDescription>
             </CardHeader>
-            <CardContent className="flex-grow overflow-auto">
+            <CardContent className="flex-grow overflow-auto px-4 sm:px-6 pb-4 sm:pb-6">
               {flashcards.length > 0 ? (
                 <>
                   {Object.entries(getFlashcardsBySource(flashcards)).map(([source, cards], groupIndex) => (
-                    <div key={`group-${groupIndex}`} className="mb-8">
+                    <div key={`group-${groupIndex}`} className="mb-6">
                       <div className="sticky top-0 bg-background z-10 mb-3 border-b pb-2">
-                        <div className="flex items-center">
-                          <div className="h-6 w-6 flex items-center justify-center rounded-full bg-primary/10 mr-2">
+                        <div className="flex items-center gap-2">
+                          <div className="h-6 w-6 flex-shrink-0 flex items-center justify-center rounded-full bg-primary/10">
                             <span className="text-xs font-semibold text-primary">{cards.length}</span>
                           </div>
-                          <h3 className="text-lg font-medium">Source: {source}</h3>
-                          {cards[0]?.fileType && (
-                            <span className="ml-2 text-xs bg-muted px-2 py-0.5 rounded-full">
-                              {cards[0].fileType}
-                            </span>
-                          )}
+                          <div className="min-w-0 flex-1">
+                            <h3 className="text-sm sm:text-lg font-medium truncate">Source: {source}</h3>
+                            {cards[0]?.fileType && (
+                              <span className="text-xs bg-muted px-2 py-0.5 rounded-full">
+                                {cards[0].fileType}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                       
-                      <div className="space-y-4">
+                      <div className="space-y-3 sm:space-y-4">
                         {cards.map((card, index) => (
                           <Card key={`${source}-${index}`} className="overflow-hidden">
-                            <CardHeader className="bg-primary/5 pb-3">
-                              <CardTitle className="text-lg">Question {index + 1}</CardTitle>
-                              <CardDescription className="font-medium text-foreground text-base">
+                            <CardHeader className="bg-primary/5 pb-2 sm:pb-3 px-3 sm:px-4 py-3">
+                              <CardTitle className="text-base sm:text-lg">Question {index + 1}</CardTitle>
+                              <CardDescription className="font-medium text-foreground text-sm sm:text-base">
                                 {card.question}
                               </CardDescription>
                             </CardHeader>
-                            <CardContent className="pt-4">
-                              <div className="bg-muted p-3 rounded-md">
-                                <p className="text-sm font-medium mb-1">Answer:</p>
-                                <p className="text-sm">{card.answer}</p>
+                            <CardContent className="pt-2 sm:pt-4 px-3 sm:px-4 py-3">
+                              <div className="bg-muted p-2 sm:p-3 rounded-md">
+                                <p className="text-xs sm:text-sm font-medium mb-1">Answer:</p>
+                                <p className="text-xs sm:text-sm whitespace-pre-line">{card.answer}</p>
                               </div>
                             </CardContent>
                           </Card>
@@ -648,16 +656,16 @@ export default function AiGeneratePage() {
               ) : extractedTextPreview ? (
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-medium">Extracted Text Preview:</h3>
+                    <h3 className="text-sm sm:text-base font-medium">Extracted Text Preview:</h3>
                     <span className="text-xs text-muted-foreground">First 500 characters</span>
                   </div>
-                  <div className="bg-muted p-3 rounded-md">
-                    <p className="text-sm whitespace-pre-line">
+                  <div className="bg-muted p-2 sm:p-3 rounded-md">
+                    <p className="text-xs sm:text-sm whitespace-pre-line">
                       {extractedTextPreview.substring(0, 500)}
                       {extractedTextPreview.length > 500 && '...'}
                     </p>
                   </div>
-                  <div className="mt-4 text-sm text-muted-foreground">
+                  <div className="mt-3 sm:mt-4 text-xs sm:text-sm text-muted-foreground">
                     <p>Extraction method:</p>
                     <ul className="list-disc list-inside mt-1">
                       <li>PDFs: Processed with pdf-parse, with Google Vision AI as fallback</li>
@@ -666,14 +674,14 @@ export default function AiGeneratePage() {
                   </div>
                 </div>
               ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Eye className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                <div className="text-center py-6 sm:py-8 text-muted-foreground">
+                  <Eye className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 opacity-20" />
                   <p>Preview will appear here</p>
                 </div>
               )}
             </CardContent>
             {flashcards.length > 0 && (
-              <CardFooter className="border-t px-6 py-4">
+              <CardFooter className="border-t px-4 sm:px-6 py-3 sm:py-4">
                 <Button variant="secondary" className="w-full" onClick={handleSaveFlashcards}>
                   <Download className="mr-2 h-4 w-4" />
                   Save Flashcards as JSON
