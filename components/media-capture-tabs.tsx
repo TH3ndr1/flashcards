@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FileUpload } from '@/components/file-upload';
 import { CameraCapture } from '@/components/camera-capture';
@@ -33,11 +33,9 @@ export function MediaCaptureTabs({
     onFilesSelected(images);
   };
 
-  const handleFileUpload = (files: FileList | null) => {
+  const handleFileUpload = (files: File[]) => {
     if (!files || files.length === 0) return;
-    
-    const fileArray: File[] = Array.from(files);
-    onFilesSelected(fileArray);
+    onFilesSelected(files);
   };
 
   return (

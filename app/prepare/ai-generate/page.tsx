@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, Download, Camera, Eye } from 'lucide-react';
@@ -33,14 +33,14 @@ export default function AiGeneratePage() {
   const { supabase } = useSupabase();
   const { user } = useAuth();
 
+  // handleFilesSelected now directly updates the state, which is correct
   const handleFilesSelected = (selectedFiles: File[]) => {
-    if (selectedFiles && selectedFiles.length > 0) {
-      // Store all selected files, not just the first one
-      setFiles(selectedFiles);
-      setError(null);
-    }
+    // This function receives the complete, updated list from FileUpload
+    setFiles(selectedFiles);
+    setError(null);
   };
 
+  // handleSubmit uses the state directly
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -53,13 +53,16 @@ export default function AiGeneratePage() {
       return;
     }
     
-    if (!files.length) {
+    // Use the component's state directly
+    const currentFiles = files;
+    
+    if (!currentFiles || currentFiles.length === 0) { // Check for empty array
       setError('Please select or capture at least one file');
       return;
     }
 
     // Validate all files
-    for (const file of files) {
+    for (const file of currentFiles) {
       // Check if file extension is supported
       const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
       if (!SUPPORTED_EXTENSIONS.includes(fileExtension)) {
@@ -82,7 +85,7 @@ export default function AiGeneratePage() {
     
     const loadingToastId = `loading-${Date.now()}`;
     const safetyTimeout = setTimeout(() => toast.dismiss(loadingToastId), 90000);
-    toast.loading(`Processing ${files.length} file${files.length > 1 ? 's' : ''}...`, { id: loadingToastId, duration: 60000 });
+    toast.loading(`Processing ${currentFiles.length} file${currentFiles.length > 1 ? 's' : ''}...`, { id: loadingToastId, duration: 60000 });
     
     try {
       let response;
@@ -91,11 +94,11 @@ export default function AiGeneratePage() {
       const formData = new FormData();
       
       // Determine if any file is larger than the direct upload limit
-      const hasLargeFile = files.some(file => file.size > DIRECT_UPLOAD_LIMIT * 1024 * 1024);
+      const hasLargeFile = currentFiles.some(file => file.size > DIRECT_UPLOAD_LIMIT * 1024 * 1024);
       
-      if (hasLargeFile && files.length === 1) {
+      if (hasLargeFile && currentFiles.length === 1) {
         // If a single large file, use storage upload method
-        const file = files[0];
+        const file = currentFiles[0];
         const fileSizeMB = file.size / (1024 * 1024);
         toast.loading(`Uploading large file (${fileSizeMB.toFixed(2)}MB) to secure storage...`, { id: `${loadingToastId}-upload` });
         
@@ -128,8 +131,8 @@ export default function AiGeneratePage() {
         });
       } else {
         // Direct upload for multiple files or small files
-        for (let i = 0; i < files.length; i++) {
-          formData.append('file', files[i]);
+        for (let i = 0; i < currentFiles.length; i++) {
+          formData.append('file', currentFiles[i]);
         }
         
         const fetchWithTimeout = async (url: string, options: RequestInit, timeout = 90000) => {
@@ -180,7 +183,7 @@ export default function AiGeneratePage() {
       setFlashcards(data.flashcards || []);
       setExtractedTextPreview(data.extractedTextPreview || null);
       
-      toast.success(`Successfully created ${data.flashcards.length} flashcards from ${files.length} file${files.length > 1 ? 's' : ''}`);
+      toast.success(`Successfully created ${data.flashcards.length} flashcards from ${currentFiles.length} file${currentFiles.length > 1 ? 's' : ''}`);
     } catch (err: any) {
       console.error('Error during handleSubmit:', err);
       const errorMessage = err.message || 'An error occurred';
@@ -275,10 +278,14 @@ export default function AiGeneratePage() {
                   
                   {files.length > 0 && (
                     <div className="mt-4 p-3 bg-muted rounded-md">
-                      <h4 className="font-medium text-sm mb-1">Selected file:</h4>
-                      <p className="text-sm">
-                        <span className="font-medium">{files[0].name}</span> ({(files[0].size / 1024 / 1024).toFixed(2)} MB)
-                      </p>
+                      <h4 className="font-medium text-sm mb-1">Selected files: {files.length}</h4>
+                      <div className="max-h-32 overflow-y-auto">
+                        {files.map((file, index) => (
+                          <p key={index} className="text-sm">
+                            <span className="font-medium">{file.name}</span> ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                          </p>
+                        ))}
+                      </div>
                     </div>
                   )}
                   

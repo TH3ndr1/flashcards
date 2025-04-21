@@ -4,20 +4,23 @@ import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Upload, File, X } from 'lucide-react';
+import React from 'react';
 
 interface FileUploadProps {
-  onFilesSelected: (files: FileList | null) => void;
+  onFilesSelected: (files: File[]) => void;
   supportedFileTypes: string;
   supportedExtensions: string[];
   maxFileSize?: number; // in MB
 }
 
-export function FileUpload({
-  onFilesSelected,
-  supportedFileTypes,
-  supportedExtensions,
-  maxFileSize = 25
-}: FileUploadProps) {
+export const FileUpload = (
+  {
+    onFilesSelected,
+    supportedFileTypes,
+    supportedExtensions,
+    maxFileSize = 25
+  }: FileUploadProps
+) => {
   const [dragActive, setDragActive] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -74,11 +77,47 @@ export function FileUpload({
   const handleFiles = (files: FileList | null) => {
     setError(null);
     
-    if (validateFiles(files)) {
-      setSelectedFiles(Array.from(files || []));
-      onFilesSelected(files);
-    } else if (!error) {
-      setError('No valid files were selected.');
+    if (!files || files.length === 0) {
+      if (!error) {
+        setError('No files were selected.');
+      }
+      return;
+    }
+    
+    // Create an array of new files to add
+    const newFiles: File[] = [];
+    
+    // Validate each file before adding
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const extension = file.name.split('.').pop()?.toLowerCase() || '';
+      
+      // Check file extension
+      if (!supportedExtensions.includes(`.${extension}`)) {
+        setError(`File "${file.name}" type not supported. Please upload ${supportedFileTypes}.`);
+        continue;
+      }
+      
+      // Check file size
+      if (file.size > maxFileSize * 1024 * 1024) {
+        setError(`File "${file.name}" exceeds the ${maxFileSize}MB limit.`);
+        continue;
+      }
+      
+      // Check for duplicate files by name
+      if (selectedFiles.some(existingFile => existingFile.name === file.name)) {
+        setError(`File "${file.name}" is already selected.`);
+        continue;
+      }
+      
+      newFiles.push(file);
+    }
+    
+    if (newFiles.length > 0) {
+      // Add new files to the existing selection
+      const updatedFiles = [...selectedFiles, ...newFiles];
+      setSelectedFiles(updatedFiles);
+      onFilesSelected(updatedFiles);
     }
   };
 
@@ -90,6 +129,7 @@ export function FileUpload({
     setSelectedFiles(prev => {
       const newFiles = [...prev];
       newFiles.splice(index, 1);
+      onFilesSelected(newFiles);
       return newFiles;
     });
   };
@@ -99,15 +139,7 @@ export function FileUpload({
     if (inputRef.current) {
       inputRef.current.value = '';
     }
-  };
-
-  const resubmitFiles = () => {
-    if (selectedFiles.length > 0) {
-      // Convert the array back to a FileList-like object
-      const dataTransfer = new DataTransfer();
-      selectedFiles.forEach(file => dataTransfer.items.add(file));
-      onFilesSelected(dataTransfer.files);
-    }
+    onFilesSelected([]);
   };
 
   return (
@@ -136,10 +168,24 @@ export function FileUpload({
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="font-medium">Selected Files</h3>
-              <Button variant="ghost" size="sm" onClick={clearFiles}>
-                <X className="h-4 w-4 mr-1" />
-                Clear All
-              </Button>
+              <div className="flex justify-between mt-3">
+                <Button 
+                  type="button"
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleButtonClick}
+                >
+                  Add More Files
+                </Button>
+                <Button 
+                  type="button"
+                  variant="outline" 
+                  size="sm" 
+                  onClick={clearFiles}
+                >
+                  Clear All
+                </Button>
+              </div>
             </div>
             
             <div className="space-y-2">
@@ -162,12 +208,6 @@ export function FileUpload({
                   </Button>
                 </div>
               ))}
-            </div>
-            
-            <div className="flex justify-end">
-              <Button onClick={resubmitFiles}>
-                Use Selected Files
-              </Button>
             </div>
           </div>
         ) : (
@@ -202,4 +242,4 @@ export function FileUpload({
       )}
     </div>
   );
-} 
+}; 
