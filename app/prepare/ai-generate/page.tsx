@@ -22,6 +22,7 @@ const SUPPORTED_FILE_TYPES = "PDF, JPG, JPEG, PNG, GIF, BMP, WEBP";
 const SUPPORTED_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"];
 const MAX_FILE_SIZE = 25; // 25MB
 const DIRECT_UPLOAD_LIMIT = 4; // 4MB - Use Supabase Storage for files larger than this
+const COMBINED_SIZE_LIMIT = 4; // 4MB - Maximum combined size for direct API uploads (Vercel payload limit is 4.5MB)
 const UPLOAD_BUCKET = 'ai-uploads'; // Bucket name
 
 export default function AiGeneratePage() {
@@ -93,12 +94,20 @@ export default function AiGeneratePage() {
       // Determine if any file is large BEFORE deciding fetch method
       const isAnyFileLarge = currentFiles.some(file => file.size > DIRECT_UPLOAD_LIMIT * 1024 * 1024);
 
+      // Calculate total size of all files combined
+      const totalSizeMB = currentFiles.reduce((sum, file) => sum + (file.size / (1024 * 1024)), 0);
+
       let response;
       
-      // **** NEW LOGIC: If ANY file is large, upload ALL to storage first ****
-      if (isAnyFileLarge) {
-        toast.info(`One or more large files detected. Uploading all files to secure storage...`, { id: `${loadingToastId}-multi-upload`, duration: 60000 });
+      // **** NEW LOGIC: If ANY file is large OR combined size is large, upload ALL to storage first ****
+      if (isAnyFileLarge || totalSizeMB > COMBINED_SIZE_LIMIT) {
+        const uploadReason = isAnyFileLarge 
+          ? "Large file(s) detected" 
+          : `Combined file size (${totalSizeMB.toFixed(2)}MB) exceeds direct upload limit`;
+        
+        toast.info(`${uploadReason}. Uploading all files to secure storage...`, { id: `${loadingToastId}-multi-upload`, duration: 60000 });
 
+        // Create array to store file references for API call
         const fileReferences: { filename: string; filePath: string }[] = [];
         const uploadPromises = currentFiles.map(async (file) => {
           const fileExt = file.name.split('.').pop();
@@ -116,7 +125,7 @@ export default function AiGeneratePage() {
             }
             
             console.log(`Uploaded ${file.name} to:`, uploadData.path);
-            return { filename: file.name, filePath: uploadData.path };
+            return { filename: file.name, filePath: uploadData.path }; // Return reference for Promise.all
           } catch (err) {
             console.error(`Error during upload of ${file.name}:`, err);
             // Return null or a specific marker for failed uploads if needed

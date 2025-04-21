@@ -549,9 +549,35 @@ export async function POST(request: NextRequest) {
 
     // --- COMBINE AND RETURN RESULTS (applies to both JSON and FormData paths) ---
     if (allResults.length === 0 && skippedFiles.length > 0) {
-       // ... return 400 with skippedFiles ...
+      console.log(`[API /extract-pdf] All files were skipped. Returning info about ${skippedFiles.length} skipped files.`);
+      
+      // Special case for single file exceeding page limit
+      if (skippedFiles.length === 1 && skippedFiles[0]?.reason.includes('Exceeds 30-page limit')) {
+        const skippedFile = skippedFiles[0];
+        return NextResponse.json({
+          success: false,
+          message: `File "${skippedFile.filename}" exceeds the 30-page limit (${skippedFile.pages} pages).`,
+          code: 'PAGE_LIMIT_EXCEEDED',
+          skippedFiles // Include the single skipped file
+        }, { status: 400 });
+      }
+      
+      // Multiple files all skipped case
+      return NextResponse.json({
+        success: false,
+        message: 'No files could be processed successfully due to validation issues.',
+        skippedFiles,
+        extractedTextPreview: null,
+        fileInfo: { pages: 0, files: 0, metadata: { sources: [] } }, // Ensure fileInfo is set with empty values
+        flashcards: [] // Ensure flashcards is at least an empty array
+      }, { status: 400 });
     } else if (allResults.length === 0) {
-       // ... return 400 generic failure ...
+      // Generic failure (should be rare as validation typically catches issues earlier)
+      return NextResponse.json({
+        success: false,
+        message: 'Failed to extract text from any provided files.',
+        skippedFiles: skippedFiles.length > 0 ? skippedFiles : undefined
+      }, { status: 400 });
     }
 
     // Combine metadata (ensure this uses the collected allResults)
