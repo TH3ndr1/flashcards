@@ -23128,6 +23128,21 @@ However, it's important to recognize this is just a visual approximation for use
 
 ---
 
+_**User**_
+
+Ok this is good enough, thanks.
+Next request:
+On Android of iPhone / iPad, when clicking on "Browse Files" (i.e. under the "Upload files" section) we get an option to upload documents, upload pictures or take a picture. This is great. As far as I see it, the "Camera" section is therefore redundant. Do you agree? If so, please remove it as it is confusing.
+
+
+---
+
+_**Assistant**_
+
+
+
+---
+
 
 
 ---

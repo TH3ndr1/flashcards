@@ -495,9 +495,9 @@ export default function AiGeneratePage() {
         <div>
           <Card>
             <CardHeader>
-              <CardTitle>Upload or Capture Documents</CardTitle>
+              <CardTitle>Upload Documents</CardTitle>
               <CardDescription>
-                Upload a document or use your camera to capture text for flashcard generation
+                Upload documents or use your device's camera to take pictures for flashcard generation
               </CardDescription>
             </CardHeader>
             <CardContent>
