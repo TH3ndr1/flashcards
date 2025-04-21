@@ -3,19 +3,27 @@
 import { useState, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Download, Camera, Eye } from 'lucide-react';
+import { Loader2, Download, Camera, Eye, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSupabase } from '@/hooks/use-supabase';
 import { useAuth } from '@/hooks/use-auth';
 import { v4 as uuidv4 } from 'uuid';
 import { MediaCaptureTabs } from '@/components/media-capture-tabs';
+import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import Link from 'next/link';
 
-interface Flashcard {
+// Update the flashcard state type to include language information
+type FlashcardData = {
   question: string;
   answer: string;
   source?: string;
   fileType?: 'pdf' | 'image';
-}
+  questionLanguage?: string;
+  answerLanguage?: string;
+  isBilingual?: boolean;
+};
 
 // Supported file types
 const SUPPORTED_FILE_TYPES = "PDF, JPG, JPEG, PNG, GIF, BMP, WEBP";
@@ -28,7 +36,7 @@ const UPLOAD_BUCKET = 'ai-uploads'; // Bucket name
 export default function AiGeneratePage() {
   const [files, setFiles] = useState<File[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
+  const [flashcards, setFlashcards] = useState<FlashcardData[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [extractedTextPreview, setExtractedTextPreview] = useState<string | null>(null);
   const [processingSummary, setProcessingSummary] = useState<string | null>(null);
@@ -36,6 +44,9 @@ export default function AiGeneratePage() {
   const { user } = useAuth();
   const progressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const currentFileIndexRef = useRef<number>(0);
+  const [deckName, setDeckName] = useState<string>("");
+  const [isCreatingDeck, setIsCreatingDeck] = useState(false);
+  const [deckCreated, setDeckCreated] = useState<{ id: string, name: string } | null>(null);
 
   // handleFilesSelected now directly updates the state, which is correct
   const handleFilesSelected = (selectedFiles: File[]) => {
@@ -464,8 +475,8 @@ export default function AiGeneratePage() {
   }, [flashcards]);
 
   // Add a function to group flashcards by source file
-  const getFlashcardsBySource = (cards: Flashcard[]) => {
-    const groupedCards: Record<string, Flashcard[]> = {};
+  const getFlashcardsBySource = (cards: FlashcardData[]) => {
+    const groupedCards: Record<string, FlashcardData[]> = {};
     
     cards.forEach(card => {
       const source = card.source || 'Unknown Source';
@@ -508,6 +519,104 @@ export default function AiGeneratePage() {
       const currentFile = fileNames[currentFileIndexRef.current];
       toast.loading(`Processing file ${currentFileIndexRef.current + 1}/${totalFiles}: ${currentFile}`, { id: toastId });
     }, averageTimePerFile);
+  };
+
+  // Function to create a deck with the generated flashcards
+  const createDeckWithFlashcards = async () => {
+    if (!flashcards.length) {
+      toast.error("No flashcards to save to a deck");
+      return;
+    }
+    
+    if (!deckName.trim()) {
+      toast.error("Please enter a deck name");
+      return;
+    }
+    
+    setIsCreatingDeck(true);
+    
+    try {
+      // Analyze languages in all flashcards to determine deck language settings
+      const languages = analyzeFlashcardLanguages(flashcards);
+      
+      // Create the deck
+      const response = await fetch('/api/decks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: deckName,
+          primary_language: languages.primaryLanguage,
+          secondary_language: languages.secondaryLanguage,
+          is_bilingual: languages.isBilingual,
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create deck');
+      }
+      
+      const deckData = await response.json();
+      const deckId = deckData.data.id;
+      
+      // Add flashcards to the deck
+      const cardsResponse = await fetch('/api/cards/batch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          deckId,
+          cards: flashcards.map(card => ({
+            front_content: card.question,
+            back_content: card.answer,
+            tags: [
+              ...(card.fileType ? [card.fileType] : []),
+              ...(card.questionLanguage ? [`Q:${card.questionLanguage}`] : []),
+              ...(card.answerLanguage ? [`A:${card.answerLanguage}`] : []),
+              ...(card.isBilingual ? ['bilingual'] : []),
+            ]
+          })),
+        }),
+      });
+      
+      if (!cardsResponse.ok) {
+        const errorData = await cardsResponse.json();
+        throw new Error(errorData.error || 'Failed to add cards to deck');
+      }
+      
+      toast.success(`Created deck "${deckName}" with ${flashcards.length} flashcards`);
+      setDeckCreated({ id: deckId, name: deckName });
+    } catch (error: any) {
+      console.error('Error creating deck:', error);
+      toast.error(error.message || 'Failed to create deck');
+    } finally {
+      setIsCreatingDeck(false);
+    }
+  };
+
+  // Helper function to analyze languages across flashcards
+  const analyzeFlashcardLanguages = (cards: FlashcardData[]) => {
+    const questionLanguages = new Set<string>();
+    const answerLanguages = new Set<string>();
+    
+    cards.forEach(card => {
+      if (card.questionLanguage) questionLanguages.add(card.questionLanguage);
+      if (card.answerLanguage) answerLanguages.add(card.answerLanguage);
+    });
+    
+    // Find the most common languages
+    const primaryLanguage = Array.from(questionLanguages)[0] || undefined;
+    const secondaryLanguage = primaryLanguage && Array.from(answerLanguages).find(lang => lang !== primaryLanguage);
+    
+    return {
+      primaryLanguage,
+      secondaryLanguage,
+      isBilingual: questionLanguages.size > 0 && answerLanguages.size > 0 && 
+                  !Array.from(questionLanguages).every(lang => answerLanguages.has(lang))
+    };
   };
 
   return (
@@ -614,44 +723,63 @@ export default function AiGeneratePage() {
             <CardContent className="flex-grow overflow-auto px-4 sm:px-6 pb-4 sm:pb-6">
               {flashcards.length > 0 ? (
                 <>
-                  {Object.entries(getFlashcardsBySource(flashcards)).map(([source, cards], groupIndex) => (
-                    <div key={`group-${groupIndex}`} className="mb-6">
-                      <div className="sticky top-0 bg-background z-10 mb-3 border-b pb-2">
-                        <div className="flex items-center gap-2">
-                          <div className="h-6 w-6 flex-shrink-0 flex items-center justify-center rounded-full bg-primary/10">
-                            <span className="text-xs font-semibold text-primary">{cards.length}</span>
+                  {Object.entries(getFlashcardsBySource(flashcards)).map(([source, cards]) => {
+                    // Extract document-level language information from the first card
+                    const documentLanguages = {
+                      questionLanguage: cards[0]?.questionLanguage, 
+                      answerLanguage: cards[0]?.answerLanguage,
+                      isBilingual: cards[0]?.isBilingual
+                    };
+                    
+                    // Only display answer language tag if different from question language
+                    const showAnswerLanguage = documentLanguages.answerLanguage && 
+                                              documentLanguages.questionLanguage !== documentLanguages.answerLanguage;
+                    
+                    return (
+                      <div key={source} className="mt-8 first:mt-2">
+                        <div className="flex items-center gap-2 mb-4">
+                          <div className="flex-1">
+                            <h3 className="text-xl font-medium">Source: {source}</h3>
                           </div>
-                          <div className="min-w-0 flex-1">
-                            <h3 className="text-sm sm:text-lg font-medium truncate">Source: {source}</h3>
+                          <div className="flex gap-1">
+                            {/* Document-level tags */}
                             {cards[0]?.fileType && (
-                              <span className="text-xs bg-muted px-2 py-0.5 rounded-full">
-                                {cards[0].fileType}
-                              </span>
+                              <Badge variant="outline">{cards[0].fileType}</Badge>
                             )}
+                            {documentLanguages.questionLanguage && (
+                              <Badge variant="secondary">Q: {documentLanguages.questionLanguage}</Badge>
+                            )}
+                            {showAnswerLanguage && (
+                              <Badge variant="secondary">A: {documentLanguages.answerLanguage}</Badge>
+                            )}
+                            {documentLanguages.isBilingual && (
+                              <Badge>Bilingual</Badge>
+                            )}
+                            <Badge variant="outline">{cards.length} cards</Badge>
                           </div>
                         </div>
+
+                        <div className="space-y-3 sm:space-y-4">
+                          {cards.map((card, index) => (
+                            <Card key={`${source}-${index}`} className="overflow-hidden">
+                              <CardHeader className="bg-primary/5 pb-2 sm:pb-3 px-3 sm:px-4 py-3">
+                                <CardTitle className="text-base sm:text-lg">Question {index + 1}</CardTitle>
+                                <CardDescription className="font-medium text-foreground text-sm sm:text-base">
+                                  {card.question}
+                                </CardDescription>
+                              </CardHeader>
+                              <CardContent className="pt-2 sm:pt-4 px-3 sm:px-4 py-3">
+                                <div className="bg-muted p-2 sm:p-3 rounded-md">
+                                  <p className="text-xs sm:text-sm font-medium mb-1">Answer:</p>
+                                  <p className="text-xs sm:text-sm whitespace-pre-line">{card.answer}</p>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
                       </div>
-                      
-                      <div className="space-y-3 sm:space-y-4">
-                        {cards.map((card, index) => (
-                          <Card key={`${source}-${index}`} className="overflow-hidden">
-                            <CardHeader className="bg-primary/5 pb-2 sm:pb-3 px-3 sm:px-4 py-3">
-                              <CardTitle className="text-base sm:text-lg">Question {index + 1}</CardTitle>
-                              <CardDescription className="font-medium text-foreground text-sm sm:text-base">
-                                {card.question}
-                              </CardDescription>
-                            </CardHeader>
-                            <CardContent className="pt-2 sm:pt-4 px-3 sm:px-4 py-3">
-                              <div className="bg-muted p-2 sm:p-3 rounded-md">
-                                <p className="text-xs sm:text-sm font-medium mb-1">Answer:</p>
-                                <p className="text-xs sm:text-sm whitespace-pre-line">{card.answer}</p>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </>
               ) : extractedTextPreview ? (
                 <div>
@@ -691,6 +819,53 @@ export default function AiGeneratePage() {
           </Card>
         </div>
       </div>
+
+      {flashcards.length > 0 && !deckCreated && (
+        <div className="border border-border rounded-lg p-4 mt-6">
+          <h3 className="text-lg font-medium mb-4">Save as Deck</h3>
+          <div className="flex gap-4 items-end">
+            <div className="flex-1">
+              <Label htmlFor="deckName">Deck Name</Label>
+              <Input
+                id="deckName"
+                value={deckName}
+                onChange={(e) => setDeckName(e.target.value)}
+                placeholder="Enter a name for your deck"
+              />
+            </div>
+            <Button 
+              disabled={isCreatingDeck || !deckName.trim()} 
+              onClick={createDeckWithFlashcards}
+            >
+              {isCreatingDeck ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                "Create Deck"
+              )}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {deckCreated && (
+        <div className="border border-border rounded-lg p-4 mt-6 bg-green-50 dark:bg-green-950">
+          <div className="flex items-center gap-2 text-green-700 dark:text-green-300">
+            <CheckCircle className="h-5 w-5" />
+            <span className="font-medium">Deck created successfully!</span>
+          </div>
+          <div className="mt-2">
+            <Link 
+              href={`/decks/${deckCreated.id}`}
+              className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              View "{deckCreated.name}" deck
+            </Link>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 

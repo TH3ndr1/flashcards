@@ -5,6 +5,8 @@ import { ImageAnnotatorClient } from '@google-cloud/vision';
 import { DocumentProcessorServiceClient } from '@google-cloud/documentai';
 import { getFileFromStorage } from '@/lib/actions/storageActions';
 import { PDFDocument } from 'pdf-lib'; // Import pdf-lib
+// Import language-detection library (we'll use the built-in Vision API capability)
+import { protos } from '@google-cloud/vision';
 
 // Specify Node.js runtime for Vercel with explicit configuration
 export const config = {
@@ -87,7 +89,74 @@ function getSupportedFileType(filename: string): 'pdf' | 'image' | null {
   return SUPPORTED_EXTENSIONS[extension as keyof typeof SUPPORTED_EXTENSIONS] || null;
 }
 
-// --- Text Extraction Functions ---
+// Helper function to detect languages from text
+async function detectLanguages(text: string, metadata?: any): Promise<{
+  questionLanguage?: string;
+  answerLanguage?: string;
+  isBilingual: boolean;
+}> {
+  if (!text || text.length < 10) {
+    return { isBilingual: false, questionLanguage: undefined, answerLanguage: undefined };
+  }
+  
+  try {
+    // Language code mapping to full language names
+    const languageCodes: Record<string, string> = {
+      en: 'English',
+      nl: 'Dutch',
+      fr: 'French',
+      de: 'German',
+      es: 'Spanish',
+      it: 'Italian',
+      pt: 'Portuguese',
+      ru: 'Russian',
+      zh: 'Chinese',
+      ja: 'Japanese',
+      ko: 'Korean',
+      ar: 'Arabic',
+      hi: 'Hindi',
+      // Add more languages as needed
+    };
+    
+    // Start with fresh detection for each file
+    const detectedLanguages = new Set<string>();
+    
+    // First, check if we have language metadata from Document AI or Vision AI
+    if (metadata?.detectedLanguages && Array.isArray(metadata.detectedLanguages)) {
+      for (const langCode of metadata.detectedLanguages) {
+        detectedLanguages.add(langCode);
+      }
+      console.log('Using API-detected languages:', Array.from(detectedLanguages));
+    }
+    
+    // If no languages detected yet, we could use a basic heuristic or fallback
+    // For now, default to using English if no languages were detected
+    if (detectedLanguages.size === 0) {
+      detectedLanguages.add('en');
+      console.log('No languages detected, defaulting to English');
+    }
+    
+    // Determine primary and secondary languages
+    const languages = Array.from(detectedLanguages);
+    const primaryLanguage = languages[0];
+    // Only set secondary language if it's different from primary
+    const secondaryLanguage = languages.length > 1 && languages[1] !== primaryLanguage ? languages[1] : undefined;
+    
+    // Map language codes to human-readable names
+    const primaryLanguageName = primaryLanguage ? (languageCodes[primaryLanguage] || primaryLanguage) : undefined;
+    const secondaryLanguageName = secondaryLanguage ? (languageCodes[secondaryLanguage] || secondaryLanguage) : undefined;
+    
+    // Explicitly set the values to ensure nothing carries over
+    return {
+      questionLanguage: primaryLanguageName || undefined,
+      answerLanguage: secondaryLanguageName || primaryLanguageName || undefined, // Default to primary if no secondary
+      isBilingual: detectedLanguages.size > 1 && secondaryLanguage !== undefined
+    };
+  } catch (error) {
+    console.error('Language detection error:', error);
+    return { isBilingual: false, questionLanguage: undefined, answerLanguage: undefined };
+  }
+}
 
 // Extract text from IMAGE using Google Cloud Vision AI
 async function extractTextFromImage(fileBuffer: ArrayBuffer, filename: string) {
@@ -103,13 +172,35 @@ async function extractTextFromImage(fileBuffer: ArrayBuffer, filename: string) {
       console.warn(`Vision AI returned no text detections for IMAGE ${filename}`);
       throw new Error('Vision AI could not detect any text in the image.');
     }
+    
+    // Extract language information from Vision API response
+    const detectedLanguages = new Set<string>();
+    
+    // Loop through text annotations to find languages
+    if (result.textAnnotations && result.textAnnotations.length > 0) {
+      for (const annotation of result.textAnnotations) {
+        if (annotation.locale) {
+          // Add primary language code (e.g., 'en' from 'en-US')
+          const primaryCode = annotation.locale.split('-')[0];
+          detectedLanguages.add(primaryCode);
+        }
+      }
+    }
+    
+    // Log detected languages
+    console.log(`Vision AI detected languages for ${filename}:`, Array.from(detectedLanguages));
+    
     const characterCount = extractedText.length;
     console.log(`Vision AI extraction complete for IMAGE ${filename}, extracted ${characterCount} characters`);
     return {
       text: extractedText,
       info: {
         pages: result.fullTextAnnotation?.pages?.length || 1, // Get page count if available
-        metadata: { source: 'Vision AI', characters: characterCount }
+        metadata: { 
+          source: 'Vision AI', 
+          characters: characterCount,
+          detectedLanguages: Array.from(detectedLanguages)
+        }
       }
     };
   } catch (error: any) {
@@ -153,6 +244,27 @@ async function extractTextFromPdfWithDocumentAI(fileBuffer: ArrayBuffer, filenam
       throw new Error('Document AI could not detect any text in the PDF.');
     }
 
+    // Extract language information from Document AI response
+    const detectedLanguages = new Set<string>();
+    
+    // Document AI provides language information in pages[].detectedLanguages
+    if (document.pages && document.pages.length > 0) {
+      for (const page of document.pages) {
+        if (page.detectedLanguages && page.detectedLanguages.length > 0) {
+          for (const lang of page.detectedLanguages) {
+            if (lang.languageCode) {
+              // Extract primary language code (e.g., 'en' from 'en-US')
+              const primaryCode = lang.languageCode.split('-')[0];
+              detectedLanguages.add(primaryCode);
+            }
+          }
+        }
+      }
+    }
+    
+    // Log detected languages
+    console.log(`Document AI detected languages for ${filename}:`, Array.from(detectedLanguages));
+
     const extractedText = document.text;
     const characterCount = extractedText.length;
     const pageCount = document.pages?.length || initialPageCount; // Use initial count if API doesn't return one
@@ -162,7 +274,11 @@ async function extractTextFromPdfWithDocumentAI(fileBuffer: ArrayBuffer, filenam
       text: extractedText,
       info: {
         pages: pageCount,
-        metadata: { source: 'Document AI', characters: characterCount }
+        metadata: { 
+          source: 'Document AI', 
+          characters: characterCount,
+          detectedLanguages: Array.from(detectedLanguages)
+        }
       }
     };
   } catch (error: any) {
@@ -234,12 +350,30 @@ async function extractTextFromPdf(fileBuffer: ArrayBuffer, filename: string) {
 }
 
 // --- Flashcard Generation ---
-async function generateFlashcardsFromText(text: string, filename: string) {
+async function generateFlashcardsFromText(text: string, filename: string, fileInfo?: any) {
   console.log(`[generateFlashcards] Attempting to generate flashcards for: ${filename}`);
-  if (!text || text.trim().length < 10) { // Add check for empty/trivial text
+  if (!text || text.trim().length < 10) {
     console.warn(`[generateFlashcards] Input text for ${filename} is too short or empty. Skipping generation.`);
-    return []; // Return empty array if no meaningful text
+    return [];
   }
+  
+  // IMPORTANT: Reset language info for each file to prevent carryover
+  // Detect languages from the text and metadata
+  let languageInfo: {
+    questionLanguage?: string;
+    answerLanguage?: string;
+    isBilingual: boolean;
+  } = { isBilingual: false, questionLanguage: undefined, answerLanguage: undefined };
+  
+  try {
+    // Pass the metadata that might contain detected languages
+    languageInfo = await detectLanguages(text, fileInfo?.metadata);
+    console.log(`[generateFlashcards] Detected languages for ${filename}:`, languageInfo);
+  } catch (langError) {
+    console.error(`[generateFlashcards] Language detection error for ${filename}:`, langError);
+    // Continue with generation even if language detection fails
+  }
+  
   try {
     // Use the pre-initialized vertexAI client
     const model = vertexAI.getGenerativeModel({ model: vertexModelName });
@@ -247,6 +381,8 @@ async function generateFlashcardsFromText(text: string, filename: string) {
     const truncatedText = text.length > MAX_CHARS
       ? text.slice(0, MAX_CHARS) + `...(text truncated at ${MAX_CHARS} characters)`
       : text;
+      
+    // Enhanced prompt with better language detection instructions
     const prompt = `
 I have a document titled "${filename}" with the following extracted text:
 
@@ -256,39 +392,42 @@ ${truncatedText}
 
 Instructions:
 
-Determine Document Type: Analyze the file content to determine if it's a translation vocabulary list (pairs of words like "word1 - word2") or knowledge-based text (regular prose or factual information).
-Apply Appropriate Mode:
+1. Determine Document Type: Analyze the file content to determine if it's a translation vocabulary list (pairs of words like "word1 - word2") or knowledge-based text (regular prose or factual information).
 
-Mode 1: Translation Vocabulary: If the document is a translation vocabulary list, create one flashcard per word pair.
+2. Detect Languages: Identify the language(s) used in the document.
+   - If it's a vocabulary list, identify the source language and target language.
+   - If it's regular text, identify the main language used.
+   ${languageInfo.questionLanguage ? `- Primary detected language is ${languageInfo.questionLanguage}.` : ''}
+   ${languageInfo.answerLanguage && languageInfo.answerLanguage !== languageInfo.questionLanguage ? `- Secondary detected language is ${languageInfo.answerLanguage}.` : ''}
 
-"question": The word in the source language.
-"answer": Its translation in the target language.
-Mode 2: Knowledge-Based Text: If the document is knowledge-based text, create at least two high-quality question-answer pairs for each provided topic.
+3. Apply Appropriate Mode:
+   Mode 1: Translation Vocabulary: If the document is a translation vocabulary list, create one flashcard per word pair.
+     "question": The word in the source language.
+     "answer": Its translation in the target language.
+     
+   Mode 2: Knowledge-Based Text: If the document is knowledge-based text, create at least two high-quality question-answer pairs for each provided topic.
+     Make questions test understanding, not just recall.
+     Keep answers concise (under 100 words).
+     Use the same language as the document for both questions and answers.
+     
+4. Format Output: Format each flashcard as a JSON object with "question" and "answer" fields. Return an array of these objects.
 
-Make questions test understanding, not just recall.
-Keep answers concise (under 100 words).
-Use the same language as the document for both questions and answers. If the document contains two languages, create questions and answers in the respective language.
-Format Output: Format each flashcard as a JSON object with "question" and "answer" fields. Return an array of these objects.
 Example Mode 1:
-
 [ { "question": "Tafel", "answer": "Table" }, { "question": "Stuhl", "answer": "Chair" } ]
 
 Example Mode 2:
-
 [ { "question": "What is the main function of photosynthesis?", "answer": "Photosynthesis converts light energy into chemical energy in the form of glucose, using water and carbon dioxide." }, { "question": "How does chlorophyll contribute to photosynthesis?", "answer": "Chlorophyll absorbs light energy, which is then used to drive the chemical reactions of photosynthesis." } ]
 
 Important:
+- Do not mix modes in the same question.
+- Ensure formatting consistency.
+- Use the original languages detected in the document.`;
 
-Do not mix modes in the same question.
-Ensure formatting consistency.
-Use the provided topics only if the document is knowledge-based.
-For translation vocabulary, use the original languages detected in the document.`;
     console.log(`[generateFlashcards] Sending prompt for ${filename} to model ${vertexModelName}. Prompt length: ${prompt.length}`);
     const result = await model.generateContent(prompt);
     const response = result.response;
     const responseText = response?.candidates?.[0]?.content?.parts?.[0]?.text;
     
-    // **** ADDED LOGGING ****
     console.log(`[generateFlashcards] Raw response received for ${filename}: ${responseText ? responseText.substring(0, 100) + '...' : 'No text content'}`);
     
     if (!responseText) {
@@ -301,31 +440,90 @@ For translation vocabulary, use the original languages detected in the document.
     
     if (jsonStartIndex === -1 || jsonEndIndex === 0) {
       console.error(`[generateFlashcards] Could not find JSON array markers in response for ${filename}. Response text: ${responseText}`);
-      // Consider returning empty or throwing a more specific error?
-      // For now, let's return empty to avoid breaking the whole process for one file.
       return []; 
-      // throw new Error("AI model did not return the expected JSON format."); 
     }
     
     const jsonStr = responseText.substring(jsonStartIndex, jsonEndIndex);
     try {
       const parsedFlashcards = JSON.parse(jsonStr);
-      // **** ADDED LOGGING ****
       console.log(`[generateFlashcards] Successfully parsed ${Array.isArray(parsedFlashcards) ? parsedFlashcards.length : 0} flashcards for ${filename}.`);
-      return Array.isArray(parsedFlashcards) ? parsedFlashcards : []; // Ensure array return
+      
+      // Add language information to each flashcard based on the mode
+      const cardsWithLanguageInfo = Array.isArray(parsedFlashcards) ? parsedFlashcards.map(card => {
+        // Debug logging for language info
+        console.log(`[Language Debug] Current language info for card:`, {
+          questionLanguage: languageInfo.questionLanguage,
+          answerLanguage: languageInfo.answerLanguage,
+          isBilingual: languageInfo.isBilingual
+        });
+
+        // Analyze the card content to determine if it's a translation card
+        const isTranslationMode = (card: any) => {
+          // Check if we have detected two different languages
+          const hasTwoLanguages = languageInfo.questionLanguage && 
+                                languageInfo.answerLanguage && 
+                                languageInfo.questionLanguage !== languageInfo.answerLanguage;
+                                
+          // Check if the card follows a translation pattern (short Q&A)
+          const isTranslationPattern = 
+            typeof card.question === 'string' &&
+            typeof card.answer === 'string' &&
+            card.question.split(' ').length <= 3 && // Translation cards typically have short phrases
+            card.answer.split(' ').length <= 3 &&
+            !card.question.endsWith('?') && // Knowledge questions typically end with '?'
+            !card.answer.endsWith('?');
+            
+          const result = hasTwoLanguages && isTranslationPattern;
+          console.log(`[Language Debug] Card analysis:`, {
+            hasTwoLanguages,
+            isTranslationPattern,
+            isTranslationMode: result,
+            questionLength: card.question.split(' ').length,
+            answerLength: card.answer.split(' ').length,
+            endsWithQuestion: card.question.endsWith('?')
+          });
+          return result;
+        };
+
+        if (isTranslationMode(card)) {
+          // For translation mode (Mode 1), swap the language assignments
+          console.log(`[Language Debug] Mode 1 - Translation mode detected. Swapping languages.`);
+          return {
+            ...card,
+            questionLanguage: languageInfo.answerLanguage, // Target language becomes question language
+            answerLanguage: languageInfo.questionLanguage,  // Source language becomes answer language
+            isBilingual: true
+          };
+        } else {
+          // For knowledge-based text (Mode 2), let's display both detected languages for debugging
+          console.log(`[Language Debug] Mode 2 - Knowledge mode detected. Raw language info:`, {
+            primaryLang: languageInfo.questionLanguage,
+            secondaryLang: languageInfo.answerLanguage
+          });
+          
+          // For debugging, use both languages but mark them as the same
+          const detectedLanguage = languageInfo.questionLanguage || languageInfo.answerLanguage;
+          console.log(`[Language Debug] Mode 2 - Using detected language:`, detectedLanguage);
+          
+          return {
+            ...card,
+            questionLanguage: detectedLanguage,
+            answerLanguage: detectedLanguage, // Same as question language for Mode 2
+            isBilingual: false
+          };
+        }
+      }) : [];
+      
+      return cardsWithLanguageInfo;
     } catch (parseError: any) {
       console.error(`[generateFlashcards] Error parsing JSON from AI response for ${filename}:`, parseError.message);
       console.error("[generateFlashcards] Received text:", responseText);
       console.error("[generateFlashcards] Attempted JSON string:", jsonStr);
-      // Return empty array on parse error to avoid breaking the flow for other files
       return [];
-      // throw new Error("Failed to parse flashcards from AI response.");
     }
   } catch (error: any) {
     console.error(`[generateFlashcards] Error generating flashcards for ${filename}:`, error.message, error.stack);
-    // Return empty array on general error
     return []; 
-    // throw error; 
   }
 }
 
@@ -335,6 +533,9 @@ interface Flashcard {
   answer: string;
   source?: string;
   fileType?: 'pdf' | 'image';
+  questionLanguage?: string;
+  answerLanguage?: string;
+  isBilingual?: boolean;
 }
 
 // Add a type for skipped files near the top interfaces
@@ -435,7 +636,7 @@ export async function POST(request: NextRequest) {
           
           // Generate flashcards
           console.log(`Generating flashcards for ${ref.filename} (from storage)`);
-          const fileFlashcards = await generateFlashcardsFromText(result.text, ref.filename);
+          const fileFlashcards = await generateFlashcardsFromText(result.text, ref.filename, result.info);
           const cardsWithSource = fileFlashcards.map((card: Flashcard) => ({ ...card, source: ref.filename, fileType }));
           allFlashcards = [...allFlashcards, ...cardsWithSource];
 
@@ -518,7 +719,7 @@ export async function POST(request: NextRequest) {
 
             // **** ADD BACK FLASHCARD GENERATION LOGIC ****
             console.log(`[API /extract-pdf] Attempting flashcard generation for ${file.name}`);
-            const fileFlashcards = await generateFlashcardsFromText(result.text, file.name);
+            const fileFlashcards = await generateFlashcardsFromText(result.text, file.name, result.info);
             const cardsWithSource = fileFlashcards.map((card: Flashcard) => ({
               ...card,
               source: file.name, 
