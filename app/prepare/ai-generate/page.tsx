@@ -33,10 +33,8 @@ export default function AiGeneratePage() {
 
   const handleFilesSelected = (selectedFiles: File[]) => {
     if (selectedFiles && selectedFiles.length > 0) {
-      // If multiple files are selected, just use the first one for now
-      // In the future, we could process multiple files
-      const file = selectedFiles[0];
-      setFiles([file]);
+      // Store all selected files, not just the first one
+      setFiles(selectedFiles);
       setError(null);
     }
   };
@@ -58,25 +56,21 @@ export default function AiGeneratePage() {
       return;
     }
 
-    const file = files[0]; // For now, we're processing just the first file
+    // Validate all files
+    for (const file of files) {
+      // Check if file extension is supported
+      const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
+      if (!SUPPORTED_EXTENSIONS.includes(fileExtension)) {
+        setError(`Unsupported file type in "${file.name}". Please select one of: ${SUPPORTED_EXTENSIONS.join(', ')}`);
+        return;
+      }
 
-    // Check if file extension is supported
-    const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
-    if (!SUPPORTED_EXTENSIONS.includes(fileExtension)) {
-      setError(`Unsupported file type. Please select one of: ${SUPPORTED_EXTENSIONS.join(', ')}`);
-      return;
-    }
-
-    // Check file size against MAX_FILE_SIZE 
-    const fileSizeMB = file.size / (1024 * 1024);
-    if (fileSizeMB > MAX_FILE_SIZE) {
-      setError(`File too large (${fileSizeMB.toFixed(2)}MB). Maximum size is ${MAX_FILE_SIZE}MB.`);
-      return;
-    }
-
-    // Warn if file is larger than DIRECT_UPLOAD_LIMIT
-    if (fileSizeMB > DIRECT_UPLOAD_LIMIT) {
-      toast.info(`Large file detected (${fileSizeMB.toFixed(2)}MB). Using secure storage for processing.`);
+      // Check file size against MAX_FILE_SIZE 
+      const fileSizeMB = file.size / (1024 * 1024);
+      if (fileSizeMB > MAX_FILE_SIZE) {
+        setError(`File "${file.name}" too large (${fileSizeMB.toFixed(2)}MB). Maximum size is ${MAX_FILE_SIZE}MB.`);
+        return;
+      }
     }
 
     setIsLoading(true);
@@ -86,21 +80,26 @@ export default function AiGeneratePage() {
     
     const loadingToastId = `loading-${Date.now()}`;
     const safetyTimeout = setTimeout(() => toast.dismiss(loadingToastId), 90000);
-    toast.loading("Processing file...", { id: loadingToastId, duration: 60000 });
+    toast.loading(`Processing ${files.length} file${files.length > 1 ? 's' : ''}...`, { id: loadingToastId, duration: 60000 });
     
     try {
       let response;
-      let filePath: string | null = null;
-      let finalFilename = file.name;
 
-      // Handle large files via storage
-      if (fileSizeMB > DIRECT_UPLOAD_LIMIT) {
-        toast.loading("Uploading to secure storage...", { id: `${loadingToastId}-upload` });
+      // For multiple files or small files, use FormData
+      const formData = new FormData();
+      
+      // Determine if any file is larger than the direct upload limit
+      const hasLargeFile = files.some(file => file.size > DIRECT_UPLOAD_LIMIT * 1024 * 1024);
+      
+      if (hasLargeFile && files.length === 1) {
+        // If a single large file, use storage upload method
+        const file = files[0];
+        const fileSizeMB = file.size / (1024 * 1024);
+        toast.loading(`Uploading large file (${fileSizeMB.toFixed(2)}MB) to secure storage...`, { id: `${loadingToastId}-upload` });
         
         const fileExt = file.name.split('.').pop();
         const storageFileName = `${uuidv4()}.${fileExt}`;
         const storagePath = `${user.id}/${storageFileName}`;
-        finalFilename = file.name;
 
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from(UPLOAD_BUCKET)
@@ -115,23 +114,23 @@ export default function AiGeneratePage() {
           throw new Error(`Failed to upload file to secure storage: ${uploadError.message}`);
         }
 
-        filePath = uploadData.path;
+        const filePath = uploadData.path;
         console.log('File uploaded to Supabase Storage:', filePath);
         toast.loading("Processing from secure storage...", { id: loadingToastId });
         
         response = await fetch('/api/extract-pdf', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filePath: filePath, filename: finalFilename }),
+          body: JSON.stringify({ filePath: filePath, filename: file.name }),
           credentials: 'same-origin'
         });
-
       } else {
-        // Direct upload for smaller files
-        const formData = new FormData();
-        formData.append('file', file);
+        // Direct upload for multiple files or small files
+        for (let i = 0; i < files.length; i++) {
+          formData.append('file', files[i]);
+        }
         
-        const fetchWithTimeout = async (url: string, options: RequestInit, timeout = 60000) => {
+        const fetchWithTimeout = async (url: string, options: RequestInit, timeout = 90000) => {
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), timeout);
           
@@ -145,7 +144,7 @@ export default function AiGeneratePage() {
           } catch (error: any) {
             clearTimeout(timeoutId);
             if (error.name === 'AbortError') {
-              throw new Error('Request timed out. The file may be too large or the server is busy.');
+              throw new Error('Request timed out. The files may be too large or the server is busy.');
             }
             throw error;
           }
@@ -179,7 +178,7 @@ export default function AiGeneratePage() {
       setFlashcards(data.flashcards || []);
       setExtractedTextPreview(data.extractedTextPreview || null);
       
-      toast.success(`Successfully created ${data.flashcards.length} flashcards`);
+      toast.success(`Successfully created ${data.flashcards.length} flashcards from ${files.length} file${files.length > 1 ? 's' : ''}`);
     } catch (err: any) {
       console.error('Error during handleSubmit:', err);
       const errorMessage = err.message || 'An error occurred';
@@ -310,12 +309,20 @@ export default function AiGeneratePage() {
               {flashcards.length > 0 ? (
                 <div className="space-y-4">
                   {flashcards.map((card, index) => (
-                    <div key={index} className="border rounded-md p-4">
-                      <h3 className="font-medium mb-2">Question {index + 1}:</h3>
-                      <p className="mb-3">{card.question}</p>
-                      <h3 className="font-medium mb-2">Answer:</h3>
-                      <p>{card.answer}</p>
-                    </div>
+                    <Card key={index} className="overflow-hidden">
+                      <CardHeader className="bg-primary/5 pb-3">
+                        <CardTitle className="text-lg">Question {index + 1}</CardTitle>
+                        <CardDescription className="font-medium text-foreground text-base">
+                          {card.question}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="pt-4">
+                        <div className="bg-muted p-3 rounded-md">
+                          <p className="text-sm font-medium mb-1">Answer:</p>
+                          <p className="text-sm">{card.answer}</p>
+                        </div>
+                      </CardContent>
+                    </Card>
                   ))}
                 </div>
               ) : extractedTextPreview ? (

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FileUpload } from '@/components/file-upload';
-import { CameraCapture } from '@/components/ui/camera-capture';
+import { CameraCapture } from '@/components/camera-capture';
 import { Camera, Upload } from 'lucide-react';
 
 export type MediaCaptureMode = 'upload' | 'camera';

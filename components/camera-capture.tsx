@@ -30,6 +30,14 @@ export function CameraCapture({ onCapture, maxImages = 5 }: CameraCaptureProps) 
       
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        videoRef.current.onloadedmetadata = () => {
+          if (videoRef.current) {
+            videoRef.current.play().catch(err => {
+              console.error('Error playing video:', err);
+              alert('Unable to start camera. Please check permissions or try uploading images instead.');
+            });
+          }
+        };
         setIsCapturing(true);
       }
     } catch (err) {
@@ -134,6 +142,8 @@ export function CameraCapture({ onCapture, maxImages = 5 }: CameraCaptureProps) 
               ref={videoRef}
               autoPlay
               playsInline
+              muted
+              onPlay={() => console.log('Camera video started playing')}
               className="w-full h-auto aspect-video object-cover"
             />
             <div className="absolute bottom-4 left-0 right-0 flex justify-center">
