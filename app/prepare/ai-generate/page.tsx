@@ -195,11 +195,24 @@ export default function AiGeneratePage() {
   };
 
   const handleClear = () => {
+    // Clear all state
     setFiles([]);
     setFlashcards([]);
     setError(null);
     setExtractedTextPreview(null);
+    
+    // Log to confirm state was cleared
+    console.log('All state cleared');
+    
+    // Show feedback to user
+    toast.success('Input cleared');
   };
+
+  const handleClearResults = useCallback(() => {
+    setFlashcards([]);
+    setExtractedTextPreview(null);
+    toast.success('Results cleared');
+  }, []);
 
   const handleSaveFlashcards = useCallback(() => {
     if (!flashcards.length) {
@@ -308,12 +321,19 @@ export default function AiGeneratePage() {
             <CardHeader>
               <CardTitle className="flex justify-between items-center">
                 <span>Generated Flashcards</span>
-                {flashcards.length > 0 && (
-                  <Button variant="outline" size="sm" onClick={handleSaveFlashcards}>
-                    <Download className="mr-2 h-4 w-4" />
-                    Save
-                  </Button>
-                )}
+                <div className="flex items-center gap-2">
+                  {flashcards.length > 0 && (
+                    <>
+                      <Button variant="outline" size="sm" onClick={handleClearResults}>
+                        Clear Results
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={handleSaveFlashcards}>
+                        <Download className="mr-2 h-4 w-4" />
+                        Save
+                      </Button>
+                    </>
+                  )}
+                </div>
               </CardTitle>
               <CardDescription>
                 {flashcards.length > 0 
