@@ -164,10 +164,6 @@ export default function AiGeneratePage() {
       if (!response.ok) {
         console.error('API Error:', response.status, response.statusText, data);
         
-        if (response.status === 413) {
-          throw new Error(`File is too large for direct processing. Please try again and we'll use our secure storage method.`);
-        }
-        
         throw new Error(data?.message || `Error: ${response.status} ${response.statusText}`);
       }
       
