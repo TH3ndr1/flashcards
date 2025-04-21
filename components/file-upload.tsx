@@ -87,6 +87,9 @@ export const FileUpload = (
     // Create an array of new files to add
     const newFiles: File[] = [];
     
+    // Track possible iOS camera filenames (like "image.jpg")
+    const filenameCount: Record<string, number> = {};
+    
     // Validate each file before adding
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
@@ -104,9 +107,22 @@ export const FileUpload = (
         continue;
       }
       
-      // Check for duplicate files by name
-      if (selectedFiles.some(existingFile => existingFile.name === file.name)) {
-        setError(`File "${file.name}" is already selected.`);
+      // Handle possible iOS duplicate filenames
+      // Check if we've already added this filename OR if it's already in the selected files
+      const isDuplicate = selectedFiles.some(existingFile => existingFile.name === file.name) ||
+        newFiles.some(newFile => newFile.name === file.name);
+      
+      if (isDuplicate) {
+        // Instead of creating a new File (which has TS issues), we'll skip this file
+        // but log a warning so the user knows why
+        console.log(`Skipping duplicate file: ${file.name}`);
+        
+        // Show a different error message if this is likely an iOS camera issue
+        if (file.name === 'image.jpg' || file.name === 'image.jpeg') {
+          setError('Multiple photos detected with the same filename. This is a known iOS issue. Please upload photos one at a time or use a different device.');
+        } else {
+          setError(`A file named "${file.name}" is already selected.`);
+        }
         continue;
       }
       
@@ -210,6 +226,13 @@ export const FileUpload = (
                 </div>
               ))}
             </div>
+
+            {/* Add iOS Safari note */}
+            {selectedFiles.some(file => file.name === 'image.jpg' || file.name === 'image.jpeg') && (
+              <div className="mt-1 text-xs text-amber-600 p-2 bg-amber-50 rounded-md">
+                <strong>iOS User?</strong> Due to how iOS names photos, you may need to upload each new photo individually to avoid duplicates.
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center text-center py-8">
