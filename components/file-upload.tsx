@@ -3,8 +3,23 @@
 import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Upload, File, X } from 'lucide-react';
+import { Upload, File as FileIcon, X } from 'lucide-react';
 import React from 'react';
+
+// Function to create a new File with a unique name
+const createUniqueFile = (file: File): File => {
+  // Extract the extension
+  const nameComponents = file.name.split('.');
+  const extension = nameComponents.length > 1 ? nameComponents.pop() : '';
+  const baseName = nameComponents.join('.');
+  
+  // Create a timestamp-based name
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const uniqueName = `${baseName}_${timestamp}.${extension}`;
+  
+  // Create new file with unique name (but keeping same content and type)
+  return new File([file], uniqueName, { type: file.type });
+};
 
 interface FileUploadProps {
   onFilesSelected: (files: File[]) => void;
@@ -87,12 +102,9 @@ export const FileUpload = (
     // Create an array of new files to add
     const newFiles: File[] = [];
     
-    // Track possible iOS camera filenames (like "image.jpg")
-    const filenameCount: Record<string, number> = {};
-    
     // Validate each file before adding
     for (let i = 0; i < files.length; i++) {
-      const file = files[i];
+      let file = files[i];
       const extension = file.name.split('.').pop()?.toLowerCase() || '';
       
       // Check file extension
@@ -107,23 +119,16 @@ export const FileUpload = (
         continue;
       }
       
-      // Handle possible iOS duplicate filenames
-      // Check if we've already added this filename OR if it's already in the selected files
+      // Check if this is potentially an iOS camera photo or a duplicate filename
+      const isIosPhoto = file.name === 'image.jpg' || file.name === 'image.jpeg';
       const isDuplicate = selectedFiles.some(existingFile => existingFile.name === file.name) ||
         newFiles.some(newFile => newFile.name === file.name);
       
-      if (isDuplicate) {
-        // Instead of creating a new File (which has TS issues), we'll skip this file
-        // but log a warning so the user knows why
-        console.log(`Skipping duplicate file: ${file.name}`);
-        
-        // Show a different error message if this is likely an iOS camera issue
-        if (file.name === 'image.jpg' || file.name === 'image.jpeg') {
-          setError('Multiple photos detected with the same filename. This is a known iOS issue. Please upload photos one at a time or use a different device.');
-        } else {
-          setError(`A file named "${file.name}" is already selected.`);
-        }
-        continue;
+      // Always rename iOS photos and any duplicate filenames
+      if (isIosPhoto || isDuplicate) {
+        console.log(`Renaming file with duplicate name: ${file.name}`);
+        file = createUniqueFile(file);
+        console.log(`New unique name: ${file.name}`);
       }
       
       newFiles.push(file);
@@ -209,7 +214,7 @@ export const FileUpload = (
               {selectedFiles.map((file, index) => (
                 <div key={index} className="flex items-center justify-between p-2 bg-muted rounded-md">
                   <div className="flex items-center">
-                    <File className="h-4 w-4 mr-2 text-muted-foreground" />
+                    <FileIcon className="h-4 w-4 mr-2 text-muted-foreground" />
                     <span className="text-sm truncate max-w-[250px]">{file.name}</span>
                     <span className="text-xs text-muted-foreground ml-2">
                       ({(file.size / (1024 * 1024)).toFixed(2)} MB)
@@ -228,9 +233,9 @@ export const FileUpload = (
             </div>
 
             {/* Add iOS Safari note */}
-            {selectedFiles.some(file => file.name === 'image.jpg' || file.name === 'image.jpeg') && (
-              <div className="mt-1 text-xs text-amber-600 p-2 bg-amber-50 rounded-md">
-                <strong>iOS User?</strong> Due to how iOS names photos, you may need to upload each new photo individually to avoid duplicates.
+            {selectedFiles.some(file => file.name.includes('image_20') && (file.name.includes('.jpg') || file.name.includes('.jpeg'))) && (
+              <div className="mt-1 text-xs text-blue-600 p-2 bg-blue-50 rounded-md">
+                <strong>iOS User?</strong> We've automatically renamed your photos to ensure they can be processed individually.
               </div>
             )}
           </div>
