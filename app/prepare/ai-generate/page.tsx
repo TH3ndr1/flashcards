@@ -13,6 +13,8 @@ import { MediaCaptureTabs } from '@/components/media-capture-tabs';
 interface Flashcard {
   question: string;
   answer: string;
+  source?: string;
+  fileType?: 'pdf' | 'image';
 }
 
 // Supported file types
@@ -218,6 +220,21 @@ export default function AiGeneratePage() {
     toast.success("Flashcards saved successfully");
   }, [flashcards]);
 
+  // Add a function to group flashcards by source file
+  const getFlashcardsBySource = (cards: Flashcard[]) => {
+    const groupedCards: Record<string, Flashcard[]> = {};
+    
+    cards.forEach(card => {
+      const source = card.source || 'Unknown Source';
+      if (!groupedCards[source]) {
+        groupedCards[source] = [];
+      }
+      groupedCards[source].push(card);
+    });
+    
+    return groupedCards;
+  };
+
   return (
     <div className="container mx-auto py-8">
       <h1 className="text-3xl font-bold mb-6">AI Flashcard Generator</h1>
@@ -307,24 +324,44 @@ export default function AiGeneratePage() {
             </CardHeader>
             <CardContent className="flex-grow overflow-auto">
               {flashcards.length > 0 ? (
-                <div className="space-y-4">
-                  {flashcards.map((card, index) => (
-                    <Card key={index} className="overflow-hidden">
-                      <CardHeader className="bg-primary/5 pb-3">
-                        <CardTitle className="text-lg">Question {index + 1}</CardTitle>
-                        <CardDescription className="font-medium text-foreground text-base">
-                          {card.question}
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="pt-4">
-                        <div className="bg-muted p-3 rounded-md">
-                          <p className="text-sm font-medium mb-1">Answer:</p>
-                          <p className="text-sm">{card.answer}</p>
+                <>
+                  {Object.entries(getFlashcardsBySource(flashcards)).map(([source, cards], groupIndex) => (
+                    <div key={`group-${groupIndex}`} className="mb-8">
+                      <div className="sticky top-0 bg-background z-10 mb-3 border-b pb-2">
+                        <div className="flex items-center">
+                          <div className="h-6 w-6 flex items-center justify-center rounded-full bg-primary/10 mr-2">
+                            <span className="text-xs font-semibold text-primary">{cards.length}</span>
+                          </div>
+                          <h3 className="text-lg font-medium">Source: {source}</h3>
+                          {cards[0]?.fileType && (
+                            <span className="ml-2 text-xs bg-muted px-2 py-0.5 rounded-full">
+                              {cards[0].fileType}
+                            </span>
+                          )}
                         </div>
-                      </CardContent>
-                    </Card>
+                      </div>
+                      
+                      <div className="space-y-4">
+                        {cards.map((card, index) => (
+                          <Card key={`${source}-${index}`} className="overflow-hidden">
+                            <CardHeader className="bg-primary/5 pb-3">
+                              <CardTitle className="text-lg">Question {index + 1}</CardTitle>
+                              <CardDescription className="font-medium text-foreground text-base">
+                                {card.question}
+                              </CardDescription>
+                            </CardHeader>
+                            <CardContent className="pt-4">
+                              <div className="bg-muted p-3 rounded-md">
+                                <p className="text-sm font-medium mb-1">Answer:</p>
+                                <p className="text-sm">{card.answer}</p>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
                   ))}
-                </div>
+                </>
               ) : extractedTextPreview ? (
                 <div>
                   <div className="flex items-center justify-between mb-3">

@@ -289,6 +289,14 @@ For translation vocabulary, use the original languages detected in the document.
   }
 }
 
+// Add this interface near the top of the file with other interfaces
+interface Flashcard {
+  question: string;
+  answer: string;
+  source?: string;
+  fileType?: 'pdf' | 'image';
+}
+
 // --- API Route Handlers ---
 
 export async function GET(request: NextRequest) {
@@ -425,10 +433,22 @@ export async function POST(request: NextRequest) {
         
         extractedText = result.text;
         extractionInfo = result.info;
+        
+        // Generate flashcards from the extracted text
+        const flashcards = await generateFlashcardsFromText(extractedText, filename);
+        
+        return NextResponse.json({
+          success: true,
+          extractedTextPreview: extractedText.slice(0, 1000),
+          fileInfo: extractionInfo,
+          flashcards
+        });
       } else {
         // Processing multiple files from form data
         let allResults = [];
         let totalPages = 0;
+        let combinedPreview = "";
+        let allFlashcards: Flashcard[] = [];
         
         // Process each file and collect results
         for (const file of files) {
@@ -457,14 +477,35 @@ export async function POST(request: NextRequest) {
               result = await extractTextFromImage(arrayBuffer, file.name);
             }
             
-            allResults.push({
+            // Store the extraction result
+            const fileResult = {
               filename: file.name,
               type: fileType,
               text: result.text,
               info: result.info
-            });
+            };
+            allResults.push(fileResult);
             
+            // Update metrics
             totalPages += result.info.pages || 1;
+            
+            // Add to combined preview (limited to 200 chars per file)
+            combinedPreview += `--- Content from ${file.name} ---\n${result.text.slice(0, 200)}...\n\n`;
+            
+            // Generate flashcards specifically for this file
+            console.log(`Generating flashcards for ${file.name}`);
+            const fileFlashcards = await generateFlashcardsFromText(result.text, file.name);
+            
+            // Add source information to each flashcard
+            const cardsWithSource = fileFlashcards.map((card: Flashcard) => ({
+              ...card,
+              source: file.name, // Add the source filename
+              fileType // Add the file type (pdf or image)
+            }));
+            
+            // Add to combined flashcards
+            allFlashcards = [...allFlashcards, ...cardsWithSource];
+            console.log(`Generated ${fileFlashcards.length} flashcards from ${file.name}`);
           } catch (fileError: any) {
             console.error(`Error processing file ${file.name}:`, fileError);
             // Continue with other files even if one fails
@@ -493,23 +534,21 @@ export async function POST(request: NextRequest) {
               filename: r.filename, 
               type: r.type, 
               pages: r.info.pages || 1,
-              characters: r.info.metadata?.characters || 0
+              characters: r.info.metadata?.characters || 0,
+              flashcards: allFlashcards.filter(card => card.source === r.filename).length
             }))
           }
         };
+        
+        console.log(`[API /extract-pdf] Successfully extracted text from ${allResults.length} files, generated ${allFlashcards.length} flashcards`);
+        
+        return NextResponse.json({
+          success: true,
+          extractedTextPreview: combinedPreview.length > 1000 ? combinedPreview.slice(0, 1000) + "..." : combinedPreview,
+          fileInfo: extractionInfo,
+          flashcards: allFlashcards
+        });
       }
-      
-      console.log(`[API /extract-pdf] Successfully extracted ${extractedText.length} characters`);
-      
-      // Generate flashcards from the extracted text
-      const flashcards = await generateFlashcardsFromText(extractedText, filename);
-      
-      return NextResponse.json({
-        success: true,
-        extractedTextPreview: extractedText.slice(0, 1000),
-        fileInfo: extractionInfo,
-        flashcards
-      });
     } catch (error: any) {
       console.error('[API /extract-pdf] Processing error:', error);
       return NextResponse.json({
