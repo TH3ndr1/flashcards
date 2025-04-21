@@ -168,7 +168,7 @@ export const FileUpload = (
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="font-medium">Selected Files</h3>
-              <div className="flex justify-between mt-3">
+              <div className="flex items-center gap-2">
                 <Button 
                   type="button"
                   variant="outline" 
@@ -179,16 +179,17 @@ export const FileUpload = (
                 </Button>
                 <Button 
                   type="button"
-                  variant="outline" 
+                  variant="ghost" 
                   size="sm" 
                   onClick={clearFiles}
                 >
+                  <X className="h-4 w-4 mr-1" />
                   Clear All
                 </Button>
               </div>
             </div>
             
-            <div className="space-y-2">
+            <div className="space-y-2 mt-2">
               {selectedFiles.map((file, index) => (
                 <div key={index} className="flex items-center justify-between p-2 bg-muted rounded-md">
                   <div className="flex items-center">

@@ -90,49 +90,67 @@ export default function AiGeneratePage() {
     toast.loading(`Processing ${currentFiles.length} file${currentFiles.length > 1 ? 's' : ''}...`, { id: loadingToastId, duration: 60000 });
     
     try {
+      // Determine if any file is large BEFORE deciding fetch method
+      const isAnyFileLarge = currentFiles.some(file => file.size > DIRECT_UPLOAD_LIMIT * 1024 * 1024);
+
       let response;
-
-      // For multiple files or small files, use FormData
-      const formData = new FormData();
       
-      // Determine if any file is larger than the direct upload limit
-      const hasLargeFile = currentFiles.some(file => file.size > DIRECT_UPLOAD_LIMIT * 1024 * 1024);
-      
-      if (hasLargeFile && currentFiles.length === 1) {
-        // If a single large file, use storage upload method
-        const file = currentFiles[0];
-        const fileSizeMB = file.size / (1024 * 1024);
-        toast.loading(`Uploading large file (${fileSizeMB.toFixed(2)}MB) to secure storage...`, { id: `${loadingToastId}-upload` });
-        
-        const fileExt = file.name.split('.').pop();
-        const storageFileName = `${uuidv4()}.${fileExt}`;
-        const storagePath = `${user.id}/${storageFileName}`;
+      // **** NEW LOGIC: If ANY file is large, upload ALL to storage first ****
+      if (isAnyFileLarge) {
+        toast.info(`One or more large files detected. Uploading all files to secure storage...`, { id: `${loadingToastId}-multi-upload`, duration: 60000 });
 
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from(UPLOAD_BUCKET)
-          .upload(storagePath, file, {
-            upsert: false,
-          });
+        const fileReferences: { filename: string; filePath: string }[] = [];
+        const uploadPromises = currentFiles.map(async (file) => {
+          const fileExt = file.name.split('.').pop();
+          const storageFileName = `${uuidv4()}.${fileExt}`;
+          const storagePath = `${user.id}/${storageFileName}`;
+          
+          try {
+            const { data: uploadData, error: uploadError } = await supabase.storage
+              .from(UPLOAD_BUCKET)
+              .upload(storagePath, file, { upsert: false });
+            
+            if (uploadError) {
+              console.error(`Failed to upload ${file.name} to storage:`, uploadError);
+              throw new Error(`Storage upload failed for ${file.name}`); // Propagate error
+            }
+            
+            console.log(`Uploaded ${file.name} to:`, uploadData.path);
+            return { filename: file.name, filePath: uploadData.path };
+          } catch (err) {
+            console.error(`Error during upload of ${file.name}:`, err);
+            // Return null or a specific marker for failed uploads if needed
+            return null; 
+          }
+        });
 
-        toast.dismiss(`${loadingToastId}-upload`);
+        const uploadResults = await Promise.all(uploadPromises);
+        toast.dismiss(`${loadingToastId}-multi-upload`);
 
-        if (uploadError) {
-          console.error('Client-side Supabase upload error:', uploadError);
-          throw new Error(`Failed to upload file to secure storage: ${uploadError.message}`);
+        // Filter out failed uploads
+        const successfulUploads = uploadResults.filter(result => result !== null) as { filename: string; filePath: string }[];
+        const failedUploadCount = currentFiles.length - successfulUploads.length;
+
+        if (failedUploadCount > 0) {
+          toast.error(`${failedUploadCount} file(s) failed to upload to secure storage.`);
         }
 
-        const filePath = uploadData.path;
-        console.log('File uploaded to Supabase Storage:', filePath);
-        toast.loading("Processing from secure storage...", { id: loadingToastId });
-        
+        if (successfulUploads.length === 0) {
+          throw new Error('All file uploads failed. Cannot proceed.');
+        }
+
+        // Proceed with API call using storage paths
+        toast.loading(`Processing ${successfulUploads.length} file(s) from secure storage...`, { id: loadingToastId });
         response = await fetch('/api/extract-pdf', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filePath: filePath, filename: file.name }),
+          body: JSON.stringify({ files: successfulUploads }), // Send array of file references
           credentials: 'same-origin'
         });
+
       } else {
-        // Direct upload for multiple files or small files
+        // **** EXISTING LOGIC: All files are small, use FormData ****
+        const formData = new FormData();
         for (let i = 0; i < currentFiles.length; i++) {
           formData.append('file', currentFiles[i]);
         }

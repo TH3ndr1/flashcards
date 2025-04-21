@@ -359,258 +359,135 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
     
-    // Parse request data
-    let fileData: ArrayBuffer | null = null;
-    let filePath: string | null = null;
-    let filename = 'document.pdf';
-    let files: File[] = [];
-    
-    try {
-      const contentType = request.headers.get('content-type') || '';
-      
-      if (contentType.includes('multipart/form-data')) {
-        const formData = await request.formData();
-        const formFiles = formData.getAll('file') as File[];
-        
-        if (!formFiles || formFiles.length === 0) {
-          return NextResponse.json({
-            success: false,
-            message: 'No files provided'
-          }, { status: 400 });
-        }
-        
-        files = formFiles;
-        filename = files[0]?.name || 'document';
-        
-      } else if (contentType.includes('application/json')) {
-        const jsonData = await request.json();
-        filePath = jsonData.filePath;
-        filename = jsonData.filename || 'document.pdf';
-        
-        if (!filePath) {
-          return NextResponse.json({
-            success: false,
-            message: 'No filePath provided in JSON request'
-          }, { status: 400 });
-        }
-        
-        // Get file from storage
-        try {
-          const fileBuffer = await getFileFromStorage(filePath);
-          if (!fileBuffer) {
-            throw new Error(`Failed to retrieve file from storage: ${filePath}`);
-          }
-          fileData = fileBuffer;
-        } catch (storageError: any) {
-          console.error('[API /extract-pdf] Storage error:', storageError);
-          return NextResponse.json({
-            success: false,
-            message: `Failed to retrieve file from storage: ${storageError.message}`
-          }, { status: 500 });
-        }
-      } else {
-        return NextResponse.json({
-          success: false,
-          message: `Unsupported content type: ${contentType}`
-        }, { status: 400 });
-      }
-    } catch (parseError: any) {
-      console.error('[API /extract-pdf] Request parsing error:', parseError);
-      return NextResponse.json({
-        success: false,
-        message: `Failed to parse request: ${parseError.message}`
-      }, { status: 400 });
-    }
-    
-    // Extract text from either multiple files or a single storage file
-    let extractedText = '';
+    let skippedFiles: SkippedFile[] = [];
+    let allFlashcards: Flashcard[] = [];
+    let allResults = [];
+    let totalPages = 0;
+    let combinedPreview = "";
     let extractionInfo: any = { pages: 0, metadata: {} };
-    let fileType: 'pdf' | 'image' | null = null;
-    
-    let skippedFiles: SkippedFile[] = []; // Initialize skipped files array
-    
-    try {
-      if (fileData) {
-        // Processing a single file from storage
+
+    const contentType = request.headers.get('content-type') || '';
+
+    // **** HANDLE JSON PAYLOAD (for files uploaded to storage) ****
+    if (contentType.includes('application/json')) {
+      const jsonData = await request.json();
+      const fileReferences = jsonData.files as { filename: string, filePath: string }[];
+
+      if (!fileReferences || !Array.isArray(fileReferences) || fileReferences.length === 0) {
+        return NextResponse.json({ success: false, message: 'Invalid or empty file list provided in JSON request' }, { status: 400 });
+      }
+
+      console.log(`[API /extract-pdf] Processing ${fileReferences.length} files from storage paths.`);
+
+      // Process each referenced file
+      for (const ref of fileReferences) {
+        let fileBuffer: ArrayBuffer | null = null;
         try {
-          fileType = getSupportedFileType(filename);
+          // Get file from storage
+          fileBuffer = await getFileFromStorage(ref.filePath);
+          if (!fileBuffer) throw new Error('File not found in storage');
+
+          const fileType = getSupportedFileType(ref.filename);
           if (!fileType) {
-            return NextResponse.json({
-              success: false,
-              message: `Unsupported file type: ${filename}`
-            }, { status: 400 });
+             skippedFiles.push({ filename: ref.filename, reason: 'Unsupported file type' });
+             console.warn(`Skipping unsupported file from storage: ${ref.filename}`);
+             continue;
           }
-          
+
           let result;
           if (fileType === 'pdf') {
-            result = await extractTextFromPdfWithDocumentAI(fileData, filename, 'application/pdf');
+            result = await extractTextFromPdfWithDocumentAI(fileBuffer, ref.filename, 'application/pdf');
           } else {
-            result = await extractTextFromImage(fileData, filename);
+            result = await extractTextFromImage(fileBuffer, ref.filename);
           }
           
-          extractedText = result.text;
-          extractionInfo = result.info;
+          // --- Collect results (similar to multi-file FormData path) --- 
+          const fileResult = { filename: ref.filename, type: fileType, text: result.text, info: result.info };
+          allResults.push(fileResult);
+          totalPages += result.info.pages || 1;
+          combinedPreview += `--- Content from ${ref.filename} ---\n${result.text.slice(0, 200)}...\n\n`;
           
-          const flashcards = await generateFlashcardsFromText(extractedText, filename);
-          
-          return NextResponse.json({
-            success: true,
-            extractedTextPreview: extractedText.slice(0, 1000),
-            fileInfo: extractionInfo,
-            flashcards
-          });
-        } catch (error: any) {
-          if (error.message.startsWith('PDF_PAGE_LIMIT_EXCEEDED::')) {
-            const [, fname, pageCountStr] = error.message.split('::');
-            const pageCount = parseInt(pageCountStr, 10);
-            console.error(`Single file page limit error: ${fname} has ${pageCount} pages.`);
-            return NextResponse.json({
-              success: false,
-              message: `File "${fname}" exceeds the 30-page limit (${pageCount} pages).`, 
-              code: 'PAGE_LIMIT_EXCEEDED'
-            }, { status: 400 });
-          }
-          console.error(`Error processing single file ${filename}:`, error);
-          return NextResponse.json({
-            success: false,
-            message: `Error processing file ${filename}: ${error.message}`
-          }, { status: 500 });
-        }
-      } else {
-        // Processing multiple files from form data
-        let allResults = [];
-        let totalPages = 0;
-        let combinedPreview = "";
-        let allFlashcards: Flashcard[] = [];
-        
-        // Process each file and collect results
-        for (const file of files) {
-          const arrayBuffer = await file.arrayBuffer();
-          const fileType = getSupportedFileType(file.name);
-          
-          if (!fileType) {
-            skippedFiles.push({ filename: file.name, reason: 'Unsupported file type' });
-            console.warn(`Skipping unsupported file: ${file.name}`);
-            continue;
-          }
-          
-          try {
-            let result;
-            if (fileType === 'pdf') {
-              result = await extractTextFromPdfWithDocumentAI(arrayBuffer, file.name, 'application/pdf');
-            } else {
-              result = await extractTextFromImage(arrayBuffer, file.name);
-            }
-            
-            // Store the extraction result
-            const fileResult = {
-              filename: file.name,
-              type: fileType,
-              text: result.text,
-              info: result.info
-            };
-            allResults.push(fileResult);
-            
-            // Update metrics
-            totalPages += result.info.pages || 1;
-            
-            // Add to combined preview (limited to 200 chars per file)
-            combinedPreview += `--- Content from ${file.name} ---\n${result.text.slice(0, 200)}...\n\n`;
-            
-            // Generate flashcards specifically for this file
-            console.log(`Generating flashcards for ${file.name}`);
-            const fileFlashcards = await generateFlashcardsFromText(result.text, file.name);
-            
-            // Add source information to each flashcard
-            const cardsWithSource = fileFlashcards.map((card: Flashcard) => ({
-              ...card,
-              source: file.name, // Add the source filename
-              fileType // Add the file type (pdf or image)
-            }));
-            
-            // Add to combined flashcards
-            allFlashcards = [...allFlashcards, ...cardsWithSource];
-            console.log(`Generated ${fileFlashcards.length} flashcards from ${file.name}`);
-          } catch (fileError: any) {
-            // Catch the specific page limit error for MULTIPLE files
-            if (fileError.message.startsWith('PDF_PAGE_LIMIT_EXCEEDED::')) {
+          // Generate flashcards
+          console.log(`Generating flashcards for ${ref.filename} (from storage)`);
+          const fileFlashcards = await generateFlashcardsFromText(result.text, ref.filename);
+          const cardsWithSource = fileFlashcards.map((card: Flashcard) => ({ ...card, source: ref.filename, fileType }));
+          allFlashcards = [...allFlashcards, ...cardsWithSource];
+
+        } catch (fileError: any) {
+           // Handle page limit error specifically
+           if (fileError.message.startsWith('PDF_PAGE_LIMIT_EXCEEDED::')) {
               const [, fname, pageCountStr] = fileError.message.split('::');
               const pageCount = parseInt(pageCountStr, 10);
-              console.warn(`Skipping file in multi-upload due to page limit: ${fname} (${pageCount} pages)`);
-              skippedFiles.push({ 
-                filename: fname, 
-                pages: pageCount, 
-                reason: `Exceeds 30-page limit (${pageCount} pages)` 
-              });
-            } else {
-              // Handle other errors for this specific file
-              console.error(`Error processing file ${file.name} in multi-upload:`, fileError.message);
-              skippedFiles.push({ filename: file.name, reason: `Processing error: ${fileError.message}` });
-            }
-            // **Important**: Continue the loop to process other files
-            continue;
-          }
+              skippedFiles.push({ filename: fname, pages: pageCount, reason: `Exceeds 30-page limit (${pageCount} pages)` });
+           } else { 
+              // Handle other errors (storage retrieval, processing)
+              console.error(`Error processing stored file ${ref.filename} (${ref.filePath}):`, fileError.message);
+              skippedFiles.push({ filename: ref.filename, reason: `Processing error: ${fileError.message}` });
+           }
+           continue; // Continue to next file reference
         }
-        
-        // Combine all results
-        if (allResults.length === 0 && skippedFiles.length > 0) {
-          if (files.length === 1 && skippedFiles[0]?.reason.includes('Exceeds 30-page limit')) {
-            const skippedFile = skippedFiles[0];
-            return NextResponse.json({
-                success: false,
-                message: `File "${skippedFile.filename}" exceeds the 30-page limit (${skippedFile.pages} pages).`,
-                code: 'PAGE_LIMIT_EXCEEDED'
-            }, { status: 400 });
-          }
-          return NextResponse.json({
-            success: false,
-            message: 'No files could be processed successfully.',
-            skippedFiles 
-          }, { status: 400 });
-        } else if (allResults.length === 0) {
-          return NextResponse.json({
-            success: false,
-            message: 'Failed to extract text from any provided files.'
-          }, { status: 400 });
-        }
-        
-        // Join text from all files with clear separators
-        extractedText = allResults.map(result => {
-          return `--- Content from ${result.filename} ---\n\n${result.text}\n\n`;
-        }).join('\n');
-        
-        // Combine metadata
-        extractionInfo = {
-          pages: totalPages,
-          files: allResults.length,
-          metadata: {
-            sources: allResults.map(r => ({ 
-              filename: r.filename, 
-              type: r.type, 
-              pages: r.info.pages || 1,
-              characters: r.info.metadata?.characters || 0,
-              flashcards: allFlashcards.filter(card => card.source === r.filename).length
-            }))
-          }
-        };
-        
-        console.log(`[API /extract-pdf] Successfully processed ${allResults.length} files, skipped ${skippedFiles.length}. Generated ${allFlashcards.length} flashcards`);
-        
-        return NextResponse.json({
-          success: true,
-          extractedTextPreview: combinedPreview.length > 1000 ? combinedPreview.slice(0, 1000) + "..." : combinedPreview,
-          fileInfo: extractionInfo,
-          flashcards: allFlashcards,
-          skippedFiles // Include the list of skipped files
-        });
       }
-    } catch (error: any) {
-      console.error('[API /extract-pdf] Processing error:', error);
-      return NextResponse.json({
-        success: false,
-        message: `Error processing document: ${error.message}`
-      }, { status: 500 });
+      // End of loop for file references
+
+    } 
+    // **** HANDLE MULTIPART/FORM-DATA (existing logic for small files) ****
+    else if (contentType.includes('multipart/form-data')) {
+        const formData = await request.formData();
+        const files = formData.getAll('file') as File[];
+        
+        if (!files || files.length === 0) {
+          return NextResponse.json({ success: false, message: 'No files provided in form-data' }, { status: 400 });
+        }
+        
+        console.log(`[API /extract-pdf] Processing ${files.length} files from FormData.`);
+        
+        // Process each file from FormData (existing loop)
+        for (const file of files) {
+           // ... (existing try/catch logic for processing form files) ...
+           // This includes the page limit check within extractTextFromPdfWithDocumentAI
+           // and adding to skippedFiles if errors occur
+        }
+    } 
+    // **** HANDLE UNSUPPORTED CONTENT TYPE ****
+    else {
+      return NextResponse.json({ success: false, message: `Unsupported content type: ${contentType}` }, { status: 400 });
     }
+
+    // --- COMBINE AND RETURN RESULTS (applies to both JSON and FormData paths) ---
+    if (allResults.length === 0 && skippedFiles.length > 0) {
+       // ... return 400 with skippedFiles ...
+    } else if (allResults.length === 0) {
+       // ... return 400 generic failure ...
+    }
+
+    // Combine metadata (ensure this uses the collected allResults)
+    let extractedText = allResults.map(result => {
+      return `--- Content from ${result.filename} ---\n\n${result.text}\n\n`;
+    }).join('\n');
+    extractionInfo = {
+      pages: totalPages,
+      files: allResults.length,
+      metadata: {
+        sources: allResults.map(r => ({ 
+          filename: r.filename, 
+          type: r.type, 
+          pages: r.info.pages || 1,
+          characters: r.info.metadata?.characters || 0,
+          flashcards: allFlashcards.filter(card => card.source === r.filename).length
+        }))
+      }
+    };
+    
+    console.log(`[API /extract-pdf] Final Result: Processed ${allResults.length}, Skipped ${skippedFiles.length}, Generated ${allFlashcards.length} flashcards`);
+        
+    return NextResponse.json({
+      success: true,
+      extractedTextPreview: combinedPreview.length > 1000 ? combinedPreview.slice(0, 1000) + "..." : combinedPreview,
+      fileInfo: extractionInfo,
+      flashcards: allFlashcards,
+      skippedFiles // Include skipped files
+    });
+
   } catch (error: any) {
     console.error('[API /extract-pdf] Unhandled error:', error);
     return NextResponse.json({

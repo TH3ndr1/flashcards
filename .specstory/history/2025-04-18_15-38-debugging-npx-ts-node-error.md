@@ -21679,6 +21679,231 @@ _**Assistant**_
 
 ---
 
+Got it. You're right, the current frontend logic handles the `400 Bad Request` (when no files are processed successfully) as a generic error, preventing the detailed summary from showing.
+
+Let's adjust the `handleSubmit` function in `app/prepare/ai-generate/page.tsx` to specifically handle this scenario:
+
+**Refined Frontend Error Handling (`handleSubmit`)**
+
+---
+
+```diff
+        }
+        
+-       // Dismiss loading toast once we have a response (success or error)
++       // Dismiss loading toast
+        clearTimeout(safetyTimeout);
+        toast.dismiss(loadingToastId);
+        
+-       // Handle specific error codes or skipped files before checking response.ok
++       let processingError = null; // Temporary variable for non-blocking errors
++       let summaryLines: string[] = []; // Initialize summary lines array
++ 
++       // --- Start Refined Handling --- 
++ 
++       // 1. Handle specific single-file page limit error
+        if (data.code === 'PAGE_LIMIT_EXCEEDED') {
+          console.error('API Error: Page limit exceeded', data.message);
+          setError(data.message);
+-         toast.error(data.message); // Show specific error toast
+-         // Don't proceed further for this specific error
+-         return; 
++         toast.error(data.message);
++         setProcessingSummary(null); // Ensure summary is cleared
++         return; // Stop processing
+        }
+  
+-       // Check if files were skipped during multi-upload
+-       if (data.skippedFiles && data.skippedFiles.length > 0) {
++       // 2. Handle the case where *no* files succeeded, but skip info exists
++       if (!data.success && data.skippedFiles && data.skippedFiles.length > 0) {
++         console.warn('Processing Warning: No files succeeded, some were skipped.');
++         processingError = data.message || 'No files could be processed successfully.'; 
++         // Show warning toast with skipped details
+          const skippedMessages = data.skippedFiles.map(
+            (skipped: { filename: string, reason: string }) => 
+          toast.warning(
+            <div className="text-sm">
+-             <p className="font-medium mb-1">Some files were skipped:</p>
+-             <pre className="whitespace-pre-wrap text-xs">{skippedMessages}</pre>
++             <p className="font-medium mb-1">{processingError}</p>
++             <pre className="whitespace-pre-wrap text-xs mt-1">{skippedMessages}</pre>
+            </div>,
+-           { duration: 10000 } // Keep warning visible longer
+-         );
+-         // Continue processing successful results even if some were skipped
++           { duration: 10000 }
++         );
++         
++         // Generate summary *only* with skipped files
++         type SkippedFile = { filename: string; reason: string; pages?: number };
++         data.skippedFiles.forEach((skipped: SkippedFile) => {
++             summaryLines.push(`- ${skipped.filename}: Skipped (${skipped.reason})`);
++         });
++         setProcessingSummary(summaryLines.join('\n'));
++         setFlashcards([]); // Ensure no leftover flashcards are shown
++         setExtractedTextPreview(null);
++         // Do *not* set the main error state here, as we want the summary
++         // setError(processingError); 
++         return; // Stop further processing
+        }
+  
+-       // Handle general server errors (if not page limit)
++       // 3. Handle other general server errors (if not handled above)
+        if (!response.ok) {
+          console.error('API Error:', response.status, response.statusText, data);
+          const errorMessage = data?.message || `Error: ${response.status} ${response.statusText}`;
+          setError(errorMessage);
+-         toast.error(errorMessage); // Show general error toast
+-         // Stop processing on general errors
+-         return; 
+-       }
+-       
+-       // --- Process successful response --- 
++         toast.error(errorMessage);
++         setProcessingSummary(null); // Clear summary on general error
++         return; // Stop processing
++       }
++ 
++       // --- 4. Process successful response (response.ok is true) --- 
++       
++       // Check for *partially* skipped files (success: true, but skippedFiles exist)
++       if (data.skippedFiles && data.skippedFiles.length > 0) {
++           const skippedMessages = data.skippedFiles.map(
++             (skipped: { filename: string, reason: string }) => 
++               `- ${skipped.filename}: ${skipped.reason}`
++           ).join('\n');
++           toast.warning(
++             <div className="text-sm">
++               <p className="font-medium mb-1">Some files were skipped:</p>
++               <pre className="whitespace-pre-wrap text-xs">{skippedMessages}</pre>
++             </div>,
++             { duration: 10000 }
++           );
++       }
++ 
++       // Set flashcards and preview
+        setFlashcards(data.flashcards || []);
+        setExtractedTextPreview(data.extractedTextPreview || null);
+        toast.success(successMessage);
+        
+-       // --- Generate Detailed Summary ---
+-       let summaryLines: string[] = [];
++       // Generate Detailed Summary (using both successful and skipped)
+        const sourceCounts: Record<string, number> = {};
+-       // Ensure data.flashcards exists before trying to reduce/forEach
+        if (data.flashcards && Array.isArray(data.flashcards)) {
+          data.flashcards.forEach((card: { source?: string }) => {
+          });
+        }
+- 
+-       // Add lines for successfully processed files
+        Object.entries(sourceCounts).forEach(([filename, count]) => {
+            summaryLines.push(`- ${filename}: ${count} flashcard${count !== 1 ? 's' : ''} generated`);
+        });
+- 
+-       // Add lines for skipped files
+        if (data.skippedFiles && data.skippedFiles.length > 0) {
+-           // Define SkippedFile type inline if not imported/available
+            type SkippedFile = { filename: string; reason: string; pages?: number };
+            data.skippedFiles.forEach((skipped: SkippedFile) => {
+                summaryLines.push(`- ${skipped.filename}: Skipped (${skipped.reason})`);
+            });
+        }
+- 
+-       // Combine and set the summary state
+        if (summaryLines.length > 0) {
+-           // Sort lines to potentially group successes/failures if needed, or keep as is
+-           // summaryLines.sort(); 
+            setProcessingSummary(summaryLines.join('\n'));
+        } else {
+             setProcessingSummary(null);
+        }
+-       // --- End Summary Generation ---
+  
+      } catch (err: any) {
+```
+
+---
+
+This revised frontend logic should now correctly handle the "all files skipped" scenario:
+
+1.  It detects `success: false` combined with the presence of `skippedFiles`.
+2.  It displays the appropriate `toast.warning` listing the skipped files.
+3.  Crucially, it proceeds to generate and display the `processingSummary` using *only* the skipped file information.
+4.  It avoids setting the main `error` state, allowing the summary to be shown instead of an error message in the upload card.
+5.  It correctly stops further processing after handling this specific case.
+
+Now, even if all uploaded files exceed the page limit or encounter other processing errors, you should see the detailed summary under "Generated Flashcards" explaining what happened to each file, along with the warning toast.
+
+---
+
+_**User**_
+
+1. The upload files window used to have an elegant "X Clear all" button. Now it has a traditional button. Can you change the ui of this button like it was in the past? See print screen.
+2. For single file upload, we still correctly upload files to supabase if they are too large. I notice that we do not do this for multiple file processing.
+The client still needs to handle uploading large files, even if multiple files are selected as vercel has an upload size limit. So server side API calls will not work. The same logic for single file uploads should be aplied.
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+Okay, let's tackle these two points.
+
+**1. Restore "Clear All" Button UI**
+
+I'll revert the "Clear All" button in the `FileUpload` component to the style shown in your screenshot (an 'X' icon button in the header).
+
+---
+
+```diff
+              <div className="flex justify-between items-center">
+                <h3 className="font-medium">Selected Files</h3>
+-               <div className="flex justify-between mt-3">
++               <div className="flex items-center gap-2">
+                  <Button 
+                    type="button"
+                  <Button 
+                    type="button"
+-                   variant="outline" 
++                   variant="ghost" 
+                    size="sm" 
+                    onClick={clearFiles}
+                  >
++                   <X className="h-4 w-4 mr-1" />
+                    Clear All
+                  </Button>
+                </div>
+              </div>
+              
+-             <div className="space-y-2">
++             <div className="space-y-2 mt-2">
+                {selectedFiles.map((file, index) => (
+                  <div key={index} className="flex items-center justify-between p-2 bg-muted rounded-md">
+```
+
+---
+
+**2. Implement Large File Handling for Multiple Uploads**
+
+This requires changes in both the frontend (`AiGeneratePage`) to upload large files to storage and the backend (`/api/extract-pdf`) to accept a list of file references.
+
+**A. Frontend Changes (`AiGeneratePage`)**
+
+---
+
+Cancelled
+
+---
+
+
+
+---
+
 
 
 ---
