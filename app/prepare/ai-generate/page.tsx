@@ -30,6 +30,7 @@ export default function AiGeneratePage() {
   const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [extractedTextPreview, setExtractedTextPreview] = useState<string | null>(null);
+  const [processingSummary, setProcessingSummary] = useState<string | null>(null);
   const { supabase } = useSupabase();
   const { user } = useAuth();
 
@@ -82,6 +83,7 @@ export default function AiGeneratePage() {
     setError(null);
     setFlashcards([]);
     setExtractedTextPreview(null);
+    setProcessingSummary(null);
     
     const loadingToastId = `loading-${Date.now()}`;
     const safetyTimeout = setTimeout(() => toast.dismiss(loadingToastId), 90000);
@@ -169,31 +171,154 @@ export default function AiGeneratePage() {
         data = await response.json();
       } catch (jsonError) {
         console.error('JSON parsing error:', jsonError);
+        clearTimeout(safetyTimeout);
+        toast.dismiss(loadingToastId);
         throw new Error(`Server returned an invalid response (${response.status} ${response.statusText}). Please try again later.`);
       }
       
-      if (!response.ok) {
-        console.error('API Error:', response.status, response.statusText, data);
-        throw new Error(data?.message || `Error: ${response.status} ${response.statusText}`);
-      }
-      
+      // Dismiss loading toast
       clearTimeout(safetyTimeout);
       toast.dismiss(loadingToastId);
       
+      let processingError = null; // Temporary variable for non-blocking errors
+      let summaryLines: string[] = []; // Initialize summary lines array
+
+      // --- Start Refined Handling --- 
+
+      // 1. Handle specific single-file page limit error
+      if (data.code === 'PAGE_LIMIT_EXCEEDED') {
+        console.error('API Error: Page limit exceeded', data.message);
+        setError(data.message);
+        toast.error(data.message);
+        setProcessingSummary(null); // Ensure summary is cleared
+        return; // Stop processing
+      }
+
+      // 2. Handle the case where *no* files succeeded, but skip info exists
+      if (!data.success && data.skippedFiles && data.skippedFiles.length > 0) {
+        console.warn('Processing Warning: No files succeeded, some were skipped.');
+        processingError = data.message || 'No files could be processed successfully.'; 
+        // Show warning toast with skipped details
+        const skippedMessages = data.skippedFiles.map(
+          (skipped: { filename: string, reason: string }) => 
+            `- ${skipped.filename}: ${skipped.reason}`
+        ).join('\n');
+        toast.warning(
+          <div className="text-sm">
+            <p className="font-medium mb-1">{processingError}</p>
+            <pre className="whitespace-pre-wrap text-xs mt-1">{skippedMessages}</pre>
+          </div>,
+          { duration: 10000 }
+        );
+        
+        // Generate summary *only* with skipped files
+        type SkippedFile = { filename: string; reason: string; pages?: number };
+        data.skippedFiles.forEach((skipped: SkippedFile) => {
+            summaryLines.push(`- ${skipped.filename}: Skipped (${skipped.reason})`);
+        });
+        setProcessingSummary(summaryLines.join('\n'));
+        setFlashcards([]); // Ensure no leftover flashcards are shown
+        setExtractedTextPreview(null);
+        // Do *not* set the main error state here, as we want the summary
+        // setError(processingError); 
+        return; // Stop further processing
+      }
+
+      // 3. Handle other general server errors (if not handled above)
+      if (!response.ok) {
+        console.error('API Error:', response.status, response.statusText, data);
+        const errorMessage = data?.message || `Error: ${response.status} ${response.statusText}`;
+        setError(errorMessage);
+        toast.error(errorMessage);
+        setProcessingSummary(null); // Clear summary on general error
+        return; // Stop processing
+      }
+
+      // --- 4. Process successful response (response.ok is true) --- 
+      
+      // Check for *partially* skipped files (success: true, but skippedFiles exist)
+      if (data.skippedFiles && data.skippedFiles.length > 0) {
+          const skippedMessages = data.skippedFiles.map(
+            (skipped: { filename: string, reason: string }) => 
+              `- ${skipped.filename}: ${skipped.reason}`
+          ).join('\n');
+          toast.warning(
+            <div className="text-sm">
+              <p className="font-medium mb-1">Some files were skipped:</p>
+              <pre className="whitespace-pre-wrap text-xs">{skippedMessages}</pre>
+            </div>,
+            { duration: 10000 }
+          );
+      }
+
+      // Set flashcards and preview
       setFlashcards(data.flashcards || []);
       setExtractedTextPreview(data.extractedTextPreview || null);
       
-      toast.success(`Successfully created ${data.flashcards.length} flashcards from ${currentFiles.length} file${currentFiles.length > 1 ? 's' : ''}`);
+      // Modify success toast based on whether files were skipped
+      const successfulSources = data.flashcards.length > 0 ? data.flashcards.reduce((acc: Record<string, number>, card: { source?: string }) => {
+        const sourceName = card.source || 'unknown'; // Use a default if source is missing
+        if (!acc[sourceName]) acc[sourceName] = 0;
+        acc[sourceName]++;
+        return acc;
+      }, {}) : {};
+      const processedFileCount = Object.keys(successfulSources).length;
+      const skippedCount = data.skippedFiles?.length || 0;
+      
+      let successMessage = `Successfully created ${data.flashcards.length} flashcards`;
+      if (skippedCount > 0 && processedFileCount > 0) {
+        successMessage += ` from ${processedFileCount} file(s) (${skippedCount} skipped).`;
+      } else if (skippedCount === 0 && currentFiles.length > 1) {
+        successMessage += ` from ${currentFiles.length} files.`;
+      } else if (skippedCount > 0 && processedFileCount === 0) {
+        // This case should be handled by the skipped file warning, 
+        // but good to have a fallback message if flashcards are empty
+        successMessage = `Processed files, but no flashcards were generated. ${skippedCount} file(s) were skipped.`;
+        toast.info(successMessage); // Use info instead of success if nothing generated
+        return;
+      } else {
+        successMessage += "."; // Default for single file success
+      }
+      
+      toast.success(successMessage);
+      
+      // Generate Detailed Summary (using both successful and skipped)
+      const sourceCounts: Record<string, number> = {};
+      if (data.flashcards && Array.isArray(data.flashcards)) {
+        data.flashcards.forEach((card: { source?: string }) => {
+          const sourceName = card.source || 'unknown';
+          sourceCounts[sourceName] = (sourceCounts[sourceName] || 0) + 1;
+        });
+      }
+      Object.entries(sourceCounts).forEach(([filename, count]) => {
+          summaryLines.push(`- ${filename}: ${count} flashcard${count !== 1 ? 's' : ''} generated`);
+      });
+      if (data.skippedFiles && data.skippedFiles.length > 0) {
+          type SkippedFile = { filename: string; reason: string; pages?: number };
+          data.skippedFiles.forEach((skipped: SkippedFile) => {
+              summaryLines.push(`- ${skipped.filename}: Skipped (${skipped.reason})`);
+          });
+      }
+      if (summaryLines.length > 0) {
+          setProcessingSummary(summaryLines.join('\n'));
+      } else {
+           setProcessingSummary(null);
+      }
+
     } catch (err: any) {
       console.error('Error during handleSubmit:', err);
       const errorMessage = err.message || 'An error occurred';
       setError(errorMessage);
-      toast.error(errorMessage);
-    } finally {
+      // Make sure loading toast is dismissed in case of client-side errors before API call
       clearTimeout(safetyTimeout);
       toast.dismiss(loadingToastId);
-      toast.dismiss(`${loadingToastId}-upload`);
+      toast.error(errorMessage);
+      setProcessingSummary(null); // Clear summary on error
+    } finally {
       setIsLoading(false);
+      // Ensure toasts are dismissed
+      clearTimeout(safetyTimeout);
+      toast.dismiss(loadingToastId); 
     }
   };
 
@@ -203,6 +328,7 @@ export default function AiGeneratePage() {
     setFlashcards([]);
     setError(null);
     setExtractedTextPreview(null);
+    setProcessingSummary(null);
     
     // Log to confirm state was cleared
     console.log('All state cleared');
@@ -214,6 +340,7 @@ export default function AiGeneratePage() {
   const handleClearResults = useCallback(() => {
     setFlashcards([]);
     setExtractedTextPreview(null);
+    setProcessingSummary(null);
     toast.success('Results cleared');
   }, []);
 
@@ -343,10 +470,30 @@ export default function AiGeneratePage() {
                 </div>
               </CardTitle>
               <CardDescription>
-                {flashcards.length > 0 
-                  ? `${flashcards.length} flashcards generated`
-                  : 'Flashcards will appear here after processing'
-                }
+                {processingSummary ? (
+                  <div className="text-xs space-y-1 mt-2 border-t pt-2">
+                    {processingSummary.split('\n').map((line, index) => (
+                      <p key={index} className="flex items-center">
+                        {line.includes('Skipped') ? (
+                          <>
+                            <span className="text-orange-500 mr-1.5">⚠️</span> 
+                            <span className="text-muted-foreground">{line.replace(/^- /, '')}</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-green-500 mr-1.5">✓</span> 
+                            <span>{line.replace(/^- /, '')}</span>
+                          </>
+                        )}
+                      </p>
+                    ))}
+                  </div>
+                ) : flashcards.length > 0 ? (
+                   // Fallback if summary isn't set but cards exist
+                   `${flashcards.length} flashcards generated`
+                ) : (
+                   'Flashcards will appear here after processing'
+                )}
               </CardDescription>
             </CardHeader>
             <CardContent className="flex-grow overflow-auto">

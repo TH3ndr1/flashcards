@@ -120,9 +120,15 @@ async function extractTextFromImage(fileBuffer: ArrayBuffer, filename: string) {
 
 // Extract text from PDF using Google Cloud Document AI
 async function extractTextFromPdfWithDocumentAI(fileBuffer: ArrayBuffer, filename: string, mimeType: string) {
-  console.log(`Starting Document AI text extraction for PDF: ${filename} with reported mimeType: ${mimeType}`);
+  console.log(`Starting Document AI text extraction for PDF: ${filename}`);
   
   try {
+    // **** ADDED: Perform page count check BEFORE calling Document AI ****
+    const { info: pageInfo } = await extractTextFromPdf(fileBuffer, filename); 
+    const initialPageCount = pageInfo.pages;
+    console.log(`Pre-check successful: ${filename} has ${initialPageCount} pages.`);
+    // **** END ADDED CHECK ****
+    
     // Following the exact format from the official documentation
     const processorName = `projects/${projectId}/locations/${docAILocation}/processors/${docAIProcessorId}`;
     const buffer = Buffer.from(fileBuffer);
@@ -143,13 +149,13 @@ async function extractTextFromPdfWithDocumentAI(fileBuffer: ArrayBuffer, filenam
     const { document } = result;
 
     if (!document || !document.text) {
-      console.warn(`Document AI returned no text for PDF ${filename}. It might be empty or unreadable.`);
-      throw new Error('Document AI could not detect any text in the PDF. The file might be empty, corrupted, or password-protected.');
+      console.warn(`Document AI returned no text for PDF ${filename}.`);
+      throw new Error('Document AI could not detect any text in the PDF.');
     }
 
     const extractedText = document.text;
     const characterCount = extractedText.length;
-    const pageCount = document.pages?.length || 1;
+    const pageCount = document.pages?.length || initialPageCount; // Use initial count if API doesn't return one
     console.log(`Document AI extraction complete for PDF ${filename}, extracted ${characterCount} characters from ${pageCount} pages.`);
 
     return {
@@ -160,7 +166,12 @@ async function extractTextFromPdfWithDocumentAI(fileBuffer: ArrayBuffer, filenam
       }
     };
   } catch (error: any) {
-    // Log the full error object for more details on INVALID_ARGUMENT
+    // Catch the specific page limit error re-thrown from extractTextFromPdf
+    if (error.message.startsWith('PDF_PAGE_LIMIT_EXCEEDED::')) {
+      throw error;
+    }
+    
+    // Original Document AI error handling
     console.error(`Document AI extraction error for PDF ${filename}:`, JSON.stringify(error, null, 2));
     console.error(`Document AI error details:`, error.message);
     
@@ -183,39 +194,42 @@ async function extractTextFromPdfWithDocumentAI(fileBuffer: ArrayBuffer, filenam
 
 // Extract text from PDF using pdf-lib (fallback method)
 async function extractTextFromPdf(fileBuffer: ArrayBuffer, filename: string) {
-  console.log(`Starting pdf-lib extraction for PDF: ${filename}`);
+  console.log(`Starting pdf-lib check for PDF: ${filename}`);
   
   try {
-    // Load the PDF document
-    const pdfDoc = await PDFDocument.load(fileBuffer);
+    // Load the PDF document, ignoring encryption for page counting
+    const pdfDoc = await PDFDocument.load(fileBuffer, { 
+      ignoreEncryption: true 
+    });
     const pageCount = pdfDoc.getPageCount();
     
+    // Check the page count against the limit
     if (pageCount > 30) {
-      console.warn(`PDF has ${pageCount} pages, which exceeds the recommended limit of 30 pages`);
+      console.warn(`PDF "${filename}" has ${pageCount} pages, exceeding the 30-page limit.`);
+      // Throw a specific, parseable error
+      throw new Error(`PDF_PAGE_LIMIT_EXCEEDED::${filename}::${pageCount}`);
     }
     
-    // Since pdf-lib doesn't directly extract text, we'll return page count info
-    // and rely on the vision API as the main extraction method
-    const extractedText = `This PDF document contains ${pageCount} pages.
-The content cannot be directly extracted with pdf-lib.
-Please use Document AI or Vision AI for extracting text content.`;
-    
-    console.log(`pdf-lib extraction complete for ${filename}: extracted metadata from ${pageCount} pages`);
-    
+    // If the check passes, return page count info but indicate no text extracted by pdf-lib itself
+    console.log(`pdf-lib check complete for ${filename}: ${pageCount} pages (within limit).`);
     return {
-      text: extractedText,
+      text: "", // Indicate no text extracted by this *method* itself
       info: {
         pages: pageCount,
         metadata: { 
           source: 'pdf-lib', 
-          characters: extractedText.length,
-          note: 'Limited text extraction - consider uploading image captures of the document for better results'
+          characters: 0,
+          note: 'Page count checked by pdf-lib. Extraction relies on Document AI.'
         }
       }
     };
   } catch (error: any) {
-    console.error(`pdf-lib extraction error for ${filename}:`, error.message);
-    throw new Error(`Failed to process PDF: ${error.message}`);
+    // Re-throw the specific page limit error, otherwise throw a generic processing error
+    if (error.message.startsWith('PDF_PAGE_LIMIT_EXCEEDED::')) {
+      throw error;
+    }
+    console.error(`pdf-lib processing error for ${filename}:`, error.message);
+    throw new Error(`Failed to process PDF metadata with pdf-lib: ${error.message}`);
   }
 }
 
@@ -295,6 +309,13 @@ interface Flashcard {
   answer: string;
   source?: string;
   fileType?: 'pdf' | 'image';
+}
+
+// Add a type for skipped files near the top interfaces
+interface SkippedFile {
+  filename: string;
+  pages?: number;
+  reason: string;
 }
 
 // --- API Route Handlers ---
@@ -406,43 +427,55 @@ export async function POST(request: NextRequest) {
     let extractionInfo: any = { pages: 0, metadata: {} };
     let fileType: 'pdf' | 'image' | null = null;
     
+    let skippedFiles: SkippedFile[] = []; // Initialize skipped files array
+    
     try {
       if (fileData) {
         // Processing a single file from storage
-        fileType = getSupportedFileType(filename);
-        
-        if (!fileType) {
+        try {
+          fileType = getSupportedFileType(filename);
+          if (!fileType) {
+            return NextResponse.json({
+              success: false,
+              message: `Unsupported file type: ${filename}`
+            }, { status: 400 });
+          }
+          
+          let result;
+          if (fileType === 'pdf') {
+            result = await extractTextFromPdfWithDocumentAI(fileData, filename, 'application/pdf');
+          } else {
+            result = await extractTextFromImage(fileData, filename);
+          }
+          
+          extractedText = result.text;
+          extractionInfo = result.info;
+          
+          const flashcards = await generateFlashcardsFromText(extractedText, filename);
+          
+          return NextResponse.json({
+            success: true,
+            extractedTextPreview: extractedText.slice(0, 1000),
+            fileInfo: extractionInfo,
+            flashcards
+          });
+        } catch (error: any) {
+          if (error.message.startsWith('PDF_PAGE_LIMIT_EXCEEDED::')) {
+            const [, fname, pageCountStr] = error.message.split('::');
+            const pageCount = parseInt(pageCountStr, 10);
+            console.error(`Single file page limit error: ${fname} has ${pageCount} pages.`);
+            return NextResponse.json({
+              success: false,
+              message: `File "${fname}" exceeds the 30-page limit (${pageCount} pages).`, 
+              code: 'PAGE_LIMIT_EXCEEDED'
+            }, { status: 400 });
+          }
+          console.error(`Error processing single file ${filename}:`, error);
           return NextResponse.json({
             success: false,
-            message: `Unsupported file type: ${filename}`
-          }, { status: 400 });
+            message: `Error processing file ${filename}: ${error.message}`
+          }, { status: 500 });
         }
-        
-        // Use the appropriate extraction function based on fileType
-        let result;
-        if (fileType === 'pdf') {
-          try {
-            result = await extractTextFromPdfWithDocumentAI(fileData, filename, 'application/pdf');
-          } catch (pdfError) {
-            console.error('Document AI extraction failed, attempting pdf-lib fallback', pdfError);
-            result = await extractTextFromPdf(fileData, filename);
-          }
-        } else {
-          result = await extractTextFromImage(fileData, filename);
-        }
-        
-        extractedText = result.text;
-        extractionInfo = result.info;
-        
-        // Generate flashcards from the extracted text
-        const flashcards = await generateFlashcardsFromText(extractedText, filename);
-        
-        return NextResponse.json({
-          success: true,
-          extractedTextPreview: extractedText.slice(0, 1000),
-          fileInfo: extractionInfo,
-          flashcards
-        });
       } else {
         // Processing multiple files from form data
         let allResults = [];
@@ -456,6 +489,7 @@ export async function POST(request: NextRequest) {
           const fileType = getSupportedFileType(file.name);
           
           if (!fileType) {
+            skippedFiles.push({ filename: file.name, reason: 'Unsupported file type' });
             console.warn(`Skipping unsupported file: ${file.name}`);
             continue;
           }
@@ -463,16 +497,7 @@ export async function POST(request: NextRequest) {
           try {
             let result;
             if (fileType === 'pdf') {
-              try {
-                result = await extractTextFromPdfWithDocumentAI(
-                  arrayBuffer, 
-                  file.name, 
-                  'application/pdf'
-                );
-              } catch (pdfError) {
-                console.error('Document AI extraction failed, attempting pdf-lib fallback', pdfError);
-                result = await extractTextFromPdf(arrayBuffer, file.name);
-              }
+              result = await extractTextFromPdfWithDocumentAI(arrayBuffer, file.name, 'application/pdf');
             } else {
               result = await extractTextFromImage(arrayBuffer, file.name);
             }
@@ -507,16 +532,45 @@ export async function POST(request: NextRequest) {
             allFlashcards = [...allFlashcards, ...cardsWithSource];
             console.log(`Generated ${fileFlashcards.length} flashcards from ${file.name}`);
           } catch (fileError: any) {
-            console.error(`Error processing file ${file.name}:`, fileError);
-            // Continue with other files even if one fails
+            // Catch the specific page limit error for MULTIPLE files
+            if (fileError.message.startsWith('PDF_PAGE_LIMIT_EXCEEDED::')) {
+              const [, fname, pageCountStr] = fileError.message.split('::');
+              const pageCount = parseInt(pageCountStr, 10);
+              console.warn(`Skipping file in multi-upload due to page limit: ${fname} (${pageCount} pages)`);
+              skippedFiles.push({ 
+                filename: fname, 
+                pages: pageCount, 
+                reason: `Exceeds 30-page limit (${pageCount} pages)` 
+              });
+            } else {
+              // Handle other errors for this specific file
+              console.error(`Error processing file ${file.name} in multi-upload:`, fileError.message);
+              skippedFiles.push({ filename: file.name, reason: `Processing error: ${fileError.message}` });
+            }
+            // **Important**: Continue the loop to process other files
+            continue;
           }
         }
         
         // Combine all results
-        if (allResults.length === 0) {
+        if (allResults.length === 0 && skippedFiles.length > 0) {
+          if (files.length === 1 && skippedFiles[0]?.reason.includes('Exceeds 30-page limit')) {
+            const skippedFile = skippedFiles[0];
+            return NextResponse.json({
+                success: false,
+                message: `File "${skippedFile.filename}" exceeds the 30-page limit (${skippedFile.pages} pages).`,
+                code: 'PAGE_LIMIT_EXCEEDED'
+            }, { status: 400 });
+          }
           return NextResponse.json({
             success: false,
-            message: 'Failed to extract text from any of the provided files'
+            message: 'No files could be processed successfully.',
+            skippedFiles 
+          }, { status: 400 });
+        } else if (allResults.length === 0) {
+          return NextResponse.json({
+            success: false,
+            message: 'Failed to extract text from any provided files.'
           }, { status: 400 });
         }
         
@@ -540,13 +594,14 @@ export async function POST(request: NextRequest) {
           }
         };
         
-        console.log(`[API /extract-pdf] Successfully extracted text from ${allResults.length} files, generated ${allFlashcards.length} flashcards`);
+        console.log(`[API /extract-pdf] Successfully processed ${allResults.length} files, skipped ${skippedFiles.length}. Generated ${allFlashcards.length} flashcards`);
         
         return NextResponse.json({
           success: true,
           extractedTextPreview: combinedPreview.length > 1000 ? combinedPreview.slice(0, 1000) + "..." : combinedPreview,
           fileInfo: extractionInfo,
-          flashcards: allFlashcards
+          flashcards: allFlashcards,
+          skippedFiles // Include the list of skipped files
         });
       }
     } catch (error: any) {
