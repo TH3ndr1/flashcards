@@ -314,6 +314,107 @@ Next, I will modify the `generateFlashcardsFromText` function in `app/api/extrac
 
 ---
 
+_**User**_
+
+Where is the "Create Deck" button that i see on the main page defined?
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+Okay, let's find where that "Create Deck" button is defined in the frontend code. It's likely a component used on the main page of the application.
+
+I'll search the codebase for the text "Create Deck", focusing on frontend files (like `.tsx`).
+
+---
+
+<details>
+            <summary>Grep search for "Create Deck" • **9** files</summary>
+        
+| File | Line | Match |
+|------|------|-------|
+| `file:///Users/tom/dev/flashcards/hooks/use-decks.tsx` | L157 | `toast.error("Failed to create deck", { id: toastId, description: result.error });` |
+| `file:///Users/tom/dev/flashcards/components/deck-list.tsx` | L83 | `Create Deck` |
+| `file:///Users/tom/dev/flashcards/components/create-deck-dialog.tsx` | L64 | `toast.error("Failed to create deck", {` |
+| `file:///Users/tom/dev/flashcards/components/create-deck-dialog.tsx` | L72 | `toast.error("Failed to create deck", {` |
+| `file:///Users/tom/dev/flashcards/components/create-deck-dialog.tsx` | L84 | `toast.error("Failed to create deck", {` |
+| `file:///Users/tom/dev/flashcards/components/create-deck-dialog.tsx` | L195 | `{loading ? "Creating..." : "Create Deck"}` |
+| `file:///Users/tom/dev/flashcards/components/layout/Sidebar.tsx` | L54 | `{ id: 'create-deck', label: 'Create Deck', icon: PlusCircle },` |
+| `file:///Users/tom/dev/flashcards/app/decks/new/page.tsx` | L114 | `toast.error("Failed to create deck", {` |
+| `file:///Users/tom/dev/flashcards/app/decks/new/page.tsx` | L229 | `{loading ? "Creating..." : "Create Deck & Add Cards"}` |
+| `file:///Users/tom/dev/flashcards/app/prepare/ai-generate/page.tsx` | L557 | `throw new Error(errorData.error || 'Failed to create deck');` |
+| `file:///Users/tom/dev/flashcards/app/prepare/ai-generate/page.tsx` | L593 | `toast.error(error.message || 'Failed to create deck');` |
+| `file:///Users/tom/dev/flashcards/app/prepare/ai-generate/page.tsx` | L845 | `"Create Deck"` |
+| `file:///Users/tom/dev/flashcards/hooks/use-decks.tsx` | L157 | `toast.error("Failed to create deck", { id: toastId, description: result.error });` |
+| `file:///Users/tom/dev/flashcards/app/decks/new/page.tsx` | L114 | `toast.error("Failed to create deck", {` |
+| `file:///Users/tom/dev/flashcards/app/decks/new/page.tsx` | L229 | `{loading ? "Creating..." : "Create Deck & Add Cards"}` |
+| `file:///Users/tom/dev/flashcards/components/deck-list.tsx` | L83 | `Create Deck` |
+
+</details>
+
+---
+
+The search found several occurrences of "Create Deck". Based on the file paths and context, here are the most likely locations where the button visible on the main page is defined or used:
+
+1.  **`components/deck-list.tsx` (Line 83):** This file seems to explicitly contain the text "Create Deck", likely as the visible label for a button or link within a list of decks. This is a strong candidate for the button you see.
+2.  **`components/layout/Sidebar.tsx` (Line 54):** This defines an item with the label "Create Deck" and a `PlusCircle` icon, likely for a sidebar navigation element. This could also be the button you're referring to if it's located in the sidebar.
+3.  **`app/prepare/ai-generate/page.tsx` (Line 845):** This page also contains the text "Create Deck", potentially as part of the AI generation workflow completion step.
+4.  **`components/create-deck-dialog.tsx` (Line 195):** This component contains the text within a button, likely inside a modal dialog used specifically for creating a new deck. The button text changes to "Creating..." when loading.
+5.  **`app/decks/new/page.tsx` (Line 229):** This page has a button labeled "Create Deck & Add Cards", suggesting it's part of the dedicated "new deck" creation page.
+
+Given you mentioned seeing it on the "main page", the most probable locations are either `components/deck-list.tsx` if it's near the list of existing decks, or `components/layout/Sidebar.tsx` if it's in the sidebar.
+
+Would you like me to read the contents of `components/deck-list.tsx` or `components/layout/Sidebar.tsx` to confirm?
+
+---
+
+_**User**_
+
+yes
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+Okay, I will read the contents of `components/deck-list.tsx` to see how the "Create Deck" button is implemented there.
+
+---
+
+Read file: components/deck-list.tsx
+
+---
+
+You were right! The "Create Deck" button you see on the main page (likely alongside your list of decks) is defined in `components/deck-list.tsx`.
+
+Here's the relevant code snippet from lines 81-85:
+
+```typescript
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button onClick={() => setIsCreateOpen(true)}>
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Create Deck
+            </Button>
+          </div>
+```
+
+This code does the following:
+
+1.  Uses the `Button` component (likely from your UI library, shadcn/ui).
+2.  Sets an `onClick` handler (`() => setIsCreateOpen(true)`) which sets a state variable (`isCreateOpen`) to `true`. This likely opens the `CreateDeckDialog` component defined later in the file (line 164).
+3.  Includes a `PlusCircle` icon before the text "Create Deck".
+
+So, this button acts as a trigger to open a separate dialog/modal where the user can actually input the details for the new deck.
+
+---
+
 
 
 ---

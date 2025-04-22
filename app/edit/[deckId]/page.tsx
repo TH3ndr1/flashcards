@@ -1,560 +1,154 @@
-"use client"
+// app/edit/[deckId]/page.tsx
+"use client";
 
-import { useEffect, useState, useCallback, useRef } from "react"
-import { useParams, useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, Plus, Save, Trash2, Loader2 as IconLoader } from "lucide-react"
-import Link from "next/link"
-import { CardEditor } from "@/components/card-editor"
-// import { TableEditor } from "@/components/table-editor" // Comment out until refactored
-import { EditableCardTable } from "@/components/deck/EditableCardTable"
-import { useDecks } from "@/hooks/use-decks"
-import type { Tables } from "@/types/database" // Import Tables
-import type { UpdateDeckParams } from "@/hooks/use-decks"
-import { toast } from "sonner"
-import { Switch } from "@/components/ui/switch"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Input } from "@/components/ui/input"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Terminal } from "lucide-react"
-import { createCard as createCardAction, updateCard as updateCardAction } from "@/lib/actions/cardActions"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
-import { debounce } from "@/lib/utils"
+import { useState } from "react";
+import { useParams, useRouter } from "next/navigation"; // Keep useRouter if needed for back button etc.
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ArrowLeft } from "lucide-react";
+// Import the new hook and components
+import { useEditDeck } from "./useEditDeck";
+import { DeckMetadataEditor } from "./DeckMetadataEditor";
+import { CardViewTabContent } from "./CardViewTabContent";
+import { TableViewTabContent } from "./TableViewTabContent";
+import { DeckDangerZone } from "./DeckDangerZone";
+import type { Tables } from "@/types/database"; // Keep type import
 
-// Define types using Tables
-type DbDeck = Tables<'decks'>;
 type DbCard = Tables<'cards'>;
 
 /**
- * Edit Deck Page Component.
+ * Refactored Edit Deck Page Component.
  *
- * This page allows users to edit an existing deck, including its name
- * and associated flashcards. It fetches the deck data based on the `deckId`
- * route parameter, provides UI for modifications (using `TableEditor` and
- * `CardEditor`), and handles saving changes or deleting the deck using the
- * `useDecks` hook.
- *
- * Features:
- * - Fetches deck data on load.
- * - Displays loading states and error messages.
- * - Allows editing deck name.
- * - Allows adding, updating, and deleting cards within the deck.
- * - Persists changes via `updateDeck`.
- * - Allows deleting the entire deck via `deleteDeck`.
- * - Provides user feedback through toasts.
- *
- * @returns {JSX.Element} The UI for editing a deck, or loading/error states.
+ * Orchestrates the editing process using the `useEditDeck` hook and specialized
+ * sub-components for metadata, card view, table view, and deletion.
  */
-
-// Define state type: DbDeck combined with potentially partial cards
-type DeckEditState = (DbDeck & { cards: Array<Partial<DbCard>> }) | null;
-
-const DECK_UPDATE_DEBOUNCE_MS = 1500; // Debounce for deck setting updates
-
 export default function EditDeckPage() {
-  const params = useParams<{ deckId: string }>()
-  const deckId = params?.deckId
-  const router = useRouter()
-  const { getDeck, updateDeck, deleteDeck, loading: useDecksLoading } = useDecks()
-  
-  const [deck, setDeck] = useState<DeckEditState>(null)
-  const [activeTab, setActiveTab] = useState("cards")
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const isMountedRef = useRef(false) // Ref to track initial mount/load
+    const params = useParams<{ deckId: string }>();
+    const deckId = params?.deckId;
+    const router = useRouter();
 
-  // Refetch function
-  const refetchDeck = useCallback(async () => {
-      if (!deckId) return;
-      console.log("[EditDeckPage] Refetching deck:", deckId);
-      setLoading(true);
-       try {
-            const result = await getDeck(deckId);
-            if (result.error) throw result.error;
-            if (result.data) {
-                const fetchedDeck = result.data;
-                // Ensure cards are typed correctly
-                setDeck({ ...fetchedDeck, cards: fetchedDeck.cards as Array<Partial<DbCard>> });
-            } else {
-                throw new Error("Deck not found after refetch.");
-            }
-            setError(null);
-       } catch(e: any) {
-            console.error("Error refetching deck:", e);
-            setError(e.message || "Failed to refresh deck data.");
-            setDeck(null); 
-       } finally {
-           setLoading(false);
-       }
-  }, [deckId, getDeck]);
+    // Use the custom hook to manage state and actions
+    const {
+        deck,
+        loading,
+        error,
+        isSavingMetadata,
+        isDeletingDeck,
+        // loadDeckData, // Can be called directly if needed (e.g., manual refresh button)
+        handleDeckMetadataChange,
+        handleAddCardOptimistic,
+        handleCreateCard,
+        handleUpdateCard,
+        handleDeleteCard,
+        handleDeleteDeckConfirm,
+    } = useEditDeck(deckId);
 
-  // Initial Load Effect
-  useEffect(() => {
-    let isMounted = true; 
-    const loadDeck = async () => {
-      if (useDecksLoading || !deckId) return; 
-        
-      console.log("EditDeckPage: Loading deck with ID:", deckId);
-      if (isMounted) { setLoading(true); setError(null); }
+    const [activeTab, setActiveTab] = useState("cards");
 
-      try {
-          const result = await getDeck(deckId); 
-          if (!isMounted) return;
-
-          if (result.error) {
-              throw result.error;
-          } else if (result.data) {
-              const fetchedDeck = result.data;
-              // Correctly set state matching DeckEditState
-              setDeck({ 
-                  ...fetchedDeck, 
-                  cards: fetchedDeck.cards as Array<Partial<DbCard>> // Ensure cards are typed
-              }); 
-              setError(null);
-              // Set mount ref *after* initial data is loaded
-              // Timeout allows initial render potentially before setting true
-              setTimeout(() => { if(isMounted) isMountedRef.current = true; }, 0); 
-          } else {
-               throw new Error("Deck not found");
-          }
-      } catch (err: any) {
-          console.error("Error loading deck:", err);
-           if (isMounted) setError(err.message || "Failed to load deck.");
-           if (isMounted) setDeck(null); 
-      } finally {
-          if (isMounted) setLoading(false);
-      }
-    };
-    loadDeck();
-    return () => { isMounted = false; isMountedRef.current = false; }; // Reset on unmount
-  }, [deckId, getDeck, useDecksLoading]); 
-
-  const handleNameChange = (newName: string) => {
-    if (!deck) return
-    // Use name (ensure DbDeck interface uses name)
-    setDeck({ ...deck, name: newName });
-  }
-
-  const handleDeleteDeck = async () => {
-    if (!deck) return
-    // Confirmation is handled by AlertDialog now
-    setIsDeleting(true);
-    const deckName = deck.name;
-    try {
-      const result = await deleteDeck(deck.id)
-      if (result.error) {
-        throw result.error;
-      } else {
-        toast.success(`Deck "${deckName}" deleted successfully!`);
-        router.push("/"); // Navigate away
-      }
-    } catch (error: any) {
-      console.error("Error deleting deck:", error);
-      toast.error(`Error deleting deck "${deckName}"`, { description: error.message || "Unknown error" });
-      setIsDeleting(false); // Reset deleting state on error
-    }
-    // No finally needed here as we navigate away on success
-  }
-
-  const handleAddCard = () => {
-    if (deck) {
-      const newCard: Partial<DbCard> = {
-        question: "",
-        answer: "",
-        deck_id: deck.id,
-        user_id: deck.user_id,
-        srs_level: 0,
-        easiness_factor: 2.5,
-        interval_days: 0,
-        last_reviewed_at: null,
-        next_review_due: null,
-        last_review_grade: null,
-        correct_count: 0,
-        incorrect_count: 0,
-      };
-      // Add type to prev
-      setDeck((prev: DeckEditState | null) => prev ? { ...prev, cards: [...prev.cards, newCard] } : null);
-    }
-  }
-
-  const handleCreateCard = async (question: string, answer: string): Promise<string | null> => {
-      if (!deck) {
-          toast.error("Cannot create card: Deck data missing.");
-          return null;
-      }
-      console.log("Parent: Calling createCardAction...", { deckId: deck.id, question, answer });
-      toast.info("Saving new card...");
-
-      try {
-          const result = await createCardAction(deck.id, { 
-              question: question,
-              answer: answer 
-          });
-          
-          if (result.error || !result.data) {
-              throw result.error || new Error("Failed to create card (no data returned).");
-          } 
-          
-          toast.success(`New card created successfully!`);
-          
-          await refetchDeck(); 
-          
-          return result.data.id;
-
-      } catch (error: any) {
-          console.error("Error creating card:", error);
-          toast.error("Failed to save new card", { description: error.message || "An unknown error occurred." });
-          return null;
-      }
-  };
-
-  const handleUpdateCard = useCallback(async (cardId: string, question: string, answer: string) => {
-    console.log(`[EditDeckPage] Debounced Update for Card ID: ${cardId}`);
-    
-    // Prepare payload for the action
-    const updatePayload: { question?: string, answer?: string } = {};
-    let changed = false;
-
-    // Find the original card state to compare
-    // Add type to c
-    const originalCard = deck?.cards.find((c: Partial<DbCard>) => c.id === cardId);
-
-    if (originalCard?.question !== question) {
-        updatePayload.question = question;
-        changed = true;
-    }
-    if (originalCard?.answer !== answer) {
-        updatePayload.answer = answer;
-        changed = true;
-    }
-
-    // Only call action if something actually changed
-    if (!changed) {
-        console.log(`[EditDeckPage] No changes detected for card ${cardId}, skipping update.`);
-        return;
-    }
-    
-    // Update local state optimistically *before* calling action (optional)
-    // setDeck(prevDeck => { ... update card in prevDeck ... }); 
-    // toast.info(`Saving changes for card...`, { id: `update-${cardId}` }); // Optional loading toast
-
-    try {
-        console.log(`[EditDeckPage] Calling updateCardAction for ${cardId} with payload:`, updatePayload);
-        const result = await updateCardAction(cardId, updatePayload);
-        if (result.error) {
-            // Use result.error directly as it's a string
-            toast.error(`Failed to update card`, { id: `update-${cardId}`, description: result.error });
-            // TODO: Optionally revert optimistic update here
-            // await refetchDeck(); // Or refetch on error
-        } else {
-            // toast.success(`Card changes saved!`, { id: `update-${cardId}` }); // Success feedback
-            // Update local state with the confirmed data from the server
-             // Add type to prevDeck and c
-             setDeck((prevDeck: DeckEditState | null) => {
-                 if (!prevDeck) return null;
-                 return {
-                     ...prevDeck,
-                     cards: prevDeck.cards.map((c: Partial<DbCard>) => c.id === cardId ? result.data : c) as Array<Partial<DbCard>>
-                 };
-            });
-        }
-    } catch (error: any) {
-         toast.error(`Failed to update card`, { id: `update-${cardId}`, description: error.message || "Unknown error" });
-         // TODO: Optionally revert optimistic update here or refetch
-    }
-  }, [deck]); // Depend on deck state to access originalCard
-
-  // Handler for updates originating from the EditableCardTable
-  const handleCardUpdateFromTable = (updatedCard: DbCard) => {
-    console.log("[EditDeckPage] Received update from table for Card ID:", updatedCard.id);
-    setDeck((prevDeck: DeckEditState | null) => {
-      if (!prevDeck) return null;
-      return {
-          ...prevDeck,
-          cards: prevDeck.cards.map((c: Partial<DbCard>) => c.id === updatedCard.id ? updatedCard : c) as Array<Partial<DbCard>>
-      };
-    });
-  };
-
-  const handleDeleteCard = (cardId: string) => {
-    if (deck) {
-      // Add type to prevDeck and card
-      setDeck((prevDeck: DeckEditState | null) => {
-          if (!prevDeck) return null;
-          return {
-              ...prevDeck,
-              cards: prevDeck.cards.filter((card: Partial<DbCard>) => card.id !== cardId)
-          };
-      });
-    }
-  }
-
-  // Debounced function for updating deck settings
-  const debouncedUpdateDeckSettings = useCallback(
-    debounce(async (deckToSave: DbDeck) => {
-      if (!deckToSave || !deckToSave.id) return;
-      console.log("[EditDeckPage] Debounced Deck Settings Update Triggered");
-      // Indicate saving starts (optional, could use a subtle indicator)
-      // setSaving(true);
-      try {
-          const updatePayload: UpdateDeckParams = {
-              name: deckToSave.name,
-              primary_language: deckToSave.primary_language,
-              secondary_language: deckToSave.secondary_language,
-              is_bilingual: deckToSave.is_bilingual,
-          };
-          const result = await updateDeck(deckToSave.id, updatePayload);
-          if (result.error) {
-            toast.error("Auto-save failed", { description: result.error });
-          } else {
-            // Optionally, provide subtle success feedback if needed
-            // toast.success("Deck settings auto-saved");
-            // Update local state with returned data to ensure consistency if backend changes something
-             setDeck((prev: DeckEditState | null) => prev ? { ...prev, ...result.data } : null);
-          }
-      } catch (error: any) {
-        console.error("Error auto-saving deck settings:", error);
-        toast.error("Auto-save failed", { description: error.message || "Unknown error" });
-      } finally {
-        // Indicate saving ends
-        // setSaving(false);
-      }
-    }, DECK_UPDATE_DEBOUNCE_MS),
-    [updateDeck] // updateDeck should be stable from the hook
-  );
-
-  // useEffect to trigger debounced update on deck setting changes
-  useEffect(() => {
-    // Only run saves after initial data load is complete
-    if (isMountedRef.current && deck) {
-      console.log("[EditDeckPage] Deck setting changed, queueing auto-save...");
-      debouncedUpdateDeckSettings(deck as DbDeck);
-    }
-    // Watch ONLY relevant deck properties for changes, NOT the whole deck object
-  }, [deck?.name, deck?.is_bilingual, deck?.primary_language, deck?.secondary_language, debouncedUpdateDeckSettings]);
-
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex flex-col items-center justify-center">
-          <h2 className="text-xl font-semibold text-red-500 mb-4">Error Loading Deck</h2>
-          <p className="text-muted-foreground mb-6">{error}</p>
-          <Button onClick={() => router.push("/")}>Return to Home</Button>
-        </div>
-      </div>
-    )
-  }
-
-  if (!deck) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex flex-col items-center justify-center">
-          <h2 className="text-xl font-semibold mb-4">Deck Not Found</h2>
-          <p className="text-muted-foreground mb-6">The deck you're looking for doesn't exist or couldn't be loaded.</p>
-          <Button onClick={() => router.push("/")}>Return to Home</Button>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="py-4 px-4 md:p-6 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-         <h1 className="text-2xl font-bold">Edit Deck</h1>
-         
-         <Button variant="outline" onClick={() => router.back()}> 
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back
-         </Button>
-      </div>
-
-      <div className="mb-6">
-         <Label htmlFor="deckNameInput">Deck Name</Label>
-         <Input
-            id="deckNameInput" 
-            value={deck.name}
-            onChange={(e) => handleNameChange(e.target.value)}
-            className="mt-1" 
-            placeholder="Enter deck name"
-         />
-      </div>
-
-      <div className="mb-6 space-y-4">
-        <div className="p-4 border rounded-lg space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-medium">Bilingual Mode</h3>
-              <p className="text-sm text-muted-foreground">
-                Enable different languages for front and back
-              </p>
+    // --- Loading State ---
+    if (loading) {
+        return (
+            <div className="flex justify-center items-center h-screen">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
             </div>
-            <Switch
-              checked={deck.is_bilingual ?? false}
-              onCheckedChange={(checked) =>
-                setDeck((prev: DeckEditState | null) => prev ? {
-                  ...prev,
-                  is_bilingual: checked,
-                  secondary_language: checked ? prev.secondary_language : prev.primary_language,
-                } : null)
-              }
-            />
-          </div>
+        );
+    }
 
-          {deck.is_bilingual ? (
-            <div className="grid gap-4 sm:grid-cols-2 pt-4 border-t">
-              <div>
-                <Label htmlFor="primaryLanguage">Front/Primary Language</Label>
-                <Select
-                  value={deck.primary_language ?? undefined}
-                  onValueChange={(value: string) => setDeck((prev: DeckEditState | null) => prev ? { ...prev, primary_language: value } : null) }
-                >
-                  <SelectTrigger id="primaryLanguage"><SelectValue placeholder="Select language" /></SelectTrigger>
-                  <SelectContent> <SelectItem value="en">English</SelectItem> <SelectItem value="nl">Dutch</SelectItem> <SelectItem value="fr">French</SelectItem> <SelectItem value="de">German</SelectItem> <SelectItem value="es">Spanish</SelectItem> <SelectItem value="it">Italian</SelectItem> </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="secondaryLanguage">Back/Secondary Language</Label>
-                <Select
-                   value={deck.secondary_language ?? undefined}
-                   onValueChange={(value: string) => setDeck((prev: DeckEditState | null) => prev ? { ...prev, secondary_language: value } : null) }
-                >
-                  <SelectTrigger id="secondaryLanguage"><SelectValue placeholder="Select language" /></SelectTrigger>
-                  <SelectContent> <SelectItem value="en">English</SelectItem> <SelectItem value="nl">Dutch</SelectItem> <SelectItem value="fr">French</SelectItem> <SelectItem value="de">German</SelectItem> <SelectItem value="es">Spanish</SelectItem> <SelectItem value="it">Italian</SelectItem> </SelectContent>
-                </Select>
-              </div>
+    // --- Error State ---
+    if (error) {
+        return (
+            <div className="container mx-auto px-4 py-8">
+                <div className="flex flex-col items-center justify-center">
+                    <h2 className="text-xl font-semibold text-red-500 mb-4">Error Loading Deck</h2>
+                    <p className="text-muted-foreground mb-6">{error}</p>
+                    <Button onClick={() => router.push("/")}>Return to Home</Button>
+                </div>
             </div>
-          ) : (
-            <div className="pt-4 border-t">
-              <Label htmlFor="language">Language</Label>
-              <Select
-                value={deck.primary_language ?? undefined}
-                onValueChange={(value: string) =>
-                  setDeck((prev: DeckEditState | null) => prev ? {
-                    ...prev,
-                    primary_language: value,
-                    secondary_language: value,
-                  } : null)
-                }
-              >
-                <SelectTrigger id="language"><SelectValue placeholder="Select language" /></SelectTrigger>
-                <SelectContent> <SelectItem value="en">English</SelectItem> <SelectItem value="nl">Dutch</SelectItem> <SelectItem value="fr">French</SelectItem> <SelectItem value="de">German</SelectItem> <SelectItem value="es">Spanish</SelectItem> <SelectItem value="it">Italian</SelectItem> </SelectContent>
-              </Select>
-            </div>
-          )}
-        </div>
-      </div>
+        );
+    }
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="cards">Card View</TabsTrigger>
-          <TabsTrigger value="table">Table View</TabsTrigger>
-        </TabsList>
-        <TabsContent value="cards" className="mt-6">
-          {deck.cards.length === 0 ? (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center p-6 h-40">
-                <p className="text-muted-foreground text-center mb-4">No cards in this deck yet</p>
-                <Button onClick={handleAddCard}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Your First Card
+    // --- Deck Not Found State ---
+    if (!deck) {
+        // This case covers both initial load failure where deck is null
+        // and the case where getDeck returns null data (deck truly not found)
+        return (
+            <div className="container mx-auto px-4 py-8">
+                <div className="flex flex-col items-center justify-center">
+                    <h2 className="text-xl font-semibold mb-4">Deck Not Found</h2>
+                    <p className="text-muted-foreground mb-6">The deck you're looking for doesn't exist or couldn't be loaded.</p>
+                    <Button onClick={() => router.push("/")}>Return to Home</Button>
+                </div>
+            </div>
+        );
+    }
+
+    // --- Main Render ---
+    return (
+        <div className="py-4 px-4 md:p-6 max-w-4xl mx-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6">
+                <h1 className="text-2xl font-bold truncate pr-4" title={deck.name}>Edit Deck: {deck.name}</h1>
+                <Button variant="outline" onClick={() => router.back()}>
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Back
                 </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-4">
-              {deck.cards.map((cardData: Partial<DbCard>, index: number) => (
-                <CardEditor
-                  key={cardData.id || `new-${index}`}
-                  card={cardData}
-                  onUpdate={handleUpdateCard}
-                  onDelete={handleDeleteCard}
-                  onCreate={!cardData.id ? handleCreateCard : undefined}
-                />
-              ))}
             </div>
-          )}
-          
-          {deck.cards.length > 0 && (
-             <div className="flex justify-center mt-6">
-               <Button onClick={handleAddCard}>
-                 <Plus className="mr-2 h-4 w-4" />
-                 Add Card
-               </Button>
-             </div>
-          )}
-        </TabsContent>
-        <TabsContent value="table" className="mt-6">
-           {deck.cards.length > 0 ? (
-              <EditableCardTable 
-                initialCards={deck.cards as DbCard[]}
-                deckId={deck.id} 
-                onCardUpdated={handleCardUpdateFromTable}
-              />
-           ) : (
-              <Card>
-                 <CardContent className="flex flex-col items-center justify-center p-6 h-40">
-                   <p className="text-muted-foreground text-center mb-4">No cards to display in table view.</p>
-                 </CardContent>
-               </Card>
-           )}
-           {/* Add Button Below Table (if cards exist or even if empty) */}
-           <div className="flex justify-center mt-6">
-             <Button onClick={handleAddCard}>
-               <Plus className="mr-2 h-4 w-4" />
-               Add Card
-             </Button>
-           </div>
-        </TabsContent>
-      </Tabs>
-      
-      <div className="mt-8 pt-6 border-t border-dashed border-destructive/50">
-        <h3 className="text-lg font-semibold text-destructive mb-2">Danger Zone</h3>
-        <p className="text-sm text-muted-foreground mb-4">Deleting this deck and all its cards cannot be undone.</p>
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button variant="destructive" disabled={isDeleting}>
-               <Trash2 className="mr-2 h-4 w-4" /> Delete Deck
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-                <AlertDialogTitle>Delete "{deck.name}"?</AlertDialogTitle>
-                <AlertDialogDescription>This action cannot be undone. This will permanently delete the deck and all associated cards.</AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-               <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-               <AlertDialogAction onClick={handleDeleteDeck} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
-                    {isDeleting ? <IconLoader className="h-4 w-4 animate-spin mr-2"/> : null} Delete
-               </AlertDialogAction>
-             </AlertDialogFooter>
-           </AlertDialogContent>
-        </AlertDialog>
-      </div>
 
-    </div>
-  )
+            {/* Deck Metadata Editor */}
+            <div className="mb-6">
+                <DeckMetadataEditor
+                    name={deck.name}
+                    primaryLanguage={deck.primary_language}
+                    secondaryLanguage={deck.secondary_language}
+                    isBilingual={deck.is_bilingual}
+                    onChange={handleDeckMetadataChange}
+                    isSaving={isSavingMetadata}
+                />
+            </div>
+
+            {/* Card Tabs */}
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="cards">Card View</TabsTrigger>
+                    <TabsTrigger value="table">Table View</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="cards">
+                    <CardViewTabContent
+                        cards={deck.cards}
+                        onCreateCard={handleCreateCard}
+                        onUpdateCard={handleUpdateCard}
+                        onDeleteCard={handleDeleteCard}
+                        onAddNewCardClick={handleAddCardOptimistic}
+                    />
+                </TabsContent>
+
+                <TabsContent value="table">
+                     <TableViewTabContent
+                         // Filter out placeholder cards before passing to table
+                         cards={deck.cards.filter(c => c.id && !c.id.startsWith('new-')) as DbCard[]}
+                         deckId={deck.id}
+                         // Decide how table updates should reflect - refetch or update local state?
+                         // Option 1: Assume table handles its own saving and parent just needs to know
+                         onCardUpdated={(updatedCard) => {
+                              console.log("Card updated via table:", updatedCard.id);
+                              // Option: Update local state directly (if needed)
+                              // setDeck(prev => ...)
+                              // Option: Or trigger a full refetch
+                              // loadDeckData(deck.id);
+                         }}
+                         onAddNewCardClick={handleAddCardOptimistic}
+                     />
+                 </TabsContent>
+            </Tabs>
+
+            {/* Danger Zone */}
+            <DeckDangerZone
+                deckName={deck.name}
+                onDelete={handleDeleteDeckConfirm}
+                isDeleting={isDeletingDeck}
+            />
+
+        </div>
+    );
 }
-
