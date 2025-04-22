@@ -819,13 +819,35 @@ This workflow enables users to automatically generate flashcards from uploaded d
   - PDF and image upload with validation (up to 30MB)
   - Multi-method text extraction (Google Document AI for PDFs, Vision AI for images)
   - PDF manipulation using pdf-lib for preprocessing
-  - Flashcard generation using Google Cloud Vertex AI
+  - Flashcard generation using Google Cloud Vertex AI with intelligent mode detection
+  - Language detection and handling for both translation and knowledge-based modes
   - Error handling with cascading fallbacks
   - Flashcard review UI with extracted text preview
   - Vercel deployment optimizations (memory, timeouts, error handling)
   - Proper toast notification lifecycle management (uses Sonner)
   - Comprehensive error handling for all failure modes
   - Memory-efficient PDF processing with page limits (30 pages)
+
+#### Language Detection and Mode Handling:
+The system now intelligently handles two distinct modes with proper language assignment:
+
+1. **Mode 1: Translation Vocabulary**
+   - Detects source and target languages from the content
+   - Correctly assigns languages by swapping question/answer languages
+   - Sets `isBilingual: true` for translation cards
+   - Example: For German-English vocabulary, assigns German as answer language and English as question language
+
+2. **Mode 2: Knowledge-Based Text**
+   - Detects the primary language of the content
+   - Assigns the same language to both question and answer
+   - Sets `isBilingual: false` for knowledge cards
+   - Ensures consistent language assignment regardless of detected secondary languages
+
+The mode detection is based on both content analysis and language detection:
+- Analyzes card patterns (short phrases vs. full sentences)
+- Checks for question marks and answer length
+- Uses language detection from Document AI or Vision AI
+- Applies consistent language assignment rules per mode
 
 #### Architecture Overview:
 **Core Files:**

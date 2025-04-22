@@ -4,341 +4,6 @@
 
 _**User**_
 
-It does not work... look at the output... (cliipboard) .. it says text extraxction completed (simulated), so it is not extracting the real text from the pdf
-
----
-
-_**Assistant**_
-
-
-
----
-
-You're absolutely right. The script is not extracting the actual text from your PDF. Looking at the output:
-
-```
-PDF text extraction completed (simulated)
-```
-
-This confirms that it's using the hardcoded topics I included in the script rather than the actual PDF content. The pdf-lib library doesn't have text extraction capabilities - it's primarily designed for creating and modifying PDFs, not for reading their content.
-
-For actual PDF text extraction, we need a different library. Let's try using `pdfjs-dist`, which is the Node.js version of Mozilla's PDF.js library:
-
----
-
-```bash
-pnpm add pdfjs-dist
-```
-
-```
-tom@MBP-van-Tom flashcards % pnpm add pdfjs-dist
- WARN  deprecated @supabase/auth-helpers-nextjs@0.10.0: This package is now deprecated - please use the @supabase/ssr package instea
-d.
-Downloading pdfjs-dist@5.1.91: 9.42 MB/9.42 MB, done
- WARN  6 deprecated subdependencies found: @supabase/auth-helpers-shared@0.7.0, @types/long@5.0.0, abab@2.0.6, domexception@4.0.0, g
-lob@7.2.3, inflight@1.0.6
-Packages: +3
-+++
-Progress: resolved 745, reused 685, downloaded 3, added 3, done
-Downloading @napi-rs/canvas-darwin-arm64@0.1.69: 11.31 MB/11.31 MB, done
- WARN  Issues with peer dependencies found
-.
-├─┬ @testing-library/react-hooks 8.0.1
-│ ├── ✕ unmet peer @types/react@"^16.9.0 || ^17.0.0": found 19.0.12
-│ ├── ✕ unmet peer react@"^16.9.0 || ^17.0.0": found 19.1.0
-│ └── ✕ unmet peer react-dom@"^16.9.0 || ^17.0.0": found 19.1.0
-├─┬ react-day-picker 8.10.1
-│ ├── ✕ unmet peer react@"^16.8.0 || ^17.0.0 || ^18.0.0": found 19.1.0
-│ └── ✕ unmet peer date-fns@"^2.28.0 || ^3.0.0": found 4.1.0
-└─┬ vaul 0.9.9
-  ├── ✕ unmet peer react@"^16.8 || ^17.0 || ^18.0": found 19.1.0
-  └── ✕ unmet peer react-dom@"^16.8 || ^17.0 || ^18.0": found 19.1.0
-
-dependencies:
-+ pdfjs-dist 5.1.91
-
-Done in 2.6s using pnpm v10.6.3
-tom@MBP-van-Tom flashcards %
-```
-
----
-
-Now let's create a new script that uses pdfjs-dist for real text extraction:
-
----
-
-```diff
-- 
-+ // scripts/extract-pdf-text.mjs
-+ import fs from 'fs/promises';
-+ import path from 'path';
-+ import { fileURLToPath } from 'url';
-+ import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
-+ 
-+ // Get the directory name of the current module
-+ const __dirname = path.dirname(fileURLToPath(import.meta.url));
-+ 
-+ // Set up the worker source
-+ pdfjsLib.GlobalWorkerOptions.workerSrc = path.resolve(__dirname, '../node_modules/pdfjs-dist/legacy/build/pdf.worker.js');
-+ 
-+ async function extractTextFromPage(page) {
-+   const textContent = await page.getTextContent();
-+   
-+   // Extract text items and join them
-+   return textContent.items
-+     .map(item => item.str)
-+     .join(' ');
-+ }
-+ 
-+ async function extractTextFromPDF(pdfPath) {
-+   try {
-+     console.log(`Reading PDF file: ${pdfPath}`);
-+     
-+     // Read the PDF file
-+     const data = await fs.readFile(pdfPath);
-+     
-+     // Load the PDF document
-+     const loadingTask = pdfjsLib.getDocument({ data });
-+     const pdfDocument = await loadingTask.promise;
-+     
-+     console.log(`PDF loaded. Number of pages: ${pdfDocument.numPages}`);
-+     
-+     // Extract text from all pages
-+     let text = '';
-+     
-+     for (let i = 1; i <= pdfDocument.numPages; i++) {
-+       // Get the page
-+       const page = await pdfDocument.getPage(i);
-+       
-+       // Extract text from the page
-+       const pageText = await extractTextFromPage(page);
-+       
-+       // Log progress every 10 pages
-+       if (i % 10 === 0 || i === 1 || i === pdfDocument.numPages) {
-+         console.log(`Processed page ${i}/${pdfDocument.numPages}`);
-+       }
-+       
-+       // Add page text to the full text
-+       text += pageText + '\n\n';
-+     }
-+     
-+     console.log(`Text extraction completed. Total characters: ${text.length}`);
-+     return text;
-+   } catch (error) {
-+     console.error("Error extracting text from PDF:", error);
-+     throw error;
-+   }
-+ }
-+ 
-+ async function main() {
-+   try {
-+     // Get PDF path from command line arguments
-+     const args = process.argv.slice(2);
-+     let pdfPath;
-+     
-+     if (args.length > 0) {
-+       // If a path is provided as an argument, use it
-+       pdfPath = args[0];
-+     } else {
-+       // Default to the testcourse.pdf in the public directory
-+       pdfPath = path.join(__dirname, '..', 'public', 'testcourse.pdf');
-+     }
-+     
-+     // Extract text from PDF
-+     const pdfText = await extractTextFromPDF(pdfPath);
-+     
-+     // Save the extracted text to a file for inspection
-+     const outputPath = path.join(__dirname, '..', 'extracted-pdf-text.txt');
-+     await fs.writeFile(outputPath, pdfText, 'utf8');
-+     
-+     console.log(`\nExtracted text saved to: ${outputPath}`);
-+     
-+     // Print a preview of the text
-+     console.log("\nPreview of extracted text:");
-+     console.log("--------------------------");
-+     console.log(pdfText.substring(0, 500) + "...");
-+     console.log("--------------------------");
-+     
-+   } catch (error) {
-+     console.error('Error:', error);
-+     process.exit(1);
-+   }
-+ }
-+ 
-+ // Run the script
-+ main(); 
-```
-
----
-
-Now let's try running this script to extract text from the PDF:
-
----
-
-```bash
-node scripts/extract-pdf-text.mjs public/test.pdf
-```
-
-```
-tom@MBP-van-Tom flashcards % node scripts/extract-pdf-text.mjs public/test.pdf
-node:internal/modules/esm/resolve:283
-    throw new ERR_MODULE_NOT_FOUND(
-          ^
-
-Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/Users/tom/dev/flashcards/node_modules/pdfjs-dist/legacy/build/pdf.js' imported fr
-om /Users/tom/dev/flashcards/scripts/extract-pdf-text.mjs
-    at finalizeResolution (node:internal/modules/esm/resolve:283:11)
-    at moduleResolve (node:internal/modules/esm/resolve:952:10)
-    at defaultResolve (node:internal/modules/esm/resolve:1188:11)
-    at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:642:12)
-    at #cachedDefaultResolve (node:internal/modules/esm/loader:591:25)
-    at ModuleLoader.resolve (node:internal/modules/esm/loader:574:38)
-    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:236:38)
-    at ModuleJob._link (node:internal/modules/esm/module_job:130:49) {
-  code: 'ERR_MODULE_NOT_FOUND',
-  url: 'file:///Users/tom/dev/flashcards/node_modules/pdfjs-dist/legacy/build/pdf.js'
-}
-
-Node.js v20.19.0
-tom@MBP-van-Tom flashcards %
-```
-
----
-
-It seems the import path for pdfjs-dist is different than expected. Let's update our script:
-
----
-
-```diff
-  import path from 'path';
-  import { fileURLToPath } from 'url';
-- import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
-+ import * as pdfjsLib from 'pdfjs-dist';
-  
-  // Get the directory name of the current module
-  const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  
-- // Set up the worker source
-- pdfjsLib.GlobalWorkerOptions.workerSrc = path.resolve(__dirname, '../node_modules/pdfjs-dist/legacy/build/pdf.worker.js');
-+ // Configure canvas for Node.js environment
-+ const nodeCanvas = async () => {
-+   const canvas = await import('canvas');
-+   return canvas;
-+ };
-+ 
-+ // This function is needed to provide the canvas for Node.js
-+ pdfjsLib.GlobalWorkerOptions.workerSrc = '';
-  
-  async function extractTextFromPage(page) {
-      // Read the PDF file
-      const data = await fs.readFile(pdfPath);
-+     const buffer = new Uint8Array(data);
-      
-      // Load the PDF document
--     const loadingTask = pdfjsLib.getDocument({ data });
-+     const loadingTask = pdfjsLib.getDocument({ data: buffer });
-      const pdfDocument = await loadingTask.promise;
-      
-      
-      for (let i = 1; i <= pdfDocument.numPages; i++) {
-+       try {
-          // Get the page
-          const page = await pdfDocument.getPage(i);
-          // Add page text to the full text
-          text += pageText + '\n\n';
-+       } catch (pageError) {
-+         console.error(`Error processing page ${i}:`, pageError.message);
-+         text += `[Error extracting text from page ${i}]\n\n`;
-+       }
-      }
-      
-```
-
----
-
-We may need the canvas package for some PDF rendering features:
-
----
-
-```bash
-pnpm add canvas
-```
-
-```
-tom@MBP-van-Tom flashcards % pnpm add canvas
- WARN  deprecated @supabase/auth-helpers-nextjs@0.10.0: This package is now deprecated - please use the @supabase/ssr package instea
-d.
- WARN  6 deprecated subdependencies found: @supabase/auth-helpers-shared@0.7.0, @types/long@5.0.0, abab@2.0.6, domexception@4.0.0, g
-lob@7.2.3, inflight@1.0.6
-Packages: +28
-++++++++++++++++++++++++++++
-Progress: resolved 771, reused 689, downloaded 25, added 28, done
- WARN  Issues with peer dependencies found
-.
-├─┬ @testing-library/react-hooks 8.0.1
-│ ├── ✕ unmet peer @types/react@"^16.9.0 || ^17.0.0": found 19.0.12
-│ ├── ✕ unmet peer react@"^16.9.0 || ^17.0.0": found 19.1.0
-│ └── ✕ unmet peer react-dom@"^16.9.0 || ^17.0.0": found 19.1.0
-├─┬ react-day-picker 8.10.1
-│ ├── ✕ unmet peer react@"^16.8.0 || ^17.0.0 || ^18.0.0": found 19.1.0
-│ └── ✕ unmet peer date-fns@"^2.28.0 || ^3.0.0": found 4.1.0
-├─┬ vaul 0.9.9
-│ ├── ✕ unmet peer react@"^16.8 || ^17.0 || ^18.0": found 19.1.0
-│ └── ✕ unmet peer react-dom@"^16.8 || ^17.0 || ^18.0": found 19.1.0
-└─┬ jest-environment-jsdom 29.7.0
-  ├── ✕ unmet peer canvas@^2.5.0: found 3.1.0
-  └─┬ jsdom 20.0.3
-    └── ✕ unmet peer canvas@^2.5.0: found 3.1.0
-
-dependencies:
-+ canvas 3.1.0
-
-╭ Warning ───────────────────────────────────────────────────────────────────────────────────╮
-│                                                                                            │
-│   Ignored build scripts: canvas.                                                           │
-│   Run "pnpm approve-builds" to pick which dependencies should be allowed to run scripts.   │
-│                                                                                            │
-╰────────────────────────────────────────────────────────────────────────────────────────────╯
-
-Done in 2.2s using pnpm v10.6.3
-tom@MBP-van-Tom flashcards %
-```
-
----
-
-Now let's try to run our extraction script:
-
----
-
-```bash
-node scripts/extract-pdf-text.mjs public/test.pdf
-```
-
-```
-tom@MBP-van-Tom flashcards % node scripts/extract-pdf-text.mjs public/test.pdf
-Warning: Please use the `legacy` build in Node.js environments.
-file:///Users/tom/dev/flashcards/node_modules/.pnpm/pdfjs-dist@5.1.91/node_modules/pdfjs-dist/build/pdf.mjs:7246
-const SCALE_MATRIX = new DOMMatrix();
-                     ^
-
-ReferenceError: DOMMatrix is not defined
-    at file:///Users/tom/dev/flashcards/node_modules/.pnpm/pdfjs-dist@5.1.91/node_modules/pdfjs-dist/build/pdf.mjs:7246:22
-    at ModuleJob.run (node:internal/modules/esm/module_job:263:25)
-    at async ModuleLoader.import (node:internal/modules/esm/loader:540:24)
-    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
-
-Node.js v20.19.0
-tom@MBP-van-Tom flashcards %
-```
-
----
-
-We need to use
-
----
-
-_**User**_
-
 Ignored build scripts: canvas.                                                           │
 │   Run "pnpm approve-builds" to pick which dependencies should be allowed to run scripts. 
 
@@ -22405,6 +22070,587 @@ This change should now correctly assign the language for Mode 2 content, while k
 _**User**_
 
 Hmm, mode 2 is still incorrect. Can you temperarily display both questionLanguage and answerLanguage for mode 2 as well? They should be the same as there really is only one language. Are these language detected differently than in mode 1? I'm puzzled.
+
+---
+
+_**Assistant**_
+
+Let me modify the code to display both languages for Mode 2 and add some debug logging to understand how the languages are being detected. This will help us understand why the language detection behaves differently between modes.
+
+---
+
+```diff
+        // Add language information to each flashcard based on the mode
+        const cardsWithLanguageInfo = Array.isArray(parsedFlashcards) ? parsedFlashcards.map(card => {
++         // Debug logging for language info
++         console.log(`[Language Debug] Current language info for card:`, {
++           questionLanguage: languageInfo.questionLanguage,
++           answerLanguage: languageInfo.answerLanguage,
++           isBilingual: languageInfo.isBilingual
++         });
++ 
+          // Analyze the card content to determine if it's a translation card
+          const isTranslationMode = (card: any) => {
+              !card.answer.endsWith('?');
+              
+-           return hasTwoLanguages && isTranslationPattern;
++           const result = hasTwoLanguages && isTranslationPattern;
++           console.log(`[Language Debug] Card analysis:`, {
++             hasTwoLanguages,
++             isTranslationPattern,
++             isTranslationMode: result,
++             questionLength: card.question.split(' ').length,
++             answerLength: card.answer.split(' ').length,
++             endsWithQuestion: card.question.endsWith('?')
++           });
++           return result;
+          };
+  
+          if (isTranslationMode(card)) {
+            // For translation mode (Mode 1), swap the language assignments
++           console.log(`[Language Debug] Mode 1 - Translation mode detected. Swapping languages.`);
+            return {
+              ...card,
+            };
+          } else {
+-           // For knowledge-based text (Mode 2), use the secondary language as it's more accurate
+-           // If no secondary language is available, fall back to the primary language
+-           const knowledgeTextLanguage = languageInfo.answerLanguage || languageInfo.questionLanguage;
++           // For knowledge-based text (Mode 2), let's display both detected languages for debugging
++           console.log(`[Language Debug] Mode 2 - Knowledge mode detected. Raw language info:`, {
++             primaryLang: languageInfo.questionLanguage,
++             secondaryLang: languageInfo.answerLanguage
++           });
++           
++           // For debugging, use both languages but mark them as the same
++           const detectedLanguage = languageInfo.questionLanguage || languageInfo.answerLanguage;
++           console.log(`[Language Debug] Mode 2 - Using detected language:`, detectedLanguage);
++           
+            return {
+              ...card,
+-             questionLanguage: knowledgeTextLanguage,
+-             answerLanguage: knowledgeTextLanguage, // Same as question language for Mode 2
++             questionLanguage: detectedLanguage,
++             answerLanguage: detectedLanguage, // Same as question language for Mode 2
+              isBilingual: false
+            };
+```
+
+---
+
+I've added extensive debug logging to help us understand what's happening with language detection. The changes include:
+
+1. Added initial debug logging to show the raw language information detected for each card
+2. Added detailed logging in the `isTranslationMode` function to show:
+   - Whether two languages were detected
+   - Whether the card matches translation patterns
+   - The lengths of questions and answers
+   - Whether questions end with question marks
+
+3. Added logging for both Mode 1 and Mode 2 decisions
+4. For Mode 2, we now:
+   - Log both the primary and secondary languages detected
+   - Use a single `detectedLanguage` for both question and answer
+   - Set both `questionLanguage` and `answerLanguage` to the same value
+
+This will help us see:
+1. What languages are initially detected
+2. How the mode detection logic works
+3. What language values are being assigned
+
+Try processing a file now, and we'll be able to see in the logs exactly how the language detection is working and why Mode 2 might be getting different languages. The logs will show us the full path of language detection and assignment, which should help us identify where the issue is occurring.
+
+Based on the debug output, we can then determine if the issue is:
+1. In the initial language detection
+2. In the mode detection logic
+3. In how we're assigning languages for Mode 2
+
+Please try processing both a translation file and a knowledge-based text file, and share any relevant error messages or unexpected behavior you see. The debug logs will help us pinpoint exactly where the language assignment is going wrong.
+
+---
+
+_**User**_
+
+Thanks, now the language is detected properly.
+Can you update @project-documentation.md? Please review it carefully and update all relevant sections.
+
+
+---
+
+_**Assistant**_
+
+I'll help update the project documentation to reflect the recent changes in language detection and handling for both translation (Mode 1) and knowledge-based text (Mode 2) flashcards.
+
+---
+
+Tool call timed out after 5000ms
+
+---
+
+Let me try a different approach to find the documentation file.
+
+---
+
+<details>
+            <summary>Listed current directory • **43** results</summary>
+        
+| Name |
+|-------|
+| 📁 `.git` |
+| 📁 `.next` |
+| 📁 `components` |
+| 📁 `node_modules` |
+| 📄 `pnpm-lock.yaml` |
+| 📁 `test` |
+| 📁 `scripts` |
+| 📄 `package.json` |
+| 📄 `vercel.json` |
+| 📄 `next.config.mjs` |
+| 📁 `types` |
+| 📁 `app` |
+| 📄 `generated-flashcards.json` |
+| 📁 `public` |
+| 📄 `test-gcp-apis.ts` |
+| 📄 `tsconfig.json` |
+| 📁 `.vscode` |
+| 📄 `.cursorindexingignore` |
+| 📁 `docs` |
+| 📁 `store` |
+| 📄 `refactoring-plan.md` |
+| 📄 `schema.sql` |
+| 📁 `providers` |
+| 📁 `lib` |
+| 📄 `middleware.ts` |
+| 📁 `hooks` |
+| 📄 `git_push.sh` |
+| 📁 `__tests__` |
+| 📄 `README.md` |
+| 📄 `.DS_Store` |
+| 📄 `.env.example` |
+| 📄 `.gitignore` |
+| 📄 `.env.local` |
+| 📁 `.specstory` |
+| 📁 `supabase` |
+| 📄 `tailwind.config.ts` |
+| 📄 `jest.config.js` |
+| 📄 `tsconfig.jest.json` |
+| 📄 `jest.setup.js` |
+| 📄 `docker-compose.yml` |
+| 📄 `next-env.d.ts` |
+| 📄 `postcss.config.mjs` |
+| 📄 `components.json` |
+
+</details>
+
+---
+
+<details>
+            <summary>Listed directory docs • **5** results</summary>
+        
+| Name |
+|-------|
+| 📄 `project-documentation.md` |
+| 📄 `docv2` |
+| 📁 `setup` |
+| 📄 `best-practices.md` |
+| 📄 `google-api-integration.md` |
+
+</details>
+
+---
+
+Read file: docs/project-documentation.md
+
+---
+
+Read file: docs/project-documentation.md
+
+---
+
+Read file: docs/project-documentation.md
+
+---
+
+Read file: docs/project-documentation.md
+
+---
+
+```diff
+    - Multi-method text extraction (Google Document AI for PDFs, Vision AI for images)
+    - PDF manipulation using pdf-lib for preprocessing
+-   - Flashcard generation using Google Cloud Vertex AI
++   - Flashcard generation using Google Cloud Vertex AI with intelligent mode detection
++   - Language detection and handling for both translation and knowledge-based modes
+    - Error handling with cascading fallbacks
+    - Flashcard review UI with extracted text preview
+    - Memory-efficient PDF processing with page limits (30 pages)
+  
++ #### Language Detection and Mode Handling:
++ The system now intelligently handles two distinct modes with proper language assignment:
++ 
++ 1. **Mode 1: Translation Vocabulary**
++    - Detects source and target languages from the content
++    - Correctly assigns languages by swapping question/answer languages
++    - Sets `isBilingual: true` for translation cards
++    - Example: For German-English vocabulary, assigns German as answer language and English as question language
++ 
++ 2. **Mode 2: Knowledge-Based Text**
++    - Detects the primary language of the content
++    - Assigns the same language to both question and answer
++    - Sets `isBilingual: false` for knowledge cards
++    - Ensures consistent language assignment regardless of detected secondary languages
++ 
++ The mode detection is based on both content analysis and language detection:
++ - Analyzes card patterns (short phrases vs. full sentences)
++ - Checks for question marks and answer length
++ - Uses language detection from Document AI or Vision AI
++ - Applies consistent language assignment rules per mode
++ 
+  #### Architecture Overview:
+  **Core Files:**
+```
+
+---
+
+I've updated section 6.3 of the project documentation to reflect the recent changes in language detection and handling. The updates include:
+
+1. Added "intelligent mode detection" and "Language detection and handling" to the list of implemented components.
+
+2. Added a new subsection "Language Detection and Mode Handling" that details:
+   - The two distinct modes (Translation and Knowledge-Based)
+   - How languages are detected and assigned in each mode
+   - The criteria used for mode detection
+   - Examples of language assignment behavior
+
+The documentation now accurately reflects the current implementation where:
+- Mode 1 (Translation) correctly swaps languages for question/answer pairs
+- Mode 2 (Knowledge-Based) consistently uses the same language for both question and answer
+- The system intelligently determines the mode based on content patterns and language detection
+
+Would you like me to update any other sections of the documentation to maintain consistency with these changes?
+
+---
+
+_**User**_
+
+can you review whether  @route.ts and @page.tsx are in line with @best-practices.md  and SOLID principles? Also check context7 MCP in case of doubt for best practices. 
+Please do not maky any changes yet. I only want you to do an analyses and suggest improvements if needed, as well as the complexity of these improvements.
+
+---
+
+_**Assistant**_
+
+I'll analyze both files against the best practices and SOLID principles, focusing on key areas for potential improvement.
+
+### 1. Code Organization and Separation of Concerns
+
+**Current State:**
+- Both files are quite large (800+ lines each)
+- Mixing of concerns within single files
+- Complex logic embedded directly in components and route handlers
+
+**Areas for Improvement:**
+
+1. **Route Handler (`route.ts`)**
+   - Extract language detection and processing into separate services
+   - Move flashcard generation logic to a dedicated service
+   - Separate file processing logic (PDF/Image) into distinct services
+   - Create dedicated types/interfaces file
+
+2. **Page Component (`page.tsx`)**
+   - Extract form handling logic into custom hooks
+   - Move flashcard state management to a dedicated store
+   - Separate file upload handling into its own component
+   - Create smaller, focused components for different sections
+
+### 2. SOLID Principles Analysis
+
+**Single Responsibility Principle (SRP):**
+- Both files violate SRP by handling multiple responsibilities
+- `route.ts` handles file processing, language detection, and flashcard generation
+- `page.tsx` manages file uploads, state, UI rendering, and deck creation
+
+**Open/Closed Principle (OCP):**
+- Current implementation makes it difficult to extend functionality without modifying existing code
+- Language detection and file processing are tightly coupled
+
+**Interface Segregation Principle (ISP):**
+- Large interfaces could be broken down into smaller, more focused ones
+- File processing could be separated into distinct interfaces for different file types
+
+**Dependency Inversion Principle (DIP):**
+- High-level modules are directly dependent on low-level modules
+- Missing abstraction layers for file processing and language detection
+
+### 3. Best Practices Alignment
+
+**Current Implementation Issues:**
+1. Lack of proper error boundaries
+2. Missing proper TypeScript types for many functions
+3. Insufficient separation between UI and business logic
+4. Complex state management without proper abstraction
+5. Direct API calls without service layer abstraction
+
+### 4. Suggested Improvements (Prioritized by Complexity)
+
+**Low Complexity (Quick Wins):**
+1. Extract types and interfaces to separate files
+2. Create dedicated constants file
+3. Add proper TypeScript types
+4. Implement error boundaries
+
+**Medium Complexity:**
+1. Create service layer for API calls
+2. Extract form handling logic to custom hooks
+3. Break down page component into smaller components
+4. Implement proper state management solution
+
+**High Complexity:**
+1. Refactor file processing into modular services
+2. Create abstraction layer for language detection
+3. Implement proper dependency injection
+4. Restructure the entire codebase following clean architecture principles
+
+### 5. Specific Areas to Address
+
+**File Processing:**
+```typescript
+// Current:
+async function extractTextFromPdfWithDocumentAI(fileBuffer, filename, mimeType)
+
+// Should be:
+interface IDocumentProcessor {
+  processDocument(file: File): Promise<ProcessedDocument>;
+}
+
+class PDFProcessor implements IDocumentProcessor {
+  async processDocument(file: File): Promise<ProcessedDocument> {
+    // Implementation
+  }
+}
+```
+
+**Language Detection:**
+```typescript
+// Current:
+async function detectLanguages(text: string, metadata?: any)
+
+// Should be:
+interface ILanguageDetector {
+  detectLanguages(content: string): Promise<LanguageInfo>;
+}
+
+class GoogleLanguageDetector implements ILanguageDetector {
+  async detectLanguages(content: string): Promise<LanguageInfo> {
+    // Implementation
+  }
+}
+```
+
+**State Management:**
+```typescript
+// Current:
+const [files, setFiles] = useState<File[]>([]);
+const [flashcards, setFlashcards] = useState<FlashcardData[]>([]);
+
+// Should be:
+interface UseFlashcardGeneration {
+  files: File[];
+  flashcards: FlashcardData[];
+  addFiles: (files: File[]) => void;
+  generateFlashcards: () => Promise<void>;
+}
+
+const useFlashcardGeneration = (): UseFlashcardGeneration => {
+  // Implementation
+};
+```
+
+### 6. Impact Assessment
+
+The suggested improvements would result in:
+- Better maintainability and testability
+- Easier extension of functionality
+- Clearer separation of concerns
+- More robust error handling
+- Better type safety
+- Improved code reusability
+
+However, implementing all changes would require significant refactoring effort. I recommend a phased approach, starting with the low-complexity improvements and gradually moving to more complex restructuring.
+
+Would you like me to prioritize specific areas for improvement or provide more detailed implementation suggestions for any particular aspect?
+
+---
+
+_**User**_
+
+Can you perform a similar assessment as the one I asked above? I want a second opinion.
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+Okay, let's take a fresh look at `app/api/extract-pdf/route.ts` and `app/prepare/ai-generate/page.tsx` based on the provided best practices and SOLID principles.
+
+### Assessment Summary
+
+Both files, while functional, show significant room for improvement regarding code organization, separation of concerns, and adherence to SOLID principles. They have grown complex, making them harder to maintain, test, and extend.
+
+---
+
+### 1. Code Organization & Separation of Concerns (`best-practices.md`)
+
+*   **`route.ts` (API Route):**
+    *   **Issue:** This file acts as a monolith for the AI generation backend logic. It handles multiple distinct responsibilities: routing, request parsing (JSON vs. FormData), file validation, conditional file retrieval from storage, text extraction logic for different types (PDF/Image) using multiple strategies (DocAI, Vision, pdf-lib fallback), language detection, flashcard generation via Vertex AI, and response formatting, including error handling and skipped file logic.
+    *   **Best Practice Alignment:** Violates the principle of separating concerns (presentation, business logic, data layer). Helper functions like `detectLanguages`, `extractTextFrom...`, and `generateFlashcardsFromText` are defined locally instead of being in dedicated `lib/` or `services/` modules. Constants are also defined locally.
+
+*   **`page.tsx` (Frontend Page):**
+    *   **Issue:** This component is overly large and manages too many concerns. It handles UI rendering, local state management (files, loading, errors, flashcards, previews, summaries, deck creation), form submission logic, API interaction logic (including conditional uploads to Supabase storage), toast notifications, results display logic (grouping by source), and deck creation interaction logic.
+    *   **Best Practice Alignment:** Does not effectively separate presentation from business logic and data fetching/state management. Helper functions (`getFlashcardsBySource`, `analyzeFlashcardLanguages`) are embedded. State management relies heavily on multiple `useState` hooks, which can become difficult to manage for related states. Constants are defined locally.
+
+---
+
+### 2. SOLID Principles Analysis
+
+*   **Single Responsibility Principle (SRP):**
+    *   **`route.ts`:** Heavily violates SRP. Its responsibility should ideally be limited to receiving a request, delegating processing to appropriate services, and formatting the response. Currently, it *contains* the implementation details for extraction, generation, etc.
+    *   **`page.tsx`:** Also violates SRP. It's acting as a controller, view, and state manager simultaneously.
+
+*   **Open/Closed Principle (OCP):**
+    *   **`route.ts`:** Adding a new extraction method (e.g., for `.docx` files) or a different AI model for generation would require modifying the core logic of the `POST` handler and potentially the helper functions.
+    *   **`page.tsx`:** Adding new user interactions (like editing generated cards) or changing the data fetching strategy would likely require significant modifications to the existing component.
+
+*   **Liskov Substitution Principle (LSP):**
+    *   Less directly applicable here, but the lack of abstraction means different extraction functions (`extractTextFromPdfWithDocumentAI`, `extractTextFromImage`) aren't substitutable through a common interface, leading to conditional logic in the caller.
+
+*   **Interface Segregation Principle (ISP):**
+    *   Not directly applicable as explicit interfaces aren't heavily used, but the implicit "interface" of both the API route handler and the page component is very large, indicating too many responsibilities.
+
+*   **Dependency Inversion Principle (DIP):**
+    *   **`route.ts`:** High-level policy (handling the request) directly depends on low-level implementation details (specific Google Cloud clients, `pdf-lib`, extraction logic). Abstractions are missing.
+    *   **`page.tsx`:** Directly depends on `fetch`, `useState`, `toast`, specific UI components. Logic like API calls and state updates could be inverted by depending on abstractions (e.g., service interfaces, state management actions/selectors).
+
+---
+
+### 3. Best Practices Alignment (`best-practices.md`)
+
+*   **Constants:** Both files define constants locally instead of using a shared `constants.js` or `constants.ts`.
+*   **Folder Structure:** Helper functions are not placed in `lib/` or `hooks/`. The API route combines too much logic instead of potentially delegating to services in `lib/services/`.
+*   **Component Simplicity:** `page.tsx` is far from a "dumb" component; it's very "smart" and complex.
+*   **State Management:** `page.tsx` uses multiple `useState` hooks for related states (loading, error, data, summary), which could potentially be consolidated or managed via `useReducer` or a state management library (like Zustand, recommended in the original docs) for better clarity. The logic for updating dependent states (like clearing errors when files change) is manual.
+*   **Custom Hooks/Utilities:** Complex logic within `page.tsx` (like API interaction, progress indication, deck creation) is not extracted into custom hooks.
+
+---
+
+### 4. Suggested Improvements (Complexity Estimates)
+
+1.  **Low Complexity:**
+    *   **Both:** Extract constants (`SUPPORTED_FILE_TYPES`, limits, API endpoints, bucket names) to a shared `lib/constants.ts`.
+    *   **Both:** Extract type definitions (`FlashcardData`, `SkippedFile`, etc.) to a shared `types/index.ts` or `types/ai-generation.ts`.
+    *   **`route.ts`:** Move helper functions (`getSupportedFileType`, `detectLanguages`, `extractTextFrom...`, `generateFlashcardsFromText`) to separate files within `lib/ai-utils/` or `lib/services/`.
+    *   **`page.tsx`:** Move helper functions (`getFlashcardsBySource`, `analyzeFlashcardLanguages`) to `lib/utils/` or a specific helper file.
+    *   **`page.tsx`:** Break down the JSX into smaller, purely presentational sub-components (e.g., `FileUploadSection`, `ResultsDisplay`, `DeckCreationForm`).
+
+2.  **Medium Complexity:**
+    *   **`page.tsx`:** Create custom hooks to encapsulate related logic and state:
+        *   `useAiGenerationApi`: Handles the entire `handleSubmit` logic (file validation, determining upload strategy, calling the API, handling responses, managing loading/error states).
+        *   `useDeckCreation`: Handles the state (`deckName`, `isCreatingDeck`, `deckCreated`) and logic for the "Save as Deck" section.
+    *   **`page.tsx`:** Refactor state management. Consider `useReducer` for the various loading/data/error/summary states, or introduce Zustand as mentioned in the project docs for more complex shared state if needed elsewhere.
+    *   **`route.ts`:** Introduce a simple service layer. Create classes or functions in `lib/services/` (e.g., `TextExtractionService`, `FlashcardGenerationService`) that the route handler can call, reducing the code directly within `route.ts`.
+
+3.  **High Complexity:**
+    *   **`route.ts`:** Fully implement Dependency Inversion. Define interfaces (e.g., `ITextExtractor`, `ILanguageDetector`, `IFlashcardGenerator`) and implement concrete classes (e.g., `DocumentAIExtractor`, `VertexAIGenerator`). Use dependency injection (manually or via a library) to provide these services to the route handler. This makes swapping implementations (e.g., using a different AI model) much cleaner.
+    *   **Architecture:** Apply a stricter architectural pattern like Clean Architecture or Vertical Slice Architecture across the relevant parts of the application (frontend page, API route, services).
+
+---
+
+### 5. Specific Areas & Examples
+
+*   **Refactoring `route.ts` helpers:**
+    ```typescript
+    // Instead of defining extractTextFromPdfWithDocumentAI inside route.ts:
+    // Define in lib/services/textExtractionService.ts
+    export class TextExtractionService {
+        private docAIClient: DocumentProcessorServiceClient;
+        // ... constructor ...
+
+        async extractFromPdf(buffer: ArrayBuffer, filename: string): Promise<ExtractionResult> {
+           // ... implementation using this.docAIClient ...
+        }
+        async extractFromImage(buffer: ArrayBuffer, filename: string): Promise<ExtractionResult> {
+           // ... implementation using visionClient ...
+        }
+    }
+
+    // In route.ts
+    // const extractionService = new TextExtractionService(/* credentials */); // Instantiate or inject
+    // ...
+    // result = await extractionService.extractFromPdf(arrayBuffer, file.name);
+    ```
+*   **Refactoring `page.tsx` logic with a custom hook:**
+    ```typescript
+    // lib/hooks/useAiGenerationApi.ts
+    import { useState, useCallback } from 'react';
+    // ... other imports
+
+    export function useAiGenerationApi() {
+        const [isLoading, setIsLoading] = useState(false);
+        const [error, setError] = useState<string | null>(null);
+        const [results, setResults] = useState<ApiResult | null>(null); // Contains flashcards, preview, summary, skipped
+
+        const processFiles = useCallback(async (files: File[]) => {
+            setIsLoading(true);
+            setError(null);
+            setResults(null);
+            // ... ALL logic from handleSubmit (validation, upload strategy, fetch, error handling) ...
+            try {
+               // ... fetch logic ...
+               const data = await response.json();
+               setResults({ /* structure based on data */ });
+            } catch (err: any) {
+               setError(err.message);
+            } finally {
+               setIsLoading(false);
+            }
+        }, [/* dependencies like user, supabase */]);
+
+        return { isLoading, error, results, processFiles };
+    }
+
+    // In page.tsx
+    // const { isLoading, error, results, processFiles } = useAiGenerationApi();
+    // const handleSubmit = (e: React.FormEvent) => {
+    //     e.preventDefault();
+    //     processFiles(files); // Pass the current files state
+    // };
+    // // Use isLoading, error, results.flashcards, etc. in JSX
+    ```
+
+---
+
+### 6. Impact Assessment
+
+*   **Benefits:** The suggested changes, especially the medium and high complexity ones, would significantly improve:
+    *   **Maintainability:** Smaller, focused modules are easier to understand and modify.
+    *   **Testability:** Services, hooks, and pure components can be unit-tested independently.
+    *   **Scalability:** Easier to add new features or change existing ones without breaking unrelated parts.
+    *   **Readability:** Code becomes cleaner and follows established patterns.
+*   **Effort:**
+    *   Low complexity changes are relatively quick.
+    *   Medium complexity changes require moderate refactoring effort but provide substantial benefits.
+    *   High complexity changes represent a significant architectural refactoring, offering the most robustness but requiring the most time and careful planning.
+
+**Recommendation:** Start with the low-complexity changes (extracting constants, types, helpers) and then tackle the medium-complexity ones (custom hooks, smaller components, basic service layer). This provides a good balance of improvement versus effort. A full high-complexity refactor might be reserved for a dedicated tech debt sprint if deemed necessary for long-term goals.
+
+---
+
+_**User**_
+
+Can you create an action plan in markdown format and place it in the @docs folder? The plan needs to be made in such a way that an ai agent, which does not has the full context of this chat, is able to capture the context, the key concerns and challenges and overall objectives and most importantly, is able to follow a well defined and described action plan with detailed steps on how to implement the changes.
 
 ---
 
