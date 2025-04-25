@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
   // Runtime Credential/Config Check (No changes needed)
   if (!GCP_PROJECT_ID || !GCP_SERVICE_ACCOUNT_EMAIL || !GCP_PRIVATE_KEY) {
       console.error('[API Route POST] CRITICAL: Missing required GCP credentials. Aborting.');
-      return NextResponse.json({
+      return NextResponse.json({ 
           success: false, message: 'Server configuration error: Missing necessary credentials.', code: 'MISSING_CREDENTIALS'
       }, { status: 500 });
   }
@@ -74,11 +74,11 @@ export async function POST(request: NextRequest) {
        console.error('[API Route POST] CRITICAL: Core configuration validation failed. Aborting.');
        return NextResponse.json({
            success: false, message: 'Server configuration error: Invalid or missing configuration.', code: 'INVALID_CONFIG'
-       }, { status: 500 });
-   }
-
+      }, { status: 500 });
+    }
+    
   // Initialization (No changes needed)
-  let skippedFiles: SkippedFile[] = [];
+    let skippedFiles: SkippedFile[] = [];
   let allFlashcards: ApiFlashcard[] = [];
   let allResultsInfo: { filename: string; type: SupportedFileType; pages: number; characters: number; flashcardsGenerated: number }[] = [];
   let totalPagesProcessed = 0;
@@ -97,9 +97,9 @@ export async function POST(request: NextRequest) {
 
     // 1. Determine File Sources (No changes needed here)
     if (contentType.includes('application/json')) {
-        const jsonData = await request.json();
-        const fileReferences = jsonData.files as { filename: string, filePath: string }[];
-        if (!fileReferences || !Array.isArray(fileReferences) || fileReferences.length === 0) {
+      const jsonData = await request.json();
+      const fileReferences = jsonData.files as { filename: string, filePath: string }[];
+      if (!fileReferences || !Array.isArray(fileReferences) || fileReferences.length === 0) {
             return NextResponse.json({ success: false, message: 'Invalid or empty file list provided in JSON request', code: 'INVALID_INPUT' }, { status: 400 });
         }
         console.log(`[API Route POST] Processing ${fileReferences.length} files from storage paths via JSON payload.`);
@@ -226,13 +226,13 @@ export async function POST(request: NextRequest) {
     const finalFileInfo = {
         pages: totalPagesProcessed, files: processedCount, metadata: { sources: allResultsInfo }
     };
-
+        
     return NextResponse.json({
-        success: true,
+      success: true,
         message: `Successfully processed ${processedCount} file(s) and generated ${allFlashcards.length} flashcards. ${skippedCount} file(s) skipped.`,
         extractedTextPreview: combinedTextPreview.length > 1000 ? combinedTextPreview.slice(0, 1000) + "..." : combinedTextPreview,
         fileInfo: finalFileInfo,
-        flashcards: allFlashcards,
+      flashcards: allFlashcards,
         skippedFiles: skippedCount > 0 ? skippedFiles : undefined,
         processingTimeMs: duration
     });
@@ -255,4 +255,4 @@ export async function POST(request: NextRequest) {
         skippedFiles: skippedFiles.length > 0 ? skippedFiles : undefined,
     }, { status: 500 });
   }
-}
+} 
