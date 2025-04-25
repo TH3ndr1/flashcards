@@ -7,34 +7,34 @@ import { toast } from 'sonner';
 import { useSupabase } from '@/hooks/use-supabase'; // For storage uploads
 import { useAuth } from '@/hooks/use-auth'; // For user ID
 import { v4 as uuidv4 } from 'uuid';
-// Adjust path if ApiFlashcard lives elsewhere
+// Ensure ApiFlashcard is imported and reflects the latest structure with classification fields
 import type { ApiFlashcard } from '@/app/api/extract-pdf/types';
 
 // Use consistent type alias within this file
 type AiFlashcardData = ApiFlashcard;
 
-// Constants
+// Constants (remain unchanged)
 const SUPPORTED_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"];
 const MAX_FILE_SIZE = 25; // 25MB
 const DIRECT_UPLOAD_LIMIT = 4; // 4MB
 const COMBINED_SIZE_LIMIT = 4; // 4MB
 const UPLOAD_BUCKET = 'ai-uploads';
 
-// Language Name -> Code Mapping
+// Language Name -> Code Mapping (remain unchanged)
 const languageNameToCodeMap: Record<string, string> = {
     'english': 'en', 'dutch': 'nl', 'french': 'fr', 'german': 'de',
     'spanish': 'es', 'italian': 'it', 'portuguese': 'pt',
+    // Add more as needed
 };
 const getLanguageCode = (name: string | undefined): string => {
-    if (!name) return 'en';
+    if (!name) return 'en'; // Default to English if undefined
     const code = languageNameToCodeMap[name.toLowerCase().trim()];
-    return code || 'en';
+    return code || 'en'; // Default to English if mapping not found
 };
 
-// --- FIX: Correct helper function type signature ---
-// Helper to group flashcards by source (Could be moved to utils if used elsewhere)
+// Helper function (remain unchanged)
 const getFlashcardsBySource = (cards: AiFlashcardData[]) => {
-    const grouped: Record<string, AiFlashcardData[]> = {}; // Use AiFlashcardData
+    const grouped: Record<string, AiFlashcardData[]> = {};
     cards.forEach(card => {
         const source = card.source || 'Unknown Source';
         if (!grouped[source]) grouped[source] = [];
@@ -42,19 +42,19 @@ const getFlashcardsBySource = (cards: AiFlashcardData[]) => {
     });
     return grouped;
 };
-// ----------------------------------------------------
 
 export function useAiGenerate() {
     // --- State ---
     const [files, setFiles] = useState<File[]>([]);
-    const [isLoading, setIsLoading] = useState(false); // For extraction API call
-    const [flashcards, setFlashcards] = useState<AiFlashcardData[]>([]); // Use AiFlashcardData
+    const [isLoading, setIsLoading] = useState(false);
+    // Ensure state uses the updated type
+    const [flashcards, setFlashcards] = useState<AiFlashcardData[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [extractedTextPreview, setExtractedTextPreview] = useState<string | null>(null);
     const [processingSummary, setProcessingSummary] = useState<string | null>(null);
     const [deckName, setDeckName] = useState<string>("");
-    const [isSavingDeck, setIsSavingDeck] = useState(false); // For deck creation API call
-    const [savedDeckId, setSavedDeckId] = useState<string | null>(null); // Holds ID after successful save
+    const [isSavingDeck, setIsSavingDeck] = useState(false);
+    const [savedDeckId, setSavedDeckId] = useState<string | null>(null);
     const [detectedLanguageNames, setDetectedLanguageNames] = useState<{ qName: string | undefined, aName: string | undefined, b: boolean }>({ qName: undefined, aName: undefined, b: false });
 
     // --- Hooks and Refs ---
@@ -66,7 +66,7 @@ export function useAiGenerate() {
 
     // --- Internal Helper Functions ---
 
-    // Function to simulate progress during API call
+    // startProgressIndicator (remain unchanged)
     const startProgressIndicator = (toastId: string, fileNames: string[]) => {
         const totalFiles = fileNames.length;
         const averageTimePerFile = Math.max(1500, Math.min(5000, 90000 / (totalFiles + 1)));
@@ -86,18 +86,21 @@ export function useAiGenerate() {
         }, averageTimePerFile);
     };
 
-    // Function to process the structured response from the extraction API
+    // handleApiResponse (remain unchanged - assumes data.flashcards is correct)
     const handleApiResponse = (data: any, totalFilesSubmitted: number) => {
-        // (Error handling and summary generation logic remains the same)
         if (data?.code === 'PAGE_LIMIT_EXCEEDED') { setError(data.message); toast.error("Processing Failed", { description: data.message }); setProcessingSummary(null); return; }
 
-        const generatedCards: AiFlashcardData[] = data?.flashcards || []; // Use AiFlashcardData
+        // This should now receive ApiFlashcard[] including classification fields
+        const generatedCards: AiFlashcardData[] = data?.flashcards || [];
         const skippedFiles: Array<{ filename: string; reason: string }> = data?.skippedFiles || [];
         const successfullyProcessedCount = data?.fileInfo?.files || 0;
 
         let summaryLines: string[] = [];
         const sourceCounts: Record<string, number> = {};
-        generatedCards.forEach(card => { /* ... count sources ... */ });
+        generatedCards.forEach(card => {
+            const source = card.source || 'Unknown Source';
+            sourceCounts[source] = (sourceCounts[source] || 0) + 1;
+        });
         Object.entries(sourceCounts).forEach(([filename, count]) => summaryLines.push(`- ${filename}: ${count} card${count !== 1 ? 's' : ''} generated`));
         skippedFiles.forEach(skipped => summaryLines.push(`- ${skipped.filename}: Skipped (${skipped.reason})`));
         setProcessingSummary(summaryLines.length > 0 ? summaryLines.join('\n') : "Processing complete.");
@@ -105,7 +108,6 @@ export function useAiGenerate() {
         setFlashcards(generatedCards);
         setExtractedTextPreview(data?.extractedTextPreview || null);
 
-        // Store detected language names and suggest deck name
         if (generatedCards.length > 0) {
             const firstCard = generatedCards[0];
             const qLangName = firstCard.questionLanguage;
@@ -119,25 +121,34 @@ export function useAiGenerate() {
             setDeckName("Generated Deck");
         }
 
-        // Show appropriate toast message (logic remains the same)
-        // ... toast logic ...
+        // Toast logic remains the same
+        if (generatedCards.length > 0) {
+            toast.success(`Generated ${generatedCards.length} flashcards!`, {
+                description: skippedFiles.length > 0 ? `(${skippedFiles.length} file(s) skipped)` : `Processed ${successfullyProcessedCount} file(s).`,
+            });
+        } else if (successfullyProcessedCount > 0 && skippedFiles.length === 0) {
+            toast.info(`No flashcards generated from ${successfullyProcessedCount} file(s).`, { description: "Check file content or try different settings." });
+        } else if (skippedFiles.length > 0) {
+            toast.warning(`No flashcards generated. ${skippedFiles.length} file(s) skipped.`, { description: "Check 'Skipped Files' details." });
+        } else {
+            toast.error("Processing failed.", { description: "No files processed and no flashcards generated." });
+        }
     };
 
 
     // --- Exposed Handler Functions ---
 
-    // Handles new files being selected/dropped
+    // handleFilesSelected (remain unchanged)
     const handleFilesSelected = useCallback((selectedFiles: File[]) => {
         console.log(`[useAiGenerate] handleFilesSelected: ${selectedFiles.length} files`);
         setFiles(Array.isArray(selectedFiles) ? [...selectedFiles] : []);
-        // Reset all results
         setError(null); setFlashcards([]); setExtractedTextPreview(null);
         setProcessingSummary(null); setDeckName(""); setSavedDeckId(null);
         setDetectedLanguageNames({ qName: undefined, aName: undefined, b: false });
     }, []);
 
-    // Handles the form submission to process files
-    const handleSubmit = useCallback(async () => { // Removed event param as it's not needed when called directly
+    // handleSubmit (remain unchanged)
+    const handleSubmit = useCallback(async () => {
         console.log("[useAiGenerate] handleSubmit triggered");
         const currentFiles = files;
 
@@ -155,74 +166,88 @@ export function useAiGenerate() {
         toast.loading(`Preparing ${currentFiles.length} file(s)...`, { id: loadingToastId });
 
         try {
-            // File Validation
-            for (const file of currentFiles) { /* ... */ }
+            // File Validation (logic unchanged)
+            for (const file of currentFiles) {
+                 const fileSizeMB = file.size / (1024 * 1024);
+                 const fileExtension = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+                 if (!SUPPORTED_EXTENSIONS.includes(fileExtension)) {
+                     throw new Error(`Unsupported file type: ${file.name}. Supported: ${SUPPORTED_EXTENSIONS.join(', ')}`);
+                 }
+                 if (fileSizeMB > MAX_FILE_SIZE) {
+                     throw new Error(`File too large: ${file.name} (${fileSizeMB.toFixed(2)}MB). Max size: ${MAX_FILE_SIZE}MB`);
+                 }
+             }
 
-            // Determine Upload Strategy & Prepare API Payload
+            // Determine Upload Strategy & Prepare API Payload (logic unchanged)
             const isAnyFileLarge = currentFiles.some(f => f.size > DIRECT_UPLOAD_LIMIT * 1024 * 1024);
             const totalSizeMB = currentFiles.reduce((sum, f) => sum + f.size / (1024*1024), 0);
             let apiPayload: FormData | string;
             let fetchOptions: RequestInit = { method: 'POST', credentials: 'same-origin' };
 
             if (isAnyFileLarge || totalSizeMB > COMBINED_SIZE_LIMIT) {
-                // Storage Upload Flow
+                // Storage Upload Flow (logic unchanged)
                 toast.loading(`Uploading to storage...`, { id: loadingToastId });
+                let currentUploadIndex = 0;
                 const uploadPromises = currentFiles.map(async (file, index) => {
-                    const storagePath = `${user.id}/${uuidv4()}.${file.name.split('.').pop()}`;
+                    const storagePath = `${user.id}/${uuidv4()}${file.name.slice(file.name.lastIndexOf('.'))}`; // Preserve original extension
                     try {
-                        // ... toast updates ...
+                        currentUploadIndex = index + 1;
+                        toast.loading(`Uploading ${currentUploadIndex}/${currentFiles.length}: ${file.name}`, { id: loadingToastId });
                         const { data: uploadData, error: uploadError } = await supabase.storage.from(UPLOAD_BUCKET).upload(storagePath, file, { upsert: false });
                         if (uploadError) throw new Error(`Storage upload failed for ${file.name}: ${uploadError.message}`);
-                        // ... toast updates ...
+                        toast.success(`Uploaded: ${file.name}`, { id: `upload-${file.name}-${index}` });
                         return { filename: file.name, filePath: uploadData.path };
-                    } catch (err) { console.error(`Upload Error ${file.name}:`, err); return null; }
+                    } catch (err: any) {
+                        console.error(`Upload Error ${file.name}:`, err);
+                        toast.error(`Failed to upload: ${file.name}`, { id: `upload-${file.name}-${index}`, description: err.message });
+                        return null;
+                    }
                 });
                 const uploadResults = await Promise.all(uploadPromises);
-                // --- FIX: Explicit type assertion for filter ---
                 const successfulUploads = uploadResults.filter(
                     (result): result is { filename: string; filePath: string } => result !== null
                 );
-                // ----------------------------------------------
-                if (successfulUploads.length === 0) throw new Error('All uploads failed.');
-                if (successfulUploads.length < currentFiles.length) toast.warning(`${currentFiles.length - successfulUploads.length} file(s) failed to upload.`);
+                if (successfulUploads.length === 0) throw new Error('All storage uploads failed.');
+                if (successfulUploads.length < currentFiles.length) toast.warning(`${currentFiles.length - successfulUploads.length} file(s) failed to upload. Continuing with successful ones.`);
                 apiPayload = JSON.stringify({ files: successfulUploads });
                 fetchOptions.headers = { 'Content-Type': 'application/json' };
             } else {
-                // Direct Upload Flow
+                // Direct Upload Flow (logic unchanged)
                 const formData = new FormData();
                 currentFiles.forEach(file => formData.append('file', file));
                 apiPayload = formData;
+                // No specific Content-Type header needed for FormData; browser sets it
             }
 
-            // API Call
+            // API Call (logic unchanged)
             const filesToProcess = currentFiles.map(f => f.name);
-            startProgressIndicator(loadingToastId, filesToProcess);
+            startProgressIndicator(loadingToastId, filesToProcess); // Update toast for processing phase
             fetchOptions.body = apiPayload;
             console.log("[useAiGenerate] Calling POST /api/extract-pdf");
             const response = await fetch('/api/extract-pdf', fetchOptions);
 
-            // Handle API Response
+            // Handle API Response (logic unchanged)
             if (!response) throw new Error("No response from extraction server.");
             let data;
             try { data = await response.json(); }
             catch (jsonError) { throw new Error(`Server returned invalid response (${response.status}).`); }
-            clearTimeout(safetyTimeout); toast.dismiss(loadingToastId);
+            finally { clearTimeout(safetyTimeout); toast.dismiss(loadingToastId); } // Dismiss loading toast *after* getting response
             handleApiResponse(data, currentFiles.length);
 
         } catch (err: any) {
             console.error('[useAiGenerate] Error during file processing:', err);
             clearTimeout(safetyTimeout); toast.dismiss(loadingToastId);
             setError(err.message || 'An error occurred during processing.');
+            toast.error('Processing Error', { description: err.message || 'An unknown error occurred.' });
             setProcessingSummary(null);
         } finally {
             setIsLoading(false);
             if (progressTimerRef.current) clearInterval(progressTimerRef.current);
         }
-    // Ensure stable references are included if necessary, 'files' might change
-    }, [files, supabase, user]); // Recalculate if files, supabase, or user changes
+    }, [files, supabase, user]);
 
 
-    // Handles saving the generated flashcards as a new deck
+    // --- UPDATED: handleSaveDeck ---
     const handleSaveDeck = useCallback(async () => {
         if (!flashcards.length) { toast.error("No flashcards to save."); return; }
         if (!deckName.trim()) { toast.error("Please enter a deck name."); return; }
@@ -235,43 +260,68 @@ export function useAiGenerate() {
         const answerLangCode = getLanguageCode(detectedLanguageNames.aName);
         const isBilingualFlag = detectedLanguageNames.b;
 
+        // --- FIX: Send the full ApiFlashcard objects ---
+        // The /api/decks route now expects the full structure, including classifications
         const payload = {
             name: deckName.trim(),
-            questionLanguage: questionLangCode, answerLanguage: answerLangCode,
+            questionLanguage: questionLangCode,
+            answerLanguage: answerLangCode,
             isBilingual: isBilingualFlag,
-            flashcards: flashcards.map(fc => ({ question: fc.question, answer: fc.answer }))
+            // Pass the entire flashcards array as received from /api/extract-pdf
+            // No need to map here, assuming 'flashcards' state holds ApiFlashcard[]
+            flashcards: flashcards
         };
 
         console.log("[useAiGenerate] Saving deck via POST /api/decks with payload:", payload);
 
         try {
-            const response = await fetch('/api/decks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-            const result = await response.json();
-            if (!response.ok || !result.success) throw new Error(result.message || `Failed to create deck`);
+            const response = await fetch('/api/decks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            // Check if response is JSON, handle potential non-JSON responses
+            const contentType = response.headers.get("content-type");
+            let result;
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+                 result = await response.json();
+            } else {
+                // Handle non-JSON response (e.g., HTML error page from server)
+                const textResponse = await response.text();
+                throw new Error(`Server returned non-JSON response (${response.status}): ${textResponse.substring(0, 100)}...`);
+            }
+
+            if (!response.ok || !result.success) {
+                throw new Error(result.message || `Failed to create deck (Status: ${response.status})`);
+            }
             toast.success(`Deck "${payload.name}" created!`, { id: toastId });
             setSavedDeckId(result.deckId);
+            // Optional: Redirect after successful save
+            // router.push(`/edit/${result.deckId}`);
         } catch (error: any) {
              console.error("[useAiGenerate] Error saving deck:", error);
              toast.error("Failed to save deck", { id: toastId, description: error.message || "Unknown error" });
         } finally {
              setIsSavingDeck(false);
         }
-    }, [flashcards, deckName, user, detectedLanguageNames]); // Dependencies
+    }, [flashcards, deckName, user, detectedLanguageNames/*, router */]); // Add router if using redirect
 
 
-    // Handles clearing all inputs and results
+    // handleClearAll (remain unchanged)
     const handleClearAll = useCallback(() => {
         setFiles([]); setFlashcards([]); setError(null); setExtractedTextPreview(null);
         setProcessingSummary(null); setDeckName(""); setSavedDeckId(null);
         setDetectedLanguageNames({ qName: undefined, aName: undefined, b: false });
         console.log('[useAiGenerate] All cleared.');
         toast.info('Input and results cleared');
-    }, []); // No dependencies
+    }, []);
 
 
-    // Handles saving flashcards as a JSON file
+    // handleSaveFlashcards (remain unchanged - still saves only Q/A)
     const handleSaveFlashcards = useCallback(() => {
         if (!flashcards.length) { toast.error("No flashcards to save"); return; }
+        // Keep saving only Q/A for simple JSON export for now
         const dataToSave = flashcards.map(f => ({ question: f.question, answer: f.answer }));
         const dataStr = JSON.stringify(dataToSave, null, 2);
         const dataUri = `data:application/json;charset=utf-8,${encodeURIComponent(dataStr)}`;
@@ -280,16 +330,16 @@ export function useAiGenerate() {
         link.setAttribute('href', dataUri); link.setAttribute('download', filename);
         document.body.appendChild(link); link.click(); document.body.removeChild(link);
         toast.success("Flashcards downloaded as JSON");
-    }, [flashcards, deckName]); // Dependencies
+    }, [flashcards, deckName]);
 
 
-    // Handles changes to the deck name input
+    // handleDeckNameChange (remain unchanged)
     const handleDeckNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         setDeckName(e.target.value);
-    }, []); // No dependencies
+    }, []);
 
 
-    // --- Return Value ---
+    // --- Return Value (remain unchanged) ---
     return {
         // State
         files, isLoading, error, flashcards, extractedTextPreview, processingSummary,

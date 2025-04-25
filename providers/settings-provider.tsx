@@ -2,33 +2,37 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { detectSystemLanguage } from "@/lib/utils";
 import { getUserSettings, updateUserSettings } from "@/lib/actions/settingsActions";
 import { toast } from "sonner";
-import type { PostgrestError } from "@supabase/supabase-js";
-import type { Tables } from "@/types/database";
-
-// Define ActionResult type
-type ActionResult<T> = {
-  data: T | null;
-  error: string | null;
-};
+import type { Database, Tables, Json } from "@/types/database"; // Ensure this is updated after migration
+import type { ActionResult } from '@/lib/actions/types'; // Ensure path is correct
 
 // Debug flag
 const DEBUG = true;
 
 // Debug logging function
 const debug = (...args: any[]) => {
-  // Only log if DEBUG is true AND not in production environment
   if (DEBUG && process.env.NODE_ENV !== 'production') {
-    console.warn('[Settings Debug]:', ...args);
+    console.warn('[Settings Provider Debug]:', ...args);
   }
 };
 
-// Define a type for available fonts
+// Define types
 export type FontOption = "default" | "opendyslexic" | "atkinson";
 
-// Define a type for settings
+// Define Default Word Colors (using updated defaults from previous step)
+export const DEFAULT_WORD_COLORS: Record<string, Record<string, string>> = {
+  Noun: { Male: '#a7c7e7', Female: '#fdd8b1', Default: '#d1d1d1' },
+  Verb: { Default: '#b2e0b2' },
+  Adjective: { Male: '#fdfd96', Female: '#fdfd96', Default: '#fdfd96' },
+  Adverb: { Default: '#ffb3ba' },
+  Pronoun: { Male: '#b0e0e6', Female: '#b0e0e6', Default: '#b0e0e6' },
+  Preposition: { Default: '#e6e6fa' },
+  Interjection: { Default: '#fafad2' },
+  Other: { Default: '#cccccc' },
+};
+
+// --- Updated Settings Interface ---
 export interface Settings {
   appLanguage: string;
   cardFont: FontOption;
@@ -36,7 +40,7 @@ export interface Settings {
   masteryThreshold: number;
   ttsEnabled: boolean;
   removeMasteredCards?: boolean;
-  languageDialects: {
+  languageDialects: { // Non-nullable
     en: string;
     nl: string;
     fr: string;
@@ -44,9 +48,15 @@ export interface Settings {
     es: string;
     it: string;
   };
+  // --- NEW: Replaced single toggle with two ---
+  enableBasicColorCoding: boolean;
+  enableAdvancedColorCoding: boolean;
+  // -----------------------------------------
+  wordColorConfig: Record<string, Record<string, string>>; // Non-nullable
 }
 
-type DbSettings = Tables<'settings'>; // Define DbSettings using Tables
+// DB Type Alias
+type DbSettings = Tables<'settings'>; // Assumes types/database.ts generated after migration
 
 interface SettingsContextType {
   settings: Settings | null;
@@ -54,6 +64,7 @@ interface SettingsContextType {
   loading: boolean;
 }
 
+// --- Updated Default Settings ---
 export const DEFAULT_SETTINGS: Settings = {
   appLanguage: "en",
   cardFont: "default",
@@ -62,165 +73,161 @@ export const DEFAULT_SETTINGS: Settings = {
   ttsEnabled: true,
   removeMasteredCards: false,
   languageDialects: {
-    en: "en-GB",
-    nl: "nl-NL",
-    fr: "fr-FR",
-    de: "de-DE",
-    es: "es-ES",
-    it: "it-IT",
+    en: "en-GB", nl: "nl-NL", fr: "fr-FR", de: "de-DE", es: "es-ES", it: "it-IT",
   },
+  // --- NEW: Updated defaults for toggles ---
+  enableBasicColorCoding: true,    // Basic enabled by default
+  enableAdvancedColorCoding: false, // Advanced disabled by default
+  // -------------------------------------
+  wordColorConfig: DEFAULT_WORD_COLORS,
 };
 
-// Helper to transform DbSettings (snake_case) to Settings (camelCase, frontend type)
-const transformDbSettingsToSettings = (dbSettings: DbSettings | null): Settings | null => {
-    if (!dbSettings) return null;
+// --- Updated Transformation Function ---
+const transformDbSettingsToSettings = (dbSettings: DbSettings | null): Settings => {
+    if (!dbSettings) {
+        debug('transformDbSettingsToSettings: No DB settings provided, returning default.');
+        return { ...DEFAULT_SETTINGS }; // Return a copy
+    }
     try {
+        debug('transformDbSettingsToSettings: Transforming DB settings:', dbSettings);
         const cardFontValue = dbSettings.card_font as FontOption | null;
         const isValidFont = ['default', 'opendyslexic', 'atkinson'].includes(cardFontValue ?? '');
-        const cardFontFinal = isValidFont && cardFontValue ? cardFontValue : 'default';
+        const cardFontFinal = isValidFont && cardFontValue ? cardFontValue : DEFAULT_SETTINGS.cardFont;
 
-        // Use proper BCP-47 language codes as defaults
-        const DEFAULT_DIALECTS = { 
-            en: 'en-GB',
-            nl: 'nl-NL', 
-            fr: 'fr-FR', 
-            de: 'de-DE', 
-            es: 'es-ES', 
-            it: 'it-IT' 
-        };
+        const dbDialects = dbSettings.language_dialects as Record<string, string> | null;
+        const languageDialectsFinal = { ...(DEFAULT_SETTINGS.languageDialects), ...(dbDialects ?? {}) };
 
-        // Log the language dialects for debugging
-        console.log('[Settings Provider] DB language_dialects:', dbSettings.language_dialects);
+        const dbColorConfig = dbSettings.word_color_config as Record<string, Record<string, string>> | null;
+        const wordColorConfigFinal = dbColorConfig ? { ...DEFAULT_WORD_COLORS, ...dbColorConfig } : { ...DEFAULT_WORD_COLORS };
 
-        return {
-            appLanguage: dbSettings.app_language ?? 'en',
-            languageDialects: { ...DEFAULT_DIALECTS, ...(dbSettings.language_dialects as Record<string, string> || {}) },
-            ttsEnabled: dbSettings.tts_enabled ?? true,
-            showDifficulty: dbSettings.show_difficulty ?? true,
-            masteryThreshold: dbSettings.mastery_threshold ?? 3, // DEFAULT_MASTERY_THRESHOLD
+        const transformed: Settings = {
+            appLanguage: dbSettings.app_language ?? DEFAULT_SETTINGS.appLanguage,
+            languageDialects: languageDialectsFinal,
+            ttsEnabled: dbSettings.tts_enabled ?? DEFAULT_SETTINGS.ttsEnabled,
+            showDifficulty: dbSettings.show_difficulty ?? DEFAULT_SETTINGS.showDifficulty,
+            masteryThreshold: dbSettings.mastery_threshold ?? DEFAULT_SETTINGS.masteryThreshold,
             cardFont: cardFontFinal,
+            // --- Map NEW DB Fields ---
+            // Use ?? operator with DEFAULT_SETTINGS to handle null from DB correctly
+            enableBasicColorCoding: dbSettings.enable_basic_color_coding ?? DEFAULT_SETTINGS.enableBasicColorCoding,
+            enableAdvancedColorCoding: dbSettings.enable_advanced_color_coding ?? DEFAULT_SETTINGS.enableAdvancedColorCoding,
+            // ------------------------
+            wordColorConfig: wordColorConfigFinal,
         };
+        debug('transformDbSettingsToSettings: Transformation result:', transformed);
+        return transformed;
     } catch (e) {
         console.error("Error transforming DbSettings:", e);
-        return null; // Return null or default on transform error
+        debug('transformDbSettingsToSettings: Error during transformation, returning default.');
+        return { ...DEFAULT_SETTINGS }; // Return default on error
     }
 };
 
+// Context Definition (Unchanged)
 export const SettingsContext = createContext<SettingsContextType>({
   settings: null,
-  updateSettings: async () => ({ data: null, error: null }),
+  updateSettings: async () => ({ data: null, error: "Context not initialized" }),
   loading: true,
 });
 
+// SettingsProvider Component (Unchanged core logic, relies on transform)
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   debug('SettingsProvider initializing');
-
   const { user } = useAuth();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Log initial mount
-  useEffect(() => {
-    debug('SettingsProvider mounted');
-    return () => debug('SettingsProvider unmounting');
-  }, []);
-
-  // Fetch settings using the Action
+  // Fetch Settings Effect (Unchanged logic)
   useEffect(() => {
     debug('Settings load effect triggered', { userId: user?.id });
-    
     if (!user) {
-        debug('No user, skipping settings load');
-        setSettings(null); 
-        setLoading(false); 
-        return;
+      debug('No user, setting settings to null and loading to false');
+      setSettings(null);
+      setLoading(false);
+      return;
     }
-
+    let isMounted = true;
     const loadSettings = async () => {
-      setLoading(true); 
+      debug('Setting loading true');
+      if (isMounted) setLoading(true);
       try {
         debug('Loading settings via action for user', user.id);
-        // Call the correct function - It now returns ActionResult correctly
         const { data: dbSettings, error } = await getUserSettings();
+        if (!isMounted) { debug("Component unmounted during settings load"); return; }
 
         if (error) {
           console.error("Failed to load settings:", error);
           debug('Error loading settings, using defaults', DEFAULT_SETTINGS);
           toast.error("Failed to load settings", { description: error || "Using default settings." });
-          setSettings(DEFAULT_SETTINGS);
+          setSettings({ ...DEFAULT_SETTINGS });
         } else {
-          const transformed = transformDbSettingsToSettings(dbSettings);
-          if (transformed) {
-               debug('Setting user settings from action', transformed);
-               setSettings(transformed);
-          } else {
-               debug('No settings found or transform failed, using defaults', DEFAULT_SETTINGS);
-               setSettings(DEFAULT_SETTINGS);
-          }
+          const finalSettings = transformDbSettingsToSettings(dbSettings); // Handles null/defaults
+          debug('Setting user settings state', finalSettings);
+          setSettings(finalSettings);
         }
       } catch (unexpectedError) {
         console.error("Unexpected error during settings load:", unexpectedError);
         debug('Unexpected error, using defaults', DEFAULT_SETTINGS);
-         toast.error("Error", {
-          description: "An unexpected error occurred while loading settings. Using default values.",
-        });
-        setSettings(DEFAULT_SETTINGS);
+        toast.error("Error", { description: "An unexpected error occurred while loading settings. Using default values." });
+        if (isMounted) setSettings({ ...DEFAULT_SETTINGS });
       } finally {
-        setLoading(false);
+        debug('Setting loading false');
+        if (isMounted) setLoading(false);
       }
     };
-
     loadSettings();
-  }, [user]); // Dependency is just user now
+    return () => { isMounted = false; debug("Settings load effect cleanup"); };
+  }, [user]);
 
-  // Update settings using the Action
+  // Update Settings Callback (Unchanged logic - assumes action handles mapping)
   const updateSettings = useCallback(async (
     updates: Partial<Settings>
   ): Promise<ActionResult<DbSettings | null>> => {
-    debug('Updating settings via action', { current: settings, updates });
-    if (!settings || !user) {
-      debug('Cannot update settings - missing settings or user');
-      const error = new Error("Cannot save settings: user or current settings missing.");
-      toast.warning("Cannot save settings", { description: error.message });
-      return { data: null, error: null };
+    debug('updateSettings called', { current: settings, updates });
+    if (!user) {
+         debug('Cannot update settings - no user');
+         toast.warning("Cannot save settings", { description: "You must be logged in." });
+         return { data: null, error: "Not authenticated" };
     }
-    
-    // Optimistic update
-    const previousSettings = settings;
+    if (!settings) {
+        debug('Cannot update settings - current settings are null/not loaded');
+        toast.warning("Cannot save settings", { description: "Settings not loaded yet." });
+        return { data: null, error: "Settings not loaded" };
+    }
+
+    const previousSettings = { ...settings };
+    debug('Applying optimistic update');
     setSettings(prev => prev ? { ...prev, ...updates } : null);
-    
+
     try {
-      // Call the server action - It now returns ActionResult correctly
-      const { data, error } = await updateUserSettings({ updates });
+      debug('Calling updateUserSettings action with updates:', updates);
+      // Pass the object containing the 'updates' key
+      const { data, error } = await updateUserSettings({ updates: updates });
 
       if (error) {
         console.error("Failed to update settings via action:", error);
-        debug('Settings action update failed', { error });
+        debug('Settings action update failed, reverting optimistic update', { error });
         toast.error("Error Saving Settings", { description: error || "Could not save settings." });
-        // Revert optimistic update on error
-        setSettings(previousSettings); 
+        setSettings(previousSettings);
         return { data: null, error: error };
       } else {
-        debug('Settings action update successful', data);
-        // Optimistic update already applied, just return success
-        // Optionally transform result.data back to Settings type if needed
-        return { data, error: null }; 
+        debug('Settings action update successful, optimistic update confirmed', data);
+        // OPTIONAL: Re-transform DB data if absolute consistency needed
+        // setSettings(transformDbSettingsToSettings(data));
+        return { data, error: null };
       }
     } catch (unexpectedError) {
       console.error("Unexpected error during settings action call:", unexpectedError);
-      debug('Unexpected settings update error');
-      const error = unexpectedError instanceof Error ? unexpectedError : new Error("An unexpected error occurred.");
-      toast.error("Error Saving Settings", { description: error.message });
-      // Revert optimistic update
+      debug('Unexpected settings update error, reverting optimistic update');
+      const errorMsg = unexpectedError instanceof Error ? unexpectedError.message : "An unexpected error occurred.";
+      toast.error("Error Saving Settings", { description: errorMsg });
       setSettings(previousSettings);
-      return { data: null, error: error.message };
+      return { data: null, error: errorMsg };
     }
-  }, [settings, user]); // Dependencies are settings and user
+  }, [settings, user]);
 
-  // Log settings changes
-  useEffect(() => {
-    debug('Settings state changed', { settings, loading });
-  }, [settings, loading]);
+  // Log state changes (unchanged)
+  useEffect(() => { debug('Settings state changed', { settings, loading }); }, [settings, loading]);
 
   return (
     <SettingsContext.Provider value={{ settings, updateSettings, loading }}>
@@ -229,11 +236,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Custom hook to use the settings context
+// useSettings Hook (Unchanged)
 export function useSettings() {
   const context = useContext(SettingsContext);
   if (context === undefined) {
     throw new Error("useSettings must be used within a SettingsProvider");
   }
   return context;
-} 
+}

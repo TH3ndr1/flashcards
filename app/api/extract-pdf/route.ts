@@ -6,12 +6,12 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getFileFromStorage } from '@/lib/actions/storageActions';
-// --- FIX: Import PAGE_LIMIT ---
 import { validateConfiguration, GCP_PROJECT_ID, GCP_SERVICE_ACCOUNT_EMAIL, GCP_PRIVATE_KEY, PAGE_LIMIT } from './config';
 import { getSupportedFileType, SupportedFileType } from './fileUtils';
 import { extractText } from './textExtractorService';
-import { generateFlashcards } from './flashcardGeneratorService';
-import { ApiFlashcard, SkippedFile, PageLimitExceededError, ExtractionApiError, GenerationApiError } from './types';
+// --- FIX: Import the actual function and potentially the return type if needed ---
+import { generateFlashcards, MappedFlashcardCore } from './flashcardGeneratorService'; // Assuming MappedFlashcardCore is exported or define locally
+import { ApiFlashcard, SkippedFile, PageLimitExceededError, ExtractionApiError, GenerationApiError } from './types'; // Ensure ApiFlashcard in types.ts is updated!
 
 // --- Runtime Configuration (Vercel specific) ---
 export const config = {
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
   // Runtime Credential/Config Check (No changes needed)
   if (!GCP_PROJECT_ID || !GCP_SERVICE_ACCOUNT_EMAIL || !GCP_PRIVATE_KEY) {
       console.error('[API Route POST] CRITICAL: Missing required GCP credentials. Aborting.');
-      return NextResponse.json({ 
+      return NextResponse.json({
           success: false, message: 'Server configuration error: Missing necessary credentials.', code: 'MISSING_CREDENTIALS'
       }, { status: 500 });
   }
@@ -76,9 +76,10 @@ export async function POST(request: NextRequest) {
            success: false, message: 'Server configuration error: Invalid or missing configuration.', code: 'INVALID_CONFIG'
       }, { status: 500 });
     }
-    
-  // Initialization (No changes needed)
+
+  // Initialization
     let skippedFiles: SkippedFile[] = [];
+  // --- Ensure this uses the UPDATED ApiFlashcard type from types.ts ---
   let allFlashcards: ApiFlashcard[] = [];
   let allResultsInfo: { filename: string; type: SupportedFileType; pages: number; characters: number; flashcardsGenerated: number }[] = [];
   let totalPagesProcessed = 0;
@@ -141,7 +142,7 @@ export async function POST(request: NextRequest) {
         let fileType: SupportedFileType | null = null;
 
         try {
-            // Steps a, b, c, d, e (No changes needed here)
+            // Steps a, b, c, d (No changes needed here)
             fileType = getSupportedFileType(source.filename);
             if (!fileType) throw new Error('Unsupported file type');
             fileBuffer = await source.getBuffer();
@@ -150,11 +151,24 @@ export async function POST(request: NextRequest) {
             console.log(`[API Route POST] Text extraction successful for ${source.filename}. Characters: ${extractionResult.info.metadata.characters}, Pages: ${extractionResult.info.pages}`);
             totalPagesProcessed += extractionResult.info.pages;
             combinedTextPreview += `--- Content from ${source.filename} ---\n${extractionResult.text.slice(0, 200)}...\n\n`;
-            let generatedFlashcards: ApiFlashcard[] = [];
+
+            // --- Step e: Flashcard Generation ---
+            let generatedFlashcards: ApiFlashcard[] = []; // Use updated ApiFlashcard type
             if (extractionResult.text && extractionResult.text.trim().length > 0) {
                 console.log(`[API Route POST] Attempting flashcard generation for ${source.filename}`);
-                const coreFlashcards = await generateFlashcards(extractionResult.text, source.filename);
-                generatedFlashcards = coreFlashcards.map(card => ({ ...card, source: source.filename, fileType: fileType! }));
+
+                // Call the updated service - it now returns MappedFlashcardCore[]
+                const coreFlashcards: MappedFlashcardCore[] = await generateFlashcards(extractionResult.text, source.filename);
+
+                // Map to ApiFlashcard. Spread operator (...) copies all fields from coreFlashcards,
+                // including the new classification fields.
+                // !! IMPORTANT: Assumes ApiFlashcard in types.ts includes the new fields !!
+                generatedFlashcards = coreFlashcards.map(card => ({
+                     ...card, // Includes all fields from MappedFlashcardCore
+                     source: source.filename,
+                     fileType: fileType! // fileType is guaranteed to be non-null here
+                }));
+
                 allFlashcards.push(...generatedFlashcards);
                 console.log(`[API Route POST] Generated ${generatedFlashcards.length} flashcards for ${source.filename}.`);
             } else {
@@ -174,14 +188,11 @@ export async function POST(request: NextRequest) {
             let reason = error.message || 'Unknown processing error';
             let pages: number | undefined = undefined;
 
-            // --- FIX: Correctly handle PageLimitExceededError properties ---
+            // Error handling logic remains the same
             if (error instanceof PageLimitExceededError) {
-                // Use the properties from the error object and the imported constant
                 reason = `Exceeds ${error.limit}-page limit (${error.pageCount} pages)`;
                 pages = error.pageCount;
-            }
-            // Keep other error handling as is
-            else if (error instanceof ExtractionApiError || error instanceof GenerationApiError) {
+            } else if (error instanceof ExtractionApiError || error instanceof GenerationApiError) {
                 reason = `${error.name}: ${error.message.substring(0, 200)}${error.message.length > 200 ? '...' : ''}`;
                  if (error instanceof GenerationApiError && error.reason) {
                      reason += ` (Reason: ${error.reason})`;
@@ -209,11 +220,12 @@ export async function POST(request: NextRequest) {
     console.log(`[API Route POST] Processing finished. Duration: ${duration}ms. Processed: ${processedCount}, Skipped: ${skippedCount}, Total Flashcards: ${allFlashcards.length}`);
 
     if (processedCount === 0) {
+        // Logic for no files processed remains the same
         let message = 'No files could be processed successfully.';
         let status = 400;
         let code = 'PROCESSING_FAILED';
-        if (skippedCount === 1 && skippedFiles[0].reason.includes('Exceeds 30-page limit')) {
-            message = `File "${skippedFiles[0].filename}" exceeds the 30-page limit (${skippedFiles[0].pages} pages). No other files were processed.`;
+        if (skippedCount === 1 && skippedFiles[0].reason.includes(`Exceeds ${PAGE_LIMIT}-page limit`)) { // Use PAGE_LIMIT constant
+            message = `File "${skippedFiles[0].filename}" exceeds the ${PAGE_LIMIT}-page limit (${skippedFiles[0].pages} pages). No other files were processed.`;
             code = 'PAGE_LIMIT_EXCEEDED';
         } else if (skippedCount > 0) {
             message = `Processed 0 files successfully. ${skippedCount} file(s) were skipped. See 'skippedFiles' for details.`;
@@ -226,13 +238,15 @@ export async function POST(request: NextRequest) {
     const finalFileInfo = {
         pages: totalPagesProcessed, files: processedCount, metadata: { sources: allResultsInfo }
     };
-        
+
+    // The final response includes allFlashcards, which now contain the classification data
+    // assuming ApiFlashcard type was updated correctly.
     return NextResponse.json({
       success: true,
         message: `Successfully processed ${processedCount} file(s) and generated ${allFlashcards.length} flashcards. ${skippedCount} file(s) skipped.`,
         extractedTextPreview: combinedTextPreview.length > 1000 ? combinedTextPreview.slice(0, 1000) + "..." : combinedTextPreview,
         fileInfo: finalFileInfo,
-      flashcards: allFlashcards,
+      flashcards: allFlashcards, // This array now contains items with the new fields
         skippedFiles: skippedCount > 0 ? skippedFiles : undefined,
         processingTimeMs: duration
     });
@@ -255,4 +269,4 @@ export async function POST(request: NextRequest) {
         skippedFiles: skippedFiles.length > 0 ? skippedFiles : undefined,
     }, { status: 500 });
   }
-} 
+}

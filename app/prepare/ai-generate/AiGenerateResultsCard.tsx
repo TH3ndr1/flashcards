@@ -5,8 +5,8 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Download, Eye } from 'lucide-react';
-import type { ApiFlashcard } from '@/app/api/extract-pdf/types'; // Adjust path if needed
+import { Download, Eye, Languages, Tag } from 'lucide-react'; // Added Icons
+import type { ApiFlashcard } from '@/app/api/extract-pdf/types'; // Ensure this path is correct and type is updated
 
 type FlashcardData = ApiFlashcard; // Use consistent naming
 
@@ -41,8 +41,31 @@ export function AiGenerateResultsCard({
     const hasFlashcards = flashcards.length > 0;
     const showJsonDownload = hasFlashcards && !savedDeckId;
 
+    // Helper to display classification info
+    const renderClassification = (
+        pos: string | undefined,
+        gender: string | undefined,
+        prefix: string = ""
+    ) => {
+        const posText = (pos && pos !== 'N/A') ? pos : null;
+        const genderText = (gender && gender !== 'N/A') ? gender : null;
+
+        if (!posText && !genderText) {
+            return null; // Don't render anything if both are N/A or undefined
+        }
+
+        return (
+            <span className="flex items-center gap-1 text-xs text-muted-foreground ml-1">
+                {prefix && <span className="font-medium">{prefix}:</span>}
+                {posText && <Badge variant="outline" className="px-1.5 py-0 text-xs">{posText}</Badge>}
+                {genderText && <Badge variant="outline" className="px-1.5 py-0 text-xs">{genderText}</Badge>}
+            </span>
+        );
+    };
+
+
     return (
-        <Card className="min-h-[300px] flex flex-col"> {/* Ensure card takes height */}
+        <Card className="min-h-[300px] flex flex-col">
             <CardHeader className="px-4 sm:px-6 py-4">
                  <CardTitle className="flex items-center gap-2"><Eye className="h-5 w-5" /> 2. Review Results</CardTitle>
                  <CardDescription className="mt-1 !mb-0">
@@ -61,35 +84,44 @@ export function AiGenerateResultsCard({
                     </div>
                  )}
             </CardHeader>
-            <CardContent className="flex-grow overflow-auto px-4 sm:px-6 pb-4"> {/* Content takes remaining space */}
+            <CardContent className="flex-grow overflow-auto px-4 sm:px-6 pb-4">
                 {!hasFlashcards && !extractedTextPreview && !processingSummary ? (
-                    // Placeholder when no results, preview, or summary
+                    // Placeholder
                     <div className="text-center py-6 text-muted-foreground flex flex-col items-center justify-center h-full">
                         <p>Results will appear here after processing.</p>
                     </div>
                 ) : hasFlashcards ? (
                     // Grouped Flashcard Display
-                    <div className="space-y-6 pr-2"> {/* Added pr for scrollbar */}
+                    <div className="space-y-6 pr-2">
                         {Object.entries(getFlashcardsBySource(flashcards)).map(([source, cards]) => {
-                            const docLangs = { qName: cards[0]?.questionLanguage, aName: cards[0]?.answerLanguage, b: cards[0]?.isBilingual };
+                            const firstCard = cards[0]; // Use first card for group info
+                            const docLangs = { qName: firstCard?.questionLanguage, aName: firstCard?.answerLanguage, b: firstCard?.isBilingual };
                             const showALang = docLangs.aName && docLangs.qName !== docLangs.aName;
                             return (
                             <div key={source}>
                                 <div className="flex flex-wrap items-center justify-between gap-2 mb-3 pb-2 border-b">
                                     <h3 className="text-sm font-semibold truncate" title={source}>Source: {source}</h3>
                                     <div className="flex items-center gap-1 flex-wrap">
-                                        {cards[0]?.fileType && <Badge variant="outline" className="text-xs">{cards[0].fileType}</Badge>}
-                                        {docLangs.qName && <Badge variant="secondary" className="text-xs capitalize">Q: {docLangs.qName}</Badge>}
-                                        {showALang && <Badge variant="secondary" className="text-xs capitalize">A: {docLangs.aName}</Badge>}
-                                        {docLangs.b && <Badge className="text-xs">Bilingual</Badge>}
+                                        {firstCard?.fileType && <Badge variant="outline" className="text-xs">{firstCard.fileType}</Badge>}
+                                        {docLangs.qName && <Badge variant="secondary" className="text-xs capitalize"><Languages className="inline h-3 w-3 mr-1"/>Q: {docLangs.qName}</Badge>}
+                                        {showALang && <Badge variant="secondary" className="text-xs capitalize"><Languages className="inline h-3 w-3 mr-1"/>A: {docLangs.aName}</Badge>}
+                                        {/* {docLangs.b && <Badge className="text-xs">Bilingual</Badge>} */}
                                         <Badge variant="outline" className="text-xs">{cards.length} cards</Badge>
                                     </div>
                                 </div>
                                 <div className="space-y-3">
                                     {cards.map((card, index) => (
                                         <div key={`${source}-${index}-${card.question?.substring(0, 5)}`} className="border rounded-md p-3 text-sm bg-background shadow-sm">
-                                            <p className="font-medium mb-1">{card.question}</p>
-                                            <p className="text-muted-foreground whitespace-pre-line">{card.answer}</p>
+                                            {/* Question and optional classification */}
+                                            <div className="flex flex-wrap items-center gap-x-2 mb-1">
+                                                <p className="font-medium break-words">{card.question}</p>
+                                                {renderClassification(card.questionPartOfSpeech, card.questionGender)}
+                                            </div>
+                                            {/* Answer and optional classification */}
+                                            <div className="flex flex-wrap items-center gap-x-2">
+                                                <p className="text-muted-foreground whitespace-pre-line break-words">{card.answer}</p>
+                                                {renderClassification(card.answerPartOfSpeech, card.answerGender)}
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
@@ -106,7 +138,7 @@ export function AiGenerateResultsCard({
                         </div>
                     </div>
                 ) : (
-                     // Should not be reached if processingSummary exists, but good fallback
+                     // Fallback
                      <div className="text-center py-6 text-muted-foreground flex flex-col items-center justify-center h-full">
                          <p>Processing complete. Check summary above.</p>
                      </div>
@@ -114,7 +146,7 @@ export function AiGenerateResultsCard({
             </CardContent>
              {/* Optional Footer for JSON Download */}
              {showJsonDownload && (
-                <CardFooter className="border-t px-4 sm:px-6 py-3 mt-auto"> {/* mt-auto pushes footer down */}
+                <CardFooter className="border-t px-4 sm:px-6 py-3 mt-auto">
                     <Button variant="secondary" size="sm" className="w-full" onClick={onSaveJson}>
                         <Download className="mr-2 h-4 w-4" />
                         Download Flashcards as JSON

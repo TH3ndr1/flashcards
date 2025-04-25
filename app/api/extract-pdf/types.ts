@@ -26,43 +26,56 @@ export interface ExtractionResult {
   }
 }
 
-// GeminiFlashcardInput interface (no change)
+// --- UPDATED: GeminiFlashcardInput to include classification ---
+// This reflects the structure EXPECTED FROM Gemini now
 export interface GeminiFlashcardInput {
     question: string;
     answer: string;
+    questionPartOfSpeech: string;
+    questionGender: string;
+    answerPartOfSpeech: string;
+    answerGender: string;
 }
 
-// ApiFlashcard interface (no change)
+// --- UPDATED: ApiFlashcard interface to include classification ---
+// This reflects the structure RETURNED BY the /api/extract-pdf route
 export interface ApiFlashcard {
   question: string;
   answer: string;
-  questionLanguage?: string;
-  answerLanguage?: string;
-  isBilingual?: boolean;
-  source?: string;
-  fileType?: SupportedFileType;
+  questionLanguage?: string; // Language detected for the whole batch
+  answerLanguage?: string;   // Language detected for the whole batch
+  isBilingual?: boolean;     // Mode determined for the whole batch
+  // --- NEW Classification Fields ---
+  questionPartOfSpeech: string; // Classification specific to this card
+  questionGender: string;       // Classification specific to this card
+  answerPartOfSpeech: string;   // Classification specific to this card
+  answerGender: string;         // Classification specific to this card
+  // --- End of NEW Fields ---
+  source?: string;           // Added by route.ts (filename)
+  fileType?: SupportedFileType; // Added by route.ts
 }
 
-// GeminiStructuredOutput interface (no change)
+// --- UPDATED: GeminiStructuredOutput to expect richer flashcards ---
+// This reflects the overall JSON structure EXPECTED FROM Gemini now
 export interface GeminiStructuredOutput {
     mode: 'translation' | 'knowledge';
     detectedQuestionLanguage: string;
     detectedAnswerLanguage: string;
-    flashcards: GeminiFlashcardInput[];
+    flashcards: GeminiFlashcardInput[]; // Should now contain the classification fields
 }
 
-// --- FIX: Add limit property to PageLimitExceededError ---
+// PageLimitExceededError class (no change needed based on previous code)
 export class PageLimitExceededError extends Error {
     public filename: string;
     public pageCount: number;
-    public limit: number; // Add the limit property
+    public limit: number;
 
-    constructor(message: string, filename: string, pageCount: number, limit: number) { // Add limit to constructor
+    constructor(message: string, filename: string, pageCount: number, limit: number) {
         super(message);
         this.name = 'PageLimitExceededError';
         this.filename = filename;
         this.pageCount = pageCount;
-        this.limit = limit; // Assign the limit
+        this.limit = limit;
     }
 }
 

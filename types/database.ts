@@ -70,6 +70,8 @@ export type Database = {
       cards: {
         Row: {
           answer: string
+          answer_gender: string | null
+          answer_part_of_speech: string | null
           attempt_count: number | null
           correct_count: number | null
           created_at: string | null
@@ -85,6 +87,8 @@ export type Database = {
           last_studied: string | null
           next_review_due: string | null
           question: string
+          question_gender: string | null
+          question_part_of_speech: string | null
           srs_level: number
           stability: number | null
           updated_at: string | null
@@ -92,6 +96,8 @@ export type Database = {
         }
         Insert: {
           answer: string
+          answer_gender?: string | null
+          answer_part_of_speech?: string | null
           attempt_count?: number | null
           correct_count?: number | null
           created_at?: string | null
@@ -107,6 +113,8 @@ export type Database = {
           last_studied?: string | null
           next_review_due?: string | null
           question: string
+          question_gender?: string | null
+          question_part_of_speech?: string | null
           srs_level?: number
           stability?: number | null
           updated_at?: string | null
@@ -114,6 +122,8 @@ export type Database = {
         }
         Update: {
           answer?: string
+          answer_gender?: string | null
+          answer_part_of_speech?: string | null
           attempt_count?: number | null
           correct_count?: number | null
           created_at?: string | null
@@ -129,6 +139,8 @@ export type Database = {
           last_studied?: string | null
           next_review_due?: string | null
           question?: string
+          question_gender?: string | null
+          question_part_of_speech?: string | null
           srs_level?: number
           stability?: number | null
           updated_at?: string | null
@@ -185,6 +197,9 @@ export type Database = {
           app_language: string
           card_font: string | null
           created_at: string | null
+          enable_advanced_color_coding: boolean | null
+          enable_basic_color_coding: boolean | null
+          enable_word_color_coding: boolean | null
           id: string
           language_dialects: Json | null
           mastery_threshold: number | null
@@ -193,11 +208,15 @@ export type Database = {
           tts_enabled: boolean | null
           updated_at: string | null
           user_id: string
+          word_color_config: Json | null
         }
         Insert: {
           app_language?: string
           card_font?: string | null
           created_at?: string | null
+          enable_advanced_color_coding?: boolean | null
+          enable_basic_color_coding?: boolean | null
+          enable_word_color_coding?: boolean | null
           id?: string
           language_dialects?: Json | null
           mastery_threshold?: number | null
@@ -206,11 +225,15 @@ export type Database = {
           tts_enabled?: boolean | null
           updated_at?: string | null
           user_id: string
+          word_color_config?: Json | null
         }
         Update: {
           app_language?: string
           card_font?: string | null
           created_at?: string | null
+          enable_advanced_color_coding?: boolean | null
+          enable_basic_color_coding?: boolean | null
+          enable_word_color_coding?: boolean | null
           id?: string
           language_dialects?: Json | null
           mastery_threshold?: number | null
@@ -219,6 +242,7 @@ export type Database = {
           tts_enabled?: boolean | null
           updated_at?: string | null
           user_id?: string
+          word_color_config?: Json | null
         }
         Relationships: []
       }
