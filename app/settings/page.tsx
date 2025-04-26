@@ -53,6 +53,7 @@ export default function SettingsPage() {
   );
   const [showDifficulty, setShowDifficulty] = useState<boolean>(LOCAL_DEFAULT_SETTINGS.showDifficulty);
   const [ttsEnabled, setTtsEnabled] = useState<boolean>(LOCAL_DEFAULT_SETTINGS.ttsEnabled);
+  const [colorOnlyNonNative, setColorOnlyNonNative] = useState<boolean>(LOCAL_DEFAULT_SETTINGS.colorOnlyNonNative);
   const [enableBasicColorCoding, setEnableBasicColorCoding] = useState<boolean>(LOCAL_DEFAULT_SETTINGS.enableBasicColorCoding);
   const [enableAdvancedColorCoding, setEnableAdvancedColorCoding] = useState<boolean>(LOCAL_DEFAULT_SETTINGS.enableAdvancedColorCoding);
   // --- State uses Palette Config ---
@@ -78,6 +79,7 @@ export default function SettingsPage() {
          setShowDifficulty(currentSettings.showDifficulty);
          setTtsEnabled(currentSettings.ttsEnabled);
          setLanguageDialects(currentSettings.languageDialects);
+         setColorOnlyNonNative(currentSettings.colorOnlyNonNative);
          setEnableBasicColorCoding(currentSettings.enableBasicColorCoding);
          setEnableAdvancedColorCoding(currentSettings.enableAdvancedColorCoding);
          // --- Load Palette Config ---
@@ -119,6 +121,12 @@ export default function SettingsPage() {
           return newDialects;
       });
    }, [handleSettingChange]);
+  
+   const handleColorOnlyNonNativeChange = useCallback(async (checked: boolean) => {
+    setColorOnlyNonNative(checked);
+    await handleSettingChange({ colorOnlyNonNative: checked });
+  }, [handleSettingChange]);
+
   const handleEnableBasicChange = useCallback(async (checked: boolean) => { setEnableBasicColorCoding(checked); await handleSettingChange({ enableBasicColorCoding: checked }); }, [handleSettingChange]);
   const handleEnableAdvancedChange = useCallback(async (checked: boolean) => { setEnableAdvancedColorCoding(checked); await handleSettingChange({ enableAdvancedColorCoding: checked }); }, [handleSettingChange]);
 
@@ -171,7 +179,7 @@ export default function SettingsPage() {
                 <div className="grid gap-4">
                     {/* Language */}
                     <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="appLanguage" className="text-right">Language</Label>
+                        <Label htmlFor="appLanguage" className="text-right">Native Language</Label>
                         <Select value={appLanguage} onValueChange={handleLanguageChange}>
                             <SelectTrigger id="appLanguage" className="col-span-3"><SelectValue placeholder="Select language" /></SelectTrigger>
                             <SelectContent>
@@ -267,7 +275,7 @@ export default function SettingsPage() {
             <CardDescription>Assign pre-defined color palettes to words based on grammar.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-
+            
              {/* Section 1: Basic */}
              <div className="border rounded-lg p-4 space-y-4">
                 <div className="flex items-center justify-between">
@@ -364,7 +372,7 @@ export default function SettingsPage() {
                      </div>
                  )}
              </div>
-
+                
               {/* Reset Button */}
              <div className="flex justify-end pt-4">
                  <Button variant="outline" size="sm" onClick={handleResetColors}>
@@ -372,6 +380,22 @@ export default function SettingsPage() {
                      Reset Palette Defaults
                  </Button>
              </div>
+             {/* --- NEW Toggle --- */}
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+                          <div>
+                              <h3 className="font-medium">Apply Only to Non-Native Language</h3>
+                              <p className="text-sm text-muted-foreground">
+                                  Only color words not matching your app language ('{settings?.appLanguage || 'N/A'}').
+                              </p>
+                          </div>
+                          <Switch
+                              checked={colorOnlyNonNative}
+                              onCheckedChange={handleColorOnlyNonNativeChange}
+                              aria-labelledby="color-non-native-label"
+                          />
+                            <span id="color-non-native-label" className="sr-only">Apply color coding only to non-native language words</span>
+                      </div>
+                      {/* ---------------- */}
           </CardContent>
         </Card>
         {/* --- End Word Color Coding Card --- */}

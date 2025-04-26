@@ -71,7 +71,7 @@ export async function updateUserSettings({
         // Manual Mapping from frontend camelCase to DB snake_case
         const dbPayload: Partial<DbSettings> = {};
 
-        // Map existing fields (unchanged)
+        // Map fields 
         if ('appLanguage' in updates && updates.appLanguage !== undefined) dbPayload.app_language = updates.appLanguage;
         if ('cardFont' in updates && updates.cardFont !== undefined) dbPayload.card_font = updates.cardFont;
         if ('showDifficulty' in updates && updates.showDifficulty !== undefined) dbPayload.show_difficulty = updates.showDifficulty;
@@ -79,7 +79,10 @@ export async function updateUserSettings({
         if ('ttsEnabled' in updates && updates.ttsEnabled !== undefined) dbPayload.tts_enabled = updates.ttsEnabled;
         if ('languageDialects' in updates && updates.languageDialects !== undefined) dbPayload.language_dialects = updates.languageDialects as Json;
 
-        // Map new toggles (unchanged)
+        if ('colorOnlyNonNative' in updates && updates.colorOnlyNonNative !== undefined) {
+            dbPayload.color_only_non_native = updates.colorOnlyNonNative;
+        }
+
         if ('enableBasicColorCoding' in updates && updates.enableBasicColorCoding !== undefined) {
              dbPayload.enable_basic_color_coding = updates.enableBasicColorCoding;
         }

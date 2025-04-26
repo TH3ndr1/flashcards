@@ -8,6 +8,17 @@ import { Card as UICard, CardContent } from "@/components/ui/card"; // Alias Car
 import { Plus } from "lucide-react";
 import type { Tables } from "@/types/database";
 
+// --- Add Constants ---
+const POS_OPTIONS: ReadonlyArray<string> = ['Noun', 'Verb', 'Adjective', 'Adverb', 'Pronoun', 'Preposition', 'Interjection', 'Other', 'N/A'];
+const GENDER_OPTIONS = [
+    { value: 'Male', label: 'Male'},
+    { value: 'Female', label: 'Female'},
+    { value: 'Default', label: 'Neutral / Other'}
+]; // Use 'Default' as the key for N/A/Neutral
+const GENDER_KEYS: ReadonlyArray<string> = ['Male', 'Female', 'Default'] as const; // Keys matching GENDER_OPTIONS values
+const GENDERED_POS: ReadonlyArray<string> = ['Noun', 'Adjective', 'Pronoun'] as const; // PoS types where gender selection is relevant
+// ---------------------
+
 type DbCard = Tables<'cards'>;
 
 interface CardViewTabContentProps {

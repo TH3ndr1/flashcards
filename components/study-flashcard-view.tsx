@@ -44,20 +44,36 @@ interface StudyFlashcardViewProps {
 }
 
 
-// --- NEW: Helper function to get color style based on Palette ID ---
+// --- UPDATED Helper function ---
 function getWordStyles(
     pos: string | null | undefined,
     gender: string | null | undefined,
+    textLanguageCode: string | undefined, // NEW: Language of the text itself
     settings: Settings | null,
     theme: string | undefined // 'light' | 'dark' | 'system'
 ): React.CSSProperties {
     const defaultStyle = {};
-    if (!pos || pos === 'N/A' || !settings) { return defaultStyle; }
+    if (!pos || pos === 'N/A' || !settings || !textLanguageCode) {
+        return defaultStyle; // Cannot style without info
+    }
+
+    // --- NEW: Check if coloring should be skipped based on native language setting ---
+    console.debug('[getWordStyles] Checking native language:', {
+        colorOnlyNonNative: settings.colorOnlyNonNative,
+        appLanguage: settings.appLanguage,
+        textLanguageCode: textLanguageCode,
+        shouldSkip: settings.colorOnlyNonNative && settings.appLanguage === textLanguageCode
+    });
+    if (settings.colorOnlyNonNative && settings.appLanguage === textLanguageCode) {
+        console.debug(`[getWordStyles] Skipping color for native language (${textLanguageCode}) word.`);
+        return defaultStyle; // Skip styling if it's the native language and setting is ON
+    }
+    // ---------------------------------------------------------------------------------
 
     const posKey = pos;
     const isBasicPos = ['Noun', 'Verb'].includes(posKey);
     const isEnabled = isBasicPos ? settings.enableBasicColorCoding : settings.enableAdvancedColorCoding;
-    if (!isEnabled) { return defaultStyle; }
+    if (!isEnabled) { return defaultStyle; } // Styling not enabled for this PoS type
 
     const effectiveTheme = theme === 'dark' ? 'dark' : 'light';
     // Use paletteConfig from settings
@@ -79,7 +95,7 @@ function getWordStyles(
     }
     return defaultStyle;
 }
-// -----------------------------------------------------------------
+// -----------------------------
 
 
 export function StudyFlashcardView({
@@ -98,16 +114,34 @@ export function StudyFlashcardView({
   const { theme } = useTheme();
   // -------------------------
 
-  // --- Calculate styles using useMemo, passing theme ---
+  // --- Calculate styles using useMemo, passing text language ---
   const cardStyles = useMemo(() => {
       const defaultStyles = { questionStyle: {}, answerStyle: {}, cardRequiresDarkBg: false };
       if (!card || !settings) {
           return defaultStyles;
       }
+
+      // --- Get language codes from the card's associated deck data ---
+      // Assumes card includes decks relation: cards(..., decks(primary_language, secondary_language))
+      // Use lowercase language codes ('en', 'fr', etc.) for comparison
+      // TODO: Ensure card.decks is correctly typed and fetched
+      // @ts-ignore - Assuming card.decks exists for now
+      const questionLangCode = card.decks?.primary_language?.toLowerCase();
+      // @ts-ignore - Assuming card.decks exists for now
+      const answerLangCode = card.decks?.secondary_language?.toLowerCase();
+      // -------------------------------------------------------------
+
       // Use correct snake_case field names from DbCard type
-      const qStyle = getWordStyles(card.question_part_of_speech, card.question_gender, settings, theme);
-      const aStyle = getWordStyles(card.answer_part_of_speech, card.answer_gender, settings, theme);
-      const cardRequiresDarkBg = theme === 'dark' && (Object.keys(qStyle).length > 0 || Object.keys(aStyle).length > 0);
+      const qStyle = getWordStyles(card.question_part_of_speech, card.question_gender, questionLangCode, settings, theme);
+      const aStyle = getWordStyles(card.answer_part_of_speech, card.answer_gender, answerLangCode, settings, theme);
+
+      // Dark mode background logic (needs slight adjustment)
+      // Apply dark BG if dark theme AND (basic or advanced is enabled)
+      // This prevents flickering if one side is native but the other isn't.
+      const isAnyColoringEnabled = settings.enableBasicColorCoding || settings.enableAdvancedColorCoding;
+      // Only require dark bg if styles actually applied and a relevant setting is enabled
+      const cardRequiresDarkBg = theme === 'dark' && isAnyColoringEnabled && (Object.keys(qStyle).length > 0 || Object.keys(aStyle).length > 0);
+
 
       return {
           questionStyle: qStyle,

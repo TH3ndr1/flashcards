@@ -196,6 +196,7 @@ export type Database = {
         Row: {
           app_language: string
           card_font: string | null
+          color_only_non_native: boolean | null
           created_at: string | null
           enable_advanced_color_coding: boolean | null
           enable_basic_color_coding: boolean | null
@@ -213,6 +214,7 @@ export type Database = {
         Insert: {
           app_language?: string
           card_font?: string | null
+          color_only_non_native?: boolean | null
           created_at?: string | null
           enable_advanced_color_coding?: boolean | null
           enable_basic_color_coding?: boolean | null
@@ -230,6 +232,7 @@ export type Database = {
         Update: {
           app_language?: string
           card_font?: string | null
+          color_only_non_native?: boolean | null
           created_at?: string | null
           enable_advanced_color_coding?: boolean | null
           enable_basic_color_coding?: boolean | null

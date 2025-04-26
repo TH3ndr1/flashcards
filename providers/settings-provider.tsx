@@ -45,9 +45,8 @@ export interface Settings {
   };
   enableBasicColorCoding: boolean;
   enableAdvancedColorCoding: boolean;
-  // --- Changed from wordColorConfig to wordPaletteConfig ---
   wordPaletteConfig: Record<string, Record<string, string>>; // Stores Palette IDs
-  // ---------------------------------------------------------
+  colorOnlyNonNative: boolean;
 }
 
 // DB Type Alias
@@ -72,9 +71,8 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   enableBasicColorCoding: true,
   enableAdvancedColorCoding: false,
-  // --- Use imported palette defaults ---
   wordPaletteConfig: DEFAULT_PALETTE_CONFIG,
-  // ------------------------------------
+  colorOnlyNonNative: true
 };
 
 // --- Updated Transformation Function ---
@@ -108,9 +106,8 @@ const transformDbSettingsToSettings = (dbSettings: DbSettings | null): Settings 
             cardFont: cardFontFinal,
             enableBasicColorCoding: dbSettings.enable_basic_color_coding ?? DEFAULT_SETTINGS.enableBasicColorCoding,
             enableAdvancedColorCoding: dbSettings.enable_advanced_color_coding ?? DEFAULT_SETTINGS.enableAdvancedColorCoding,
-            // --- Assign transformed palette config ---
             wordPaletteConfig: wordPaletteConfigFinal,
-            // --------------------------------------
+            colorOnlyNonNative: dbSettings.color_only_non_native ?? DEFAULT_SETTINGS.colorOnlyNonNative,
         };
         debug('transformDbSettingsToSettings: Transformation result:', transformed);
         return transformed;
