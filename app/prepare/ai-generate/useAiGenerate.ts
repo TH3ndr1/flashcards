@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/use-auth'; // For user ID
 import { v4 as uuidv4 } from 'uuid';
 // Ensure ApiFlashcard is imported and reflects the latest structure with classification fields
 import type { ApiFlashcard } from '@/app/api/extract-pdf/types';
+import { swapCardFields } from '@/lib/utils';
 
 // Use consistent type alias within this file
 type AiFlashcardData = ApiFlashcard;
@@ -249,87 +250,126 @@ export function useAiGenerate() {
 
     // --- UPDATED: handleSaveDeck ---
     const handleSaveDeck = useCallback(async () => {
-        if (!flashcards.length) { toast.error("No flashcards to save."); return; }
-        if (!deckName.trim()) { toast.error("Please enter a deck name."); return; }
-        if (!user) { toast.error("Authentication error."); return; }
+        if (!flashcards || flashcards.length === 0) {
+            toast.error("No flashcards to save.");
+            return;
+        }
+        if (!deckName.trim()) {
+            toast.error("Please enter a deck name.");
+            return;
+        }
 
         setIsSavingDeck(true);
-        const toastId = toast.loading("Creating deck...");
-
-        const questionLangCode = getLanguageCode(detectedLanguageNames.qName);
-        const answerLangCode = getLanguageCode(detectedLanguageNames.aName);
-        const isBilingualFlag = detectedLanguageNames.b;
-
-        // --- FIX: Send the full ApiFlashcard objects ---
-        // The /api/decks route now expects the full structure, including classifications
-        const payload = {
-            name: deckName.trim(),
-            questionLanguage: questionLangCode,
-            answerLanguage: answerLangCode,
-            isBilingual: isBilingualFlag,
-            // Pass the entire flashcards array as received from /api/extract-pdf
-            // No need to map here, assuming 'flashcards' state holds ApiFlashcard[]
-            flashcards: flashcards
-        };
-
-        console.log("[useAiGenerate] Saving deck via POST /api/decks with payload:", payload);
+        const toastId = toast.loading("Saving deck and flashcards...");
 
         try {
+            // --- Prepare payload matching /api/decks route --- 
+            // --- Derive languages from the CURRENT first card state --- 
+            const firstCard = flashcards[0];
+            const currentQuestionLanguageName = firstCard?.questionLanguage;
+            const currentAnswerLanguageName = firstCard?.answerLanguage;
+            // Determine if bilingual based on current languages of the first card
+            const isBilingualFlag = !!currentQuestionLanguageName && !!currentAnswerLanguageName && currentQuestionLanguageName !== currentAnswerLanguageName;
+
+            // Convert names to codes (using the same helper)
+            const questionLangCode = getLanguageCode(currentQuestionLanguageName);
+            const answerLangCode = getLanguageCode(currentAnswerLanguageName);
+            // -----------------------------------------------------------
+
+            const payload = {
+                name: deckName.trim(),
+                questionLanguage: questionLangCode, // Use derived code
+                answerLanguage: answerLangCode,   // Use derived code
+                isBilingual: isBilingualFlag,    // Use derived flag
+                flashcards: flashcards // Pass the full ApiFlashcard array (reflecting UI swaps)
+            };
+            console.log("[useAiGenerate] Saving deck via POST /api/decks with payload:", payload);
+            // -------------------------------------------------
+
+            // --- Use the correct API route: /api/decks --- 
             const response = await fetch('/api/decks', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload), // Send the complete payload
             });
+            // -----------------------------------------------
 
-            // Check if response is JSON, handle potential non-JSON responses
+            // --- Check response and parse JSON safely ---
             const contentType = response.headers.get("content-type");
             let result;
-            if (contentType && contentType.indexOf("application/json") !== -1) {
+            if (contentType && contentType.includes("application/json")) {
                  result = await response.json();
             } else {
                 // Handle non-JSON response (e.g., HTML error page from server)
                 const textResponse = await response.text();
                 throw new Error(`Server returned non-JSON response (${response.status}): ${textResponse.substring(0, 100)}...`);
             }
+            // ---------------------------------------------
 
+            // --- Use result.success and result.message from API response --- 
             if (!response.ok || !result.success) {
+                // Use the message from the API if available
                 throw new Error(result.message || `Failed to create deck (Status: ${response.status})`);
             }
-            toast.success(`Deck "${payload.name}" created!`, { id: toastId });
+            // -------------------------------------------------------------
+
             setSavedDeckId(result.deckId);
-            // Optional: Redirect after successful save
-            // router.push(`/edit/${result.deckId}`);
+            toast.success(result.message || `Deck "${deckName.trim()}" saved!`, { // Use API message
+                id: toastId,
+                // description: `${flashcards.length} flashcards added.`, // Description might be redundant if included in API message
+                action: {
+                    label: "View Deck",
+                    onClick: () => router.push(`/deck/${result.deckId}`),
+                },
+            });
+
         } catch (error: any) {
-             console.error("[useAiGenerate] Error saving deck:", error);
-             toast.error("Failed to save deck", { id: toastId, description: error.message || "Unknown error" });
+            console.error("[useAiGenerate] Error saving deck:", error);
+            toast.error("Failed to save deck", {
+                id: toastId,
+                description: error.message || "An unknown error occurred.",
+            });
+            setSavedDeckId(null); // Ensure it's null on error
         } finally {
-             setIsSavingDeck(false);
+            setIsSavingDeck(false);
         }
-    }, [flashcards, deckName, user, detectedLanguageNames/*, router */]); // Add router if using redirect
+    }, [deckName, flashcards, router]); 
 
 
     // handleClearAll (remain unchanged)
     const handleClearAll = useCallback(() => {
-        setFiles([]); setFlashcards([]); setError(null); setExtractedTextPreview(null);
-        setProcessingSummary(null); setDeckName(""); setSavedDeckId(null);
+        setFiles([]);
+        setError(null);
+        setFlashcards([]);
+        setExtractedTextPreview(null);
+        setProcessingSummary(null);
+        setDeckName("");
+        setIsLoading(false);
+        setIsSavingDeck(false);
+        setSavedDeckId(null);
         setDetectedLanguageNames({ qName: undefined, aName: undefined, b: false });
-        console.log('[useAiGenerate] All cleared.');
-        toast.info('Input and results cleared');
+        if (progressTimerRef.current) clearInterval(progressTimerRef.current);
+        currentFileIndexRef.current = 0;
+        toast.info("Inputs and results cleared.");
     }, []);
 
 
-    // handleSaveFlashcards (remain unchanged - still saves only Q/A)
+    // handleSaveFlashcards (JSON download - remain unchanged)
     const handleSaveFlashcards = useCallback(() => {
-        if (!flashcards.length) { toast.error("No flashcards to save"); return; }
-        // Keep saving only Q/A for simple JSON export for now
-        const dataToSave = flashcards.map(f => ({ question: f.question, answer: f.answer }));
-        const dataStr = JSON.stringify(dataToSave, null, 2);
-        const dataUri = `data:application/json;charset=utf-8,${encodeURIComponent(dataStr)}`;
-        const link = document.createElement('a');
-        const filename = (deckName.trim().replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'generated') + '_flashcards.json';
-        link.setAttribute('href', dataUri); link.setAttribute('download', filename);
-        document.body.appendChild(link); link.click(); document.body.removeChild(link);
-        toast.success("Flashcards downloaded as JSON");
+        if (flashcards.length === 0) {
+            toast.error("No flashcards to download.");
+            return;
+        }
+        const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
+            JSON.stringify(flashcards, null, 2)
+        )}`;
+        const link = document.createElement("a");
+        link.href = jsonString;
+        link.download = `${deckName || 'flashcards'}.json`;
+        link.click();
+        toast.success("Flashcard data downloaded as JSON.");
     }, [flashcards, deckName]);
 
 
@@ -339,13 +379,32 @@ export function useAiGenerate() {
     }, []);
 
 
-    // --- Return Value (remain unchanged) ---
+    // --- NEW: Handler to swap Q/A for a specific source ---
+    const handleSwapSourceCards = useCallback((sourceToSwap: string) => {
+        console.log(`[useAiGenerate] Swapping Q/A for source: ${sourceToSwap}`);
+        setFlashcards(currentFlashcards => {
+            // Create a new array with swapped cards for the target source
+            const newFlashcards = currentFlashcards.map(card => {
+                if (card.source === sourceToSwap) {
+                    // Use the utility function to swap fields
+                    return swapCardFields(card);
+                }
+                return card; // Return original card if source doesn't match
+            });
+            return newFlashcards; // Update state with the new array
+        });
+        toast.info(`Question & Answer swapped for "${sourceToSwap}" (preview only). Save deck to persist.`);
+    }, [setFlashcards]); // Dependency on the state setter
+    // -------------------------------------------------------
+
+
+    // --- Return Values ---
     return {
         // State
         files, isLoading, error, flashcards, extractedTextPreview, processingSummary,
         deckName, isSavingDeck, savedDeckId,
         // Actions / Handlers
         handleFilesSelected, handleSubmit, handleSaveDeck, handleClearAll,
-        handleSaveFlashcards, handleDeckNameChange,
+        handleSaveFlashcards, handleDeckNameChange, handleSwapSourceCards,
     };
 }

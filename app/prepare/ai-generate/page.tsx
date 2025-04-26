@@ -31,6 +31,7 @@ export default function AiGeneratePage() {
         handleClearAll,
         handleSaveFlashcards, // For JSON download
         handleDeckNameChange,
+        handleSwapSourceCards,
     } = useAiGenerate();
 
     // --- FIX: Create an async wrapper for the form onSubmit ---
@@ -68,6 +69,7 @@ export default function AiGeneratePage() {
                         deckName={deckName}
                         savedDeckId={savedDeckId}
                         onSaveJson={handleSaveFlashcards}
+                        onSwapSource={handleSwapSourceCards}
                     />
 
                     <AiGenerateSaveDeckCard

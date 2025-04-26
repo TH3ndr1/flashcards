@@ -20,6 +20,14 @@ import { debounce } from "@/lib/utils";
 type DbDeck = Tables<'decks'>;
 type DbCard = Tables<'cards'>;
 
+// Define the input type for creating a card (matches server action expectation)
+// Add the new classification fields here
+type CreateCardInput = Pick<DbCard, 'question' | 'answer' | 'question_part_of_speech' | 'question_gender' | 'answer_part_of_speech' | 'answer_gender'>;
+
+// Define the input type for updating a card (matches server action expectation)
+// All fields are optional
+type UpdateCardInput = Partial<CreateCardInput>;
+
 // Define the state type managed by this hook
 // Includes the full deck and potentially partial cards (e.g., new placeholders)
 export type DeckEditState = (DbDeck & { cards: Array<Partial<DbCard>> }) | null;
@@ -203,16 +211,38 @@ export function useEditDeck(deckId: string | undefined) {
     // --- Card Actions (Remain the same as the last complete version) ---
     const handleAddCardOptimistic = useCallback(() => {
          if (!deck) return;
-         const newCardPlaceholder: Partial<DbCard> = { id: `new-${Date.now()}`, question: "", answer: "", deck_id: deck.id, user_id: deck.user_id, srs_level: 0, easiness_factor: 2.5, interval_days: 0, stability: 0, difficulty: 0, last_review_grade: null, last_reviewed_at: null, next_review_due: null, correct_count: 0, incorrect_count: 0, attempt_count: 0 };
+         const newCardPlaceholder: Partial<DbCard> = {
+             id: `new-${Date.now()}`,
+             question: "",
+             answer: "",
+             question_part_of_speech: null, // Initialize new fields
+             question_gender: null,
+             answer_part_of_speech: null,
+             answer_gender: null,
+             deck_id: deck.id,
+             user_id: deck.user_id,
+             // Default SRS fields
+             srs_level: 0,
+             easiness_factor: 2.5,
+             interval_days: 0,
+             stability: 0,
+             difficulty: 0,
+             last_review_grade: null,
+             last_reviewed_at: null,
+             next_review_due: null,
+             correct_count: 0,
+             incorrect_count: 0,
+             attempt_count: 0
+            };
          setDeck(prev => prev ? { ...prev, cards: [...prev.cards, newCardPlaceholder] } : null);
          console.log("[useEditDeck] Added optimistic card placeholder:", newCardPlaceholder.id);
     }, [deck]);
 
-    const handleCreateCard = useCallback(async (question: string, answer: string): Promise<string | null> => {
+    const handleCreateCard = useCallback(async (cardData: CreateCardInput): Promise<string | null> => {
         if (!deck || !deck.id) { toast.error("Cannot create card: Deck missing."); return null; }
         const toastId = toast.loading("Saving new card...");
         try {
-            const result = await createCardAction(deck.id, { question, answer });
+            const result = await createCardAction(deck.id, cardData);
             if (result.error || !result.data) throw result.error || new Error("Failed to create card.");
             toast.success(`New card created!`, { id: toastId });
             await loadDeckData(deck.id); // Refetch
@@ -224,18 +254,25 @@ export function useEditDeck(deckId: string | undefined) {
         }
     }, [deck, loadDeckData]);
 
-    const handleUpdateCard = useCallback(async (cardId: string, question: string, answer: string): Promise<void> => {
+    const handleUpdateCard = useCallback(async (cardId: string, cardData: UpdateCardInput): Promise<void> => {
         if (!cardId || cardId.startsWith('new-')) return;
         const toastId = `update-${cardId}`;
         toast.loading("Saving card...", { id: toastId });
         try {
-            const updatePayload: { question?: string, answer?: string } = {};
+            const updatePayload: UpdateCardInput = { ...cardData };
             const originalCard = deck?.cards.find(c => c.id === cardId);
             if (!originalCard) { toast.dismiss(toastId); return; }
+
             let changed = false;
-            if (originalCard.question !== question) { updatePayload.question = question; changed = true; }
-            if (originalCard.answer !== answer) { updatePayload.answer = answer; changed = true; }
+            if (originalCard.question !== updatePayload.question) changed = true;
+            if (originalCard.answer !== updatePayload.answer) changed = true;
+            if (originalCard.question_part_of_speech !== updatePayload.question_part_of_speech) changed = true;
+            if (originalCard.question_gender !== updatePayload.question_gender) changed = true;
+            if (originalCard.answer_part_of_speech !== updatePayload.answer_part_of_speech) changed = true;
+            if (originalCard.answer_gender !== updatePayload.answer_gender) changed = true;
+
             if (!changed) { toast.dismiss(toastId); console.log(`No changes for card ${cardId}.`); return; }
+
             const result = await updateCardAction(cardId, updatePayload);
             if (result.error || !result.data) throw result.error || new Error("Failed to update card.");
             toast.success("Card updated!", { id: toastId });

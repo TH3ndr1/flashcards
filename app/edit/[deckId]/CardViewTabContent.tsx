@@ -20,12 +20,17 @@ const GENDERED_POS: ReadonlyArray<string> = ['Noun', 'Adjective', 'Pronoun'] as 
 // ---------------------
 
 type DbCard = Tables<'cards'>;
+// --- Define input types matching useEditDeck handlers ---
+type CreateCardInput = Pick<DbCard, 'question' | 'answer' | 'question_part_of_speech' | 'question_gender' | 'answer_part_of_speech' | 'answer_gender'>;
+type UpdateCardInput = Partial<CreateCardInput>;
+// -------------------------------------------------------
 
 interface CardViewTabContentProps {
     cards: Array<Partial<DbCard>>; // Can include new placeholders
-    // Callbacks for actions handled by the parent hook
-    onCreateCard: (question: string, answer: string) => Promise<string | null>;
-    onUpdateCard: (cardId: string, question: string, answer: string) => void;
+    // --- Update callback signatures to match useEditDeck handlers ---
+    onCreateCard: (data: CreateCardInput) => Promise<string | null>;
+    onUpdateCard: (cardId: string, data: UpdateCardInput) => void;
+    // -----------------------------------------------------------
     onDeleteCard: (cardId: string) => void;
     onAddNewCardClick: () => void; // Trigger adding a new placeholder
 }
@@ -57,11 +62,11 @@ export const CardViewTabContent = memo(({
                             // Use temporary ID for new cards or real ID for existing
                             key={cardData.id || `new-${index}`}
                             card={cardData}
-                            // Pass down the action handlers
+                            // --- Pass down the action handlers directly --- They now have the correct signature
                             onUpdate={onUpdateCard}
                             onDelete={onDeleteCard}
-                            // Only pass onCreate if it's a new card (no persistent ID)
-                            onCreate={!cardData.id ? onCreateCard : undefined}
+                            onCreate={!cardData.id || cardData.id.startsWith('new-') ? onCreateCard : undefined} // Pass onCreate if it's a placeholder
+                            // -------------------------------------------
                         />
                     ))}
                 </div>

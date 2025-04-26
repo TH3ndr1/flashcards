@@ -5,7 +5,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Download, Eye, Languages, Tag } from 'lucide-react'; // Added Icons
+import { Download, Eye, Languages, Repeat, Tag } from 'lucide-react'; // Added Repeat and Icons
 import type { ApiFlashcard } from '@/app/api/extract-pdf/types'; // Ensure this path is correct and type is updated
 
 type FlashcardData = ApiFlashcard; // Use consistent naming
@@ -17,6 +17,7 @@ interface AiGenerateResultsCardProps {
     deckName: string; // Needed for JSON filename suggestion
     savedDeckId: string | null; // To hide JSON download button after saving deck
     onSaveJson: () => void; // Handler for JSON download button
+    onSwapSource: (source: string) => void; // Add this line
 }
 
 // Helper to group cards (could also be moved to utils)
@@ -36,7 +37,8 @@ export function AiGenerateResultsCard({
     processingSummary,
     deckName,
     savedDeckId,
-    onSaveJson
+    onSaveJson,
+    onSwapSource
 }: AiGenerateResultsCardProps) {
     const hasFlashcards = flashcards.length > 0;
     const showJsonDownload = hasFlashcards && !savedDeckId;
@@ -108,6 +110,12 @@ export function AiGenerateResultsCard({
                                         {/* {docLangs.b && <Badge className="text-xs">Bilingual</Badge>} */}
                                         <Badge variant="outline" className="text-xs">{cards.length} cards</Badge>
                                     </div>
+                                </div>
+                                <div className="mb-3 -mt-2 flex justify-end">
+                                    <Button variant="outline" size="sm" onClick={() => onSwapSource(source)}>
+                                        <Repeat className="h-4 w-4 mr-2"/>
+                                        Swap Q/A for this Source
+                                    </Button>
                                 </div>
                                 <div className="space-y-3">
                                     {cards.map((card, index) => (
