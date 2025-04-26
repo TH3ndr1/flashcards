@@ -4,8 +4,15 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { useAuth } from "@/hooks/use-auth";
 import { getUserSettings, updateUserSettings } from "@/lib/actions/settingsActions";
 import { toast } from "sonner";
-import type { Database, Tables, Json } from "@/types/database"; // Ensure this is updated after migration
+import type { Database, Tables, Json } from "@/types/database"; // Ensure this is updated
 import type { ActionResult } from '@/lib/actions/types'; // Ensure path is correct
+// --- Import Palette types and defaults ---
+import {
+    DEFAULT_PALETTE_CONFIG,
+    // DEFAULT_WORD_COLORS // No longer needed here if palettes cover defaults
+} from "@/lib/palettes"; // Adjust path if needed
+// -----------------------------------------
+
 
 // Debug flag
 const DEBUG = true;
@@ -13,24 +20,12 @@ const DEBUG = true;
 // Debug logging function
 const debug = (...args: any[]) => {
   if (DEBUG && process.env.NODE_ENV !== 'production') {
-    console.warn('[Settings Provider Debug]:', ...args);
+    console.debug('[Settings Provider Debug]:', ...args); // Use debug instead of warn
   }
 };
 
 // Define types
 export type FontOption = "default" | "opendyslexic" | "atkinson";
-
-// Define Default Word Colors (using updated defaults from previous step)
-export const DEFAULT_WORD_COLORS: Record<string, Record<string, string>> = {
-  Noun: { Male: '#a7c7e7', Female: '#fdd8b1', Default: '#d1d1d1' },
-  Verb: { Default: '#b2e0b2' },
-  Adjective: { Male: '#fdfd96', Female: '#fdfd96', Default: '#fdfd96' },
-  Adverb: { Default: '#ffb3ba' },
-  Pronoun: { Male: '#b0e0e6', Female: '#b0e0e6', Default: '#b0e0e6' },
-  Preposition: { Default: '#e6e6fa' },
-  Interjection: { Default: '#fafad2' },
-  Other: { Default: '#cccccc' },
-};
 
 // --- Updated Settings Interface ---
 export interface Settings {
@@ -48,15 +43,15 @@ export interface Settings {
     es: string;
     it: string;
   };
-  // --- NEW: Replaced single toggle with two ---
   enableBasicColorCoding: boolean;
   enableAdvancedColorCoding: boolean;
-  // -----------------------------------------
-  wordColorConfig: Record<string, Record<string, string>>; // Non-nullable
+  // --- Changed from wordColorConfig to wordPaletteConfig ---
+  wordPaletteConfig: Record<string, Record<string, string>>; // Stores Palette IDs
+  // ---------------------------------------------------------
 }
 
 // DB Type Alias
-type DbSettings = Tables<'settings'>; // Assumes types/database.ts generated after migration
+type DbSettings = Tables<'settings'>; // Assumes types/database.ts includes new columns
 
 interface SettingsContextType {
   settings: Settings | null;
@@ -75,11 +70,11 @@ export const DEFAULT_SETTINGS: Settings = {
   languageDialects: {
     en: "en-GB", nl: "nl-NL", fr: "fr-FR", de: "de-DE", es: "es-ES", it: "it-IT",
   },
-  // --- NEW: Updated defaults for toggles ---
-  enableBasicColorCoding: true,    // Basic enabled by default
-  enableAdvancedColorCoding: false, // Advanced disabled by default
-  // -------------------------------------
-  wordColorConfig: DEFAULT_WORD_COLORS,
+  enableBasicColorCoding: true,
+  enableAdvancedColorCoding: false,
+  // --- Use imported palette defaults ---
+  wordPaletteConfig: DEFAULT_PALETTE_CONFIG,
+  // ------------------------------------
 };
 
 // --- Updated Transformation Function ---
@@ -97,8 +92,12 @@ const transformDbSettingsToSettings = (dbSettings: DbSettings | null): Settings 
         const dbDialects = dbSettings.language_dialects as Record<string, string> | null;
         const languageDialectsFinal = { ...(DEFAULT_SETTINGS.languageDialects), ...(dbDialects ?? {}) };
 
-        const dbColorConfig = dbSettings.word_color_config as Record<string, Record<string, string>> | null;
-        const wordColorConfigFinal = dbColorConfig ? { ...DEFAULT_WORD_COLORS, ...dbColorConfig } : { ...DEFAULT_WORD_COLORS };
+        // --- Handle Palette Config ---
+        // Read the new snake_case column from the DB type
+        const dbPaletteConfig = dbSettings.word_palette_config as Record<string, Record<string, string>> | null;
+        // Merge DB config over the imported defaults
+        const wordPaletteConfigFinal = dbPaletteConfig ? { ...DEFAULT_PALETTE_CONFIG, ...dbPaletteConfig } : { ...DEFAULT_PALETTE_CONFIG };
+        // --------------------------
 
         const transformed: Settings = {
             appLanguage: dbSettings.app_language ?? DEFAULT_SETTINGS.appLanguage,
@@ -107,19 +106,18 @@ const transformDbSettingsToSettings = (dbSettings: DbSettings | null): Settings 
             showDifficulty: dbSettings.show_difficulty ?? DEFAULT_SETTINGS.showDifficulty,
             masteryThreshold: dbSettings.mastery_threshold ?? DEFAULT_SETTINGS.masteryThreshold,
             cardFont: cardFontFinal,
-            // --- Map NEW DB Fields ---
-            // Use ?? operator with DEFAULT_SETTINGS to handle null from DB correctly
             enableBasicColorCoding: dbSettings.enable_basic_color_coding ?? DEFAULT_SETTINGS.enableBasicColorCoding,
             enableAdvancedColorCoding: dbSettings.enable_advanced_color_coding ?? DEFAULT_SETTINGS.enableAdvancedColorCoding,
-            // ------------------------
-            wordColorConfig: wordColorConfigFinal,
+            // --- Assign transformed palette config ---
+            wordPaletteConfig: wordPaletteConfigFinal,
+            // --------------------------------------
         };
         debug('transformDbSettingsToSettings: Transformation result:', transformed);
         return transformed;
     } catch (e) {
         console.error("Error transforming DbSettings:", e);
         debug('transformDbSettingsToSettings: Error during transformation, returning default.');
-        return { ...DEFAULT_SETTINGS }; // Return default on error
+        return { ...DEFAULT_SETTINGS }; // Return copy on error
     }
 };
 
@@ -130,14 +128,14 @@ export const SettingsContext = createContext<SettingsContextType>({
   loading: true,
 });
 
-// SettingsProvider Component (Unchanged core logic, relies on transform)
+// SettingsProvider Component (Logic unchanged, uses updated types/defaults)
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   debug('SettingsProvider initializing');
   const { user } = useAuth();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Fetch Settings Effect (Unchanged logic)
+  // Fetch Settings Effect (Unchanged)
   useEffect(() => {
     debug('Settings load effect triggered', { userId: user?.id });
     if (!user) {
@@ -161,7 +159,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
           toast.error("Failed to load settings", { description: error || "Using default settings." });
           setSettings({ ...DEFAULT_SETTINGS });
         } else {
-          const finalSettings = transformDbSettingsToSettings(dbSettings); // Handles null/defaults
+          const finalSettings = transformDbSettingsToSettings(dbSettings); // Uses updated transform
           debug('Setting user settings state', finalSettings);
           setSettings(finalSettings);
         }
@@ -179,9 +177,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     return () => { isMounted = false; debug("Settings load effect cleanup"); };
   }, [user]);
 
-  // Update Settings Callback (Unchanged logic - assumes action handles mapping)
+  // Update Settings Callback (Unchanged)
   const updateSettings = useCallback(async (
-    updates: Partial<Settings>
+    updates: Partial<Settings> // Accepts Partial<Settings> with wordPaletteConfig
   ): Promise<ActionResult<DbSettings | null>> => {
     debug('updateSettings called', { current: settings, updates });
     if (!user) {
@@ -201,7 +199,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
     try {
       debug('Calling updateUserSettings action with updates:', updates);
-      // Pass the object containing the 'updates' key
+      // Action needs to handle mapping wordPaletteConfig -> word_palette_config
       const { data, error } = await updateUserSettings({ updates: updates });
 
       if (error) {
@@ -212,7 +210,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         return { data: null, error: error };
       } else {
         debug('Settings action update successful, optimistic update confirmed', data);
-        // OPTIONAL: Re-transform DB data if absolute consistency needed
+        // OPTIONAL: Re-transform DB data if needed
         // setSettings(transformDbSettingsToSettings(data));
         return { data, error: null };
       }
@@ -224,9 +222,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       setSettings(previousSettings);
       return { data: null, error: errorMsg };
     }
-  }, [settings, user]);
+  }, [settings, user]); // Dependencies
 
-  // Log state changes (unchanged)
+  // Log state changes (Unchanged)
   useEffect(() => { debug('Settings state changed', { settings, loading }); }, [settings, loading]);
 
   return (

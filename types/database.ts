@@ -208,7 +208,7 @@ export type Database = {
           tts_enabled: boolean | null
           updated_at: string | null
           user_id: string
-          word_color_config: Json | null
+          word_palette_config: Json | null
         }
         Insert: {
           app_language?: string
@@ -225,7 +225,7 @@ export type Database = {
           tts_enabled?: boolean | null
           updated_at?: string | null
           user_id: string
-          word_color_config?: Json | null
+          word_palette_config?: Json | null
         }
         Update: {
           app_language?: string
@@ -242,7 +242,7 @@ export type Database = {
           tts_enabled?: boolean | null
           updated_at?: string | null
           user_id?: string
-          word_color_config?: Json | null
+          word_palette_config?: Json | null
         }
         Relationships: []
       }

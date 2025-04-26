@@ -4,15 +4,15 @@
 import { createActionClient } from '@/lib/supabase/server';
 // import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-// --- FIX: Ensure types/database includes the new settings columns ---
+// Ensure types/database includes the new settings columns
 import type { Database, Tables, Json } from "@/types/database";
 import type { ActionResult } from '@/lib/actions/types';
+// Import the Settings type used by the frontend/provider
 import type { Settings, FontOption } from "@/providers/settings-provider";
 
 type DbSettings = Tables<'settings'>;
 
 // --- UPDATED Zod Schema ---
-// Add the new boolean flags. Keep nullable() if DB columns allow null.
 const updateSettingsSchema = z.object({
   appLanguage: z.string().optional(),
   cardFont: z.enum(["default", "opendyslexic", "atkinson"]).optional(),
@@ -21,16 +21,16 @@ const updateSettingsSchema = z.object({
   ttsEnabled: z.boolean().optional().nullable(),
   srs_algorithm: z.enum(['sm2', 'fsrs']).optional(),
   languageDialects: z.record(z.string()).optional().nullable(),
-  // --- NEW Fields ---
-  enableBasicColorCoding: z.boolean().optional().nullable(), // Allow nullable from DB
-  enableAdvancedColorCoding: z.boolean().optional().nullable(), // Allow nullable from DB
-  // -----------------
-  wordColorConfig: z.record(z.record(z.string())).optional().nullable(),
+  enableBasicColorCoding: z.boolean().optional().nullable(),
+  enableAdvancedColorCoding: z.boolean().optional().nullable(),
+  // --- Replaced wordColorConfig with wordPaletteConfig ---
+  wordPaletteConfig: z.record(z.record(z.string())).optional().nullable(), // Expects { PoS: { Gender: PaletteID }}
+  // ------------------------------------------------------
 }).partial();
+
 
 // getUserSettings function (Remains unchanged)
 export async function getUserSettings(): Promise<ActionResult<DbSettings | null>> {
-    // ... (existing implementation) ...
     try {
         const supabase = createActionClient();
         const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -56,7 +56,7 @@ export async function getUserSettings(): Promise<ActionResult<DbSettings | null>
 export async function updateUserSettings({
   updates,
 }: {
-  updates: Partial<Settings>; // Expect camelCase from provider
+  updates: Partial<Settings>; // Expect camelCase from provider, including wordPaletteConfig
 }): Promise<ActionResult<DbSettings | null>> {
     console.log(`[updateUserSettings] Action started.`);
     try {
@@ -71,29 +71,34 @@ export async function updateUserSettings({
         // Manual Mapping from frontend camelCase to DB snake_case
         const dbPayload: Partial<DbSettings> = {};
 
+        // Map existing fields (unchanged)
         if ('appLanguage' in updates && updates.appLanguage !== undefined) dbPayload.app_language = updates.appLanguage;
         if ('cardFont' in updates && updates.cardFont !== undefined) dbPayload.card_font = updates.cardFont;
         if ('showDifficulty' in updates && updates.showDifficulty !== undefined) dbPayload.show_difficulty = updates.showDifficulty;
         if ('masteryThreshold' in updates && updates.masteryThreshold !== undefined) dbPayload.mastery_threshold = updates.masteryThreshold;
         if ('ttsEnabled' in updates && updates.ttsEnabled !== undefined) dbPayload.tts_enabled = updates.ttsEnabled;
-        // if ('srs_algorithm' in updates && updates.srs_algorithm !== undefined) dbPayload.srs_algorithm = updates.srs_algorithm;
         if ('languageDialects' in updates && updates.languageDialects !== undefined) dbPayload.language_dialects = updates.languageDialects as Json;
 
-        // --- Map NEW Fields ---
+        // Map new toggles (unchanged)
         if ('enableBasicColorCoding' in updates && updates.enableBasicColorCoding !== undefined) {
              dbPayload.enable_basic_color_coding = updates.enableBasicColorCoding;
         }
         if ('enableAdvancedColorCoding' in updates && updates.enableAdvancedColorCoding !== undefined) {
              dbPayload.enable_advanced_color_coding = updates.enableAdvancedColorCoding;
         }
-        // ---------------------
-        if ('wordColorConfig' in updates && updates.wordColorConfig !== undefined) {
-             dbPayload.word_color_config = updates.wordColorConfig as Json;
+
+        // --- Map NEW Palette Config ---
+        // Remove old mapping
+        // if ('wordColorConfig' in updates && updates.wordColorConfig !== undefined) { ... }
+        // Add new mapping
+        if ('wordPaletteConfig' in updates && updates.wordPaletteConfig !== undefined) {
+             dbPayload.word_palette_config = updates.wordPaletteConfig as Json; // Save the object containing palette IDs
         }
+        // -----------------------------
 
         if (Object.keys(dbPayload).length === 0) {
              console.log("[updateUserSettings] No valid fields provided for update after mapping.");
-             const { data: currentSettings } = await getUserSettings(); // Return current settings if no update
+             const { data: currentSettings } = await getUserSettings();
              return { data: currentSettings, error: null };
         }
 
@@ -102,7 +107,7 @@ export async function updateUserSettings({
 
         console.log(`[updateUserSettings] User: ${user.id}, Upserting payload:`, dbPayload);
 
-        // Perform Upsert
+        // Perform Upsert (unchanged logic)
         const { data: updatedSettings, error: upsertError } = await supabase
             .from('settings')
             .upsert({ ...dbPayload, user_id: user.id }, { onConflict: 'user_id' })
