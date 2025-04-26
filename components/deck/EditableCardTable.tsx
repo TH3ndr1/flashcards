@@ -24,7 +24,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { CardTagEditor } from '@/components/CardTagEditor'; // Ensure this path is correct
 import { toast } from 'sonner';
 import { updateCard, deleteCard } from '@/lib/actions/cardActions'; // Ensure these actions exist and path is correct
 import type { Tables } from '@/types/database'; // Use your generated types
@@ -144,9 +143,6 @@ function EditableCardRow({
           aria-label={`Answer content for card ${card.id}`}
         />
       </TableCell>
-      <TableCell className="align-top py-2 w-[200px]"> {/* Fixed width for tags */}
-        <CardTagEditor cardId={card.id} />
-      </TableCell>
       <TableCell className="align-middle py-2 text-right">
         {isSaving && <Loader2 className="h-4 w-4 animate-spin inline-block mr-2" aria-label="Saving..."/>}
         <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
@@ -213,6 +209,11 @@ export function EditableCardTable({ initialCards, deckId, onCardUpdated }: Edita
     }
   }, []);
 
+  // Handler for card updates (updates local state)
+   const handleCardUpdated = useCallback((updatedCard: DbCard) => {
+       setCards(prevCards => prevCards.map(c => c.id === updatedCard.id ? updatedCard : c));
+       onCardUpdated(updatedCard); // Notify parent
+   }, [onCardUpdated]);
 
   return (
     <div className="space-y-4">
@@ -222,14 +223,13 @@ export function EditableCardTable({ initialCards, deckId, onCardUpdated }: Edita
             <TableRow>
               <TableHead className="min-w-[200px] w-[35%]">Question</TableHead>
               <TableHead className="min-w-[200px] w-[35%]">Answer</TableHead>
-              <TableHead className="w-[200px]">Tags</TableHead> {/* Fixed width */}
               <TableHead className="w-[80px] text-right">Actions</TableHead> {/* Adjusted width */}
             </TableRow>
           </TableHeader>
           <TableBody>
             {cards.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center h-24 text-muted-foreground">
+                <TableCell colSpan={3} className="text-center h-24 text-muted-foreground">
                   No cards in this deck yet. Use the "Add Card" section below.
                 </TableCell>
               </TableRow>
@@ -239,7 +239,7 @@ export function EditableCardTable({ initialCards, deckId, onCardUpdated }: Edita
                   key={card.id}
                   card={card}
                   onDelete={handleDeleteCard}
-                  onCardUpdated={onCardUpdated}
+                  onCardUpdated={handleCardUpdated}
                 />
               ))
             )}

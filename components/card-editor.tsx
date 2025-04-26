@@ -10,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Trash2, Save, Loader2 as IconLoader } from "lucide-react"
 import type { Tables } from "@/types/database"
 import { debounce } from "@/lib/utils"
-import { CardTagEditor } from "./CardTagEditor"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 
@@ -284,12 +283,6 @@ export function CardEditor({ card, onUpdate, onDelete, onCreate }: CardEditorPro
             </div>
           </div>
         </div>
-
-        {isExistingCard && card?.id && (
-          <div className="flex items-center gap-2 pt-4 border-t mt-4">
-            <CardTagEditor cardId={card.id} />
-          </div>
-        )}
       </CardContent>
 
       {!isExistingCard && onCreate && (

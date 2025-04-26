@@ -73,13 +73,18 @@ export async function getDeckName(
     }
 } 
 
-// Define the type for the aggregated result explicitly - remove description
-type DeckWithCount = Pick<Tables<'decks'>, 'id' | 'name' | 'primary_language' | 'secondary_language' | 'is_bilingual' | 'updated_at'> & { card_count: number };
+// Define the type for the deck including its tags
+type DeckWithTags = Tables<'decks'> & { tags: Tables<'tags'>[] };
+// Define the type for the deck list item including tags and card count
+type DeckListItemWithTags = Pick<Tables<'decks'>, 'id' | 'name' | 'primary_language' | 'secondary_language' | 'is_bilingual' | 'updated_at'> & { 
+    card_count: number; 
+    tags: Tables<'tags'>[]; // Add tags here
+};
 
 /**
- * Fetches all decks with basic info and card count for the authenticated user.
+ * Fetches all decks with basic info, card count, and associated tags for the authenticated user.
  */
-export async function getDecks(): Promise<ActionResult<DeckWithCount[]>> {
+export async function getDecks(): Promise<ActionResult<DeckListItemWithTags[]>> { // Updated return type
     console.log("[getDecks] Action started");
     try {
         const supabase = createActionClient();
@@ -93,8 +98,8 @@ export async function getDecks(): Promise<ActionResult<DeckWithCount[]>> {
         console.log("[getDecks] User authenticated:", user.id);
 
         try {
-            console.log(`[getDecks] Querying decks and card counts for user_id: ${user.id}`);
-            // Select deck fields - remove description
+            console.log(`[getDecks] Querying decks, card counts, and tags for user_id: ${user.id}`);
+            // --- Select deck fields, card count, AND associated tags --- 
             const { data, error } = await supabase
                 .from('decks')
                 .select(`
@@ -104,10 +109,12 @@ export async function getDecks(): Promise<ActionResult<DeckWithCount[]>> {
                     secondary_language,
                     is_bilingual,
                     updated_at,
-                    cards ( count ) 
+                    cards ( count ),
+                    tags (*) 
                 `)
                 .eq('user_id', user.id)
                 .order('name', { ascending: true }); 
+            // ---------------------------------------------------------
             
             console.log("[getDecks] Supabase query result raw:", { data, error });
 
@@ -116,17 +123,27 @@ export async function getDecks(): Promise<ActionResult<DeckWithCount[]>> {
                return { data: null, error: error.message || 'Failed to fetch decks.' };
             }
             
-            // Process data (no description to handle)
+            // --- Process data to structure correctly --- 
             const processedData = data?.map(deck => {
+                // Extract card count
                 const count = deck.cards && Array.isArray(deck.cards) && deck.cards.length > 0 
                               ? deck.cards[0].count 
                               : 0;
-                const { cards, ...deckInfo } = deck;
-                return { ...deckInfo, card_count: count ?? 0 }; 
+                // Extract tags, ensuring it's an array
+                const tags = (deck.tags || []) as Tables<'tags'>[];
+                // Separate deck info from relation data
+                const { cards, tags: _, ...deckInfo } = deck; 
+                return { 
+                    ...deckInfo, 
+                    card_count: count ?? 0, 
+                    tags: tags 
+                }; 
             }) || [];
+            // -----------------------------------------
 
             console.log(`[getDecks] Successfully fetched and processed ${processedData.length} decks.`);
-            return { data: processedData as DeckWithCount[], error: null };
+            // Cast to the final type
+            return { data: processedData as DeckListItemWithTags[], error: null }; 
             
         } catch (err: any) {
             console.error('[getDecks] Caught error during query execution:', err);
@@ -139,14 +156,14 @@ export async function getDecks(): Promise<ActionResult<DeckWithCount[]>> {
 } 
 
 /**
- * Fetches a single deck by its ID, including its cards, for the authenticated user.
+ * Fetches a single deck by ID, including its cards and associated tags, for the authenticated user.
  * 
  * @param deckId The deck UUID to fetch
- * @returns Promise with the DbDeck object including DbCard[] or error
+ * @returns Promise with the DeckWithTags object including cards and tags, or error
  */
 export async function getDeck(
     deckId: string
-): Promise<ActionResult<Tables<'decks'> & { cards: Tables<'cards'>[] }>> { // Updated return type using Tables<>
+): Promise<ActionResult<DeckWithTags & { cards: Tables<'cards'>[] }>> { // Updated return type
     console.log(`[getDeck] Action started for deckId: ${deckId}`);
     
     if (!deckId) {
@@ -164,17 +181,18 @@ export async function getDeck(
         
         console.log(`[getDeck] User authenticated: ${user.id}, fetching deck ${deckId}`);
 
-        // Fetch deck and its cards using a join
-        // RLS on decks (checking user_id) should ensure security
+        // --- Fetch deck, its cards, AND associated tags --- 
         const { data: deckData, error: dbError } = await supabase
             .from('decks')
             .select(`
                 *,
-                cards (*)
+                cards (*),
+                tags (*)
             `)
             .eq('id', deckId)
             .eq('user_id', user.id)
             .maybeSingle(); // Use maybeSingle as deck might not exist or be accessible
+        // --------------------------------------------------
 
         if (dbError) {
             console.error('[getDeck] Database error:', dbError);
@@ -183,25 +201,24 @@ export async function getDeck(
 
         if (!deckData) {
             console.log('[getDeck] Deck not found or not authorized:', deckId);
-            // Return null data, but not an error for not found
             return { data: null, error: null }; 
         }
 
-        // Ensure cards array is present, even if empty
-        const deckWithCards = {
+        // --- Ensure cards and tags arrays are present, even if empty --- 
+        const deckWithDetails = {
             ...deckData,
-            cards: (deckData.cards || []) as Tables<'cards'>[] // Ensure cards is array and typed correctly
+            cards: (deckData.cards || []) as Tables<'cards'>[], // Ensure cards is array and typed correctly
+            tags: (deckData.tags || []) as Tables<'tags'>[] // Ensure tags is array and typed correctly
         };
+        // ----------------------------------------------------------
 
-        console.log(`[getDeck] Successfully fetched deck ${deckId} with ${deckWithCards.cards.length} cards.`);
-        return { data: deckWithCards, error: null };
+        console.log(`[getDeck] Successfully fetched deck ${deckId} with ${deckWithDetails.cards.length} cards and ${deckWithDetails.tags.length} tags.`);
+        // Type assertion might be needed if TypeScript can't infer the final structure perfectly
+        return { data: deckWithDetails as DeckWithTags & { cards: Tables<'cards'>[] }, error: null }; 
         
     } catch (error) {
         console.error('[getDeck] Caught unexpected error:', error);
-        return { 
-            data: null, 
-            error: error instanceof Error ? error.message : 'Unknown error fetching deck' 
-        };
+        return { data: null, error: error instanceof Error ? error.message : 'An unknown error occurred.' }; // More specific error return
     }
 } 
 
@@ -209,7 +226,7 @@ export async function getDeck(
 
 // Schema for creating a deck
 const createDeckSchema = z.object({
-    name: z.string().trim().min(1, 'Deck name is required').max(100),
+    name: z.string().trim().min(1, 'Deck name is required').max(100, 'Deck name too long'),
     primary_language: z.string().optional().nullable(),
     secondary_language: z.string().optional().nullable(),
     is_bilingual: z.boolean().optional().default(false),
@@ -218,7 +235,17 @@ const createDeckSchema = z.object({
 type CreateDeckInput = z.infer<typeof createDeckSchema>;
 
 // Schema for updating a deck (all fields optional)
-const updateDeckSchema = createDeckSchema.partial();
+const updateDeckSchema = z.object({
+    name: z.string().trim().min(1, 'Deck name is required').max(100, 'Deck name too long').optional(),
+    primary_language: z.string().nullable().optional(),
+    secondary_language: z.string().nullable().optional(),
+    is_bilingual: z.boolean().nullable().optional(),
+    // Note: Tags are updated via separate actions (addTagToDeck, removeTagFromDeck)
+    // Cards are updated via cardActions
+}).refine(data => Object.keys(data).length > 0, {
+    message: "At least one field must be provided for update.",
+});
+
 type UpdateDeckInput = z.infer<typeof updateDeckSchema>;
 
 
@@ -280,7 +307,8 @@ export async function createDeck(
 }
 
 /**
- * Updates an existing deck for the authenticated user.
+ * Updates metadata for an existing deck.
+ * Does not handle cards or tags.
  */
 export async function updateDeck(
     deckId: string,
@@ -304,24 +332,35 @@ export async function updateDeck(
              console.warn("[updateDeck] Validation failed:", validation.error.errors);
              return { data: null, error: validation.error.errors[0].message };
         }
-        const updatePayload = validation.data;
+        const updates = validation.data;
 
-        if (Object.keys(updatePayload).length === 0) {
+        if (Object.keys(updates).length === 0) {
              return { data: null, error: "No fields provided for update." };
         }
         
-        console.log(`[updateDeck] User: ${user.id}, Updating deck ${deckId} with:`, updatePayload);
+        // --- Convert nulls to undefined for Supabase update --- 
+        const updatePayloadForSupabase = {
+            ...updates,
+            // Explicitly handle potential null for boolean field
+            is_bilingual: updates.is_bilingual === null ? undefined : updates.is_bilingual,
+            // Ensure language fields are also handled if they are present in the update
+            primary_language: updates.primary_language === null ? undefined : updates.primary_language,
+            secondary_language: updates.secondary_language === null ? undefined : updates.secondary_language,
+        };
+        // Remove fields that ended up as undefined to avoid sending them unnecessarily
+        // (though Supabase client might handle this)
+        Object.keys(updatePayloadForSupabase).forEach(key => {
+            if (updatePayloadForSupabase[key as keyof typeof updatePayloadForSupabase] === undefined) {
+                delete updatePayloadForSupabase[key as keyof typeof updatePayloadForSupabase];
+            }
+        });
+        // -----------------------------------------------------
+
+        console.log(`[updateDeck] User: ${user.id}, Updating deck ${deckId} with processed payload:`, updatePayloadForSupabase);
         
         const { data: updatedDeck, error: updateError } = await supabase
             .from('decks')
-            .update({
-                // Explicitly map validated fields, converting null to undefined
-                ...(updatePayload.name && { name: updatePayload.name }),
-                ...(updatePayload.primary_language !== undefined && { primary_language: updatePayload.primary_language ?? undefined }),
-                ...(updatePayload.secondary_language !== undefined && { secondary_language: updatePayload.secondary_language ?? undefined }),
-                ...(updatePayload.is_bilingual !== undefined && { is_bilingual: updatePayload.is_bilingual }),
-                updated_at: new Date().toISOString()
-            })
+            .update(updatePayloadForSupabase) // Use the processed payload
             .eq('id', deckId)
             .eq('user_id', user.id) // Ensure ownership
             .select()
@@ -350,7 +389,7 @@ export async function updateDeck(
 }
 
 /**
- * Deletes a deck and its associated cards (due to CASCADE) for the authenticated user.
+ * Deletes an existing deck and associated cards/tags (via CASCADE). 
  */
 export async function deleteDeck(
     deckId: string

@@ -24,30 +24,35 @@ interface ActionResult<T> {
   error: string | null;
 }
 
-// Type returned by the getDeck action (includes cards)
-type DeckWithCards = Tables<'decks'> & { cards: Tables<'cards'>[] };
+// --- Type Definitions Updated for Tags ---
+
+// Base type for a deck with associated tags (Matches definition in deckActions)
+type DeckWithTags = Tables<'decks'> & { tags: Tables<'tags'>[] };
+
+// Type returned by the getDeck action (includes cards AND tags)
+export type DeckWithCardsAndTags = DeckWithTags & { cards: Tables<'cards'>[] };
 
 // Types for the parameters expected by create/update actions/wrappers
 export interface CreateDeckParams extends Pick<Tables<'decks'>, 'name' | 'primary_language' | 'secondary_language' | 'is_bilingual'> {}
 export interface UpdateDeckParams extends Partial<Pick<Tables<'decks'>, 'name' | 'primary_language' | 'secondary_language' | 'is_bilingual'>> {}
 
-// Type for the items stored in the local 'decks' state list
-// Includes essential deck info plus card count for display (e.g., in DeckList)
-type DeckListItem = Pick<Tables<'decks'>, 'id' | 'name' | 'primary_language' | 'secondary_language' | 'is_bilingual' | 'updated_at'> & { card_count: number };
+// Type for the items stored in the local 'decks' state list (includes tags)
+type DeckListItem = Pick<Tables<'decks'>, 'id' | 'name' | 'primary_language' | 'secondary_language' | 'is_bilingual' | 'updated_at'> & { 
+    card_count: number; 
+    tags: Tables<'tags'>[]; // ADDED tags here
+};
+// -----------------------------------------
 
-// Define the structure of the object returned by the useDecks hook
+// Define the structure of the object returned by the useDecks hook (updated getDeck return type)
 interface UseDecksReturn {
     decks: DeckListItem[]; // The list of decks for display
     loading: boolean; // Loading state for the deck list fetch
-    // Function to fetch full details of a single deck
-    getDeck: (id: string) => Promise<ActionResult<DeckWithCards | null>>;
-    // Function to create a new deck
+    // --- Update getDeck return type --- 
+    getDeck: (id: string) => Promise<ActionResult<DeckWithCardsAndTags | null>>; 
+    // ---------------------------------
     createDeck: (params: CreateDeckParams) => Promise<ActionResult<Tables<'decks'>>>;
-    // Function to update an existing deck's metadata
     updateDeck: (id: string, params: UpdateDeckParams) => Promise<ActionResult<Tables<'decks'>>>;
-    // Function to delete a deck
     deleteDeck: (id: string) => Promise<ActionResult<null>>;
-    // Function to manually trigger a refetch of the deck list
     refetchDecks: () => Promise<void>;
 }
 
@@ -100,7 +105,7 @@ export function useDecks(): UseDecksReturn {
               // Action succeeded, update local state
               logDecks(`Fetched ${result.data?.length ?? 0} decks.`);
               // Data structure from action should match DeckListItem
-              setDecks(result.data || []);
+              setDecks((result.data || []) as DeckListItem[]); // Cast might be needed if types aren't identical
           }
       } catch (error) {
           // Handle unexpected errors during the fetch call
@@ -123,7 +128,7 @@ export function useDecks(): UseDecksReturn {
 
   /**
    * Creates a new deck by calling the server action.
-   * Optionally updates the local deck list state upon success.
+   * Optimistically updates the local deck list state upon success.
    */
   const createDeck = useCallback(async (params: CreateDeckParams): Promise<ActionResult<Tables<'decks'>>> => {
       if (!user) return { data: null, error: "User not authenticated" };
@@ -136,9 +141,7 @@ export function useDecks(): UseDecksReturn {
           // Action successful, update toast and optionally update local state
           toast.success(`Deck "${result.data.name}" created.`, { id: toastId });
 
-          // --- Optional: Optimistic UI update for the list ---
-          // Add the new deck's basic info to the local list state immediately
-          // This makes the UI feel faster, but relies on action returning correct data
+          // --- Optimistic UI update for the list (includes empty tags array) ---
           const newDeckItem: DeckListItem = {
               id: result.data.id,
               name: result.data.name,
@@ -146,11 +149,12 @@ export function useDecks(): UseDecksReturn {
               secondary_language: result.data.secondary_language,
               is_bilingual: result.data.is_bilingual,
               updated_at: result.data.updated_at,
-              card_count: 0 // New decks start with 0 cards
+              card_count: 0,
+              tags: [] // ADDED: Initialize with empty tags
           };
            // Add and sort the list
           setDecks((prev) => [...prev, newDeckItem].sort((a,b) => a.name.localeCompare(b.name)));
-          // ----------------------------------------------------
+          // -------------------------------------------------------------------------
 
       } else if (result.error) {
           // Action failed, update toast with error
@@ -162,9 +166,9 @@ export function useDecks(): UseDecksReturn {
   }, [user]); // Dependency: user state
 
   /**
-   * Fetches the full details of a single deck, including its cards.
+   * Fetches the full details of a single deck, including its cards and tags.
    */
-  const getDeck = useCallback(async (id: string): Promise<ActionResult<DeckWithCards | null>> => {
+  const getDeck = useCallback(async (id: string): Promise<ActionResult<DeckWithCardsAndTags | null>> => {
        if (!user) return { data: null, error: "User not authenticated" };
        if (!id) return { data: null, error: "Deck ID required" };
 
@@ -179,7 +183,7 @@ export function useDecks(): UseDecksReturn {
             // toast.dismiss(toastId);
        }
        // Return the raw result from the server action
-       return result;
+       return result as ActionResult<DeckWithCardsAndTags | null>; // Cast if needed
   }, [user]); // Dependency: user state
 
   /**
@@ -252,7 +256,7 @@ export function useDecks(): UseDecksReturn {
   return {
     decks, // The list of decks (DeckListItem[])
     loading: loading || authLoading, // Combine list loading and auth loading
-    getDeck, // Function to fetch a single deck with cards
+    getDeck, // Function to fetch a single deck with cards and tags
     createDeck, // Function to create a new deck
     updateDeck, // Function to update deck metadata
     deleteDeck, // Function to delete a deck

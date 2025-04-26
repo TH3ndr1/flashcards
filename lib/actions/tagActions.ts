@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from 'zod';
 import type { Database, Tables } from "@/types/database";
 import type { ActionResult } from '@/lib/actions/types';
+import { createCardsBatch, type CreateCardInput } from './cardActions'; // Assume CreateCardInput is defined
 
 // Zod schema for tag validation
 const tagSchema = z.object({
@@ -29,11 +30,11 @@ async function getSupabaseAndUser() {
 }
 
 /**
- * Server actions for managing tags and card-tag relationships.
+ * Server actions for managing tags and deck-tag relationships.
  * 
  * This module provides:
  * - Tag creation, reading, updating, and deletion
- * - Card-tag relationship management
+ * - Deck-tag relationship management
  * - Tag query and filtering operations
  * 
  * @module tagActions
@@ -122,11 +123,11 @@ export async function createTag(name: string): Promise<ActionResult<Tables<'tags
 }
 
 /**
- * Deletes a tag and removes all its associations in card_tags.
- * Relies on ON DELETE CASCADE for card_tags cleanup.
+ * Deletes a tag and removes all its associations in deck_tags.
+ * Relies on ON DELETE CASCADE for deck_tags cleanup.
  * Ref: Section 4 Data Models
  */
-export async function deleteTag(tagId: string): Promise<TagActionResponse<void>> {
+export async function deleteTag(tagId: string): Promise<TagActionResponse<null>> {
   const { supabase, user, error: authError } = await getSupabaseAndUser();
   if (authError || !supabase || !user) {
     return { data: null, error: authError };
@@ -162,89 +163,11 @@ export async function deleteTag(tagId: string): Promise<TagActionResponse<void>>
 }
 
 /**
- * Associates a tag with a card.
- * Ensures user owns both the tag and the card before linking.
- * Ref: Section 4 Data Models (card_tags structure, denormalized user_id)
+ * Associates a tag with a deck.
+ * Ensures the user owns both the tag and the deck.
  */
-export async function addTagToCard(
-  cardId: string,
-  tagId: string
-): Promise<ActionResult<Tables<'card_tags'>>> {
-  const { supabase, user, error: authError } = await getSupabaseAndUser();
-  if (authError || !supabase || !user) {
-    return { data: null, error: authError };
-  }
-
-  if (!cardId || !tagId) {
-    return { data: null, error: 'Card ID and Tag ID are required.' };
-  }
-
-  try {
-    // 1. Verify user owns the card (optional but good practice, RLS on insert handles this too)
-    const { count: cardCount, error: cardCheckError } = await supabase
-      .from('cards')
-      .select('id', { count: 'exact', head: true })
-      .eq('id', cardId)
-      .eq('user_id', user.id);
-
-    if (cardCheckError || cardCount === 0) {
-      console.error('Card ownership check failed or card not found:', cardCheckError);
-      return { data: null, error: 'Card not found or access denied.' };
-    }
-
-    // 2. Verify user owns the tag (optional but good practice)
-    const { count: tagCount, error: tagCheckError } = await supabase
-      .from('tags')
-      .select('id', { count: 'exact', head: true })
-      .eq('id', tagId)
-      .eq('user_id', user.id);
-
-    if (tagCheckError || tagCount === 0) {
-      console.error('Tag ownership check failed or tag not found:', tagCheckError);
-      return { data: null, error: 'Tag not found or access denied.' };
-    }
-
-    // 3. Add the association (upsert handles existing links gracefully)
-    // RLS on card_tags will also enforce user_id match on insert.
-    const { error: linkError } = await supabase
-      .from('card_tags')
-      .upsert({
-        card_id: cardId,
-        tag_id: tagId,
-        user_id: user.id // Denormalized user_id for RLS
-      }, {
-        onConflict: 'card_id,tag_id' // Based on PK (card_id, tag_id)
-      });
-
-    if (linkError) {
-      if (linkError.code === '23503') { // Foreign key violation
-        // This might indicate the card or tag was deleted between the check and insert,
-        // or RLS prevented the insert despite the checks (less likely if checks pass).
-        console.warn('Foreign key violation on card_tags insert:', linkError);
-        return { data: null, error: 'Failed to link tag: Card or tag may no longer exist.' };
-      }
-      console.error('Error linking tag to card:', linkError);
-      return { data: null, error: 'Failed to add tag to card.' };
-    }
-
-    // Revalidate paths related to card editing or where card tags are shown
-    revalidatePath(`/edit/card/${cardId}`); // Example: Specific card edit page
-
-    return { data: null, error: null }; // Success
-
-  } catch (error) {
-    console.error('Unexpected error in addTagToCard:', error);
-    return { data: null, error: 'An unexpected error occurred.' };
-  }
-}
-
-/**
- * Removes a tag association from a card.
- * Relies on RLS on card_tags to ensure user can only remove their own links.
- * Ref: Section 4 Data Models
- */
-export async function removeTagFromCard(
-  cardId: string,
+export async function addTagToDeck(
+  deckId: string,
   tagId: string
 ): Promise<ActionResult<null>> {
   const { supabase, user, error: authError } = await getSupabaseAndUser();
@@ -252,85 +175,124 @@ export async function removeTagFromCard(
     return { data: null, error: authError };
   }
 
-  if (!cardId || !tagId) {
-    return { data: null, error: 'Card ID and Tag ID are required.' };
+  if (!deckId || !tagId) {
+    return { data: null, error: 'Deck ID and Tag ID are required.' };
   }
 
   try {
-    // Delete the association (RLS ensures user owns the link via user_id check)
-    const { error: unlinkError } = await supabase
-      .from('card_tags')
-      .delete()
-      .eq('card_id', cardId)
-      .eq('tag_id', tagId)
-      .eq('user_id', user.id); // RLS primarily enforces this
+    // Optional: Verify user owns the deck and tag (RLS should handle this too)
+    // Insert into deck_tags table. The DB schema should enforce FK constraints and uniqueness.
+    const { error: insertError } = await supabase
+      .from('deck_tags')
+      .insert({ deck_id: deckId, tag_id: tagId, user_id: user.id });
 
-    if (unlinkError) {
-      console.error('Error removing tag from card:', unlinkError);
-      return { data: null, error: 'Failed to remove tag from card.' };
+    if (insertError) {
+      if (insertError.code === '23505') { // unique_violation
+        // Already exists, consider it a success (or return a specific message)
+        console.log(`Deck tag association already exists: deck=${deckId}, tag=${tagId}`);
+        return { data: null, error: null };
+      }
+       if (insertError.code === '23503') { // foreign_key_violation
+         console.error('Add deck tag FK violation:', insertError);
+         return { data: null, error: 'Deck or Tag not found.' };
+       }
+      console.error('Error adding tag to deck:', insertError);
+      return { data: null, error: 'Failed to add tag to deck.' };
     }
 
-    // Revalidate paths related to card editing
-    revalidatePath(`/edit/card/${cardId}`); // Example
+    // Revalidate paths where deck tags might be displayed
+    revalidatePath(`/edit/${deckId}`);
+    revalidatePath('/'); // Revalidate dashboard/deck list if tags are shown there
 
     return { data: null, error: null }; // Success
 
   } catch (error) {
-    console.error('Unexpected error in removeTagFromCard:', error);
+    console.error('Unexpected error in addTagToDeck:', error);
     return { data: null, error: 'An unexpected error occurred.' };
   }
 }
 
 /**
- * Gets all tags associated with a specific card for the authenticated user.
+ * Removes the association between a tag and a deck.
  */
-export async function getCardTags(cardId: string): Promise<TagActionResponse<Tables<'tags'>[]>> {
+export async function removeTagFromDeck(
+  deckId: string,
+  tagId: string
+): Promise<ActionResult<null>> {
   const { supabase, user, error: authError } = await getSupabaseAndUser();
   if (authError || !supabase || !user) {
     return { data: null, error: authError };
   }
 
-  if (!cardId) {
-    return { data: null, error: 'Card ID is required.' };
+  if (!deckId || !tagId) {
+    return { data: null, error: 'Deck ID and Tag ID are required.' };
   }
 
-  console.log(`[getCardTags] Fetching tags for Card ID: ${cardId}, User: ${user.id}`);
-
   try {
-    // --- Corrected Query: Select from tags, filter via inner join --- 
-    const { data: tags, error: fetchError } = await supabase
-      .from('tags')
-      // Select only columns from the 'tags' table
-      .select(`
-        id, user_id, name, created_at, 
-        card_tags!inner(*)        /* Use join for filtering only */
-      `)
-      .eq('user_id', user.id)           
-      .eq('card_tags.card_id', cardId) // Filter on the joined table column
-      .order('name', { ascending: true }); 
+    // Delete the association from deck_tags table (RLS + user_id check)
+    const { error: deleteError } = await supabase
+      .from('deck_tags')
+      .delete()
+      .eq('deck_id', deckId)
+      .eq('tag_id', tagId)
+      .eq('user_id', user.id);
 
-    // <<< Add Log Here >>>
-    console.log(`[getCardTags] Raw Supabase result for card ${cardId}:`, { data: tags, error: fetchError });
-
-    if (fetchError) {
-      console.error(`[getCardTags] Error fetching card tags for ${cardId}:`, fetchError);
-      return { data: null, error: 'Failed to fetch card tags.' }; 
+    if (deleteError) {
+      console.error('Error removing tag from deck:', deleteError);
+      return { data: null, error: 'Failed to remove tag from deck.' };
     }
-    
-    // Supabase might return the joined data (`card_tags: [...]`) even if not strictly selected.
-    // We need to map to ensure we only return DbTag fields.
-    const resultTags: Tables<'tags'>[] = (tags || []).map((tagWithJoin: any) => ({
-        id: tagWithJoin.id,
-        user_id: tagWithJoin.user_id,
-        name: tagWithJoin.name,
-        created_at: tagWithJoin.created_at,
-    }));
 
-    console.log(`[getCardTags] Found ${resultTags.length} tags for card ${cardId}.`);
-    return { data: resultTags, error: null }; 
+    // Check if any row was actually deleted? Supabase delete doesn't return count easily
+    // If the row didn't exist, it's still effectively a success.
+
+    // Revalidate relevant paths
+    revalidatePath(`/edit/${deckId}`);
+    revalidatePath('/');
+
+    return { data: null, error: null }; // Success
 
   } catch (error) {
-    console.error(`[getCardTags] Unexpected error for ${cardId}:`, error);
+    console.error('Unexpected error in removeTagFromDeck:', error);
+    return { data: null, error: 'An unexpected error occurred.' };
+  }
+}
+
+/**
+ * Fetches all tags associated with a specific deck for the current user.
+ */
+export async function getDeckTags(deckId: string): Promise<ActionResult<Tables<'tags'>[]>> {
+  const { supabase, user, error: authError } = await getSupabaseAndUser();
+  if (authError || !supabase || !user) {
+    return { data: null, error: authError };
+  }
+
+  if (!deckId) {
+    return { data: null, error: 'Deck ID is required.' };
+  }
+
+  try {
+    // Query deck_tags, join with tags, filter by deck_id and user_id
+    const { data, error: fetchError } = await supabase
+      .from('deck_tags')
+      .select(`
+        tags (*)
+      `)
+      .eq('deck_id', deckId)
+      .eq('user_id', user.id);
+
+    if (fetchError) {
+      console.error('Error fetching deck tags:', fetchError);
+      return { data: null, error: 'Failed to fetch deck tags.' };
+    }
+
+    // Extract the tag objects from the join result
+    // The result is an array of objects like { tags: { id: ..., name: ... } } or { tags: null }
+    const tags = data?.map(item => item.tags).filter(tag => tag !== null) as Tables<'tags'>[] ?? [];
+
+    return { data: tags, error: null };
+
+  } catch (error) {
+    console.error('Unexpected error in getDeckTags:', error);
     return { data: null, error: 'An unexpected error occurred.' };
   }
 }

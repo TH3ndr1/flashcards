@@ -12,6 +12,7 @@ import { DeckMetadataEditor } from "./DeckMetadataEditor";
 import { CardViewTabContent } from "./CardViewTabContent";
 import { TableViewTabContent } from "./TableViewTabContent";
 import { DeckDangerZone } from "./DeckDangerZone";
+import { DeckTagEditor } from '@/components/deck-tag-editor';
 import type { Tables } from "@/types/database"; // Keep type import
 
 type DbCard = Tables<'cards'>;
@@ -30,6 +31,7 @@ export default function EditDeckPage() {
     // Use the custom hook to manage state and actions
     const {
         deck,
+        deckTags,
         loading,
         error,
         isSavingMetadata,
@@ -40,6 +42,8 @@ export default function EditDeckPage() {
         handleCreateCard,
         handleUpdateCard,
         handleDeleteCard,
+        handleAddTagToDeck,
+        handleRemoveTagFromDeck,
         handleDeleteDeckConfirm,
     } = useEditDeck(deckId);
 
@@ -95,7 +99,7 @@ export default function EditDeckPage() {
             </div>
 
             {/* Deck Metadata Editor */}
-            <div className="mb-6">
+            <div className="mb-6 space-y-6">
                 <DeckMetadataEditor
                     name={deck.name}
                     primaryLanguage={deck.primary_language}
@@ -103,6 +107,12 @@ export default function EditDeckPage() {
                     isBilingual={deck.is_bilingual}
                     onChange={handleDeckMetadataChange}
                     isSaving={isSavingMetadata}
+                />
+                <DeckTagEditor 
+                    deckId={deck.id}
+                    currentTags={deckTags} 
+                    onAddTag={handleAddTagToDeck}
+                    onRemoveTag={handleRemoveTagFromDeck}
                 />
             </div>
 
