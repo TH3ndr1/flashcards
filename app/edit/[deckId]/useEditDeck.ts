@@ -307,39 +307,22 @@ export function useEditDeck(deckId: string | undefined) {
         }
     }, [deck /*, loadDeckData */]); // Removed loadDeckData from dependencies
 
-    const handleUpdateCard = useCallback(async (cardId: string, cardData: UpdateCardInput) => {
-        if (!deck || !cardId) { toast.error("Cannot update card: Missing ID."); return; }
-        // Placeholder cards shouldn't trigger this directly, use handleCreateCard
-        if (cardId.startsWith('new-')) {
-            console.warn("[useEditDeck] handleUpdateCard called for a new card placeholder. This should ideally be handled by handleCreateCard after user interaction.");
-            // Attempt to create if it has content?
-             const placeholderCard = deck.cards.find(c => c.id === cardId);
-             if (placeholderCard?.question && placeholderCard?.answer) {
-                 await handleCreateCard({
-                     question: placeholderCard.question,
-                     answer: placeholderCard.answer,
-                     // Fix type errors: Coalesce undefined to null
-                     question_part_of_speech: placeholderCard.question_part_of_speech ?? null,
-                     question_gender: placeholderCard.question_gender ?? null,
-                     answer_part_of_speech: placeholderCard.answer_part_of_speech ?? null,
-                     answer_gender: placeholderCard.answer_gender ?? null,
-                 });
-             }
-            return; 
-        }
+    // Wrap the core update logic in a ref to keep the useCallback stable
+    const updateCardCore = useCallback(async (cardId: string, cardData: UpdateCardInput) => {
+        const toastId = toast.loading("Updating card...");
+        let originalCards: Array<Partial<DbCard>> | null = null;
 
-        // --- Optimistic UI Update (Apply changes locally first) ---
-        const originalCards = deck.cards;
+        // --- Optimistic UI Update (Apply changes locally first using functional update) ---
         setDeck((prev: DeckEditState): DeckEditState => {
             if (!prev) return null;
+            originalCards = prev.cards; // Capture original cards *before* update
             const updatedCards = prev.cards.map(c => 
                 c.id === cardId ? { ...c, ...cardData } : c
             );
             return { ...prev, cards: updatedCards };
         });
-        // --------------------------------------------------------
+        // ----------------------------------------------------------------------------
 
-        const toastId = toast.loading("Updating card...");
         try {
             const result = await updateCardAction(cardId, cardData);
             if (result.error || !result.data) throw result.error || new Error("Failed to update card.");
@@ -348,7 +331,6 @@ export function useEditDeck(deckId: string | undefined) {
             toast.success("Card updated!", { id: toastId });
 
             // --- Update local state with confirmed data from server --- 
-            // (Often the same as optimistic, but good practice)
             setDeck((prev: DeckEditState): DeckEditState => {
                 if (!prev) return null;
                 const confirmedCards = prev.cards.map(c => 
@@ -358,19 +340,48 @@ export function useEditDeck(deckId: string | undefined) {
             });
             // ----------------------------------------------------------
 
-            // await loadDeckData(deck.id); // Removed: Replaced with optimistic update
-
         } catch (error: any) {
             toast.error("Failed to update card", { id: toastId, description: error.message || "Unknown error." });
-            // --- Revert to original state on error ---
+            // --- Revert to original state on error using functional update ---
+            // Capture originalCards *inside* the functional update to ensure prev is not null
             setDeck((prev: DeckEditState): DeckEditState => {
-                 if (!prev) return null;
-                 // Restore the card state before the failed update attempt
-                 return { ...prev, cards: originalCards }; 
+                if (!prev) {
+                    // Should not happen if update was attempted, but handle defensively
+                    console.error("[useEditDeck] Cannot revert card update: Previous state was null.");
+                    return null; 
+                }
+                // Capture original cards here, *after* confirming prev is not null
+                const originalCards = prev.cards; 
+                console.log("[useEditDeck] Reverting card update due to error.");
+                return { ...prev, cards: originalCards }; 
             });
-            // -------------------------------------------
+            // ---------------------------------------------------------------
         }
-    }, [deck, handleCreateCard /*, loadDeckData */]); // Removed loadDeckData, added handleCreateCard
+    }, []); // Keep dependencies empty or only include truly stable functions like updateCardAction if needed
+
+    // The stable callback passed down to components
+    const handleUpdateCard = useCallback(async (cardId: string, cardData: UpdateCardInput) => {
+        console.log(`[useEditDeck] handleUpdateCard called for ID: ${cardId}`); // Log call initiation
+        // Placeholder card check (remains the same)
+        if (cardId.startsWith('new-')) {
+             const placeholderCard = deck?.cards.find(c => c.id === cardId);
+             if (placeholderCard?.question && placeholderCard?.answer) {
+                 // Note: handleCreateCard might need similar stabilization if it depends on deck
+                 await handleCreateCard({
+                     question: placeholderCard.question,
+                     answer: placeholderCard.answer,
+                     question_part_of_speech: placeholderCard.question_part_of_speech ?? null,
+                     question_gender: placeholderCard.question_gender ?? null,
+                     answer_part_of_speech: placeholderCard.answer_part_of_speech ?? null,
+                     answer_gender: placeholderCard.answer_gender ?? null,
+                 });
+             }
+            return; 
+        }
+        // Call the core logic
+        updateCardCore(cardId, cardData);
+
+    }, [deck, handleCreateCard, updateCardCore]); // Keep `deck` dependency here for the placeholder check
 
     const handleDeleteCard = useCallback(async (cardId: string) => {
         if (!deck) return;

@@ -64,6 +64,7 @@ export function CardEditor({ card, onUpdate, onDelete, onCreate }: CardEditorPro
   );
 
   const handleTextChange = (field: 'question' | 'answer', value: string) => {
+    console.log(`[CardEditor] handleTextChange - Field: ${field}, Value: ${value.substring(0, 20)}...`);
     const updates: Partial<CardDataInput> = {};
     if (field === 'question') {
       setInternalQuestion(value);
@@ -80,6 +81,7 @@ export function CardEditor({ card, onUpdate, onDelete, onCreate }: CardEditorPro
     updates.answer_gender = internalAnswerGender === 'Default' ? null : internalAnswerGender;
 
     if (isExistingCard) {
+        console.log(`[CardEditor] handleTextChange - Queuing debounced update for ID: ${card?.id}`);
         debouncedOnUpdate(updates);
     }
   }

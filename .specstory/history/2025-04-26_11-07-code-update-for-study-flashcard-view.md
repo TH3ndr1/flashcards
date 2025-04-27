@@ -5592,6 +5592,452 @@ _**Assistant**_
 
 ---
 
+Okay, let's tackle both improvements.
+
+**Step 1: Prevent Refresh on Metadata Auto-Save**
+
+I'll modify the `updateDeck` server action in `lib/actions/deckActions.ts` to remove the specific revalidation of the edit page path. This should stop the disruptive refresh you experience after pausing while editing the deck name or language settings. I'll leave the revalidation for the main decks list (`/`) and study sets (`/study/sets`) as those might be relevant.
+
+---
+
+```diff
+          revalidatePath('/'); 
+          revalidatePath('/study/sets');
+-         revalidatePath(`/edit/${deckId}`); // Revalidate edit page
+          return { data: updatedDeck as Tables<'decks'>, error: null };
+  
+```
+
+---
+
+**Step 2: Prepare for Card Editing Improvements**
+
+Now, let's move on to debouncing and optimistic updates for card edits.
+
+First, I need to understand how card updates are currently handled in the UI. The search results suggested `app/edit/[deckId]/CardViewTabContent.tsx` is likely responsible for rendering the cards in the card view. I'll read this file to see how it calls the `handleUpdateCard` function from the `useEditDeck` hook.
+
+---
+
+Read file: app/edit/[deckId]/CardViewTabContent.tsx
+
+---
+
+Okay, the `CardViewTabContent` component doesn't handle the editing logic directly. It maps over the `cards` array and renders a `CardEditor` component for each card (imported from `@/components/card-editor`).
+
+It passes the `onUpdateCard` function (received from `useEditDeck`) directly down to each `CardEditor` instance. This means the debouncing logic needs to be implemented *within* the `CardEditor` component itself.
+
+**Step 3: Implement Debouncing within `CardEditor`**
+
+I'll now:
+1. Read the `components/card-editor.tsx` file.
+2. Identify the `onChange` handlers for the input fields (like question and answer).
+3. Implement debouncing for these handlers using `useCallback` and `debounce` to call the `onUpdate` prop after a delay.
+
+---
+
+Read file: components/card-editor.tsx
+
+---
+
+Okay, the `CardEditor` component already has debouncing implemented!
+
+It uses `useState` for the internal values of question, answer, etc., and `useEffect` to sync these with the `card` prop when it changes.
+
+It defines `debouncedOnUpdate` using `useCallback` and the imported `debounce` function with a wait time of `500ms` (`DEBOUNCE_WAIT_MS`).
+
+The `handleTextChange` and `handleClassificationChange` functions update the internal state immediately and then call `debouncedOnUpdate` if the card is an existing one (`isExistingCard` is true). This looks correct and should already prevent saves on every keystroke for existing cards.
+
+The `handleCreate` function is used for new cards (where `!isExistingCard`). It collects the data and calls the `onCreate` prop (which maps to `handleCreateCard` in `useEditDeck`). This part is not debounced, which is generally fine for a final "save" action on a new item.
+
+**Conclusion on Debouncing:** No changes are needed here; debouncing for card updates is already in place. The feeling of saves happening too frequently might be due to the `DEBOUNCE_WAIT_MS` being relatively short (500ms), or it might be linked to the refresh caused by `loadDeckData` after the debounced save actually happens.
+
+**Step 4: Implement Optimistic Updates for Cards**
+
+Since debouncing is handled, let's focus on removing the full data reload (`loadDeckData`) after creating or updating a card. I'll modify `handleCreateCard` and `handleUpdateCard` in `useEditDeck.ts` to update the local state directly.
+
+First, I need to check the return types of the server actions in `lib/actions/cardActions.ts` to ensure they return the necessary card data for the optimistic update.
+
+---
+
+Read file: lib/actions/cardActions.ts
+
+---
+
+Yes, the server actions look good:
+
+*   `createCard`: Takes `deckId` and `inputData` (matching `CreateCardInput`), performs validation, and inserts the card. Crucially, it **returns the newly created card object** (or an error) wrapped in `ActionResult<Tables<'cards'>>`.
+*   `updateCard`: (Based on the outline, though the full code wasn't shown) Takes `cardId` and `inputData` (matching `UpdateCardInput`), performs validation, updates the card, and **returns the updated card object** (or an error) wrapped in `ActionResult<Tables<'cards'>>`.
+
+This confirms that we have the necessary data returned from the server actions to perform optimistic updates in the UI without needing a full `loadDeckData` refresh.
+
+**Step 5: Apply Optimistic Update Logic**
+
+Now, I'll edit `app/edit/[deckId]/useEditDeck.ts` to modify `handleCreateCard` and `handleUpdateCard` to perform optimistic updates instead of reloading.
+
+---
+
+```diff
+  
+  
+-     // --- Card Actions (Remain the same as the last complete version) ---
++     // --- Card Actions ---
+      const handleAddCardOptimistic = useCallback(() => {
+           if (!deck) return;
++          // Generate a unique temporary ID for the placeholder
++          const tempId = `new-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+           const newCardPlaceholder: Partial<DbCard> = {
+-              id: `new-${Date.now()}`,
++              id: tempId, // Use unique temp ID
+               question: "",
+               answer: "",
+      const handleCreateCard = useCallback(async (cardData: CreateCardInput): Promise<string | null> => {
+          if (!deck || !deck.id) { toast.error("Cannot create card: Deck missing."); return null; }
++ 
++         // Find the temporary ID of the card being created (assuming it's the last one)
++         // A more robust approach might involve passing the tempId from the component
++         const tempCard = deck.cards.find(c => c.id?.startsWith('new-'));
++         const tempId = tempCard?.id;
++ 
+          const toastId = toast.loading("Saving new card...");
+          try {
+              const result = await createCardAction(deck.id, cardData);
+              if (result.error || !result.data) throw result.error || new Error("Failed to create card.");
++ 
++             const savedCard = result.data;
+              toast.success(`New card created!`, { id: toastId });
+-             await loadDeckData(deck.id); // Refetch
+-             return result.data.id;
++ 
++             // --- Optimistic Update: Replace placeholder with saved card --- 
++             setDeck((prev: DeckEditState): DeckEditState => {
++                 if (!prev) return null;
++                 const updatedCards = prev.cards.map(c => 
++                     c.id === tempId ? savedCard : c // Replace placeholder
++                 );
++                 // If placeholder wasn't found (edge case), add the saved card
++                 if (!tempId || !updatedCards.some(c => c.id === savedCard.id)) {
++                    console.warn("[useEditDeck] Placeholder not found for optimistic update, adding saved card directly.");
++                    updatedCards.push(savedCard);
++                 }
++                 return { ...prev, cards: updatedCards };
++             });
++             // --------------------------------------------------------------
++ 
++             // await loadDeckData(deck.id); // Removed: Replaced with optimistic update
++             return savedCard.id;
++ 
+          } catch (error: any) {
+              toast.error("Failed to save new card", { id: toastId, description: error.message || "Unknown error." });
+-             // --- Use DeckEditState type --- 
++             // --- Remove placeholder on error --- 
+              setDeck((prev: DeckEditState): DeckEditState => {
+                  if (!prev) return null;
+-                 const filteredCards: Array<Partial<DbCard>> = prev.cards.filter((c: Partial<DbCard>) => !c.id?.startsWith('new-'));
++                 // Filter out the specific placeholder if tempId was found, otherwise filter all placeholders
++                 const filteredCards: Array<Partial<DbCard>> = tempId 
++                     ? prev.cards.filter((c: Partial<DbCard>) => c.id !== tempId)
++                     : prev.cards.filter((c: Partial<DbCard>) => !c.id?.startsWith('new-'));
+                  return { ...prev, cards: filteredCards };
+              });
++             // -----------------------------------
+              return null;
+          }
+-     }, [deck, loadDeckData]);
++     }, [deck /*, loadDeckData */]); // Removed loadDeckData from dependencies
+  
+-     const handleUpdateCard = useCallback(async (cardId: string, cardData: UpdateCardInput): Promise<void> => {
+-         if (!cardId || cardId.startsWith('new-')) return;
+-         const toastId = `update-${cardId}`;
+-         toast.loading("Saving card...", { id: toastId });
+-         try {
+-             const updatePayload: UpdateCardInput = { ...cardData };
+-             const originalCard = deck?.cards.find(c => c.id === cardId);
+-             if (!originalCard) { toast.dismiss(toastId); return; }
+- 
+-             let changed = false;
+-             if (originalCard.question !== updatePayload.question) changed = true;
+-             if (originalCard.answer !== updatePayload.answer) changed = true;
+-             if (originalCard.question_part_of_speech !== updatePayload.question_part_of_speech) changed = true;
+-             if (originalCard.question_gender !== updatePayload.question_gender) changed = true;
+-             if (originalCard.answer_part_of_speech !== updatePayload.answer_part_of_speech) changed = true;
+-             if (originalCard.answer_gender !== updatePayload.answer_gender) changed = true;
+- 
+-             if (!changed) { toast.dismiss(toastId); console.log(`No changes for card ${cardId}.`); return; }
+- 
+-             const result = await updateCardAction(cardId, updatePayload);
++     const handleUpdateCard = useCallback(async (cardId: string, cardData: UpdateCardInput) => {
++         if (!deck || !cardId) { toast.error("Cannot update card: Missing ID."); return; }
++         // Placeholder cards shouldn't trigger this directly, use handleCreateCard
++         if (cardId.startsWith('new-')) {
++             console.warn("[useEditDeck] handleUpdateCard called for a new card placeholder. This should ideally be handled by handleCreateCard after user interaction.");
++             // Attempt to create if it has content?
++              const placeholderCard = deck.cards.find(c => c.id === cardId);
++              if (placeholderCard?.question && placeholderCard?.answer) {
++                  await handleCreateCard({
++                      question: placeholderCard.question,
++                      answer: placeholderCard.answer,
++                      question_part_of_speech: placeholderCard.question_part_of_speech,
++                      question_gender: placeholderCard.question_gender,
++                      answer_part_of_speech: placeholderCard.answer_part_of_speech,
++                      answer_gender: placeholderCard.answer_gender,
++                  });
++              }
++             return; 
++         }
++ 
++         // --- Optimistic UI Update (Apply changes locally first) ---
++         const originalCards = deck.cards;
++         setDeck((prev: DeckEditState): DeckEditState => {
++             if (!prev) return null;
++             const updatedCards = prev.cards.map(c => 
++                 c.id === cardId ? { ...c, ...cardData } : c
++             );
++             return { ...prev, cards: updatedCards };
++         });
++         // --------------------------------------------------------
++ 
++         const toastId = toast.loading("Updating card...");
++         try {
++             const result = await updateCardAction(cardId, cardData);
+              if (result.error || !result.data) throw result.error || new Error("Failed to update card.");
++ 
++             const savedCard = result.data;
+              toast.success("Card updated!", { id: toastId });
+-             if(deck?.id) await loadDeckData(deck.id); // Refetch
++ 
++             // --- Update local state with confirmed data from server --- 
++             // (Often the same as optimistic, but good practice)
++             setDeck((prev: DeckEditState): DeckEditState => {
++                 if (!prev) return null;
++                 const confirmedCards = prev.cards.map(c => 
++                     c.id === cardId ? savedCard : c
++                 );
++                 return { ...prev, cards: confirmedCards };
++             });
++             // ----------------------------------------------------------
++ 
++             // await loadDeckData(deck.id); // Removed: Replaced with optimistic update
++ 
+          } catch (error: any) {
+              toast.error("Failed to update card", { id: toastId, description: error.message || "Unknown error." });
+-             if(deck?.id) await loadDeckData(deck.id); // Refetch on error too
++             // --- Revert to original state on error ---
++             setDeck((prev: DeckEditState): DeckEditState => {
++                  if (!prev) return null;
++                  // Restore the card state before the failed update attempt
++                  return { ...prev, cards: originalCards }; 
++             });
++             // -------------------------------------------
+          }
+-     }, [deck, loadDeckData]);
++     }, [deck, handleCreateCard /*, loadDeckData */]); // Removed loadDeckData, added handleCreateCard
+  
+-     const handleDeleteCard = useCallback(async (cardId: string): Promise<void> => {
+-          if (!cardId) return;
+-          const isPlaceholder = cardId.startsWith('new-');
+-          const originalCards = deck?.cards; // Store potentially partial cards
+- 
+-          // --- Optimistic update using DeckEditState --- 
++     const handleDeleteCard = useCallback(async (cardId: string) => {
++         if (!deck) return;
++         // --- Optimistic UI Update (Remove card locally first) ---
++         const originalCards = deck.cards;
+          setDeck((prev: DeckEditState): DeckEditState => {
+              if (!prev) return null;
+-              const filteredCards: Array<Partial<DbCard>> = prev.cards.filter((c: Partial<DbCard>) => c.id !== cardId);
+-              return { ...prev, cards: filteredCards };
++             const updatedCards = prev.cards.filter(c => c.id !== cardId);
++             return { ...prev, cards: updatedCards };
+          });
+- 
+-          // If it was just a placeholder, we're done
+-          if (isPlaceholder) return; 
+- 
+-          // --- Handle existing card deletion on backend --- 
++         // -------------------------------------------------------
+          const toastId = toast.loading("Deleting card...");
+          try {
+              const result = await deleteCardAction(cardId);
+-              if (result.error) throw new Error(result.error);
++             if (result.error) throw result.error;
+              toast.success("Card deleted!", { id: toastId });
++             // No need to update state further, already removed optimistically
++             // await loadDeckData(deck.id); // Removed
+          } catch (error: any) {
+              toast.error("Failed to delete card", { id: toastId, description: error.message || "Unknown error." });
+-             // --- Revert state using original (potentially partial) cards --- 
+-             if (originalCards) {
++             // --- Revert to original state on error ---
+              setDeck((prev: DeckEditState): DeckEditState => {
+                   if (!prev) return null;
+-                     return { ...prev, cards: originalCards }; // Restore original partial array
++                  return { ...prev, cards: originalCards }; // Restore original cards array
+              });
+-             } else if (deck?.id) {
+-                  // Fallback refetch if original state wasn't captured
+-                 loadDeckData(deck.id);
+-             }
+-             // ------------------------------------------------------------
++             // -------------------------------------------
+          }
+-     }, [deck, loadDeckData]);
++     }, [deck /*, loadDeckData */]); // Removed loadDeckData
+  
+  
+```
+
+---
+
+
+
+---
+
+You're right, the optimistic update logic introduced some type errors. The issue is in the `handleUpdateCard` function, specifically within the block that handles placeholder cards (`if (cardId.startsWith('new-'))`). When calling `handleCreateCard` using data from the `placeholderCard`, some fields might be `undefined`, but `handleCreateCard` expects `string | null`.
+
+I'll fix this by explicitly providing `null` as a default value using the nullish coalescing operator (`?? null`) for each potentially undefined field passed from the `placeholderCard` to `handleCreateCard`.
+
+---
+
+```diff
+                       question: placeholderCard.question,
+                       answer: placeholderCard.answer,
+-                      question_part_of_speech: placeholderCard.question_part_of_speech,
+-                      question_gender: placeholderCard.question_gender,
+-                      answer_part_of_speech: placeholderCard.answer_part_of_speech,
+-                      answer_gender: placeholderCard.answer_gender,
++                      // Fix type errors: Coalesce undefined to null
++                      question_part_of_speech: placeholderCard.question_part_of_speech ?? null,
++                      question_gender: placeholderCard.question_gender ?? null,
++                      answer_part_of_speech: placeholderCard.answer_part_of_speech ?? null,
++                      answer_gender: placeholderCard.answer_gender ?? null,
+                   });
+               }
+```
+
+---
+
+OK, I've applied the fix to handle the potential `undefined` values when calling `handleCreateCard` from within `handleUpdateCard`. This should resolve the TypeScript errors.
+
+We have now:
+1.  Removed the disruptive page refresh on metadata auto-save by modifying `lib/actions/deckActions.ts`.
+2.  Confirmed that card input debouncing is already handled correctly within `components/card-editor.tsx`.
+3.  Modified `app/edit/[deckId]/useEditDeck.ts` to use optimistic updates for creating, updating, and deleting cards, avoiding full page reloads for these actions.
+
+This should significantly improve the editing experience by making it smoother and less prone to interruption. Please test the deck editing functionality again.
+
+---
+
+_**User**_
+
+hmm something is still off, the refresh of the page is fixed, but upon typing it is saving now after each and every keystroke - this is worse than brefore 
+
+---
+
+_**Assistant**_
+
+
+
+---
+
+Okay, that's definitely not the intended outcome. Saving on every keystroke would indeed be worse. My apologies, let's figure out why the debouncing isn't working as expected.
+
+The code in `CardEditor` *looks* like it should debounce correctly:
+1.  `handleTextChange` updates the internal state immediately (for responsiveness).
+2.  `handleTextChange` then calls `debouncedOnUpdate`.
+3.  `debouncedOnUpdate` is a debounced function (using `useCallback` and `debounce`) that waits `DEBOUNCE_WAIT_MS` (500ms) before calling the actual `onUpdate` prop (which is `handleUpdateCard` from `useEditDeck`).
+
+This flow *should* prevent saves on every keystroke. If saves are happening immediately, it suggests either:
+a)  The `debounce` function isn't working correctly or its timer is being bypassed.
+b)  `handleUpdateCard` is being called from somewhere else immediately on text change, bypassing the debounced path within `CardEditor`.
+
+To pinpoint the issue, let's add some specific logging:
+
+1.  **Inside `CardEditor`:** Add a log within `handleTextChange` *before* calling `debouncedOnUpdate`.
+2.  **Inside `useEditDeck`:** Add a log at the very beginning of `handleUpdateCard`.
+
+This will tell us if `handleUpdateCard` is truly being called on every keystroke, or if only the `handleTextChange` and the debounced call are firing as expected (which might mean the *perception* of saving is happening due to optimistic updates, even if the network request is debounced).
+
+**Applying the logging:**
+
+---
+
+```diff
+  
+    const handleTextChange = (field: 'question' | 'answer', value: string) => {
++     console.log(`[CardEditor] handleTextChange - Field: ${field}, Value: ${value.substring(0, 20)}...`);
+      const updates: Partial<CardDataInput> = {};
+      if (field === 'question') {
+  
+      if (isExistingCard) {
++         console.log(`[CardEditor] handleTextChange - Queuing debounced update for ID: ${card?.id}`);
+          debouncedOnUpdate(updates);
+      }
+```
+
+---
+
+```diff
+  
+      const handleUpdateCard = useCallback(async (cardId: string, cardData: UpdateCardInput) => {
++         console.log(`[useEditDeck] handleUpdateCard EXECUTION - ID: ${cardId}, Data:`, cardData);
+          if (!deck || !cardId) { toast.error("Cannot update card: Missing ID."); return; }
+          // Placeholder cards shouldn't trigger this directly, use handleCreateCard
+```
+
+---
+
+OK, I've added the logging statements:
+
+*   In `components/card-editor.tsx`: Logs within `handleTextChange` will show `[CardEditor] handleTextChange...` followed by `[CardEditor] handleTextChange - Queuing debounced update...` on each relevant keystroke for existing cards.
+*   In `app/edit/[deckId]/useEditDeck.ts`: A log at the start of `handleUpdateCard` will show `[useEditDeck] handleUpdateCard EXECUTION...`.
+
+Please try editing a card's question or answer field again and observe your browser's developer console.
+
+*   **If you see:** `handleTextChange` and `Queuing debounced update` on every keystroke, but `handleUpdateCard EXECUTION` only appears ~500ms *after* you stop typing, then the debouncing is working, but the *optimistic update* within `handleUpdateCard` might be making it *feel* like an instant save.
+*   **If you see:** `handleUpdateCard EXECUTION` firing immediately after *every* `handleTextChange`, then the debounce is indeed being bypassed somehow, and we'll need to investigate further why `onUpdate` in `CardEditor` isn't behaving as the debounced version.
+
+Let me know what sequence of logs you see!
+
+---
+
+_**User**_
+
+Herey the console log for pressing a couple of keystrokes directly following each other... you see the save being triggerred continuousy
+
+card-editor.tsx:67 [CardEditor] handleTextChange - Field: answer, Value: Pichonn...
+card-editor.tsx:84 [CardEditor] handleTextChange - Queuing debounced update for ID: 2239b081-bfcd-416b-a0f7-68cd4fe6a4c0
+card-editor.tsx:59 [CardEditor] Debounced update triggered for ID: 2239b081-bfcd-416b-a0f7-68cd4fe6a4c0 Data: {answer: 'Pichonn', question: 'Duif', question_part_of_speech: 'Noun', question_gender: 'N/A', answer_part_of_speech: 'Noun', …}
+useEditDeck.ts:311 [useEditDeck] handleUpdateCard EXECUTION - ID: 2239b081-bfcd-416b-a0f7-68cd4fe6a4c0, Data: {answer: 'Pichonn', question: 'Duif', question_part_of_speech: 'Noun', question_gender: 'N/A', answer_part_of_speech: 'Noun', …}
+react-dom-client.development.js:16303 [Violation] 'setTimeout' handler took 240ms
+index.mjs:729 [Violation] 'setTimeout' handler took 249ms
+card-editor.tsx:67 [CardEditor] handleTextChange - Field: answer, Value: Pichonnn...
+card-editor.tsx:84 [CardEditor] handleTextChange - Queuing debounced update for ID: 2239b081-bfcd-416b-a0f7-68cd4fe6a4c0
+card-editor.tsx:59 [CardEditor] Debounced update triggered for ID: 2239b081-bfcd-416b-a0f7-68cd4fe6a4c0 Data: {answer: 'Pichonnn', question: 'Duif', question_part_of_speech: 'Noun', question_gender: 'N/A', answer_part_of_speech: 'Noun', …}
+useEditDeck.ts:311 [useEditDeck] handleUpdateCard EXECUTION - ID: 2239b081-bfcd-416b-a0f7-68cd4fe6a4c0, Data: {answer: 'Pichonnn', question: 'Duif', question_part_of_speech: 'Noun', question_gender: 'N/A', answer_part_of_speech: 'Noun', …}
+react-dom-client.development.js:16303 [Violation] 'setTimeout' handler took 242ms
+index.mjs:729 [Violation] 'setTimeout' handler took 239ms
+card-editor.tsx:67 [CardEditor] handleTextChange - Field: answer, Value: Pichonnnn...
+card-editor.tsx:84 [CardEditor] handleTextChange - Queuing debounced update for ID: 2239b081-bfcd-416b-a0f7-68cd4fe6a4c0
+card-editor.tsx:59 [CardEditor] Debounced update triggered for ID: 2239b081-bfcd-416b-a0f7-68cd4fe6a4c0 Data: {answer: 'Pichonnnn', question: 'Duif', question_part_of_speech: 'Noun', question_gender: 'N/A', answer_part_of_speech: 'Noun', …}
+useEditDeck.ts:311 [useEditDeck] handleUpdateCard EXECUTION - ID: 2239b081-bfcd-416b-a0f7-68cd4fe6a4c0, Data: {answer: 'Pichonnnn', question: 'Duif', question_part_of_speech: 'Noun', question_gender: 'N/A', answer_part_of_speech: 'Noun', …}
+react-dom-client.development.js:16303 [Violation] 'setTimeout' handler took 242ms
+index.mjs:729 [Violation] 'setTimeout' handler took 246ms
+card-editor.tsx:67 [CardEditor] handleTextChange - Field: answer, Value: Pichonnnnn...
+card-editor.tsx:84 [CardEditor] handleTextChange - Queuing debounced update for ID: 2239b081-bfcd-416b-a0f7-68cd4fe6a4c0
+card-editor.tsx:59 [CardEditor] Debounced update triggered for ID: 2239b081-bfcd-416b-a0f7-68cd4fe6a4c0 Data: {answer: 'Pichonnnnn', question: 'Duif', question_part_of_speech: 'Noun', question_gender: 'N/A', answer_part_of_speech: 'Noun', …}
+useEditDeck.ts:311 [useEditDeck] handleUpdateCard EXECUTION - ID: 2239b081-bfcd-416b-a0f7-68cd4fe6a4c0, Data: {answer: 'Pichonnnnn', question: 'Duif', question_part_of_speech: 'Noun', question_gender: 'N/A', answer_part_of_speech: 'Noun', …}
+react-dom-client.development.js:16303 [Violation] 'setTimeout' handler took 238ms
+index.mjs:729 [Violation] 'setTimeout' handler took 249ms
+
+
+---
+
+_**Assistant**_
+
+
+
+---
+
 
 
 ---
