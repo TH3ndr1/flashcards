@@ -41,7 +41,7 @@ export function AiGenerateSaveDeckCard({
                     {savedDeckId ? "Deck Created" : "3. Save as New Deck"}
                 </CardTitle>
                 <CardDescription>
-                    {savedDeckId ? "Your new deck is ready!" : "Optionally, save these flashcards as a new deck in your collection."}
+                    {savedDeckId ? "Your new deck is ready!" : "Save these flashcards as a new deck in your collection."}
                 </CardDescription>
             </CardHeader>
             <CardContent>
@@ -77,7 +77,7 @@ export function AiGenerateSaveDeckCard({
                             onClick={onSaveDeck} // Pass handler down
                             className="w-full sm:w-auto"
                         >
-                            {isSavingDeck ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Creating...</> : "Create Deck"}
+                            {isSavingDeck ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : "Save Deck"}
                         </Button>
                     </div>
                 )}

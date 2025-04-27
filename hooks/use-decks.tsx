@@ -1,7 +1,7 @@
 // hooks/use-decks.tsx
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSupabase } from "@/hooks/use-supabase"; // Ensure this is used if needed, otherwise remove
 import { useAuth } from "@/hooks/use-auth";
 // Import server actions for deck operations
@@ -81,6 +81,9 @@ export function useDecks(): UseDecksReturn {
   const [loading, setLoading] = useState(true);
   // Get user authentication status
   const { user, loading: authLoading } = useAuth(); // Also consider auth loading state
+  // --- Add Ref to track fetching status --- 
+  const isFetchingList = useRef(false);
+  // -----------------------------------------
 
   // Function to fetch the list of decks from the server action
   const fetchDeckList = useCallback(async () => {
@@ -91,8 +94,15 @@ export function useDecks(): UseDecksReturn {
            if (!authLoading) logDecks("No user, clearing deck list.");
            return;
         }
+        // --- Prevent concurrent fetches --- 
+        if (isFetchingList.current) { 
+            logDecks("Fetch already in progress, skipping.");
+            return;
+        }
+        // ---------------------------------
       logDecks("Fetching deck list...");
       setLoading(true); // Set loading true before fetch
+      isFetchingList.current = true; // Mark as fetching
       try {
           // Call the server action to get the list of decks with card counts
           const result = await getDecksAction();
@@ -114,6 +124,7 @@ export function useDecks(): UseDecksReturn {
           setDecks([]); // Clear decks on unexpected error
       } finally {
         setLoading(false); // Always set loading false after fetch attempt completes
+        isFetchingList.current = false; // Unmark fetching status
       }
   }, [user, authLoading]); // Dependencies: user and authLoading state
 
