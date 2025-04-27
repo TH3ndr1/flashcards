@@ -42,7 +42,7 @@ next-env.d.ts
 # IDE
 .idea/
 .vscode/
-.spectory
+.spectory/
 
 # OS generated files
 .DS_Store
@@ -52,3 +52,8 @@ next-env.d.ts
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+.cursorindexingignore
+
+# Ignore SpecStory directory and its contents
+.specstory/
