@@ -9,10 +9,15 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 type Database = any; // Replace with your actual Database type if generated
 
 /**
- * Custom hook to provide a memoized Supabase client instance for use in client components.
- * Initializes the client only after component mount to avoid issues during SSR/build.
- *
- * @returns {{ supabase: SupabaseClient<Database> | null }} An object containing the Supabase client instance (null initially).
+ * Custom hook for accessing the Supabase client instance.
+ * 
+ * This hook provides:
+ * - Access to the Supabase client for database operations
+ * - Automatic cookie handling for authentication
+ * - Consistent client instance across the application
+ * 
+ * @returns {SupabaseClient} The Supabase client instance
+ * @throws {Error} If the Supabase client cannot be initialized
  */
 export function useSupabase() {
   // Initialize state to null. Client will be created after mount.

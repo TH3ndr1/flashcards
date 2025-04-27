@@ -1,0 +1,326 @@
+.
+├── ./README.md
+├── ./__tests__
+│   ├── ./__tests__/deckService.test.tsx
+│   ├── ./__tests__/settingsService.test.ts
+│   ├── ./__tests__/studyQueryActions.test.ts
+│   ├── ./__tests__/use-decks.test.tsx
+│   └── ./__tests__/use-supabase.test.tsx
+├── ./app
+│   ├── ./app/api
+│   │   ├── ./app/api/cards
+│   │   │   └── ./app/api/cards/route.ts
+│   │   ├── ./app/api/decks
+│   │   │   └── ./app/api/decks/[deckId]
+│   │   │       └── ./app/api/decks/[deckId]/name
+│   │   │           └── ./app/api/decks/[deckId]/name/route.ts
+│   │   ├── ./app/api/extract-pdf
+│   │   │   └── ./app/api/extract-pdf/route.ts
+│   │   └── ./app/api/tts
+│   │       └── ./app/api/tts/route.ts
+│   ├── ./app/auth
+│   │   └── ./app/auth/callback
+│   │       └── ./app/auth/callback/route.ts
+│   ├── ./app/edit
+│   │   └── ./app/edit/[deckId]
+│   │       └── ./app/edit/[deckId]/page.tsx
+│   ├── ./app/globals.css
+│   ├── ./app/layout-script.tsx
+│   ├── ./app/layout.tsx
+│   ├── ./app/login
+│   │   └── ./app/login/page.tsx
+│   ├── ./app/page.tsx
+│   ├── ./app/prepare
+│   │   └── ./app/prepare/ai-generate
+│   │       └── ./app/prepare/ai-generate/page.tsx
+│   ├── ./app/profile
+│   │   └── ./app/profile/page.tsx
+│   ├── ./app/settings
+│   │   └── ./app/settings/page.tsx
+│   ├── ./app/signup
+│   │   └── ./app/signup/page.tsx
+│   ├── ./app/study
+│   │   ├── ./app/study/select
+│   │   │   └── ./app/study/select/page.tsx
+│   │   ├── ./app/study/session
+│   │   │   └── ./app/study/session/page.tsx
+│   │   └── ./app/study/sets
+│   │       ├── ./app/study/sets/[studySetId]
+│   │       │   └── ./app/study/sets/[studySetId]/edit
+│   │       │       └── ./app/study/sets/[studySetId]/edit/page.tsx
+│   │       ├── ./app/study/sets/new
+│   │       │   └── ./app/study/sets/new/page.tsx
+│   │       └── ./app/study/sets/page.tsx
+│   ├── ./app/sw.js
+│   └── ./app/tags
+│       └── ./app/tags/page.tsx
+├── ./components
+│   ├── ./components/CardTagEditor.tsx
+│   ├── ./components/ClientProviders.tsx
+│   ├── ./components/StudySetSelector.tsx
+│   ├── ./components/camera-capture.tsx
+│   ├── ./components/card-editor.tsx
+│   ├── ./components/create-deck-dialog.tsx
+│   ├── ./components/deck
+│   │   └── ./components/deck/EditableCardTable.tsx
+│   ├── ./components/deck-header.tsx
+│   ├── ./components/deck-list.tsx
+│   ├── ./components/difficulty-indicator.tsx -remove
+│   ├── ./components/file-upload.tsx
+│   ├── ./components/flippable-flashcard.tsx -remove
+│   ├── ./components/header.tsx -remove
+│   ├── ./components/layout
+│   │   ├── ./components/layout/Header.tsx
+│   │   ├── ./components/layout/ResponsiveLayout.tsx
+│   │   └── ./components/layout/Sidebar.tsx
+│   ├── ./components/media-capture-tabs.tsx
+│   ├── ./components/settings-button.tsx
+│   ├── ./components/study
+│   │   └── ./components/study/StudySetBuilder.tsx
+│   ├── ./components/study-completion-screen.tsx
+│   ├── ./components/study-flashcard-view.tsx
+│   ├── ./components/study-progress.tsx
+│   ├── ./components/study-session.tsx
+│   ├── ./components/table-editor.tsx
+│   ├── ./components/tags
+│   │   └── ./components/tags/TagManager.tsx
+│   ├── ./components/tags-button.tsx
+│   ├── ./components/theme-provider.tsx
+│   ├── ./components/tts-toggle-button.tsx
+│   ├── ./components/ui
+│   │   ├── ./components/ui/accordion.tsx
+│   │   ├── ./components/ui/alert-dialog.tsx
+│   │   ├── ./components/ui/alert.tsx
+│   │   ├── ./components/ui/aspect-ratio.tsx
+│   │   ├── ./components/ui/avatar.tsx
+│   │   ├── ./components/ui/badge.tsx
+│   │   ├── ./components/ui/breadcrumb.tsx
+│   │   ├── ./components/ui/button.tsx
+│   │   ├── ./components/ui/calendar.tsx
+│   │   ├── ./components/ui/card.tsx
+│   │   ├── ./components/ui/carousel.tsx
+│   │   ├── ./components/ui/chart.tsx
+│   │   ├── ./components/ui/checkbox.tsx
+│   │   ├── ./components/ui/collapsible.tsx
+│   │   ├── ./components/ui/command.tsx
+│   │   ├── ./components/ui/context-menu.tsx
+│   │   ├── ./components/ui/dialog.tsx
+│   │   ├── ./components/ui/drawer.tsx
+│   │   ├── ./components/ui/dropdown-menu.tsx
+│   │   ├── ./components/ui/form.tsx
+│   │   ├── ./components/ui/hover-card.tsx
+│   │   ├── ./components/ui/input-otp.tsx
+│   │   ├── ./components/ui/input.tsx
+│   │   ├── ./components/ui/label.tsx
+│   │   ├── ./components/ui/menubar.tsx
+│   │   ├── ./components/ui/navigation-menu.tsx
+│   │   ├── ./components/ui/pagination.tsx
+│   │   ├── ./components/ui/popover.tsx
+│   │   ├── ./components/ui/progress.tsx
+│   │   ├── ./components/ui/radio-group.tsx
+│   │   ├── ./components/ui/resizable.tsx
+│   │   ├── ./components/ui/scroll-area.tsx
+│   │   ├── ./components/ui/select.tsx
+│   │   ├── ./components/ui/separator.tsx
+│   │   ├── ./components/ui/sheet.tsx
+│   │   ├── ./components/ui/sidebar.tsx
+│   │   ├── ./components/ui/skeleton.tsx
+│   │   ├── ./components/ui/slider.tsx
+│   │   ├── ./components/ui/sonner.tsx
+│   │   ├── ./components/ui/switch.tsx
+│   │   ├── ./components/ui/table.tsx
+│   │   ├── ./components/ui/tabs.tsx
+│   │   ├── ./components/ui/textarea.tsx
+│   │   ├── ./components/ui/toggle-group.tsx
+│   │   ├── ./components/ui/toggle.tsx
+│   │   ├── ./components/ui/tooltip.tsx
+│   │   └── ./components/ui/use-mobile.tsx
+│   └── ./components/user-nav.tsx
+├── ./components.json
+├── ./directory_structure.txt
+├── ./docker-compose.yml
+├── ./docs
+│   ├── ./docs/ai-refactoring-plan.md
+│   ├── ./docs/best-practices.md
+│   ├── ./docs/deck-refactoring-plan.md
+│   ├── ./docs/docv2
+│   ├── ./docs/google-api-integration.md
+│   ├── ./docs/project-documentation.md
+│   └── ./docs/setup
+│       └── ./docs/setup/setup-fonts.sh
+├── ./generated-flashcards.json
+├── ./git_push.sh
+├── ./hooks
+│   ├── ./hooks/use-auth.tsx
+│   ├── ./hooks/use-decks.tsx
+│   ├── ./hooks/use-mobile.tsx
+│   ├── ./hooks/use-supabase.tsx
+│   ├── ./hooks/use-tts.ts
+│   ├── ./hooks/use-tts.tsx -remove
+│   ├── ./hooks/useCardTags.ts
+│   ├── ./hooks/useDecks.ts
+│   ├── ./hooks/useStudySession.ts
+│   ├── ./hooks/useStudySets.ts
+│   └── ./hooks/useTags.ts
+├── ./jest.config.js
+├── ./jest.setup.js
+├── ./lib
+│   ├── ./lib/actions
+│   │   ├── ./lib/actions/cardActions.ts
+│   │   ├── ./lib/actions/deckActions.ts
+│   │   ├── ./lib/actions/progressActions.ts
+│   │   ├── ./lib/actions/settingsActions.ts
+│   │   ├── ./lib/actions/storageActions.ts
+│   │   ├── ./lib/actions/studyQueryActions.ts
+│   │   ├── ./lib/actions/studySetActions.ts
+│   │   ├── ./lib/actions/tagActions.ts
+│   │   ├── ./lib/actions/ttsActions.ts
+│   │   └── ./lib/actions/types.ts
+│   ├── ./lib/fonts.ts
+│   ├── ./lib/localStorageUtils.ts
+│   ├── ./lib/schema
+│   │   ├── ./lib/schema/deckSchemas.ts
+│   │   └── ./lib/schema/study-query.schema.ts
+│   ├── ./lib/srs.ts
+│   ├── ./lib/study-utils.ts
+│   ├── ./lib/supabase
+│   │   └── ./lib/supabase/server.ts
+│   └── ./lib/utils.ts
+├── ./middleware.ts
+├── ./next-env.d.ts
+├── ./next.config.mjs
+├── ./node_modules
+│   ├── ./node_modules/@google-cloud
+│   │   ├── ./node_modules/@google-cloud/documentai -> ../.pnpm/@google-cloud+documentai@9.1.0/node_modules/@google-cloud/documentai
+│   │   ├── ./node_modules/@google-cloud/storage -> ../.pnpm/@google-cloud+storage@7.16.0/node_modules/@google-cloud/storage
+│   │   ├── ./node_modules/@google-cloud/text-to-speech -> ../.pnpm/@google-cloud+text-to-speech@6.0.1/node_modules/@google-cloud/text-to-speech
+│   │   ├── ./node_modules/@google-cloud/vertexai -> ../.pnpm/@google-cloud+vertexai@1.9.3/node_modules/@google-cloud/vertexai
+│   │   └── ./node_modules/@google-cloud/vision -> ../.pnpm/@google-cloud+vision@5.1.0/node_modules/@google-cloud/vision
+│   ├── ./node_modules/@hookform
+│   │   └── ./node_modules/@hookform/resolvers -> ../.pnpm/@hookform+resolvers@3.10.0_react-hook-form@7.54.2_react@19.1.0_/node_modules/@hookform/resolvers
+│   ├── ./node_modules/@radix-ui
+│   │   ├── ./node_modules/@radix-ui/react-accordion -> ../.pnpm/@radix-ui+react-accordion@1.2.3_@types+react-dom@19.0.4_@types+react@19.0.12__@types+re_a2fd5a2ffe3944b214e1ed253032121b/node_modules/@radix-ui/react-accordion
+│   │   ├── ./node_modules/@radix-ui/react-alert-dialog -> ../.pnpm/@radix-ui+react-alert-dialog@1.1.6_@types+react-dom@19.0.4_@types+react@19.0.12__@types_291900f8496c12bfde5af39892e4dcd7/node_modules/@radix-ui/react-alert-dialog
+│   │   ├── ./node_modules/@radix-ui/react-aspect-ratio -> ../.pnpm/@radix-ui+react-aspect-ratio@1.1.2_@types+react-dom@19.0.4_@types+react@19.0.12__@types_90e57f89c51bab74f2c35c188231ab67/node_modules/@radix-ui/react-aspect-ratio
+│   │   ├── ./node_modules/@radix-ui/react-avatar -> ../.pnpm/@radix-ui+react-avatar@1.1.3_@types+react-dom@19.0.4_@types+react@19.0.12__@types+react_2f15e0db4bf044271856c5d9b27fa615/node_modules/@radix-ui/react-avatar
+│   │   ├── ./node_modules/@radix-ui/react-checkbox -> ../.pnpm/@radix-ui+react-checkbox@1.1.4_@types+react-dom@19.0.4_@types+react@19.0.12__@types+rea_2ef4f15282e0ca0eb12381cfbfb16d26/node_modules/@radix-ui/react-checkbox
+│   │   ├── ./node_modules/@radix-ui/react-collapsible -> ../.pnpm/@radix-ui+react-collapsible@1.1.3_@types+react-dom@19.0.4_@types+react@19.0.12__@types+_ebc7f38d0453a36f57806f8366e8a8f4/node_modules/@radix-ui/react-collapsible
+│   │   ├── ./node_modules/@radix-ui/react-context-menu -> ../.pnpm/@radix-ui+react-context-menu@2.2.6_@types+react-dom@19.0.4_@types+react@19.0.12__@types_01b01c85488fe9b9e08561dd86155da6/node_modules/@radix-ui/react-context-menu
+│   │   ├── ./node_modules/@radix-ui/react-dialog -> ../.pnpm/@radix-ui+react-dialog@1.1.6_@types+react-dom@19.0.4_@types+react@19.0.12__@types+react_f24ccdb9faea062dc7809ceadb8a5d62/node_modules/@radix-ui/react-dialog
+│   │   ├── ./node_modules/@radix-ui/react-dropdown-menu -> ../.pnpm/@radix-ui+react-dropdown-menu@2.1.6_@types+react-dom@19.0.4_@types+react@19.0.12__@type_2b8f5e1c0edfc3acecd9f9e72a244d13/node_modules/@radix-ui/react-dropdown-menu
+│   │   ├── ./node_modules/@radix-ui/react-hover-card -> ../.pnpm/@radix-ui+react-hover-card@1.1.6_@types+react-dom@19.0.4_@types+react@19.0.12__@types+r_c7699bf41b428ed100a6c8902671bfe3/node_modules/@radix-ui/react-hover-card
+│   │   ├── ./node_modules/@radix-ui/react-label -> ../.pnpm/@radix-ui+react-label@2.1.2_@types+react-dom@19.0.4_@types+react@19.0.12__@types+react@_daf4e4907af3336eb100763260c5def7/node_modules/@radix-ui/react-label
+│   │   ├── ./node_modules/@radix-ui/react-menubar -> ../.pnpm/@radix-ui+react-menubar@1.1.6_@types+react-dom@19.0.4_@types+react@19.0.12__@types+reac_6a55ff067dd7706be902dbf3265373b1/node_modules/@radix-ui/react-menubar
+│   │   ├── ./node_modules/@radix-ui/react-navigation-menu -> ../.pnpm/@radix-ui+react-navigation-menu@1.2.5_@types+react-dom@19.0.4_@types+react@19.0.12__@ty_eaf4027687e699ff795fb66d0ea38c81/node_modules/@radix-ui/react-navigation-menu
+│   │   ├── ./node_modules/@radix-ui/react-popover -> ../.pnpm/@radix-ui+react-popover@1.1.6_@types+react-dom@19.0.4_@types+react@19.0.12__@types+reac_978bc065107931ffdbf1500f75855dd5/node_modules/@radix-ui/react-popover
+│   │   ├── ./node_modules/@radix-ui/react-progress -> ../.pnpm/@radix-ui+react-progress@1.1.2_@types+react-dom@19.0.4_@types+react@19.0.12__@types+rea_df702b5c1401c980b19b78f7e8a2ea39/node_modules/@radix-ui/react-progress
+│   │   ├── ./node_modules/@radix-ui/react-radio-group -> ../.pnpm/@radix-ui+react-radio-group@1.2.3_@types+react-dom@19.0.4_@types+react@19.0.12__@types+_5e3492b3f73bd3ce9d588abe9e356ad4/node_modules/@radix-ui/react-radio-group
+│   │   ├── ./node_modules/@radix-ui/react-scroll-area -> ../.pnpm/@radix-ui+react-scroll-area@1.2.3_@types+react-dom@19.0.4_@types+react@19.0.12__@types+_cc2ebfd0600758683fb5001b242d4fac/node_modules/@radix-ui/react-scroll-area
+│   │   ├── ./node_modules/@radix-ui/react-select -> ../.pnpm/@radix-ui+react-select@2.1.6_@types+react-dom@19.0.4_@types+react@19.0.12__@types+react_3ba2f29fdd58e0c3c9e58ee351f76436/node_modules/@radix-ui/react-select
+│   │   ├── ./node_modules/@radix-ui/react-separator -> ../.pnpm/@radix-ui+react-separator@1.1.2_@types+react-dom@19.0.4_@types+react@19.0.12__@types+re_c56c493b6ba55fb6d110f834f7c8a2e0/node_modules/@radix-ui/react-separator
+│   │   ├── ./node_modules/@radix-ui/react-slider -> ../.pnpm/@radix-ui+react-slider@1.2.3_@types+react-dom@19.0.4_@types+react@19.0.12__@types+react_6581ca0822048aad358abcb0a9b2cd16/node_modules/@radix-ui/react-slider
+│   │   ├── ./node_modules/@radix-ui/react-slot -> ../.pnpm/@radix-ui+react-slot@1.1.2_@types+react@19.0.12_react@19.1.0/node_modules/@radix-ui/react-slot
+│   │   ├── ./node_modules/@radix-ui/react-switch -> ../.pnpm/@radix-ui+react-switch@1.1.3_@types+react-dom@19.0.4_@types+react@19.0.12__@types+react_5d82bfb65cc90212871dd9011f41f64a/node_modules/@radix-ui/react-switch
+│   │   ├── ./node_modules/@radix-ui/react-tabs -> ../.pnpm/@radix-ui+react-tabs@1.1.3_@types+react-dom@19.0.4_@types+react@19.0.12__@types+react@1_b66eb084ab0d06296f31ee8a2dba0b5c/node_modules/@radix-ui/react-tabs
+│   │   ├── ./node_modules/@radix-ui/react-toast -> ../.pnpm/@radix-ui+react-toast@1.2.6_@types+react-dom@19.0.4_@types+react@19.0.12__@types+react@_796313108494089731544cc2392a215e/node_modules/@radix-ui/react-toast
+│   │   ├── ./node_modules/@radix-ui/react-toggle -> ../.pnpm/@radix-ui+react-toggle@1.1.2_@types+react-dom@19.0.4_@types+react@19.0.12__@types+react_a51ddbf465520ab2e01656e5a88e9bee/node_modules/@radix-ui/react-toggle
+│   │   ├── ./node_modules/@radix-ui/react-toggle-group -> ../.pnpm/@radix-ui+react-toggle-group@1.1.2_@types+react-dom@19.0.4_@types+react@19.0.12__@types_3c1afda2e9a77cf38d809c0d4a5e2314/node_modules/@radix-ui/react-toggle-group
+│   │   └── ./node_modules/@radix-ui/react-tooltip -> ../.pnpm/@radix-ui+react-tooltip@1.1.8_@types+react-dom@19.0.4_@types+react@19.0.12__@types+reac_a435e6a8f635a3fd3d976131a21e1c8b/node_modules/@radix-ui/react-tooltip
+│   ├── ./node_modules/@supabase
+│   │   ├── ./node_modules/@supabase/auth-helpers-nextjs -> ../.pnpm/@supabase+auth-helpers-nextjs@0.10.0_@supabase+supabase-js@2.49.3/node_modules/@supabase/auth-helpers-nextjs
+│   │   ├── ./node_modules/@supabase/ssr -> ../.pnpm/@supabase+ssr@0.6.1_@supabase+supabase-js@2.49.3/node_modules/@supabase/ssr
+│   │   └── ./node_modules/@supabase/supabase-js -> ../.pnpm/@supabase+supabase-js@2.49.3/node_modules/@supabase/supabase-js
+│   ├── ./node_modules/@testing-library
+│   │   ├── ./node_modules/@testing-library/jest-dom -> ../.pnpm/@testing-library+jest-dom@6.6.3/node_modules/@testing-library/jest-dom
+│   │   └── ./node_modules/@testing-library/react-hooks -> ../.pnpm/@testing-library+react-hooks@8.0.1_@types+react@19.0.12_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/@testing-library/react-hooks
+│   ├── ./node_modules/@types
+│   │   ├── ./node_modules/@types/jest -> ../.pnpm/@types+jest@29.5.14/node_modules/@types/jest
+│   │   ├── ./node_modules/@types/node -> ../.pnpm/@types+node@22.13.13/node_modules/@types/node
+│   │   ├── ./node_modules/@types/react -> ../.pnpm/@types+react@19.0.12/node_modules/@types/react
+│   │   ├── ./node_modules/@types/react-dom -> ../.pnpm/@types+react-dom@19.0.4_@types+react@19.0.12/node_modules/@types/react-dom
+│   │   └── ./node_modules/@types/uuid -> ../.pnpm/@types+uuid@10.0.0/node_modules/@types/uuid
+│   ├── ./node_modules/autoprefixer -> .pnpm/autoprefixer@10.4.21_postcss@8.5.3/node_modules/autoprefixer
+│   ├── ./node_modules/canvas -> .pnpm/canvas@3.1.0/node_modules/canvas
+│   ├── ./node_modules/class-variance-authority -> .pnpm/class-variance-authority@0.7.1/node_modules/class-variance-authority
+│   ├── ./node_modules/clsx -> .pnpm/clsx@2.1.1/node_modules/clsx
+│   ├── ./node_modules/cmdk -> .pnpm/cmdk@1.0.4_@types+react-dom@19.0.4_@types+react@19.0.12__@types+react@19.0.12_react-dom_c835da18da5675dbceff563234114f4e/node_modules/cmdk
+│   ├── ./node_modules/date-fns -> .pnpm/date-fns@4.1.0/node_modules/date-fns
+│   ├── ./node_modules/dotenv -> .pnpm/dotenv@16.5.0/node_modules/dotenv
+│   ├── ./node_modules/embla-carousel-react -> .pnpm/embla-carousel-react@8.5.1_react@19.1.0/node_modules/embla-carousel-react
+│   ├── ./node_modules/input-otp -> .pnpm/input-otp@1.4.1_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/input-otp
+│   ├── ./node_modules/jest -> .pnpm/jest@29.7.0_@types+node@22.13.13_ts-node@10.9.2_@types+node@22.13.13_typescript@5.8.2_/node_modules/jest
+│   ├── ./node_modules/jest-environment-jsdom -> .pnpm/jest-environment-jsdom@29.7.0_canvas@3.1.0/node_modules/jest-environment-jsdom
+│   ├── ./node_modules/lucide-react -> .pnpm/lucide-react@0.454.0_react@19.1.0/node_modules/lucide-react
+│   ├── ./node_modules/next -> .pnpm/next@15.2.4_@babel+core@7.26.10_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/next
+│   ├── ./node_modules/next-themes -> .pnpm/next-themes@0.4.6_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/next-themes
+│   ├── ./node_modules/pdf-lib -> .pnpm/pdf-lib@1.17.1/node_modules/pdf-lib
+│   ├── ./node_modules/pdfjs-dist -> .pnpm/pdfjs-dist@5.1.91/node_modules/pdfjs-dist
+│   ├── ./node_modules/postcss -> .pnpm/postcss@8.5.3/node_modules/postcss
+│   ├── ./node_modules/react -> .pnpm/react@19.1.0/node_modules/react
+│   ├── ./node_modules/react-day-picker -> .pnpm/react-day-picker@8.10.1_date-fns@4.1.0_react@19.1.0/node_modules/react-day-picker
+│   ├── ./node_modules/react-dom -> .pnpm/react-dom@19.1.0_react@19.1.0/node_modules/react-dom
+│   ├── ./node_modules/react-hook-form -> .pnpm/react-hook-form@7.54.2_react@19.1.0/node_modules/react-hook-form
+│   ├── ./node_modules/react-resizable-panels -> .pnpm/react-resizable-panels@2.1.7_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/react-resizable-panels
+│   ├── ./node_modules/recharts -> .pnpm/recharts@2.15.0_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/recharts
+│   ├── ./node_modules/sonner -> .pnpm/sonner@1.7.4_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/sonner
+│   ├── ./node_modules/tailwind-merge -> .pnpm/tailwind-merge@2.6.0/node_modules/tailwind-merge
+│   ├── ./node_modules/tailwindcss -> .pnpm/tailwindcss@3.4.17_ts-node@10.9.2_@types+node@22.13.13_typescript@5.8.2_/node_modules/tailwindcss
+│   ├── ./node_modules/tailwindcss-animate -> .pnpm/tailwindcss-animate@1.0.7_tailwindcss@3.4.17_ts-node@10.9.2_@types+node@22.13.13_typescript@5.8.2__/node_modules/tailwindcss-animate
+│   ├── ./node_modules/ts-jest -> .pnpm/ts-jest@29.3.0_@babel+core@7.26.10_@jest+transform@29.7.0_@jest+types@29.6.3_babel-jest_e9ee154086a13b101d1cab54de38596b/node_modules/ts-jest
+│   ├── ./node_modules/ts-node -> .pnpm/ts-node@10.9.2_@types+node@22.13.13_typescript@5.8.2/node_modules/ts-node
+│   ├── ./node_modules/tsx -> .pnpm/tsx@4.19.3/node_modules/tsx
+│   ├── ./node_modules/typescript -> .pnpm/typescript@5.8.2/node_modules/typescript
+│   ├── ./node_modules/uuid -> .pnpm/uuid@11.1.0/node_modules/uuid
+│   ├── ./node_modules/vaul -> .pnpm/vaul@0.9.9_@types+react-dom@19.0.4_@types+react@19.0.12__@types+react@19.0.12_react-dom_c4b195be6dcfed7cb58e00a6576a2a4a/node_modules/vaul
+│   ├── ./node_modules/zod -> .pnpm/zod@3.24.2/node_modules/zod
+│   └── ./node_modules/zustand -> .pnpm/zustand@5.0.3_@types+react@19.0.12_react@19.1.0_use-sync-external-store@1.4.0_react@19.1.0_/node_modules/zustand
+├── ./package.json
+├── ./pnpm-lock.yaml
+├── ./postcss.config.mjs
+├── ./providers
+│   └── ./providers/settings-provider.tsx
+├── ./public
+│   ├── ./public/apple-touch-icon.png
+│   ├── ./public/favicon-96x96.png
+│   ├── ./public/favicon.ico
+│   ├── ./public/favicon.svg
+│   ├── ./public/fonts
+│   │   ├── ./public/fonts/AtkinsonHyperlegible-Regular.woff2
+│   │   └── ./public/fonts/OpenDyslexic-Regular.woff2
+│   ├── ./public/manifest.json
+│   ├── ./public/placeholder-logo.png
+│   ├── ./public/placeholder-logo.svg
+│   ├── ./public/placeholder-user.jpg
+│   ├── ./public/placeholder.jpg
+│   ├── ./public/placeholder.svg
+│   ├── ./public/site.webmanifest
+│   ├── ./public/test.pdf
+│   ├── ./public/web-app-manifest-192x192.png
+│   └── ./public/web-app-manifest-512x512.png
+├── ./refactoring-plan.md
+├── ./schema.sql
+├── ./scripts
+├── ./store
+│   └── ./store/studySessionStore.ts
+├── ./supabase
+│   ├── ./supabase/config.toml
+│   └── ./supabase/migrations
+│       ├── ./supabase/migrations/20240728000000_add_srs_study_sets.sql
+│       ├── ./supabase/migrations/20250330170254_resolve_study_query_function.sql
+│       ├── ./supabase/migrations/20250405134304_resolve_study_query_function.sql
+│       ├── ./supabase/migrations/20250405145036_enhanced_resolve_study_query_function.sql
+│       └── ./supabase/migrations/20250407212122_add_card_id_default.sql
+├── ./tailwind.config.ts
+├── ./test
+├── ./test-gcp-apis.ts
+├── ./tsconfig.jest.json
+├── ./tsconfig.json
+├── ./types
+│   ├── ./types/card.ts
+│   ├── ./types/database.ts
+│   ├── ./types/deck.ts
+│   ├── ./types/pdf-parse.d.ts
+│   └── ./types/study.ts
+└── ./vercel.json
+
+135 directories, 189 files

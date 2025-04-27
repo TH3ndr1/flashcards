@@ -1,10 +1,12 @@
 // src/lib/study-utils.ts
 import type { FlashCard } from "@/types/deck";
 import type { Settings } from "@/providers/settings-provider";
+import type { Deck } from "@/types/deck";
 
 // --- Constants ---
 // Default value, but actual threshold comes from settings
 export const DEFAULT_MASTERY_THRESHOLD = 3;
+export const STUDY_SAVE_DEBOUNCE_MS = 2000; // Debounce delay for saving study progress
 export const TTS_DELAY_MS = 100;
 export const DECK_LOAD_RETRY_DELAY_MS = 500;
 export const MAX_DECK_LOAD_RETRIES = 5;
@@ -20,6 +22,8 @@ export const DIFFICULTY_WEIGHTS = {
 
 export const DAYS_FOR_MAX_FORGETFULNESS = 5; // Time window for forgetting
 export const ATTEMPTS_NORMALIZATION_FACTOR = 5; // Constant C for attempt normalization
+
+export const DIFFICULTY_THRESHOLD = 0.55; // Score above which a card is considered difficult
 
 // --- Helper Functions ---
 
@@ -70,60 +74,81 @@ export const calculateMasteredCount = (cards: FlashCard[], settings?: Settings |
   return cards.filter((card) => card && (card.correctCount || 0) >= threshold).length;
 };
 
+
+
 /**
- * Calculates a difficulty score for a flashcard based on performance metrics
- * Score ranges from 0 to 1, where higher scores indicate greater difficulty
- * Returns 0 if the card has been attempted less than 2 times
+ * Determines the next state of the study session (next card index and updated study card list).
+ *
+ * @param currentStudyCards The current array of cards being studied.
+ * @param currentCardIndex The index of the card just answered.
+ * @param answeredCard The card that was just answered, with its *updated* statistics.
+ * @param masteryThreshold The number of correct answers required for mastery.
+ * @returns An object containing the next study cards array and the next card index.
  */
-export const calculateDifficultyScore = (card: FlashCard): number => {
-  // Return 0 if card has less than 2 attempts
-  if (!card.attemptCount || card.attemptCount < 2) {
-    return 0;
-  }
+export const determineNextCardState = (
+  currentStudyCards: FlashCard[],
+  currentCardIndex: number,
+  answeredCard: FlashCard,
+  masteryThreshold: number
+): { nextStudyCards: FlashCard[]; nextIndex: number; cardJustMastered: boolean } => {
+  let nextStudyCards = [...currentStudyCards];
+  let nextIndex = currentCardIndex;
+  let cardJustMastered = false;
 
-  let score = 0;
-
-  // --- Factor 1: Incorrectness Ratio ---
-  const incorrectRatio = card.incorrectCount / card.attemptCount;
-  score += DIFFICULTY_WEIGHTS.INCORRECT_RATIO * incorrectRatio;
-
-  // --- Factor 2: Number of Attempts (Normalized) ---
-  const attemptsFactor = card.attemptCount / (card.attemptCount + ATTEMPTS_NORMALIZATION_FACTOR);
-  score += DIFFICULTY_WEIGHTS.ATTEMPTS * attemptsFactor;
-
-  // --- Factor 3: Forgetfulness (Time Since Last Review) ---
-  if (card.lastStudied) {
-    const lastStudiedDate = new Date(card.lastStudied);
-    const now = new Date();
-    const daysSinceReview = (now.getTime() - lastStudiedDate.getTime()) / (1000 * 60 * 60 * 24);
-    const forgetfulnessFactor = Math.min(1.0, daysSinceReview / DAYS_FOR_MAX_FORGETFULNESS);
-    score += DIFFICULTY_WEIGHTS.FORGETFULNESS * forgetfulnessFactor;
+  // Check if the *updated* answered card meets the mastery threshold
+  if (answeredCard.correctCount >= masteryThreshold) {
+    cardJustMastered = true;
+    console.log(`study-utils: Card ${answeredCard.id} mastered and will be removed.`);
+    // Filter based on the ID of the card that was just answered
+    nextStudyCards = currentStudyCards.filter(card => card.id !== answeredCard.id);
+    // Adjust index: stay at current index if it's still valid, otherwise wrap or go to 0
+    nextIndex = Math.min(currentCardIndex, nextStudyCards.length - 1);
+    if (nextIndex < 0) nextIndex = 0; // Handle empty list case
   } else {
-    // Card never reviewed - give it a moderate forgetfulness boost
-    score += DIFFICULTY_WEIGHTS.FORGETFULNESS * 0.5;
+    // Standard progression: Move to the next card, wrapping around
+    if (currentStudyCards.length > 0) {
+      // Ensure the calculation only happens if there are cards to cycle through
+      // Use the length of the *original* list before potential filtering
+      nextIndex = (currentCardIndex + 1) % currentStudyCards.length;
+    }
+    // If the list became empty *before* this answer (shouldn't normally happen here, but safety check)
+    if (nextStudyCards.length === 0) {
+        nextIndex = 0;
+    }
+
   }
 
-  return Math.min(1, Math.max(0, score)); // Ensure score is between 0 and 1
+  return { nextStudyCards, nextIndex, cardJustMastered };
 };
 
-export const prepareDifficultCards = (cards: FlashCard[]): FlashCard[] => {
-  if (!Array.isArray(cards)) return [];
+/**
+ * Creates the necessary state components for resetting a deck's progress.
+ * Does not perform side effects (like saving).
+ *
+ * @param deck The current deck object.
+ * @param settings User settings (needed for prepareStudyCards).
+ * @returns An object containing the deck with reset progress and the initial study cards list.
+ */
+export const createResetDeckState = (deck: Deck, settings: Settings | null): { resetDeck: Deck; initialStudyCards: FlashCard[] } => {
+  console.log("study-utils: Preparing reset state for deck:", deck.name);
 
-  // For difficult cards, we don't filter by mastery status
-  const weightedCards = cards.map((card) => {
-    const difficultyWeight = card.difficultyScore || 0;
-    return { card, weight: difficultyWeight };
-  });
+  const resetCards = deck.cards.map((card) => ({
+    ...card,
+    correctCount: 0,
+    incorrectCount: 0,
+    lastStudied: null,
+    attemptCount: 0,
+    difficultyScore: 0,
+  }));
 
-  // Sort by difficulty weight (descending), with slight randomization
-  weightedCards.sort((a, b) => {
-    const weightDiff = b.weight - a.weight;
-    // If weights are close, introduce random shuffling
-    if (Math.abs(weightDiff) < 0.1) {
-      return Math.random() - 0.5;
-    }
-    return weightDiff;
-  });
+  const resetDeck: Deck = {
+    ...deck,
+    cards: resetCards,
+    progress: { ...deck.progress}, // Ensure difficult mode flag is reset
+  };
 
-  return weightedCards.map((wc) => wc.card);
+  // Re-prepare study cards based on the newly reset deck data
+  const initialStudyCards = prepareStudyCards(resetCards, settings);
+
+  return { resetDeck, initialStudyCards };
 };

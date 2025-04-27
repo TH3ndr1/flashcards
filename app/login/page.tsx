@@ -14,8 +14,13 @@ import { toast } from "sonner"
 import type { AuthError } from '@supabase/supabase-js'
 
 /**
- * Renders the login page component.
- * Wraps the client-side logic in a Suspense boundary.
+ * Login Page component.
+ *
+ * This component serves as the entry point for the login route.
+ * It wraps the main `LoginContent` component within a React Suspense
+ * boundary to handle client-side rendering dependencies like `useSearchParams`.
+ *
+ * @returns {JSX.Element} The Login Page UI with a Suspense boundary.
  */
 export default function LoginPage() {
   // The main export wraps LoginContent in Suspense
@@ -26,6 +31,17 @@ export default function LoginPage() {
   )
 }
 
+/**
+ * Renders the actual login form and handles user interactions.
+ *
+ * This client component manages the state for email and password inputs,
+ * handles form submission, interacts with the `useAuth` hook for signing in,
+ * displays loading states and error messages using toasts, and handles
+ * redirection based on authentication status or feedback query parameters
+ * (e.g., from email confirmation links).
+ *
+ * @returns {JSX.Element} The Login form UI or a loading spinner.
+ */
 // --- Define the inner component containing the client logic ---
 function LoginContent() {
   const [email, setEmail] = useState("")
@@ -58,9 +74,18 @@ function LoginContent() {
 
   useEffect(() => {
     if (!authLoading && user) {
-      router.push("/")
+      const callbackUrl = searchParams.get('callbackUrl');
+      // Check if callbackUrl exists and is a non-empty string
+      if (callbackUrl && typeof callbackUrl === 'string' && callbackUrl.trim() !== '') {
+        console.log(`Login successful, redirecting to callbackUrl: ${callbackUrl}`);
+        // Decode the URL in case it contains encoded characters
+        router.push(decodeURIComponent(callbackUrl)); 
+      } else {
+        console.log("Login successful, redirecting to default '/'");
+        router.push("/"); // Default redirect to homepage
+      }
     }
-  }, [user, authLoading, router])
+  }, [user, authLoading, router, searchParams]); // Added searchParams dependency
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -79,10 +104,10 @@ function LoginContent() {
 
       if (error) {
         console.error("Sign in error:", error)
-        if (error instanceof Error) {
-          toast.error(error.message || "An unexpected error occurred during sign in.")
+        if (error && typeof error === 'object' && 'message' in error) {
+          toast.error(String(error.message) || "Invalid login credentials.")
         } else {
-          toast.error(error.message || "Invalid login credentials.")
+          toast.error("An unexpected error occurred during sign in.")
         }
       } else {
         toast.success("Sign in successful! Redirecting...")
@@ -165,4 +190,5 @@ function LoginContent() {
   )
 }
 // --- End of LoginContent component ---
+
 

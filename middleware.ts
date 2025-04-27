@@ -2,47 +2,59 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 /**
+ * Decodes a Supabase cookie value if it's in base64 format
+ */
+function decodeSupabaseCookie(cookieValue?: string): string | undefined {
+  if (!cookieValue) return undefined;
+  
+  // Handle base64 encoded cookies from Supabase
+  if (cookieValue.startsWith('base64-')) {
+    try {
+      // Remove 'base64-' prefix and decode
+      const base64Value = cookieValue.substring(7);
+      return Buffer.from(base64Value, 'base64').toString();
+    } catch (error) {
+      console.error('Error decoding base64 cookie:', error);
+      return cookieValue; // Return original as fallback
+    }
+  }
+  
+  return cookieValue;
+}
+
+/**
  * Supabase authentication middleware for Next.js.
  * 
  * This middleware is responsible for:
  * 1. Refreshing the user's session cookie if it has expired.
- * 2. Making the session available to server-side rendering contexts.
- * 3. Handling authentication state consistently across client and server.
+ * 2. Making the session available for server components and routes.
  * 
- * @param {NextRequest} request The incoming request.
- * @returns {Promise<NextResponse>} The response, potentially with updated cookies.
+ * Using the standard @supabase/ssr approach.
  */
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
-  })
-
-  // Retrieve Supabase URL and Anon Key from environment variables
+  let response = NextResponse.next()
+  
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-
+  
   if (!supabaseUrl || !supabaseAnonKey) {
     console.error('Missing Supabase environment variables in middleware')
-    // Potentially redirect to an error page or return early
-    // For now, we'll proceed but auth might not work correctly
-    return response 
+    return response
   }
-
+  
+  // Create a Supabase client configured to use cookies
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       get(name: string) {
         return request.cookies.get(name)?.value
       },
       set(name: string, value: string, options: CookieOptions) {
-        // If the cookie is set, update the request headers to reflect the change.
+        // Update cookies on the request and response
         request.cookies.set({
           name,
           value,
           ...options,
         })
-        // Also update the response to set the cookie in the browser.
         response = NextResponse.next({
           request: {
             headers: request.headers,
@@ -55,13 +67,12 @@ export async function middleware(request: NextRequest) {
         })
       },
       remove(name: string, options: CookieOptions) {
-        // If the cookie is removed, update the request headers to reflect the change.
+        // Remove cookies from request and response
         request.cookies.set({
           name,
           value: '',
           ...options,
         })
-        // Also update the response to remove the cookie in the browser.
         response = NextResponse.next({
           request: {
             headers: request.headers,
@@ -75,22 +86,14 @@ export async function middleware(request: NextRequest) {
       },
     },
   })
-
-  // IMPORTANT: Avoid running session refresh for static files or specific paths.
-  // Adjust the matcher in `config` below as needed.
-  try {
-    // Refresh session if expired - this will automatically handle cookie updates.
-    await supabase.auth.getUser() 
-  } catch (error) {
-    console.error('Error refreshing session in middleware:', error);
-    // Handle error appropriately, maybe redirect or log
-  }
-
+  
+  // Refresh session if expired
+  await supabase.auth.getSession()
+  
   return response
 }
 
 // Configure the middleware matcher to avoid running on static assets
-// and API routes if not needed.
 export const config = {
   matcher: [
     /*
@@ -98,8 +101,8 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * Feel free to modify this pattern to include more paths.
+     * - public folder files
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|public|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 } 

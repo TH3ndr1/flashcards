@@ -1,26 +1,36 @@
 export interface FlashCard {
-  id: string
-  question: string
-  answer: string
-  correctCount: number
-  incorrectCount: number
-  lastStudied: Date | null
-  attemptCount: number // Total number of attempts
-  difficultyScore: number // Calculated difficulty score
+  id: string;
+  deck_id: string;
+  question: string;
+  answer: string;
+  deckQuestionLanguage?: string | null;
+  deckAnswerLanguage?: string | null;
+  questionLanguage?: string | null;
+  answerLanguage?: string | null;
+  correctCount: number;
+  incorrectCount: number;
+  attemptCount: number;
+  last_reviewed_at: Date | string | null;
+  next_review_due: Date | string | null;
+  srs_level: number;
+  easiness_factor: number | null;
+  interval_days: number | null;
+  stability: number | null;
+  difficulty: number | null;
+  last_review_grade: number | null;
 }
 
 export interface Deck {
-  id: string
-  name: string
-  language: string // Kept for backward compatibility
-  isBilingual: boolean
-  questionLanguage: string
-  answerLanguage: string
-  cards: FlashCard[]
+  id: string;
+  name: string;
+  language: string;
+  isBilingual: boolean;
+  questionLanguage: string;
+  answerLanguage: string;
+  cards: FlashCard[];
   progress: {
-    correct: number
-    total: number
-    studyingDifficult?: boolean // Optional flag to indicate if we're studying difficult cards
-  }
+    correct: number;
+    total: number;
+  };
 }
 

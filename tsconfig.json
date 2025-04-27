@@ -1,12 +1,13 @@
 {
   "compilerOptions": {
+    // --- Your Existing Options (Unchanged) ---
     "lib": [
       "dom",
       "dom.iterable",
       "esnext"
     ],
     "allowJs": true,
-    "target": "ES6",
+    "target": "ES6", // Consider updating to ES2017 or newer if compatible
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
@@ -27,12 +28,27 @@
         "./*"
       ]
     }
+    // --- End Existing Options ---
   },
+  // --- ADD THIS BLOCK for ts-node configuration ---
+  "ts-node": {
+    "esm": true, // Enable ESM support for ts-node execution
+    "experimentalSpecifierResolution": "node", // Helps with module resolution
+    "compilerOptions": {
+      // Specify options specifically for ts-node's compilation if needed
+      // Often helps to target CommonJS for direct Node execution,
+      // even if the main project targets esnext for the bundler.
+      "module": "CommonJS"
+    }
+  },
+  // --- End ADD ---
   "include": [
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts"
+    // Ensure your test script is included if not covered by **/*.ts
+    // "test-gcp-apis.ts" // Usually not needed if covered by wildcard
   ],
   "exclude": [
     "node_modules"

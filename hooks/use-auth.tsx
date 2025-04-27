@@ -274,10 +274,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * Hook to access the authentication context (user, session, loading state, and auth functions).
- * Must be used within a component wrapped by AuthProvider.
- * @returns {AuthContextType} The authentication context.
- * @throws {Error} If used outside of an AuthProvider.
+ * Custom hook for managing authentication state and operations.
+ * 
+ * This hook provides:
+ * - User authentication state management
+ * - Login and logout functionality
+ * - User session management
+ * - Error handling for auth operations
+ * 
+ * @returns {Object} Authentication functions and state
+ * @returns {User | null} returns.user - The currently authenticated user
+ * @returns {boolean} returns.loading - Whether auth operations are in progress
+ * @returns {string | null} returns.error - Error message if auth operation fails
+ * @returns {(email: string, password: string) => Promise<void>} returns.login - Function to log in a user
+ * @returns {() => Promise<void>} returns.logout - Function to log out the current user
+ * @returns {() => Promise<void>} returns.refreshSession - Function to refresh the user's session
  */
 export function useAuth() {
   const context = useContext(AuthContext)

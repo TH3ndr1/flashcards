@@ -7,6 +7,17 @@ import { useAuth } from "@/hooks/use-auth"
 import { Card } from "@/components/ui/card"
 import { DeckList } from "@/components/deck-list"
 
+/**
+ * Home page component.
+ *
+ * This page is protected and requires authentication. It checks the user's
+ * authentication status using the `useAuth` hook. If the user is not authenticated
+ * or the auth state is loading, it redirects to the '/login' page or shows
+ * a loading state (null). Once authenticated, it displays the user's decks
+ * using the `DeckList` component.
+ *
+ * @returns {JSX.Element | null} The Home page UI or null if loading/unauthenticated.
+ */
 export default function Home() {
   const router = useRouter()
   const { user, loading } = useAuth()
