@@ -43,7 +43,7 @@ export async function uploadFileToStorage(formData: FormData) {
   // Path format: userId/uniqueId-filename
   const path = `${user.id}/${storageFileName}`;
   
-  console.log(`[StorageAction] Attempting to upload to bucket: ${UPLOAD_BUCKET}, path: ${path}, type: ${fileType}`);
+  console.log(`[StorageAction] Preparing upload. User ID: ${user.id}, Path: ${path}, Bucket: ${UPLOAD_BUCKET}, Type: ${fileType}`);
   
   // Upload the file buffer
   const { data, error } = await supabase.storage

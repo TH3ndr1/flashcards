@@ -379,7 +379,6 @@ export async function updateDeck(
         console.log(`[updateDeck] Success, ID: ${updatedDeck.id}`);
         revalidatePath('/'); 
         revalidatePath('/study/sets');
-        revalidatePath(`/edit/${deckId}`); // Revalidate edit page
         return { data: updatedDeck as Tables<'decks'>, error: null };
 
     } catch (error) {

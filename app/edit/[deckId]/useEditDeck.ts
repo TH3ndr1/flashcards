@@ -220,11 +220,13 @@ export function useEditDeck(deckId: string | undefined) {
     }, [debouncedSaveMetadata, deck]); // Added deck dependency for check
 
 
-    // --- Card Actions (Remain the same as the last complete version) ---
+    // --- Card Actions ---
     const handleAddCardOptimistic = useCallback(() => {
          if (!deck) return;
+         // Generate a unique temporary ID for the placeholder
+         const tempId = `new-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
          const newCardPlaceholder: Partial<DbCard> = {
-             id: `new-${Date.now()}`,
+             id: tempId, // Use unique temp ID
              question: "",
              answer: "",
              question_part_of_speech: null, // Initialize new fields
@@ -257,90 +259,146 @@ export function useEditDeck(deckId: string | undefined) {
 
     const handleCreateCard = useCallback(async (cardData: CreateCardInput): Promise<string | null> => {
         if (!deck || !deck.id) { toast.error("Cannot create card: Deck missing."); return null; }
+
+        // Find the temporary ID of the card being created (assuming it's the last one)
+        // A more robust approach might involve passing the tempId from the component
+        const tempCard = deck.cards.find(c => c.id?.startsWith('new-'));
+        const tempId = tempCard?.id;
+
         const toastId = toast.loading("Saving new card...");
         try {
             const result = await createCardAction(deck.id, cardData);
             if (result.error || !result.data) throw result.error || new Error("Failed to create card.");
+
+            const savedCard = result.data;
             toast.success(`New card created!`, { id: toastId });
-            await loadDeckData(deck.id); // Refetch
-            return result.data.id;
-        } catch (error: any) {
-            toast.error("Failed to save new card", { id: toastId, description: error.message || "Unknown error." });
-            // --- Use DeckEditState type --- 
+
+            // --- Optimistic Update: Replace placeholder with saved card --- 
             setDeck((prev: DeckEditState): DeckEditState => {
                 if (!prev) return null;
-                const filteredCards: Array<Partial<DbCard>> = prev.cards.filter((c: Partial<DbCard>) => !c.id?.startsWith('new-'));
+                const updatedCards = prev.cards.map(c => 
+                    c.id === tempId ? savedCard : c // Replace placeholder
+                );
+                // If placeholder wasn't found (edge case), add the saved card
+                if (!tempId || !updatedCards.some(c => c.id === savedCard.id)) {
+                   console.warn("[useEditDeck] Placeholder not found for optimistic update, adding saved card directly.");
+                   updatedCards.push(savedCard);
+                }
+                return { ...prev, cards: updatedCards };
+            });
+            // --------------------------------------------------------------
+
+            // await loadDeckData(deck.id); // Removed: Replaced with optimistic update
+            return savedCard.id;
+
+        } catch (error: any) {
+            toast.error("Failed to save new card", { id: toastId, description: error.message || "Unknown error." });
+            // --- Remove placeholder on error --- 
+            setDeck((prev: DeckEditState): DeckEditState => {
+                if (!prev) return null;
+                // Filter out the specific placeholder if tempId was found, otherwise filter all placeholders
+                const filteredCards: Array<Partial<DbCard>> = tempId 
+                    ? prev.cards.filter((c: Partial<DbCard>) => c.id !== tempId)
+                    : prev.cards.filter((c: Partial<DbCard>) => !c.id?.startsWith('new-'));
                 return { ...prev, cards: filteredCards };
             });
+            // -----------------------------------
             return null;
         }
-    }, [deck, loadDeckData]);
+    }, [deck /*, loadDeckData */]); // Removed loadDeckData from dependencies
 
-    const handleUpdateCard = useCallback(async (cardId: string, cardData: UpdateCardInput): Promise<void> => {
-        if (!cardId || cardId.startsWith('new-')) return;
-        const toastId = `update-${cardId}`;
-        toast.loading("Saving card...", { id: toastId });
+    const handleUpdateCard = useCallback(async (cardId: string, cardData: UpdateCardInput) => {
+        if (!deck || !cardId) { toast.error("Cannot update card: Missing ID."); return; }
+        // Placeholder cards shouldn't trigger this directly, use handleCreateCard
+        if (cardId.startsWith('new-')) {
+            console.warn("[useEditDeck] handleUpdateCard called for a new card placeholder. This should ideally be handled by handleCreateCard after user interaction.");
+            // Attempt to create if it has content?
+             const placeholderCard = deck.cards.find(c => c.id === cardId);
+             if (placeholderCard?.question && placeholderCard?.answer) {
+                 await handleCreateCard({
+                     question: placeholderCard.question,
+                     answer: placeholderCard.answer,
+                     // Fix type errors: Coalesce undefined to null
+                     question_part_of_speech: placeholderCard.question_part_of_speech ?? null,
+                     question_gender: placeholderCard.question_gender ?? null,
+                     answer_part_of_speech: placeholderCard.answer_part_of_speech ?? null,
+                     answer_gender: placeholderCard.answer_gender ?? null,
+                 });
+             }
+            return; 
+        }
+
+        // --- Optimistic UI Update (Apply changes locally first) ---
+        const originalCards = deck.cards;
+        setDeck((prev: DeckEditState): DeckEditState => {
+            if (!prev) return null;
+            const updatedCards = prev.cards.map(c => 
+                c.id === cardId ? { ...c, ...cardData } : c
+            );
+            return { ...prev, cards: updatedCards };
+        });
+        // --------------------------------------------------------
+
+        const toastId = toast.loading("Updating card...");
         try {
-            const updatePayload: UpdateCardInput = { ...cardData };
-            const originalCard = deck?.cards.find(c => c.id === cardId);
-            if (!originalCard) { toast.dismiss(toastId); return; }
-
-            let changed = false;
-            if (originalCard.question !== updatePayload.question) changed = true;
-            if (originalCard.answer !== updatePayload.answer) changed = true;
-            if (originalCard.question_part_of_speech !== updatePayload.question_part_of_speech) changed = true;
-            if (originalCard.question_gender !== updatePayload.question_gender) changed = true;
-            if (originalCard.answer_part_of_speech !== updatePayload.answer_part_of_speech) changed = true;
-            if (originalCard.answer_gender !== updatePayload.answer_gender) changed = true;
-
-            if (!changed) { toast.dismiss(toastId); console.log(`No changes for card ${cardId}.`); return; }
-
-            const result = await updateCardAction(cardId, updatePayload);
+            const result = await updateCardAction(cardId, cardData);
             if (result.error || !result.data) throw result.error || new Error("Failed to update card.");
+
+            const savedCard = result.data;
             toast.success("Card updated!", { id: toastId });
-            if(deck?.id) await loadDeckData(deck.id); // Refetch
+
+            // --- Update local state with confirmed data from server --- 
+            // (Often the same as optimistic, but good practice)
+            setDeck((prev: DeckEditState): DeckEditState => {
+                if (!prev) return null;
+                const confirmedCards = prev.cards.map(c => 
+                    c.id === cardId ? savedCard : c
+                );
+                return { ...prev, cards: confirmedCards };
+            });
+            // ----------------------------------------------------------
+
+            // await loadDeckData(deck.id); // Removed: Replaced with optimistic update
+
         } catch (error: any) {
             toast.error("Failed to update card", { id: toastId, description: error.message || "Unknown error." });
-            if(deck?.id) await loadDeckData(deck.id); // Refetch on error too
+            // --- Revert to original state on error ---
+            setDeck((prev: DeckEditState): DeckEditState => {
+                 if (!prev) return null;
+                 // Restore the card state before the failed update attempt
+                 return { ...prev, cards: originalCards }; 
+            });
+            // -------------------------------------------
         }
-    }, [deck, loadDeckData]);
+    }, [deck, handleCreateCard /*, loadDeckData */]); // Removed loadDeckData, added handleCreateCard
 
-    const handleDeleteCard = useCallback(async (cardId: string): Promise<void> => {
-         if (!cardId) return;
-         const isPlaceholder = cardId.startsWith('new-');
-         const originalCards = deck?.cards; // Store potentially partial cards
-
-         // --- Optimistic update using DeckEditState --- 
-         setDeck((prev: DeckEditState): DeckEditState => {
-             if (!prev) return null;
-             const filteredCards: Array<Partial<DbCard>> = prev.cards.filter((c: Partial<DbCard>) => c.id !== cardId);
-             return { ...prev, cards: filteredCards };
-         });
-
-         // If it was just a placeholder, we're done
-         if (isPlaceholder) return; 
-
-         // --- Handle existing card deletion on backend --- 
+    const handleDeleteCard = useCallback(async (cardId: string) => {
+        if (!deck) return;
+        // --- Optimistic UI Update (Remove card locally first) ---
+        const originalCards = deck.cards;
+        setDeck((prev: DeckEditState): DeckEditState => {
+            if (!prev) return null;
+            const updatedCards = prev.cards.filter(c => c.id !== cardId);
+            return { ...prev, cards: updatedCards };
+        });
+        // -------------------------------------------------------
         const toastId = toast.loading("Deleting card...");
         try {
             const result = await deleteCardAction(cardId);
-             if (result.error) throw new Error(result.error);
+            if (result.error) throw result.error;
             toast.success("Card deleted!", { id: toastId });
+            // No need to update state further, already removed optimistically
+            // await loadDeckData(deck.id); // Removed
         } catch (error: any) {
             toast.error("Failed to delete card", { id: toastId, description: error.message || "Unknown error." });
-            // --- Revert state using original (potentially partial) cards --- 
-            if (originalCards) {
-                setDeck((prev: DeckEditState): DeckEditState => {
-                    if (!prev) return null; 
-                    return { ...prev, cards: originalCards }; // Restore original partial array
-                });
-            } else if (deck?.id) {
-                 // Fallback refetch if original state wasn't captured
-                loadDeckData(deck.id);
-            }
-            // ------------------------------------------------------------
+            // --- Revert to original state on error ---
+            setDeck((prev: DeckEditState): DeckEditState => {
+                 if (!prev) return null;
+                 return { ...prev, cards: originalCards }; // Restore original cards array
+            });
+            // -------------------------------------------
         }
-    }, [deck, loadDeckData]);
+    }, [deck /*, loadDeckData */]); // Removed loadDeckData
 
 
     // --- Deck Deletion ---
