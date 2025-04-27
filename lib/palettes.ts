@@ -12,7 +12,10 @@ export interface Palette {
   dark: ColorPair;    // Colors for dark theme background (with grey card)
 }
 
-// Extracted from the image (adjust names and hex codes as needed)
+//use url for inspiration
+//https://venngage.com/tools/accessible-color-palette-generator
+
+
 export const PREDEFINED_PALETTES: ReadonlyArray<Palette> = [
   { id: 'default', name: 'Default (No Color)', light: { background: 'transparent', text: 'inherit' }, dark: { background: 'transparent', text: 'inherit' } }, // Option to disable for a specific type
   { id: 'bw', name: 'Black/White', light: { background: '#000000', text: '#FFFFFF' }, dark: { background: '#000000', text: '#FFFFFF' } },
