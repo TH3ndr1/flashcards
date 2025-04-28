@@ -1,7 +1,7 @@
 # Project Documentation: StudyCards App
 
-**Version:** 3.1 (Post Edit/AI Page Refactor & Consolidated Deck Creation)
-**Date:** 2025-04-23 (Placeholder - Adjust as needed)
+**Version:** 3.2 (Added Deck Progress & Theme Settings)
+**Date:** 2025-04-24 (Placeholder - Adjust as needed)
 
 **(Consolidated based on user requirements and iterative AI discussions)**
 
@@ -27,6 +27,9 @@
     *   [5.2 Frontend Architecture](#52-frontend-architecture)
     *   [5.3 Backend Architecture](#53-backend-architecture)
     *   [5.4 Database Schema](#54-database-schema)
+        *   [5.4.1 Tables](#541-tables)
+        *   [5.4.2 Views](#542-views)
+        *   [5.4.3 Functions](#543-functions)
     *   [5.5 Navigation Structure](#55-navigation-structure)
     *   [5.6 Code Structure and Organization](#56-code-structure-and-organization)
         *   [5.6.1 Component Architecture](#561-component-architecture)
@@ -251,15 +254,15 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
 ### 5.2 Frontend Architecture
 *   **Structure:** Next.js App Router (`app/`). Mix of Server and Client Components.
 *   **Styling:** Tailwind CSS / `shadcn/ui`.
-*   **Components:** Reusable UI (`components/ui/`), feature-specific (`components/study/`, `components/tags/`, `components/prepare/ai-generate/` etc.), layout (`components/layout/`).
+*   **Components:** Reusable UI (`components/ui/`), feature-specific (`components/study/`, `components/tags/`, `components/prepare/ai-generate/`, `components/deck/` etc.), layout (`components/layout/`).
 *   **State Management:**
-    *   Global Auth/Settings/Theme: React Context (`providers/`).
+    *   Global Auth/Settings/Theme: React Context (`providers/`). Settings Provider now includes `themePreference`.
     *   Global UI State: Zustand (`store/` - e.g., `mobileSidebarStore`).
     *   Feature State/Logic: Custom Hooks (`hooks/`, page-specific hooks like `useEditDeck`, `useAiGenerate`).
     *   Study Session: Zustand (`studySessionStore`) for params + Custom Hook (`useStudySession`) for active session logic.
 *   **Custom Hooks (`hooks/`, feature directories):** Central for state and logic:
     *   `useSupabase`, `useAuth`, `useSettingsContext`.
-    *   `useDecks` (Manages deck *list* state, fetches single, updates metadata, deletes. **Does not create**).
+    *   `useDecks` (Manages deck *list* state via `get_deck_list_with_srs_counts` RPC, fetches single deck, updates metadata, deletes. **Does not create**).
     *   `useTags`, `useStudySets`, `useCardTags`.
     *   `useStudySession`.
     *   `useTTS`, `useStudyTTS`.
@@ -272,18 +275,20 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
 *   **Supabase Client:** Dedicated clients via `@supabase/ssr` (`createActionClient`, `createRouteHandlerClient`).
 *   **Key Actions (`lib/actions/`):**
     *   `cardActions`: `createCard`, `updateCard`, `deleteCard`, `getCardsByIds`.
-    *   `deckActions`: **`createDeck` (used by manual flow via hook)**, `updateDeck`, `deleteDeck`, `getDecks`, `getDeck`.
+    *   `deckActions`: **`createDeck` (used by manual flow via hook)**, `updateDeck`, `deleteDeck`, **`getDecks` (Calls DB function `get_deck_list_with_srs_counts`)**, `getDeck`.
     *   `tagActions`: `createTag`, `getTags`, `deleteTag`, `addTagToCard`, `removeTagFromCard`, `getCardTags`.
     *   `studySetActions`: `createStudySet`, `getUserStudySets`, `getStudySet`, `updateStudySet`, `deleteStudySet`.
     *   `progressActions`: `updateCardProgress` (saves SRS state).
     *   `studyQueryActions`: `resolveStudyQuery` (calls DB function).
-    *   `settingsActions`: Get/Update user settings.
+    *   `settingsActions`: Get/Update user settings (includes mapping `themePreference` to `theme_light_dark_mode`).
     *   `ttsActions`: Generate TTS audio.
 *   **Key API Routes (`app/api/`):**
     *   `tts/route.ts`: Handles TTS generation requests.
     *   `extract-pdf/route.ts`: Orchestrates AI file processing workflow (extraction & generation).
     *   `decks/route.ts`: Handles `POST` requests for consolidated deck creation **(used by AI flow)**.
 *   **Database Function (`resolve_study_query`):** Handles complex card filtering.
+*   **Database Function (`get_deck_list_with_srs_counts`):** Fetches decks along with counts of cards in different SRS stages (new, learning, mature).
+*   **Database View (`cards_with_srs_stage`):** Categorizes cards into 'new', 'learning', 'mature' based on `interval_days` and `mature_interval_threshold` setting.
 *   **AI Services (`app/api/extract-pdf/` services):**
     *   `textExtractorService.ts`: Abstracts Vision AI / Document AI logic.
     *   `flashcardGeneratorService.ts`: Abstracts Vertex AI Gemini logic.
@@ -291,18 +296,25 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
 *   **Middleware (`middleware.ts`):** Manages session cookies/refresh.
 
 ### 5.4 Database Schema
+#### 5.4.1 Tables
 1.  **`users`** (Managed by Supabase Auth)
 2.  **`settings`** (User preferences)
     *   `user_id`: `uuid` (PK, FK -> `auth.users.id`, ON DELETE CASCADE)
     *   `srs_algorithm`: `text` (default: 'sm2', not null) - Stores 'sm2' or 'fsrs'.
     *   `fsrs_parameters`: `jsonb` (nullable) - For future user-specific FSRS tuning.
     *   `mastery_threshold`: `integer` (default: 3, not null) - Renamed from `learn_mode_success_threshold`.
+    *   `mature_interval_threshold`: `integer` (default: 21, not null) - Interval (days) after which a card is considered 'mature'.
     *   `app_language`: `text` (default: 'en', not null)
     *   `card_font`: `text` (nullable) - Use `Enums.font_option` type if defined via Supabase types.
     *   `language_dialects`: `jsonb` (nullable) - Store preferred voices per language code.
-    *   `preferred_voices`: `jsonb` (nullable) - DEPRECATED, use `language_dialects`.
     *   `show_difficulty`: `boolean` (default: true, nullable) - If UI should show difficulty buttons.
+    *   `show_deck_progress`: `boolean` (default: true, not null) - If deck list should show progress bars.
+    *   `theme_light_dark_mode`: `text` (default: 'system', not null) - User's preferred theme ('light', 'dark', 'system').
     *   `tts_enabled`: `boolean` (default: true, nullable) - Master TTS toggle.
+    *   `enable_basic_color_coding`: `boolean` (default: true, not null)
+    *   `enable_advanced_color_coding`: `boolean` (default: true, not null)
+    *   `color_only_non_native`: `boolean` (default: true, not null)
+    *   `word_palette_config`: `jsonb` (nullable)
     *   `created_at`: `timestamptz` (default: `now()`)
     *   `updated_at`: `timestamptz` (default: `now()`)
     *   *RLS: User can only manage/view their own settings.*
@@ -337,7 +349,7 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
     *   `next_review_due`: `timestamptz` (nullable) - **INDEXED along with user_id**
     *   `srs_level`: `integer` (default: 0, not null)
     *   `easiness_factor`: `float` (default: 2.5, nullable) - SM-2 EF.
-    *   `interval_days`: `integer` (default: 0, nullable) - SM-2 Interval.
+    *   `interval_days`: `integer` (default: 0, not null) - SM-2 Interval. **INDEXED for performance**
     *   `stability`: `float` (nullable) - FSRS 'S'.
     *   `difficulty`: `float` (nullable) - FSRS 'D'.
     *   `last_review_grade`: `integer` (nullable) - Last user rating (1-4).
@@ -364,6 +376,31 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
     *   `updated_at`: `timestamptz` (default: `now()`)
     *   *RLS: User can only manage/view their own study sets.*
 
+#### 5.4.2 Views
+
+1.  **`cards_with_srs_stage`**
+    *   **Purpose:** Joins `cards` with `settings` to categorize cards based on their SRS learning stage.
+    *   **Key Logic:**
+        *   Selects all columns from `cards`.
+        *   Adds `srs_stage`: `text` calculated as:
+            *   'new' if `interval_days` = 0.
+            *   'learning' if `interval_days` > 0 AND `interval_days` < `settings.mature_interval_threshold`.
+            *   'mature' if `interval_days` >= `settings.mature_interval_threshold`.
+    *   **RLS:** Inherits RLS from the underlying `cards` table (user can only see their own cards).
+
+#### 5.4.3 Functions
+
+1.  **`resolve_study_query(query_criteria jsonb, user_id uuid)`**
+    *   **Purpose:** Takes a JSON object defining filter criteria (decks, tags, dates, SRS level etc.) and returns an array of matching `card_id`s for the specified user.
+    *   **Usage:** Called by `studyQueryActions.resolveStudyQuery` server action.
+    *   **Security:** `SECURITY DEFINER` (requires careful permission management) or checks `user_id` argument against `auth.uid()`.
+
+2.  **`get_deck_list_with_srs_counts(user_id uuid)`**
+    *   **Purpose:** Returns a list of decks for the specified user, augmented with counts of cards in each SRS stage ('new', 'learning', 'mature') based on the `cards_with_srs_stage` view.
+    *   **Returns:** `TABLE(id uuid, name text, description text, ..., new_count integer, learning_count integer, mature_count integer, total_cards integer)`
+    *   **Usage:** Called by `deckActions.getDecks` server action to populate the main deck list.
+    *   **Security:** `SECURITY DEFINER` or filters by `user_id` argument against `auth.uid()`.
+
 ### 5.5 Navigation Structure
 *   **Sidebar (Primary Navigation):**
     *   Practice: "Start Session" (`/study/select`), "Smart Playlists" (`/study/sets`).
@@ -377,6 +414,7 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
     *   Study Set List (`/study/sets`): Links to Edit (`.../[id]/edit`), New (`.../new`), Learn/Review (`/study/session`). Delete buttons. "+ Create Playlist" button links to `/study/sets/new`.
     *   Edit Deck (`/edit/[id]`): Save (auto for metadata/manual for cards), Delete.
     *   Edit Study Set (`/study/sets/[id]/edit`): Save, Cancel/Delete.
+    *   **Settings Page (`/settings`):** Reorganized into "Card Settings", "Appearance Settings", "Speech Settings", and "Word Color Coding" sections. Includes controls for theme preference, showing deck progress, font, mastery threshold, etc.
     *   *(Removed: `/decks/new` page, `/decks/create-choice` page)*
 
 ### 5.6 Code Structure and Organization
@@ -390,65 +428,139 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
 **(Updated)**
 ```plaintext
 /
-├── app/
-│   ├── layout.tsx
-│   ├── page.tsx           # Home (Deck List)
+├── app/                      # Next.js App Router root
+│   ├── layout.tsx            # Root layout
+│   ├── layout-script.tsx     # Script for layout (e.g., theme)
+│   ├── page.tsx              # Home page (Deck List)
+│   ├── globals.css           # Global styles
+│   ├── sw.js                 # Service Worker (if applicable)
+│   ├── api/                  # API Routes
+│   │   ├── decks/
+│   │   │   └── route.ts      # API for consolidated deck creation (AI flow)
+│   │   ├── extract-pdf/      # API and services for AI generation
+│   │   │   ├── route.ts
+│   │   │   ├── config.ts
+│   │   │   ├── gcpClients.ts
+│   │   │   ├── fileUtils.ts
+│   │   │   ├── types.ts
+│   │   │   ├── textExtractorService.ts
+│   │   │   └── flashcardGeneratorService.ts
+│   │   └── tts/
+│   │       └── route.ts      # API for Text-to-Speech
+│   ├── auth/                 # Auth-related pages (callback, etc.)
 │   ├── edit/
-│   │   └── [deckId]/      # Deck Edit Feature
+│   │   └── [deckId]/         # Deck Edit Feature
 │   │       ├── page.tsx
-│   │       ├── useEditDeck.ts
+│   │       ├── useEditDeck.ts # Specific hook for this page
 │   │       ├── DeckMetadataEditor.tsx
 │   │       ├── CardViewTabContent.tsx
 │   │       ├── TableViewTabContent.tsx
 │   │       └── DeckDangerZone.tsx
-│   ├── study/             # Study Feature (select, session, sets)
-│   ├── tags/              # Tag Management Feature
-│   ├── settings/          # Settings Feature
-│   ├── auth/              # Auth Pages
+│   ├── login/                # Login Page
 │   ├── prepare/
-│   │   └── ai-generate/   # AI Generation Feature
+│   │   └── ai-generate/      # AI Generation Feature
 │   │       ├── page.tsx
-│   │       ├── useAiGenerate.ts
+│   │       ├── useAiGenerate.ts # Specific hook
 │   │       ├── AiGenerateInputCard.tsx
 │   │       ├── AiGenerateResultsCard.tsx
 │   │       └── AiGenerateSaveDeckCard.tsx
-│   ├── decks/             # Deck Creation Flow
-│   │   ├── new/
-│   │   │   └── page.tsx   # Manual Deck Creation Page
-│   │   └── create-choice/ # Optional Choice Page
-│   │       └── page.tsx
-│   └── api/
-│       ├── extract-pdf/   # AI Backend Service
-│       │   ├── route.ts | config.ts | gcpClients.ts | fileUtils.ts | types.ts | textExtractorService.ts | flashcardGeneratorService.ts
-│       ├── decks/         # Deck Creation API (for AI flow)
-│       │   └── route.ts
-│       └── tts/           # TTS API
-├── components/
-│   ├── ui/               # shadcn/ui
-│   ├── layout/
-│   ├── study/
-│   ├── tags/
-│   ├── deck-list.tsx     # Component for home page deck list
+│   ├── profile/              # User Profile Page
+│   ├── settings/             # Settings Feature
+│   │   ├── page.tsx
+│   │   └── (components moved to components/settings/*)
+│   ├── signup/               # Signup Page
+│   ├── study/                # Study Feature
+│   │   ├── select/           # Study Session Selection Page
+│   │   │   └── page.tsx
+│   │   ├── session/          # Active Study Session Page
+│   │   │   └── page.tsx
+│   │   └── sets/             # Study Set Management
+│   │       ├── page.tsx      # List Study Sets
+│   │       ├── new/          # Create New Study Set
+│   │       │   └── page.tsx
+│   │       └── [id]/         # View/Edit Study Set
+│   │           └── edit/
+│   │               └── page.tsx
+│   └── tags/                 # Tag Management Feature
+│       └── page.tsx
+├── components/               # Shared React components
+│   ├── ui/                   # shadcn/ui components (managed by CLI)
+│   ├── layout/               # Layout components (Header, Sidebar, etc.)
+│   │   ├── site-header.tsx
+│   │   ├── site-sidebar.tsx
+│   │   └── mobile-nav.tsx
+│   ├── deck/                 # Deck-related components
+│   │   └── DeckProgressBar.tsx
+│   ├── settings/             # Settings page sections/components
+│   │   ├── AppearanceSettings.tsx
+│   │   ├── CardSettings.tsx
+│   │   ├── SpeechSettings.tsx
+│   │   └── WordColorSettings.tsx
+│   ├── study/                # Study-related components
+│   │   ├── StudySetBuilder.tsx
+│   │   └── (other study components...)
+│   ├── tags/                 # Tag-related components
+│   │   ├── TagManager.tsx
+│   │   └── CardTagEditor.tsx
+│   ├── ClientProviders.tsx   # Wrapper for client-side context providers
+│   ├── deck-list.tsx         # Component for home page deck list
 │   ├── create-deck-dialog.tsx # Dialog for manual deck creation
-│   ├── file-upload.tsx   # Used by MediaCaptureTabs
-│   └── media-capture-tabs.tsx # Used by AI Generate page
-├── hooks/                # Reusable cross-feature hooks (useAuth, useDecks, useSupabase, etc.)
-├── lib/
-│   ├── actions/          # Server actions (including deckActions.createDeck)
-│   ├── supabase/
-│   ├── schema/
-│   ├── utils.ts
-│   ├── srs.ts
-├── providers/            # Context providers
-├── store/                # Zustand stores
-├── styles/
-└── types/                # database.ts etc.
+│   ├── file-upload.tsx       # Reusable file upload component
+│   ├── media-capture-tabs.tsx # Tabs for media input (file/camera)
+│   ├── camera-capture.tsx    # Component for camera input
+│   ├── deck-header.tsx       # Header for deck-related views
+│   ├── settings-button.tsx   # Button linking to settings
+│   ├── tts-toggle-button.tsx # Button for TTS toggle
+│   ├── user-nav.tsx          # User avatar/menu dropdown
+│   └── (other shared components...)
+├── hooks/                    # Custom React hooks
+│   ├── use-auth.tsx
+│   ├── use-decks.tsx         # Hook specifically for Deck List page logic (uses useDecks.ts)
+│   ├── useDecks.ts           # Core deck actions hook
+│   ├── use-mobile.tsx
+│   ├── use-supabase.tsx
+│   ├── use-tts.ts
+│   ├── useCardTags.ts
+│   ├── useStudySetForm.ts
+│   ├── useStudySets.ts
+│   ├── useStudySession.ts
+│   └── useTags.ts
+├── lib/                      # Utilities, actions, schemas, etc.
+│   ├── actions/              # Server Actions (card, deck, progress, settings, etc.)
+│   ├── schema/               # Zod schemas for validation
+│   ├── supabase/             # Supabase client setup (server, client)
+│   ├── fonts.ts
+│   ├── localStorageUtils.ts
+│   ├── palettes.ts
+│   ├── srs.ts                # Spaced Repetition algorithm logic
+│   ├── study-utils.ts        # Utilities specific to studying
+│   └── utils.ts              # General utility functions
+├── providers/                # React Context providers
+│   ├── settings-provider.tsx # Manages settings state & persistence
+│   └── theme-provider.tsx    # (May be deprecated if using next-themes directly in RootLayout/ClientProviders)
+├── public/                   # Static assets
+├── store/                    # Zustand global state stores
+│   └── studySessionStore.ts
+├── styles/                   # Global styles (if not using app/globals.css primarily)
+├── types/                    # TypeScript type definitions
+│   └── database.ts           # Auto-generated Supabase types
+├── .env.local                # Local environment variables (DO NOT COMMIT)
+├── .eslintrc.json            # ESLint configuration
+├── .gitignore                # Git ignore rules
+├── next.config.mjs           # Next.js configuration
+├── package.json              # Project dependencies and scripts
+├── postcss.config.js         # PostCSS configuration
+├── prettier.config.js        # Prettier configuration
+├── README.md                 # Project README
+├── supabase/                 # Supabase local dev files (migrations, config)
+├── tailwind.config.ts        # Tailwind CSS configuration
+└── tsconfig.json             # TypeScript configuration
 ```
 
 #### 5.6.3 Key Components and Their Functions
 
 1.  **Root Layout (`app/layout.tsx`)**
-    *   Main layout wrapper that integrates all providers (AuthProvider, SettingsProvider, ThemeProvider). Handles global UI elements like Header/Sidebar that appear on all pages.
+    *   Main layout wrapper that integrates all providers (AuthProvider, SettingsProvider, ThemeProvider). Handles global UI elements like Header/Sidebar that appear on all pages. Applies theme changes from `next-themes`.
 2.  **Layout Components (`components/layout/`)**
     *   **`SiteHeader` (`layout/site-header.tsx`)**: App title/logo, global navigation icons, mobile menu toggle. Displayed on all pages.
     *   **`SiteSidebar` (`layout/site-sidebar.tsx`)**: Primary navigation menu (grouped by Prepare/Practice modes). Fixed on desktop, toggleable drawer on mobile.
@@ -461,6 +573,9 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
     *   **`DifficultyIndicator`**: Visual component showing SRS progress/difficulty of cards.
 4.  **Deck/Card/Tag Editing & Management Components**
     *   **`/edit/[deckId]/page.tsx`**: Orchestrator page for editing a deck. Uses `useEditDeck` hook and renders sub-components.
+    *   **`DeckList` (`components/deck-list.tsx`)**: Displays the user's decks on the homepage (`/`). Fetches data via `useDecks` (which calls the `get_deck_list_with_srs_counts` RPC). Renders deck information, action buttons, and the `<DeckProgressBar />` if enabled in settings. Also includes the "Create Deck" button triggering `<CreateDeckDialog />`.
+    *   **`DeckProgressBar` (`components/deck/DeckProgressBar.tsx`)**: Visual representation of card distribution within a deck across SRS stages (new, learning, mature). Takes counts as props.
+    *   **`CreateDeckDialog` (`components/create-deck-dialog.tsx`)**: Modal form for creating a new deck manually.
     *   **`DeckForm`**: Main form for creating or editing a deck's core properties (name, description, etc.).
     *   **`CardEditor`**: Complex UI for editing a single flashcard. Includes rich text editors for question/answer, tagging, image uploads.
     *   **`CardList`**: Sortable, filterable list of cards within a deck. Rendered in the deck edit page, with inline quick editing capabilities.
@@ -487,18 +602,18 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
     *   **`ProfileSettings`**: User profile management form for account settings.
 9.  **Core Data Hooks**
     *   **`useAuth`**: Provides authentication state and methods (login, logout, etc.).
-    *   **`useDecks`**: Manages deck CRUD operations, loading states, and data caching.
+    *   **`useDecks`**: Manages deck list state by calling `get_deck_list_with_srs_counts` RPC via `getDecks` action. Provides wrappers for `getDeck`, `updateDeck`, `deleteDeck`, and `createDeck` Server Actions.
     *   **`useCards`**: Provides card-level operations, filtering, and manipulation.
     *   **`useStudySession`**: Complex hook managing the active study session state, card sequencing, and spaced repetition algorithms.
-    *   **`useSettings`**: Manages user preference settings with persistence.
+    *   **`useSettings`**: Manages user preference settings with persistence (handles `themePreference` mapping).
     *   **`useAIAssistant`**: Encapsulates AI generation functionality with request state management.
 
 #### 5.6.4 State Management
 
 1. **Global State**
    - Auth: `AuthProvider` with `useAuth` hook.
-   - Settings: `SettingsProvider` with `useSettingsContext` hook.
-   *   Theme: `ThemeProvider` with `useTheme` hook.
+   - Settings: `SettingsProvider` with `useSettingsContext` hook (manages `themePreference`, `showDeckProgress`, etc.).
+   *   Theme: `ThemeProvider` (`next-themes`) with `useTheme` hook, driven by `themePreference` from settings.
    *   Mobile Sidebar: `useMobileSidebar` Zustand store.
 
 2. **Study Session State**
@@ -560,9 +675,8 @@ This setup ensures secure and consistent authentication across the Next.js App R
 graph TD
     subgraph "Layout & Providers"
         A[app/layout.tsx] --> B[ClientProviders/Providers]
-        B --> C[providers/ThemeProvider]
-        B --> D[providers/AuthProvider]
-        B --> E[providers/SettingsProvider]
+        B --> C[providers/ThemeProvider]; B --> D[providers/AuthProvider]; B --> E[providers/SettingsProvider]
+        E --> C # SettingsProvider influences ThemeProvider via useTheme
     end
 
     subgraph "Study Session Flow"
@@ -574,16 +688,16 @@ graph TD
         L[components/study/study-flashcard-view.tsx] --> F
         L --> M[hooks/useStudyTTS.ts]
         M --> N[api/tts/route.ts]
-        O[app/study/session/page.tsx] --> F
-        O --> L
-        P[app/study/select/page.tsx] --> K
-        P --> Q[components/study/StudySetSelector.tsx]
+        O[app/study/session/page.tsx] --> F; O --> L
+        P[app/study/select/page.tsx] --> K; P --> Q[components/study/StudySetSelector.tsx]
     end
 
     subgraph "Deck List & Manual Create"
         R[hooks/useDecks.ts] --> RA[lib/actions/deckActions.ts - Get/Update/Delete/Create]
+        RA -- calls --> DB_FUNC[DB: get_deck_list_with_srs_counts()]
         S[app/page.tsx] --> T[components/deck-list.tsx]
-        T --> R # For fetching list
+        T --> R # For fetching list data (with counts)
+        T --> T_PB[components/deck/DeckProgressBar.tsx] # Renders progress
         T --> UC[components/create-deck-dialog.tsx] # Opens dialog
         UC --> R # Calls createDeck from hook
     end
@@ -593,10 +707,8 @@ graph TD
         V --> R # Uses getDeck, updateDeck from useDecks
         V --> H # cardActions - Create/Update/Delete
         V --> TA[lib/actions/tagActions.ts] # link/unlink tags
-        V --> VA[app/edit/[deckId]/DeckMetadataEditor.tsx]
-        V --> VB[app/edit/[deckId]/CardViewTabContent.tsx]
-        V --> VC[app/edit/[deckId]/TableViewTabContent.tsx]
-        V --> VD[app/edit/[deckId]/DeckDangerZone.tsx]
+        V --> VA[app/edit/[deckId]/DeckMetadataEditor.tsx]; V --> VB[app/edit/[deckId]/CardViewTabContent.tsx]
+        V --> VC[app/edit/[deckId]/TableViewTabContent.tsx]; V --> VD[app/edit/[deckId]/DeckDangerZone.tsx]
     end
 
     subgraph "AI Deck Creation Flow"
@@ -607,15 +719,12 @@ graph TD
     end
 
     subgraph "AI Backend Service"
-       ZB --> ZD[api/extract-pdf/textExtractorService.ts]
-       ZB --> ZE[api/extract-pdf/flashcardGeneratorService.ts]
-       ZD --> ZF[api/extract-pdf/gcpClients.ts]
-       ZE --> ZF
+       ZB --> ZD[api/extract-pdf/textExtractorService.ts]; ZB --> ZE[api/extract-pdf/flashcardGeneratorService.ts]
+       ZD --> ZF[api/extract-pdf/gcpClients.ts]; ZE --> ZF
     end
 
     subgraph "Tag Management"
-        W[hooks/useTags.ts] --> TA
-        YW[hooks/useCardTags.ts] --> TA
+        W[hooks/useTags.ts] --> TA; YW[hooks/useCardTags.ts] --> TA
         ZW[components/tags/CardTagEditor.tsx] --> YW
         AA[components/tags/TagManager.tsx] --> W
         AB[app/tags/page.tsx] --> AA
@@ -626,8 +735,7 @@ graph TD
        AE[components/study/StudySetBuilder.tsx] --> AD
        AF[app/study/sets/page.tsx] --> AC
        AG[app/study/sets/new/page.tsx] --> AE
-       AH[app/study/sets/[id]/edit/page.tsx] --> AE
-       AH --> AC
+       AH[app/study/sets/[id]/edit/page.tsx] --> AE; AH --> AC
     end
 
     subgraph "Authentication"
@@ -638,29 +746,37 @@ graph TD
         AO[app/auth/*] --> AI
     end
 
+    subgraph "Settings Management"
+        SET_PAGE[app/settings/page.tsx] --> SET_HOOK[hooks/useSettingsContext.ts]
+        SET_HOOK --> SET_ACTIONS[lib/actions/settingsActions.ts]
+        SET_PAGE --> NEXT_THEME[hooks/useTheme (next-themes)] # To apply theme change
+        SET_HOOK --> E # Reads from SettingsProvider
+        SET_ACTIONS --> DB_SETTINGS[DB: settings table]
+    end
+
 ```
 
 #### 5.8.3 File Descriptions
 
 1.  **Core Hooks (`hooks/`)**:
-    *   `useDecks`: Manages deck list state (`getDecks`). Provides wrappers for `getDeck`, `updateDeck`, `deleteDeck`, and **`createDeck` (used by manual flow)** Server Actions.
+    *   `useDecks`: Manages deck list state by calling `get_deck_list_with_srs_counts` RPC via `getDecks` action. Provides wrappers for `getDeck`, `updateDeck`, `deleteDeck`, and **`createDeck` (used by manual flow)** Server Actions. Returns data including SRS counts for progress bars.
     *   `useEditDeck` (`app/edit/[deckId]/`): Manages state/logic for the deck edit page (fetch, metadata save, card actions, tag actions).
     *   `useAiGenerate` (`app/prepare/ai-generate/`): Manages state/logic for AI generation page (file handling, API calls to `/extract-pdf` and `/decks`).
     *   Study Session Management: `useStudySession`, `useStudyTTS`.
     *   Data Fetching: `useTags`, `useStudySets`, `useCardTags`.
     *   Authentication: `useAuth`.
-    *   Settings: `useSettingsContext`.
+    *   Settings: `useSettingsContext` (Provides access to all settings, including `themePreference`, `showDeckProgress`).
     *   UI State: `useMobileSidebar`.
     *   `useSupabase`: Provides Supabase client.
 
 2.  **Server Actions (`lib/actions/`)**:
-    *   `deckActions`: **`createDeck` (used by manual flow)**, `updateDeck`, `deleteDeck`, `getDecks`, `getDeck`.
+    *   `deckActions`: **`createDeck` (used by manual flow)**, `updateDeck`, `deleteDeck`, **`getDecks` (Calls DB function `get_deck_list_with_srs_counts`)**, `getDeck`.
     *   `cardActions`: `createCard`, `updateCard`, `deleteCard`, `getCardsByIds`.
     *   `tagActions`: `createTag`, `getTags`, `deleteTag`, `addTagToCard`, `removeTagFromCard`, `getCardTags`.
     *   `studySetActions`: `createStudySet`, `getUserStudySets`, `getStudySet`, `updateStudySet`, `deleteStudySet`.
     *   `progressActions`: `updateCardProgress`.
     *   `studyQueryActions`: `resolveStudyQuery`.
-    *   `settingsActions`: Get/Update user settings.
+    *   `settingsActions`: Get/Update user settings (Handles mapping `themePreference` to `theme_light_dark_mode`).
     *   `ttsActions`: Generate TTS audio.
 
 3.  **API Routes (`app/api/`)**:
@@ -679,14 +795,14 @@ graph TD
 
 6.  **Utility Libraries (`lib/`)**:
     *   Core Utils: `srs.ts`, `utils.ts`.
-    *   Database: `supabase/`.
+    *   Database: `supabase/` (client setup).
     *   Schema: `schema/` (Zod schemas).
 
 7.  **Components (`components/`)**:
     *   Study: `study/StudyFlashcardView`, `study/StudySetBuilder`, `study/StudySetSelector`.
     *   Tags: `tags/TagManager`, `tags/CardTagEditor`.
     *   Layout: `layout/SiteHeader`, `layout/SiteSidebar`.
-    *   Deck: `deck-list.tsx`, **`create-deck-dialog.tsx` (Manual creation form)**.
+    *   Deck: `deck-list.tsx` (Displays decks with progress bars), `deck/DeckProgressBar.tsx`, **`create-deck-dialog.tsx` (Manual creation form)**.
     *   File Upload: `file-upload.tsx`, `media-capture-tabs.tsx`.
     *   UI: `ui/` (shadcn).
 
@@ -694,14 +810,15 @@ graph TD
     *   Deck Editing: `edit/[deckId]/page.tsx` (Orchestrator). Sub-components: `DeckMetadataEditor`, `CardViewTabContent`, `TableViewTabContent`, `DeckDangerZone`.
     *   AI Generation: `prepare/ai-generate/page.tsx` (Orchestrator). Sub-components: `AiGenerateInputCard`, `AiGenerateResultsCard`, `AiGenerateSaveDeckCard`.
     *   Study Flow: `study/session/page.tsx`, `study/select/page.tsx`, `study/sets/*`.
-    *   Content Management: `page.tsx` (Home/Deck List), `tags/page.tsx`, `settings/page.tsx`.
+    *   Content Management: `page.tsx` (Home/Deck List), `tags/page.tsx`.
+    *   Settings: `settings/page.tsx` (Reorganized UI with Appearance/Card/Speech/Color sections, handles theme changes via `useTheme`).
     *   Authentication: `auth/*`.
     *   *(Removed: `/decks/new/page.tsx`, `/decks/create-choice/page.tsx`)*
 
 9.  **Providers (`providers/`)**:
     *   `AuthProvider`: Authentication state.
-    *   `SettingsProvider`: User preferences.
-    *   `ThemeProvider`: UI theming.
+    *   `SettingsProvider`: User preferences (includes `themePreference`, maps to DB column).
+    *   `ThemeProvider`: UI theming (`next-themes`), updated by settings changes.
 
 #### 5.8.4 Data Flow Patterns (Diagram)
 
@@ -718,7 +835,9 @@ graph TD
 
     subgraph "Deck List & Manual Creation"
         H[useDecks Hook] --> I(deckActions - Get/Update/Delete/Create);
-        K[DeckList Comp] --> H; # Fetch List
+        I -- calls --> DB_FUNC[DB: get_deck_list_with_srs_counts()];
+        K[DeckList Comp] --> H; # Fetch List data (with counts)
+        K --> K_PB[DeckProgressBar Comp]; # Renders progress
         K --> L[CreateDeckDialog Comp]; # Open Dialog
         L --> H; # Call createDeck from hook
     end
@@ -754,15 +873,18 @@ graph TD
     end
 
     subgraph "Settings Management"
-        W[useSettings Hook] --> X(settingsActions);
-        Y[SettingsForm Comp] --> W;
+        W[SettingsPage Comp] --> X[useSettingsContext Hook];
+        X --> Y(settingsActions);
+        W --> Z[useTheme Hook (next-themes)];
+        X --> AA[SettingsProvider Context]; # Reads settings
+        Y --> BB[DB: settings table]; # Saves settings
     end
 
     subgraph "Authentication"
-        Z[useAuth Hook] --> AA[AuthProvider Context];
-        BB[Login/Signup Forms] --> Z;
-        CC[Server Action/API Route] --> DD(Supabase Server Client);
-        EE[Middleware] -.-> DD;
+        CC[useAuth Hook] --> DD[AuthProvider Context];
+        EE[Login/Signup Forms] --> CC;
+        FF[Server Action/API Route] --> GG(Supabase Server Client);
+        HH[Middleware] -.-> GG;
     end
 ```
 
@@ -915,7 +1037,8 @@ The core SM-2 logic resides in the `calculateSm2State` function within `lib/srs.
 *   **Core Study:** `StudySessionPage` (`app/study/session/page.tsx`), `StudyFlashcardView`, `DifficultyIndicator`.
 *   **Study Setup:** `StudySetSelector`, `StudySetBuilder`, Study Setup Page (`app/study/select/page.tsx`).
 *   **Deck/Card Management:**
-    *   `DeckList` (`components/deck-list.tsx`).
+    *   `DeckList` (`components/deck-list.tsx`): Displays decks, progress bars (via `<DeckProgressBar>`), and actions.
+    *   `DeckProgressBar` (`components/deck/DeckProgressBar.tsx`): Shows SRS stage distribution.
     *   `CreateDeckDialog` (`components/create-deck-dialog.tsx`) - Manual creation.
     *   Edit Deck Page (`app/edit/[deckId]/page.tsx`).
     *   `DeckMetadataEditor`, `CardViewTabContent`, `TableViewTabContent`, `DeckDangerZone` (Sub-components for Edit Deck).
@@ -926,9 +1049,9 @@ The core SM-2 logic resides in the `calculateSm2State` function within `lib/srs.
     *   AI Generate Page (`app/prepare/ai-generate/page.tsx`).
     *   `AiGenerateInputCard`, `AiGenerateResultsCard`, `AiGenerateSaveDeckCard` (Sub-components for AI Generate).
     *   `FileUpload`, `MediaCaptureTabs`.
-*   **Settings:** Settings Page (`app/settings/page.tsx`), various settings controls.
+*   **Settings:** Settings Page (`app/settings/page.tsx`) - Reorganized UI with controls for theme, progress bars, etc.
 *   **Authentication:** Login/Signup Forms (`app/auth/...`).
-*   **Hooks:** `useAuth`, `useSettingsContext`, `useMobileSidebar`, `useStudySessionStore`, `useDecks`, `useTags`, `useCardTags`, `useStudySets`, `useTTS`, `useEditDeck`, `useAiGenerate`, `useSupabase`.
+*   **Hooks:** `useAuth`, `useSettingsContext`, `useMobileSidebar`, `useStudySessionStore`, `useDecks`, `useTags`, `useCardTags`, `useStudySets`, `useTTS`, `useEditDeck`, `useAiGenerate`, `useSupabase`, `useTheme`.
 
 ---
 
@@ -1050,7 +1173,19 @@ The core SM-2 logic resides in the `calculateSm2State` function within `lib/srs.
 
 ## 12. Changelog
 
-*   **[ADDED] v3.1 (YYYY-MM-DD - Placeholder):** Major refactoring & clarification of Deck Creation, Edit Deck, and AI Generation flows based on detailed code review.
+*   **v3.2 (2025-04-29 - Placeholder):** Added Deck Progress visualization and Theme Preference.
+    *   Added `mature_interval_threshold`, `show_deck_progress`, `theme_light_dark_mode` to `settings` table.
+    *   Added `cards_with_srs_stage` view.
+    *   Added `get_deck_list_with_srs_counts` function.
+    *   Updated `deckActions.getDecks` to use the new RPC.
+    *   Updated `useDecks` hook to handle new data structure.
+    *   Added `DeckProgressBar` component.
+    *   Updated `DeckList` to display progress bars and legend, controlled by settings.
+    *   Updated `SettingsProvider` and `settingsActions` to handle `themePreference`.
+    *   Reorganized `SettingsPage` UI into sections (Card, Appearance, Speech, Color) and added Theme select, moved Show Deck Progress toggle.
+    *   Integrated `next-themes` (`useTheme`) into `SettingsPage` for theme application.
+    *   Updated documentation (DB Schema, Arch, Components, Diagrams, Action Plan).
+*   **v3.1 (YYYY-MM-DD - Placeholder):** Major refactoring & clarification of Deck Creation, Edit Deck, and AI Generation flows based on detailed code review.
     *   Clarified manual deck creation uses `CreateDeckDialog` -> `useDecks` -> `createDeck` Server Action.
     *   Clarified AI deck creation uses `/prepare/ai-generate` -> `useAiGenerate` -> `POST /api/extract-pdf` -> `POST /api/decks`.
     *   Refactored `/edit/[deckId]` page using `useEditDeck` hook and sub-components, using Server Actions for persistence.
@@ -1105,12 +1240,30 @@ The core SM-2 logic resides in the `calculateSm2State` function within `lib/srs.
 *   [x] Removed deprecated `deckService.ts`.
 *   [x] Implement `POST /api/decks` route (for AI flow persistence).
 *   [x] Implement `POST /api/extract-pdf` route and related services.
+*   [x] Add DB View: `cards_with_srs_stage`.
+*   [x] Add DB Function: `get_deck_list_with_srs_counts`.
+*   [x] Update `deckActions.getDecks` to use RPC.
 
 **Phase 2: Core Study Flow Refactoring (Completed)**
 *   [x] Implement Zustand store (`store/studySessionStore.ts`).
 *   [x] Refactor `useStudySession` hook (initialize via store, handle Learn/Review modes, fetch data via actions, trigger SRS calcs, save progress). Fixed infinite loop.
 *   [x] Refactor `app/study/session/page.tsx`.
 *   [x] Refactor `components/study/study-flashcard-view.tsx`.
+*   [x] Implement Study Setup UI (`StudySetSelector`, `/study/select` page).
+*   [x] Update Deck List (`components/deck-list.tsx`) to use new study initiation flow & trigger `CreateDeckDialog`.
+*   [x] Implement `CreateDeckDialog` for manual deck creation.
+*   [x] Implement Deck Progress Bar UI (`components/deck/DeckProgressBar.tsx`).
+*   [x] Integrate Progress Bar into `DeckList` (`components/deck-list.tsx`), controlled by settings.
+*   [x] Implement Settings Page UI (`app/settings/page.tsx`) - **Reorganized with Theme/Appearance Settings**.
+    *   [x] Add Theme preference select control (`ThemePreference`).
+    *   [x] Integrate `next-themes` via `useTheme` hook.
+    *   [x] Add Show Deck Progress toggle.
+    *   [x] Implement Card Settings section.
+    *   [x] Restore Speech Settings section.
+    *   [x] Implement Word Color Coding section.
+*   [x] Finalize Study Session Page UI (`app/study/session/page.tsx`) - **Partially Done**
+    *   (Sub-tasks unchanged)
+*   [x] Add/Update main navigation links for new/changed sections.
 
 **Phase 3: UI Implementation & Integration (Updated)**
 *   [x] Implement Responsive Navigation.
@@ -1127,8 +1280,15 @@ The core SM-2 logic resides in the `calculateSm2State` function within `lib/srs.
 *   [x] Implement Study Setup UI (`StudySetSelector`, `/study/select` page).
 *   [x] Update Deck List (`components/deck-list.tsx`) to use new study initiation flow & trigger `CreateDeckDialog`.
 *   [x] Implement `CreateDeckDialog` for manual deck creation.
-*   [/] Implement Settings Page UI (`app/settings/page.tsx`) - **Partially Done**
-    *   (Sub-tasks unchanged)
+*   [x] Implement Deck Progress Bar UI (`components/deck/DeckProgressBar.tsx`).
+*   [x] Integrate Progress Bar into `DeckList` (`components/deck-list.tsx`), controlled by settings.
+*   [x] Implement Settings Page UI (`app/settings/page.tsx`) - **Reorganized with Theme/Appearance Settings**.
+    *   [x] Add Theme preference select control (`ThemePreference`).
+    *   [x] Integrate `next-themes` via `useTheme` hook.
+    *   [x] Add Show Deck Progress toggle.
+    *   [x] Implement Card Settings section.
+    *   [x] Restore Speech Settings section.
+    *   [x] Implement Word Color Coding section.
 *   [/] Finalize Study Session Page UI (`app/study/session/page.tsx`) - **Partially Done**
     *   (Sub-tasks unchanged)
 *   [x] Add/Update main navigation links for new/changed sections.
@@ -1146,9 +1306,15 @@ The core SM-2 logic resides in the `calculateSm2State` function within `lib/srs.
 *   [x] Task 4.2: Add comprehensive error handling and toast notifications.
 *   [x] Task 4.3: Add AI Gen Entry Point in Main UI (`/prepare/ai-generate` sidebar link).
 *   [x] Task 5.1: Implement Vercel-specific configurations.
+*   [ ] Database Backfilling script creation & testing (Staging).
+*   [ ] Unit testing (SRS utils, helpers, AI utils, hooks).
+*   [ ] Integration testing (Server Actions, API Routes, Hooks, DB function calls, Views).
+*   [ ] E2E testing (Core user flows: Auth, **Manual Deck Creation (Dialog)**, **AI Deck Creation**, **Deck Editing**, Tagging, Study Set CRUD, Learn Mode Session, Review Mode Session, Settings update - **including Theme change & Deck Progress toggle**).
+*   [ ] Manual cross-browser/device testing.
+*   [ ] UI/UX polish (animations, layout consistency, wording, accessibility checks).
+*   [ ] Performance review & optimization (DB queries, indexes, bundle size, API route performance).
 
 **Phase 5: Testing & Polish (Pending)**
-*   [ ] Database Backfilling script creation & testing (Staging).
 *   [ ] Unit testing (SRS utils, helpers, AI utils, hooks).
 *   [ ] Integration testing (Server Actions, API Routes, Hooks, DB function calls).
 *   [ ] E2E testing (Core user flows: Auth, **Manual Deck Creation (Dialog)**, **AI Deck Creation**, **Deck Editing**, Tagging, Study Set CRUD, Learn Mode Session, Review Mode Session, Settings update).

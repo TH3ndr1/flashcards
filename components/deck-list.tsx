@@ -19,9 +19,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { DeckProgressBar } from "@/components/deck/DeckProgressBar"
+import { useSettings } from "@/providers/settings-provider"
+import { cn } from "@/lib/utils"
+import { Separator } from "@/components/ui/separator"
 
 export function DeckList() {
   const { decks, loading, refetchDecks } = useDecks() // Added refetchDecks
+  const { settings, loading: settingsLoading } = useSettings() // Get settings
   // REMOVED: const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isVisible, setIsVisible] = useState(true)
   const router = useRouter() // Keep router
@@ -72,8 +77,19 @@ export function DeckList() {
     router.push('/decks/create-choice'); // Navigate to the choice page
   }
 
+  // Handle combined loading state
+  const isLoading = loading || settingsLoading;
+
+  // Legend data - UPDATED with hex codes
+  const legendStages = [
+    { name: 'New', startColor: '#EC4899', endColor: '#EF4444' },
+    { name: 'Learning', startColor: '#DA55C6', endColor: '#9353DD' },
+    { name: 'Young', startColor: '#6055DA', endColor: '#5386DD' },
+    { name: 'Mature', startColor: '#55A9DA', endColor: '#53DDDD' },
+  ];
+
   // Render loading state
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex justify-center items-center h-64">
         {/* Spinner animation */}
@@ -88,15 +104,19 @@ export function DeckList() {
     )
   }
 
+  // Get setting value, default to true if settings not loaded yet
+  const showDeckProgress = settings?.showDeckProgress ?? true;
+
   // Main component render
   return (
     <TooltipProvider>
       <div className="space-y-6 py-4 px-4 md:p-6">
-        {/* Header section with title and create button */}
-        <div className="flex justify-between items-center flex-wrap gap-4">
+        {/* Header section - LEGEND REMOVED FROM HERE */}
+        <div className="flex justify-between items-center flex-wrap gap-4 mb-6"> {/* Added mb-6 */}
+          {/* Title remains */}
           <h2 className="text-2xl font-semibold">Your Decks</h2>
+          {/* Create button remains */}
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Button to initiate deck creation */}
             <Button onClick={handleCreateDeckClick}>
               <PlusCircle className="mr-2 h-4 w-4" />
               Create Deck
@@ -104,7 +124,7 @@ export function DeckList() {
           </div>
         </div>
 
-        {/* Grid container for deck cards */}
+        {/* Grid container */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {/* Display message if no decks exist */}
           {decks.length === 0 ? (
@@ -119,7 +139,10 @@ export function DeckList() {
           ) : (
             // Map through existing decks and render a card for each
             decks.map((deck) => {
-              const totalCards = deck.card_count ?? 0;
+              const totalCards = (deck.new_count ?? 0) +
+                                 (deck.learning_count ?? 0) +
+                                 (deck.young_count ?? 0) +
+                                 (deck.mature_count ?? 0);
               // Format language display based on whether the deck is bilingual
               let languageDisplay = deck.primary_language || 'Lang not set';
               if (deck.is_bilingual && deck.secondary_language) {
@@ -127,7 +150,7 @@ export function DeckList() {
               }
 
               return (
-                <Card key={deck.id} className="hover:shadow-md transition-shadow flex flex-col bg-gradient-to-b from-slate-100/40 dark:from-slate-800/40 to-transparent">
+                <Card key={deck.id} className="hover:shadow-md transition-shadow flex flex-col bg-gradient-to-b from-slate-100/40 dark:from-slate-800/40 to-transparent dark:border-slate-700">
                   <CardHeader className="pt-4 pb-2 space-y-1 px-4">
                     <div className="flex justify-between items-center">
                       {/* Deck name (truncated if long) */}
@@ -156,13 +179,14 @@ export function DeckList() {
                     </CardDescription>
                   </CardHeader>
                   {/* Footer with study buttons */}
-                  <CardFooter className="flex justify-center mt-auto pt-4">
+                  <CardFooter className="flex justify-center pt-4 px-4 pb-4">
                     <div className="flex gap-3">
                       <Button
                         onClick={() => handleStudy(deck.id, 'learn')}
                         aria-label={`Learn ${deck.name}`}
                         className="bg-gradient-to-br from-pink-500 to-red-500 hover:from-pink-600 hover:to-red-600 text-white shadow-sm hover:shadow"
                         size="sm"
+                        disabled={totalCards === 0}
                       >
                         <GraduationCap className="h-4 w-4 mr-1" /> Learn
                       </Button>
@@ -171,17 +195,50 @@ export function DeckList() {
                         aria-label={`Review ${deck.name}`}
                         className="bg-gradient-to-br from-blue-500 to-sky-500 hover:from-blue-600 hover:to-sky-600 text-white shadow-sm hover:shadow"
                         size="sm"
+                        disabled={totalCards === 0}
                       >
                         <Play className="h-4 w-4 mr-1" /> Review
                       </Button>
                     </div>
                   </CardFooter>
+                  {/* Conditionally render Separator AND DeckProgressBar */}
+                  {showDeckProgress && (
+                    <>
+                      <Separator />
+                      <CardContent className="px-4 pt-4 pb-4 bg-slate-50 dark:bg-slate-700/50 rounded-b-lg">
+                        <DeckProgressBar
+                          newCount={deck.new_count ?? 0}
+                          learningCount={deck.learning_count ?? 0}
+                          youngCount={deck.young_count ?? 0}
+                          matureCount={deck.mature_count ?? 0}
+                        />
+                      </CardContent>
+                    </>
+                  )}
                 </Card>
               )
             })
           )}
         </div>
-        {/* Removed the CreateDeckDialog component */}
+
+        {/* Expanded Legend */}
+        {showDeckProgress && decks.length > 0 && (
+          <div className="mt-4 flex justify-end">
+            <div className="text-xs text-muted-foreground flex flex-wrap gap-x-3 gap-y-1 p-2 border rounded-md bg-background shadow-sm">
+              {legendStages.map(stage => (
+                <span key={stage.name} className="flex items-center gap-1">
+                  {/* Apply inline gradient style to legend chip */}
+                  <span
+                    className="h-2 w-3 rounded"
+                    style={{ backgroundImage: `linear-gradient(to right, ${stage.startColor}, ${stage.endColor})` }}
+                  ></span>
+                  {stage.name}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
       </div>
     </TooltipProvider>
   )

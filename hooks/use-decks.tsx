@@ -24,9 +24,9 @@ interface ActionResult<T> {
   error: string | null;
 }
 
-// --- Type Definitions Updated for Tags ---
+// --- Type Definitions Updated for Tags AND Stage Counts ---
 
-// Base type for a deck with associated tags (Matches definition in deckActions)
+// Base type for a deck with associated tags (from deckActions)
 type DeckWithTags = Tables<'decks'> & { tags: Tables<'tags'>[] };
 
 // Type returned by the getDeck action (includes cards AND tags)
@@ -36,20 +36,30 @@ export type DeckWithCardsAndTags = DeckWithTags & { cards: Tables<'cards'>[] };
 export interface CreateDeckParams extends Pick<Tables<'decks'>, 'name' | 'primary_language' | 'secondary_language' | 'is_bilingual'> {}
 export interface UpdateDeckParams extends Partial<Pick<Tables<'decks'>, 'name' | 'primary_language' | 'secondary_language' | 'is_bilingual'>> {}
 
-// Type for the items stored in the local 'decks' state list (includes tags)
-type DeckListItem = Pick<Tables<'decks'>, 'id' | 'name' | 'primary_language' | 'secondary_language' | 'is_bilingual' | 'updated_at'> & { 
-    card_count: number; 
-    tags: Tables<'tags'>[]; // ADDED tags here
+// Type for the items stored in the local 'decks' state list
+// This now matches the return type of the modified getDecksAction
+type DeckListItem = {
+    id: string;
+    name: string;
+    primary_language: string | null;
+    secondary_language: string | null;
+    is_bilingual: boolean | null;
+    updated_at: string | null;
+    new_count: number;
+    learning_count: number;
+    young_count: number;
+    mature_count: number;
+    // Note: Tags are NOT currently returned by the RPC function.
+    // If needed, they would need to be added to the function or fetched separately.
+    // tags: Tables<'tags'>[];
 };
 // -----------------------------------------
 
-// Define the structure of the object returned by the useDecks hook (updated getDeck return type)
+// Define the structure of the object returned by the useDecks hook
 interface UseDecksReturn {
-    decks: DeckListItem[]; // The list of decks for display
-    loading: boolean; // Loading state for the deck list fetch
-    // --- Update getDeck return type --- 
-    getDeck: (id: string) => Promise<ActionResult<DeckWithCardsAndTags | null>>; 
-    // ---------------------------------
+    decks: DeckListItem[]; // Use the updated DeckListItem type
+    loading: boolean;
+    getDeck: (id: string) => Promise<ActionResult<DeckWithCardsAndTags | null>>;
     createDeck: (params: CreateDeckParams) => Promise<ActionResult<Tables<'decks'>>>;
     updateDeck: (id: string, params: UpdateDeckParams) => Promise<ActionResult<Tables<'decks'>>>;
     deleteDeck: (id: string) => Promise<ActionResult<null>>;
@@ -75,15 +85,11 @@ const logDecksError = (...args: any[]) => {
  * while managing a local state for the list of decks suitable for display components.
  */
 export function useDecks(): UseDecksReturn {
-  // State for storing the list of decks (basic info + card count)
+  // State for storing the list of decks - Use the updated DeckListItem type
   const [decks, setDecks] = useState<DeckListItem[]>([]);
-  // Loading state primarily for the initial fetch of the deck list
   const [loading, setLoading] = useState(true);
-  // Get user authentication status
-  const { user, loading: authLoading } = useAuth(); // Also consider auth loading state
-  // --- Add Ref to track fetching status --- 
+  const { user, loading: authLoading } = useAuth();
   const isFetchingList = useRef(false);
-  // -----------------------------------------
 
   // Function to fetch the list of decks from the server action
   const fetchDeckList = useCallback(async () => {
@@ -100,38 +106,35 @@ export function useDecks(): UseDecksReturn {
             return;
         }
         // ---------------------------------
-      logDecks("Fetching deck list...");
-      setLoading(true); // Set loading true before fetch
-      isFetchingList.current = true; // Mark as fetching
+      logDecks("Fetching deck list via RPC..."); // Updated log message
+      setLoading(true);
+      isFetchingList.current = true;
       try {
-          // Call the server action to get the list of decks with card counts
+          // Call the server action (which now calls the RPC)
           const result = await getDecksAction();
           if (result.error) {
-              // Handle error from the action
               logDecksError("Error fetching deck list:", result.error);
               toast.error("Failed to load decks", { description: result.error });
-              setDecks([]); // Clear decks on error
+              setDecks([]);
           } else {
-              // Action succeeded, update local state
-              logDecks(`Fetched ${result.data?.length ?? 0} decks.`);
+              logDecks(`Fetched ${result.data?.length ?? 0} decks via RPC.`);
               // Data structure from action should match DeckListItem
-              setDecks((result.data || []) as DeckListItem[]); // Cast might be needed if types aren't identical
+              setDecks(result.data || []); // No cast needed if action type is correct
           }
       } catch (error) {
-          // Handle unexpected errors during the fetch call
           logDecksError("Unexpected error fetching deck list:", error);
           toast.error("Failed to load decks", { description: "An unexpected error occurred." });
-          setDecks([]); // Clear decks on unexpected error
+          setDecks([]);
       } finally {
-        setLoading(false); // Always set loading false after fetch attempt completes
-        isFetchingList.current = false; // Unmark fetching status
+        setLoading(false);
+        isFetchingList.current = false;
       }
-  }, [user, authLoading]); // Dependencies: user and authLoading state
+  }, [user, authLoading]);
 
-  // Effect to fetch the deck list when the component mounts or user/auth state changes
+  // Effect to fetch the deck list
   useEffect(() => {
       fetchDeckList();
-  }, [fetchDeckList]); // Dependency: the memoized fetchDeckList function
+  }, [fetchDeckList]);
 
   // --- Action Wrappers ---
   // These functions wrap the server actions, handle loading states (if needed specifically per action),
@@ -144,15 +147,13 @@ export function useDecks(): UseDecksReturn {
   const createDeck = useCallback(async (params: CreateDeckParams): Promise<ActionResult<Tables<'decks'>>> => {
       if (!user) return { data: null, error: "User not authenticated" };
 
-      const toastId = toast.loading("Creating deck..."); // Show loading toast
-      const result = await createDeckAction(params); // Call the server action
+      const toastId = toast.loading("Creating deck..."); 
+      const result = await createDeckAction(params);
 
       if (!result.error && result.data) {
-          logDecks("Create successful, adding basic info to local state.");
-          // Action successful, update toast and optionally update local state
           toast.success(`Deck "${result.data.name}" created.`, { id: toastId });
 
-          // --- Optimistic UI update for the list (includes empty tags array) ---
+          // --- Optimistic UI update needs the new counts (initially zero) ---
           const newDeckItem: DeckListItem = {
               id: result.data.id,
               name: result.data.name,
@@ -160,21 +161,21 @@ export function useDecks(): UseDecksReturn {
               secondary_language: result.data.secondary_language,
               is_bilingual: result.data.is_bilingual,
               updated_at: result.data.updated_at,
-              card_count: 0,
-              tags: [] // ADDED: Initialize with empty tags
+              new_count: 0, // Initialize counts to 0
+              learning_count: 0,
+              young_count: 0,
+              mature_count: 0,
+              // tags: [] // If tags were included, initialize here
           };
-           // Add and sort the list
           setDecks((prev) => [...prev, newDeckItem].sort((a,b) => a.name.localeCompare(b.name)));
           // -------------------------------------------------------------------------
 
       } else if (result.error) {
-          // Action failed, update toast with error
           logDecksError("Create action failed:", result.error);
           toast.error("Failed to create deck", { id: toastId, description: result.error });
       }
-      // Return the raw result from the server action
       return result;
-  }, [user]); // Dependency: user state
+  }, [user]);
 
   /**
    * Fetches the full details of a single deck, including its cards and tags.
@@ -262,15 +263,20 @@ export function useDecks(): UseDecksReturn {
   // Dependencies: user and the 'decks' state for reverting optimistic update
   }, [user, decks]);
 
+  // refetchDecks function uses the updated fetchDeckList
+  const refetchDecks = useCallback(async () => {
+    logDecks("Explicit refetch triggered.");
+    await fetchDeckList();
+  }, [fetchDeckList]);
 
-  // Return the state and action wrappers for components to use
+  // Return the hook's public API
   return {
-    decks, // The list of decks (DeckListItem[])
-    loading: loading || authLoading, // Combine list loading and auth loading
-    getDeck, // Function to fetch a single deck with cards and tags
-    createDeck, // Function to create a new deck
-    updateDeck, // Function to update deck metadata
-    deleteDeck, // Function to delete a deck
-    refetchDecks: fetchDeckList // Function to manually refresh the deck list
+    decks,
+    loading,
+    getDeck,
+    createDeck,
+    updateDeck,
+    deleteDeck,
+    refetchDecks,
   };
 }

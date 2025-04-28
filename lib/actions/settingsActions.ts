@@ -99,6 +99,15 @@ export async function updateUserSettings({
         }
         // -----------------------------
 
+        if ('showDeckProgress' in updates && updates.showDeckProgress !== undefined) {
+             dbPayload.show_deck_progress = updates.showDeckProgress;
+        }
+        // ADD MAPPING FOR NEW THEME FIELD
+        if ('themePreference' in updates && updates.themePreference !== undefined) {
+             // Explicitly cast the value to string, as DB column is TEXT
+             dbPayload.theme_light_dark_mode = String(updates.themePreference);
+        }
+
         if (Object.keys(dbPayload).length === 0) {
              console.log("[updateUserSettings] No valid fields provided for update after mapping.");
              const { data: currentSettings } = await getUserSettings();

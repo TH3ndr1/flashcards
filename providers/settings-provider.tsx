@@ -25,6 +25,7 @@ const debug = (...args: any[]) => {
 };
 
 // Define types
+export type ThemePreference = "light" | "dark" | "system";
 export type FontOption = "default" | "opendyslexic" | "atkinson";
 
 // --- Updated Settings Interface ---
@@ -47,10 +48,12 @@ export interface Settings {
   enableAdvancedColorCoding: boolean;
   wordPaletteConfig: Record<string, Record<string, string>>; // Stores Palette IDs
   colorOnlyNonNative: boolean;
+  showDeckProgress: boolean;
+  themePreference: ThemePreference;
 }
 
-// DB Type Alias
-type DbSettings = Tables<'settings'>; // Assumes types/database.ts includes new columns
+// Re-declare DB Type Alias to potentially help TS
+type DbSettings = Tables<'settings'>;
 
 interface SettingsContextType {
   settings: Settings | null;
@@ -72,7 +75,9 @@ export const DEFAULT_SETTINGS: Settings = {
   enableBasicColorCoding: true,
   enableAdvancedColorCoding: false,
   wordPaletteConfig: DEFAULT_PALETTE_CONFIG,
-  colorOnlyNonNative: true
+  colorOnlyNonNative: true,
+  showDeckProgress: true,
+  themePreference: 'system',
 };
 
 // --- Updated Transformation Function ---
@@ -108,6 +113,8 @@ const transformDbSettingsToSettings = (dbSettings: DbSettings | null): Settings 
             enableAdvancedColorCoding: dbSettings.enable_advanced_color_coding ?? DEFAULT_SETTINGS.enableAdvancedColorCoding,
             wordPaletteConfig: wordPaletteConfigFinal,
             colorOnlyNonNative: dbSettings.color_only_non_native ?? DEFAULT_SETTINGS.colorOnlyNonNative,
+            showDeckProgress: dbSettings.show_deck_progress ?? DEFAULT_SETTINGS.showDeckProgress,
+            themePreference: (dbSettings.theme_light_dark_mode ?? DEFAULT_SETTINGS.themePreference) as ThemePreference,
         };
         debug('transformDbSettingsToSettings: Transformation result:', transformed);
         return transformed;

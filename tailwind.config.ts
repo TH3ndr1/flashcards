@@ -30,6 +30,12 @@ const config = {
         // --- End of font updates ---
       },
       colors: {
+        // Okabe-Ito colors REMOVED as gradients are used now
+        // 'okabe-new': '#B51963',
+        // 'okabe-learning': '#D55E00',
+        // 'okabe-young': '#56B4E9',
+        // 'okabe-mature': '#009E73',
+        // Existing colors
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

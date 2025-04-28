@@ -11,7 +11,7 @@ import { ArrowLeft, Palette, RotateCcw } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 // --- Adjust imports for Palette ---
 import { useSettings, DEFAULT_SETTINGS as PROVIDER_DEFAULT_SETTINGS } from "@/providers/settings-provider";
-import type { Settings, FontOption } from "@/providers/settings-provider"; // Now includes wordPaletteConfig
+import type { Settings, FontOption, ThemePreference } from "@/providers/settings-provider"; // Now includes wordPaletteConfig
 import { PREDEFINED_PALETTES, DEFAULT_PALETTE_CONFIG } from "@/lib/palettes"; // Import palette data
 import type { Palette as PaletteType } from "@/lib/palettes"; // Import Palette type
 // ---------------------------------
@@ -20,6 +20,7 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { FONT_OPTIONS } from "@/lib/fonts";
 import { Separator } from "@/components/ui/separator";
+import { useTheme } from "next-themes"; // Import useTheme
 // Debounce likely not needed for Selects, removing for simplicity unless proven necessary
 // import { debounce } from "@/lib/utils";
 
@@ -43,6 +44,7 @@ export default function SettingsPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const { settings, updateSettings, loading: settingsLoading } = useSettings();
+  const { setTheme } = useTheme(); // Get setTheme function
 
   // State initialization (Keep all existing state variables)
   const [appLanguage, setAppLanguage] = useState<string>(LOCAL_DEFAULT_SETTINGS.appLanguage);
@@ -60,6 +62,9 @@ export default function SettingsPage() {
   const [wordPaletteConfig, setWordPaletteConfig] = useState<NonNullable<Settings['wordPaletteConfig']>>(
       LOCAL_DEFAULT_SETTINGS.wordPaletteConfig
   );
+  // --- Add state for new setting ---
+  const [showDeckProgress, setShowDeckProgress] = useState<boolean>(LOCAL_DEFAULT_SETTINGS.showDeckProgress);
+  const [themePreference, setThemePreference] = useState<ThemePreference>(LOCAL_DEFAULT_SETTINGS.themePreference);
   // --------------------------------
 
   // Effects (Keep original logic)
@@ -84,6 +89,9 @@ export default function SettingsPage() {
          setEnableAdvancedColorCoding(currentSettings.enableAdvancedColorCoding);
          // --- Load Palette Config ---
          setWordPaletteConfig({ ...DEFAULT_PALETTE_CONFIG, ...(currentSettings.wordPaletteConfig ?? {}) });
+         // --- Load new setting ---
+         setShowDeckProgress(currentSettings.showDeckProgress);
+         setThemePreference(currentSettings.themePreference); // Load theme preference
          // --------------------------
      }
   }, [settings, settingsLoading, user]);
@@ -156,6 +164,26 @@ export default function SettingsPage() {
   }, [handleSettingChange]);
   // ---------------------------
 
+  // --- Add handler for new setting ---
+  const handleShowDeckProgressChange = useCallback(async (checked: boolean) => {
+      setShowDeckProgress(checked);
+      await handleSettingChange({ showDeckProgress: checked });
+  }, [handleSettingChange]);
+  // -----------------------------------
+
+  // --- Updated handler for new theme setting ---
+  const handleThemeChange = useCallback(async (value: ThemePreference) => {
+      // 1. Update local state
+      setThemePreference(value);
+      // 2. Apply theme using next-themes
+      setTheme(value);
+      // 3. Save preference to database
+      await handleSettingChange({ themePreference: value });
+      // 4. Notify user
+      toast.info(`Theme set to ${value}.`);
+  }, [handleSettingChange, setTheme]); // Added setTheme to dependencies
+  // --------------------------------------
+
   // Loading/User checks
   if (settingsLoading || authLoading) { return <div className="container mx-auto p-8">Loading Settings...</div>; }
   if (!user) { return <div className="container mx-auto p-8">Redirecting to login...</div>; }
@@ -169,11 +197,11 @@ export default function SettingsPage() {
       </div>
       <div className="grid gap-6"> {/* Keep Original Grid */}
 
-        {/* --- Application Settings Card - RESTORED FULL CONTENT --- */}
+        {/* --- Card Settings Card (Renamed) --- */}
         <Card>
             <CardHeader>
-                <CardTitle>Application Settings</CardTitle>
-                <CardDescription>Configure your application preferences</CardDescription>
+                <CardTitle>Card Settings</CardTitle> {/* Renamed Title */}
+                <CardDescription>Configure card appearance and learning behavior</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
                 <div className="grid gap-4">
@@ -223,7 +251,40 @@ export default function SettingsPage() {
                 </div>
             </CardContent>
         </Card>
-        {/* --- End Application Settings Card --- */}
+        {/* --- End Card Settings Card --- */}
+
+        {/* --- Appearance Settings Card (New) --- */}
+        <Card>
+            <CardHeader>
+                <CardTitle>Appearance Settings</CardTitle>
+                <CardDescription>Adjust the look and feel of the application</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                {/* Theme Preference */}
+                <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="themePreference" className="text-right">Theme</Label>
+                    <Select value={themePreference} onValueChange={handleThemeChange}>
+                        <SelectTrigger id="themePreference" className="col-span-3">
+                            <SelectValue placeholder="Select theme..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="light">Light</SelectItem>
+                            <SelectItem value="dark">Dark</SelectItem>
+                            <SelectItem value="system">System Default</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+                <Separator />
+                {/* Show Deck Progress Toggle (Moved) */}
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h3 className="font-medium">Show Deck Progress</h3>
+                        <p className="text-sm text-muted-foreground">Display progress bars on deck cards</p>
+                    </div>
+                    <Switch checked={showDeckProgress} onCheckedChange={handleShowDeckProgressChange} />
+                </div>
+            </CardContent>
+        </Card>
 
         {/* --- Speech Settings Card - RESTORED FULL CONTENT --- */}
         <Card>

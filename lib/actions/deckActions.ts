@@ -75,17 +75,30 @@ export async function getDeckName(
 
 // Define the type for the deck including its tags
 type DeckWithTags = Tables<'decks'> & { tags: Tables<'tags'>[] };
-// Define the type for the deck list item including tags and card count
-type DeckListItemWithTags = Pick<Tables<'decks'>, 'id' | 'name' | 'primary_language' | 'secondary_language' | 'is_bilingual' | 'updated_at'> & { 
-    card_count: number; 
-    tags: Tables<'tags'>[]; // Add tags here
+
+// Define the type for the deck list item returned by the RPC function
+// NOTE: Adjust based on the actual return type if DB function changes
+type DeckListItemWithCounts = {
+    id: string;
+    name: string;
+    primary_language: string | null;
+    secondary_language: string | null;
+    is_bilingual: boolean | null;
+    updated_at: string | null;
+    new_count: number;
+    learning_count: number;
+    young_count: number;
+    mature_count: number;
+    // tags: Tables<'tags'>[]; // Tags are NOT included in the new function, add if needed via separate query or function modification
+    // card_count: number; // Total card count is derived from stage counts
 };
 
 /**
- * Fetches all decks with basic info, card count, and associated tags for the authenticated user.
+ * Fetches all decks with basic info and card stage counts for the authenticated user.
+ * Uses the get_deck_list_with_srs_counts database function.
  */
-export async function getDecks(): Promise<ActionResult<DeckListItemWithTags[]>> { // Updated return type
-    console.log("[getDecks] Action started");
+export async function getDecks(): Promise<ActionResult<DeckListItemWithCounts[]>> { // Updated return type
+    console.log("[getDecks] Action started - fetching via RPC");
     try {
         const supabase = createActionClient();
         const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -94,64 +107,38 @@ export async function getDecks(): Promise<ActionResult<DeckListItemWithTags[]>> 
             console.error('[getDecks] Auth error or no user:', authError);
             return { data: null, error: authError?.message || 'Not authenticated' };
         }
-        
-        console.log("[getDecks] User authenticated:", user.id);
 
-        try {
-            console.log(`[getDecks] Querying decks, card counts, and tags for user_id: ${user.id}`);
-            // --- Select deck fields, card count, AND associated tags --- 
-            const { data, error } = await supabase
-                .from('decks')
-                .select(`
-                    id, 
-                    name, 
-                    primary_language,
-                    secondary_language,
-                    is_bilingual,
-                    updated_at,
-                    cards ( count ),
-                    tags (*) 
-                `)
-                .eq('user_id', user.id)
-                .order('name', { ascending: true }); 
-            // ---------------------------------------------------------
-            
-            console.log("[getDecks] Supabase query result raw:", { data, error });
+        console.log(`[getDecks] User authenticated: ${user.id}, calling RPC get_deck_list_with_srs_counts`);
 
-            if (error) {
-               console.error("[getDecks] Supabase query failed:", error);
-               return { data: null, error: error.message || 'Failed to fetch decks.' };
-            }
-            
-            // --- Process data to structure correctly --- 
-            const processedData = data?.map(deck => {
-                // Extract card count
-                const count = deck.cards && Array.isArray(deck.cards) && deck.cards.length > 0 
-                              ? deck.cards[0].count 
-                              : 0;
-                // Extract tags, ensuring it's an array
-                const tags = (deck.tags || []) as Tables<'tags'>[];
-                // Separate deck info from relation data
-                const { cards, tags: _, ...deckInfo } = deck; 
-                return { 
-                    ...deckInfo, 
-                    card_count: count ?? 0, 
-                    tags: tags 
-                }; 
-            }) || [];
-            // -----------------------------------------
+        // Call the database function - types should now be inferred correctly
+        const { data: rpcData, error: rpcError } = await supabase.rpc(
+            'get_deck_list_with_srs_counts', // Function name as runtime argument
+            { p_user_id: user.id }
+        );
 
-            console.log(`[getDecks] Successfully fetched and processed ${processedData.length} decks.`);
-            // Cast to the final type
-            return { data: processedData as DeckListItemWithTags[], error: null }; 
-            
-        } catch (err: any) {
-            console.error('[getDecks] Caught error during query execution:', err);
-            return { data: null, error: err.message || 'An unexpected error occurred while fetching decks.' };
+        if (rpcError) {
+            console.error('[getDecks] Supabase RPC failed:', rpcError);
+            return { data: null, error: rpcError.message || 'Failed to fetch decks via RPC.' };
         }
+
+        // Ensure data is not null and process (casting to expected type)
+        // Use type assertion cautiously, but it should align now
+        const processedData = (rpcData || []).map(deck => ({
+            ...deck,
+            // Ensure counts are numbers (bigint from DB needs conversion)
+            new_count: Number(deck.new_count ?? 0),
+            learning_count: Number(deck.learning_count ?? 0),
+            young_count: Number(deck.young_count ?? 0),
+            mature_count: Number(deck.mature_count ?? 0),
+        }));
+
+        console.log(`[getDecks] Successfully fetched and processed ${processedData.length} decks via RPC.`);
+        // Type assertion should now be safe
+        return { data: processedData as DeckListItemWithCounts[], error: null };
+
     } catch (err: any) {
-        console.error('[getDecks] Caught error during client creation or auth:', err);
-        return { data: null, error: err.message || 'An authentication or setup error occurred.' };
+        console.error('[getDecks] Caught unexpected error:', err);
+        return { data: null, error: err.message || 'An unexpected error occurred while fetching decks.' };
     }
 } 
 

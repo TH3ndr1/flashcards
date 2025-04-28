@@ -207,8 +207,11 @@ export type Database = {
           id: string
           language_dialects: Json | null
           mastery_threshold: number | null
+          mature_interval_threshold: number
           preferred_voices: Json
+          show_deck_progress: boolean
           show_difficulty: boolean | null
+          theme_light_dark_mode: string
           tts_enabled: boolean | null
           updated_at: string | null
           user_id: string
@@ -225,8 +228,11 @@ export type Database = {
           id?: string
           language_dialects?: Json | null
           mastery_threshold?: number | null
+          mature_interval_threshold?: number
           preferred_voices?: Json
+          show_deck_progress?: boolean
           show_difficulty?: boolean | null
+          theme_light_dark_mode?: string
           tts_enabled?: boolean | null
           updated_at?: string | null
           user_id: string
@@ -243,8 +249,11 @@ export type Database = {
           id?: string
           language_dialects?: Json | null
           mastery_threshold?: number | null
+          mature_interval_threshold?: number
           preferred_voices?: Json
+          show_deck_progress?: boolean
           show_difficulty?: boolean | null
+          theme_light_dark_mode?: string
           tts_enabled?: boolean | null
           updated_at?: string | null
           user_id?: string
@@ -305,9 +314,62 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      cards_with_srs_stage: {
+        Row: {
+          answer: string | null
+          answer_gender: string | null
+          answer_part_of_speech: string | null
+          attempt_count: number | null
+          card_mature_threshold_days: number | null
+          correct_count: number | null
+          created_at: string | null
+          deck_id: string | null
+          difficulty: number | null
+          difficulty_score: number | null
+          easiness_factor: number | null
+          id: string | null
+          incorrect_count: number | null
+          interval_days: number | null
+          last_review_grade: number | null
+          last_reviewed_at: string | null
+          last_studied: string | null
+          next_review_due: string | null
+          question: string | null
+          question_gender: string | null
+          question_part_of_speech: string | null
+          srs_level: number | null
+          srs_stage: string | null
+          stability: number | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_deck"
+            columns: ["deck_id"]
+            isOneToOne: false
+            referencedRelation: "decks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
+      get_deck_list_with_srs_counts: {
+        Args: { p_user_id: string }
+        Returns: {
+          id: string
+          name: string
+          primary_language: string
+          secondary_language: string
+          is_bilingual: boolean
+          updated_at: string
+          new_count: number
+          learning_count: number
+          young_count: number
+          mature_count: number
+        }[]
+      }
       resolve_study_query: {
         Args: {
           p_user_id: string
