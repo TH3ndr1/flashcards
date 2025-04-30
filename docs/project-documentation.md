@@ -271,7 +271,7 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
     *   **[ADDED]** `useAiGenerate` (`app/prepare/ai-generate/`).
 
 ### 5.3 Backend Architecture
-*   **Primary Mechanism:** Mix of Next.js Server Actions (`lib/actions/`) and API Routes (`app/api/`). Server Actions handle most direct data mutations and reads initiated from components/hooks (e.g., deck updates, card/tag operations, manual deck creation). API Routes handle specific workflows like AI processing orchestration (`/api/extract-pdf`) and consolidated deck creation for the AI flow (`/api/decks`).
+*   **Primary Mechanism:** Mix of Next.js Server Actions (`lib/actions/`) and API Routes (`app/api/`). Server Actions handle most direct data mutations and reads initiated from components/hooks (e.g., deck updates, card/tag operations, manual deck creation). API Routes handle specific workflows like **AI processing orchestration and initial flashcard generation** (`/api/extract-pdf`), **intermediate AI processing (classification/regeneration)** (`/api/process-ai-step2`), and **consolidated deck/card persistence for the AI flow** (`/api/decks`).
 *   **Supabase Client:** Dedicated clients via `@supabase/ssr` (`createActionClient`, `createRouteHandlerClient`).
 *   **Key Actions (`lib/actions/`):**
     *   `cardActions`: `createCard`, `updateCard`, `deleteCard`, `getCardsByIds`.
@@ -284,15 +284,16 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
     *   `ttsActions`: Generate TTS audio.
 *   **Key API Routes (`app/api/`):**
     *   `tts/route.ts`: Handles TTS generation requests.
-    *   `extract-pdf/route.ts`: Orchestrates AI file processing workflow (extraction & generation).
-    *   `decks/route.ts`: Handles `POST` requests for consolidated deck creation **(used by AI flow)**.
+    *   `extract-pdf/route.ts`: **(Step 1 of AI Flow)** Orchestrates AI file processing workflow: Handles file uploads, calls `textExtractorService` for text extraction (using Document AI/Vision AI, checking page limits), and calls `flashcardGeneratorService` for *initial* flashcard generation (using Vertex AI). Returns structured results (`InitialGenerationResult[]` containing basic Q&A, detected languages, mode), full extracted texts (`extractedTexts`), and any skipped file information (`skippedFiles`, including specific error codes like `PAGE_LIMIT_EXCEEDED`). Handles errors gracefully, reporting skipped files and reasons.
+    *   `process-ai-step2/route.ts`: **(Step 2a - Intermediate AI Processing)** Handles requests triggered after initial generation, specifically for adding grammar details (classification) or changing to knowledge mode (regeneration). Accepts an `action` ('classify' or 'force_knowledge'), filename, and relevant data (basic flashcards or original text). Calls appropriate AI services (e.g., Vertex AI) and returns the processed data (classifications or regenerated Q&A).
+    *   `decks/route.ts`: **(Step 2b - Final Persistence)** Handles `POST` requests for creating new decks based on the *final* (potentially classified or regenerated) flashcard data received from the client (after user review and naming). Accepts deck metadata and final flashcard data, then calls `cardActions` internally to create the `cards` records in the database.
 *   **Database Function (`resolve_study_query`):** Handles complex card filtering.
-*   **Database Function (`get_deck_list_with_srs_counts`):** Fetches decks along with counts of cards in different SRS stages (new, learning, mature).
+*   **Database Function (`get_deck_list_with_srs_counts`):** Fetches decks along with counts of cards in different SRS stages (new, learning, mature) based on the `cards_with_srs_stage` view.
 *   **Database View (`cards_with_srs_stage`):** Categorizes cards into 'new', 'learning', 'mature' based on `interval_days` and `mature_interval_threshold` setting.
 *   **AI Services (`app/api/extract-pdf/` services):**
-    *   `textExtractorService.ts`: Abstracts Vision AI / Document AI logic.
-    *   `flashcardGeneratorService.ts`: Abstracts Vertex AI Gemini logic.
-    *   `config.ts`, `gcpClients.ts`, `fileUtils.ts`, `types.ts`: Supporting modules.
+    *   `textExtractorService.ts`: Abstracts Vision AI / Document AI logic for text extraction. Includes page count validation (`checkPdfPageCount`) which throws `PageLimitExceededError`.
+    *   `flashcardGeneratorService.ts`: Abstracts Vertex AI Gemini logic for generating *initial* flashcards (`generateInitialFlashcards`) returning `InitialGenerationResult`.
+    *   `config.ts`, `gcpClients.ts`, `fileUtils.ts`, `types.ts`: Supporting modules (defining configuration like `PAGE_LIMIT`, GCP clients, file utilities, and types like `InitialGenerationResult`, `SkippedFile`, `PageLimitExceededError`, `ExtractionApiError`, `GenerationApiError`).
 *   **Middleware (`middleware.ts`):** Manages session cookies/refresh.
 
 ### 5.4 Database Schema
@@ -713,14 +714,19 @@ graph TD
 
     subgraph "AI Deck Creation Flow"
         Y[app/prepare/ai-generate/page.tsx] --> ZA[hooks/useAiGenerate.ts]
-        ZA --> ZB[api/extract-pdf/route.ts POST] # Extraction/Generation API
-        ZA --> ZC[api/decks/route.ts POST] # Deck Persistence API
-        ZC --> H # cardActions - Create (called internally by API route)
+        ZA --> ZB[api/extract-pdf/route.ts POST] # Step 1: Extraction & Initial Generation API
+        ZB -- Returns InitialGenerationResult[] --> ZA # Send initial results back to client
+        ZA -- Action: Classify/Regenerate --> ZD[api/process-ai-step2/route.ts POST] # Step 2a: Intermediate Processing (Optional)
+        ZD -- Returns Classified/Regenerated Data --> ZA # Update results on client
+        ZA --> ZC[api/decks/route.ts POST] # Step 2b: Deck & Card Persistence API (sends Final Results + Name)
+        ZC --> H # cardActions - Create (called internally by /api/decks)
     end
 
-    subgraph "AI Backend Service"
-       ZB --> ZD[api/extract-pdf/textExtractorService.ts]; ZB --> ZE[api/extract-pdf/flashcardGeneratorService.ts]
-       ZD --> ZF[api/extract-pdf/gcpClients.ts]; ZE --> ZF
+    subgraph "AI Backend Services"
+       ZB --> ZD_Service[api/extract-pdf/textExtractorService.ts]; ZB --> ZE_Service[api/extract-pdf/flashcardGeneratorService.ts]
+       ZD --> ZD_Service # /process-ai-step2 might also use services
+       ZD --> ZE_Service
+       ZD_Service --> ZF[api/extract-pdf/gcpClients.ts]; ZE_Service --> ZF
     end
 
     subgraph "Tag Management"
@@ -780,14 +786,16 @@ graph TD
     *   `ttsActions`: Generate TTS audio.
 
 3.  **API Routes (`app/api/`)**:
-    *   `decks/route.ts`: Handles `POST` requests for creating new decks, primarily used by the **AI flow**. Accepts deck metadata and flashcard data. Calls `cardActions` internally to create cards.
-    *   `extract-pdf/route.ts`: Orchestrates the AI file processing workflow (upload -> extraction -> generation). Uses services defined within its directory. Returns results to the client.
+    *   `tts/route.ts`: Handles TTS generation requests.
+    *   `extract-pdf/route.ts`: **(Step 1 of AI Flow)** Orchestrates the AI file processing: upload -> extraction (`textExtractorService`) -> *initial* generation (`flashcardGeneratorService`). Uses services defined within its directory. Returns `InitialGenerationResult[]`, `extractedTexts`, and `skippedFiles` (with reasons/codes) to the client.
+    *   `process-ai-step2/route.ts`: **(Step 2a - Intermediate AI Processing)** Handles client requests for classification ('Add Grammar Details') or regeneration ('Change to Knowledge Mode'). Takes action type and required data, performs the AI call, returns updated results.
+    *   `decks/route.ts`: **(Step 2b - Final Persistence)** Handles `POST` requests for creating new decks, used by the **AI flow**. Accepts deck metadata and the *final* flashcard data (potentially modified by Step 2a) from the client. Calls `cardActions` internally to create cards.
     *   `tts/route.ts`: Handles TTS generation requests.
 
 4.  **Backend Services (`app/api/extract-pdf/`)**:
-    *   `textExtractorService.ts`: Abstracts text extraction logic (Vision/Document AI).
-    *   `flashcardGeneratorService.ts`: Abstracts flashcard generation logic (Vertex AI Gemini).
-    *   `config.ts`, `gcpClients.ts`, `fileUtils.ts`, `types.ts`: Support modules for the AI service.
+    *   `textExtractorService.ts`: Abstracts text extraction logic (Vision/Document AI), includes page limit checks.
+    *   `flashcardGeneratorService.ts`: Abstracts *initial* flashcard generation logic (Vertex AI Gemini), returning `InitialGenerationResult`.
+    *   `config.ts`, `gcpClients.ts`, `fileUtils.ts`, `types.ts`: Support modules for the AI service (config, clients, types like `InitialGenerationResult`, `SkippedFile`, error classes).
 
 5.  **Zustand Stores (`store/`)**:
     *   `studySessionStore`: Study session parameters and state.
@@ -851,10 +859,12 @@ graph TD
 
     subgraph "AI Deck Creation Flow"
         QE[AIGenerate Page] --> RE[useAiGenerate Hook];
-        RE --> SE[api/extract-pdf route POST]; # Process Files
-        RE --> PE[api/decks route POST]; # Save Deck + Cards
-        SE --> TE[AI Backend Services]; # Extraction/Generation
-        PE --> C; # Create Cards (called internally by API)
+        RE --> SE[api/extract-pdf route POST]; # Step 1: Process Files & Initial Generation
+        SE -- Returns InitialGenerationResult[] --> RE; # Return initial results
+        RE -- User Action: Classify/Regen --> IE[api/process-ai-step2 route POST]; # Step 2a: Intermediate Processing
+        IE -- Returns Updated Data --> RE;
+        RE --> PE[api/decks route POST]; # Step 2b: Save Deck + Final Cards (sends Final Results + Name)
+        PE --> C; # Create Cards (called internally by /api/decks)
     end
 
     subgraph "Tag Management"
@@ -983,50 +993,54 @@ The core SM-2 logic resides in the `calculateSm2State` function within `lib/srs.
 *(Actual implementation in `lib/srs.ts` provides the precise calculations)*
 
 ### 6.3 AI Q&A Generation Workflow (Google Cloud)
-**(Updated & Restored)** This workflow enables users to automatically generate flashcards from uploaded documents, orchestrated between the client (`useAiGenerate` hook), a backend API for processing (`/api/extract-pdf`), and another backend API for persistence (`/api/decks`).
+**(Updated - Multi-Step Process)** This workflow enables users to automatically generate flashcards from uploaded documents. It involves **up to three distinct backend interactions**: initial processing, optional intermediate processing (classification/regeneration), and final persistence.
 
 #### Implementation Details & Status:
 - **PDF/Image Upload:** Uses `<FileUpload>` within `<MediaCaptureTabs>` on the `/prepare/ai-generate` page. Handles client-side validation (type, size up to 25MB). Large files (>4MB) or large batches are uploaded to Supabase Storage first; smaller uploads go directly via FormData.
-- **Text Extraction (`/api/extract-pdf` -> `textExtractorService`):**
-    - Multi-method approach: Google Document AI for PDFs (primary), Google Vision AI for Images and PDF fallback.
-    - `pdf-lib` used for PDF page count validation (limit: 30 pages).
-    - Error handling with cascading fallbacks between services.
-    - Memory-efficient processing suitable for serverless environments.
-- **Flashcard Generation (`/api/extract-pdf` -> `flashcardGeneratorService`):**
-    - Uses Google Cloud Vertex AI (Gemini Flash model) via `gcpClients`.
-    - Employs structured output requests to ensure consistent JSON format.
-    - Performs language detection (`detectLanguages` helper).
-    - Intelligently determines mode ('translation' vs. 'knowledge') based on detected languages and content patterns.
-    - Assigns correct languages based on mode (swapping for translation, single language for knowledge).
-    - Text is truncated (50,000 chars) before sending to the model.
-- **User Review (Client - `AiGenerateResultsCard`):**
-    - Displays generated flashcards.
-    - Shows extracted text preview.
-    - Provides processing summary (files processed/skipped, cards generated per file).
-- **Persistence (Client -> `/api/decks` -> `cardActions`):**
-    - `useAiGenerate.handleSaveDeck` sends deck metadata and flashcard content (`{question, answer}`) to `/api/decks`.
-    - `/api/decks` route creates the `decks` record and calls `cardActions.createCard` to insert `cards` records.
-- **Infrastructure & Ops:**
-    - Vercel deployment with Node.js runtime config (memory, timeout).
-    - Google Cloud services (Document AI, Vision AI, Vertex AI) configured via environment variables.
-    - Supabase Storage used for large uploads.
-    - Comprehensive error handling and user feedback via `sonner` toasts with unique IDs.
+- **Step 1: Initial Processing (`POST /api/extract-pdf`):**
+    - **Text Extraction (`textExtractorService`):** (Details unchanged)
+    - **Initial Flashcard Generation (`flashcardGeneratorService`):** (Details unchanged)
+    - **Response:** Returns a JSON object containing: `success`, `initialResults[]`, `extractedTexts[]`, `skippedFiles[]`, `fileInfo`, `message`, `processingTimeMs`. (Details unchanged)
+-
+- **Step 2: Client Review & Optional Intermediate Processing:**
+-     - **User Review (Client - `useAiGenerate`, `AiGenerateResultsCard`):**
+-         - Displays the `initialResults.basicFlashcards` and `extractedTexts` preview.
+-         - Shows processing summary (`fileInfo`, `skippedFiles`).
+-         - **If `initialResults` indicate a 'translation' mode, a confirmation prompt appears.**
+-         - User can choose:
+-             - **Add Grammar Details:** Triggers `handleConfirmTranslation` in `useAiGenerate`.
+-             - **Change to Knowledge Mode:** Triggers `handleForceKnowledge` in `useAiGenerate`.
+-             - **(Proceed to Save):** If no confirmation needed, or after confirmation/regeneration, user enters Deck Name.
+-     - **Intermediate Processing (Backend - `POST /api/process-ai-step2`)**: (Triggered by `handleConfirmTranslation` or `handleForceKnowledge`)
+-         - Receives `action` ('classify' or 'force_knowledge'), `filename`, and data (`basicFlashcards` for classify, `originalText` for regenerate).
+-         - Calls relevant AI services (e.g., Vertex AI) to perform classification or knowledge-based Q&A regeneration.
+-         - Returns updated data (e.g., `ClassificationData[]` or regenerated `InitialGenerationResult`).
+-     - **Client Update:** `useAiGenerate` updates its state (`finalFlashcards`) with the results from `/api/process-ai-step2`.
+-
+- **Step 3: Final Persistence (Client -> `POST /api/decks` -> `cardActions`):**
+-     - Triggered by `useAiGenerate.handleSaveDeck` after user enters Deck Name and any intermediate processing is complete.
+-     - Sends the chosen Deck Name, detected languages/mode, and the **final** `flashcards` array (from `finalFlashcards` state, which may have been updated in Step 2) to the `/api/decks` route.
+-     - `/api/decks` route creates the `decks` record and calls `cardActions.createCard` for each final flashcard.
+-
+- **Infrastructure & Ops:** (Details mostly unchanged, added point for Step 2 API)
+-     - Vercel deployment with Node.js runtime config.
+-     *   Google Cloud services configured via environment variables.
+-     *   Supabase Storage used for large uploads.
+-     *   Comprehensive error handling in `/api/extract-pdf` and `/api/process-ai-step2` routes, reporting issues via response structure and `sonner` toasts on the client.
 
-#### Workflow Steps (Simplified):
+#### Workflow Steps (Updated Multi-Step):
 
 1.  **Select & Upload Files** (Client: `useAiGenerate`, `AiGenerateInputCard`, `FileUpload`)
-2.  **Trigger Generation** (Client: `useAiGenerate.handleSubmit` -> `POST /api/extract-pdf`)
-3.  **Extract Text & Generate Cards** (Backend: `/api/extract-pdf/route.ts` using `textExtractorService`, `flashcardGeneratorService`)
-4.  **Return Results** (Backend -> Client)
+2.  **Trigger Initial Processing** (Client: `useAiGenerate.handleSubmit` -> `POST /api/extract-pdf`)
+3.  **Extract Text & Generate *Initial* Cards** (Backend: `/api/extract-pdf/route.ts` using services)
+4.  **Return *Initial* Results & Extracted Text** (Backend -> Client)
 5.  **Display & Review Results** (Client: `useAiGenerate`, `AiGenerateResultsCard`)
-6.  **Name & Save Deck** (Client: `useAiGenerate.handleSaveDeck` -> `POST /api/decks`)
-7.  **Persist Deck & Cards** (Backend: `/api/decks/route.ts` using `cardActions`)
-8.  **Confirm & Navigate** (Backend -> Client: `useAiGenerate` updates state, navigates)
-
-#### Language Detection and Mode Handling:
-- Detects languages using Document/Vision AI results.
-- Determines mode ('translation'/'knowledge') based on detected languages and card content heuristics.
-- Correctly assigns `primary_language`, `secondary_language`, and `is_bilingual` flag during the save step (`POST /api/decks`) based on analysis performed in `/api/extract-pdf` and passed back to the client.
+6.  **(Optional) Trigger Intermediate Processing** (Client: User clicks 'Add Grammar' or 'Change Mode' -> `useAiGenerate.handleConfirmTranslation` / `handleForceKnowledge` -> `POST /api/process-ai-step2`)
+7.  **(Optional) Perform Classification/Regeneration** (Backend: `/api/process-ai-step2/route.ts` calls AI services)
+8.  **(Optional) Return Updated Data** (Backend -> Client: `useAiGenerate` updates `finalFlashcards` state)
+9.  **Name Deck & Trigger Final Persistence** (Client: `useAiGenerate.handleSaveDeck` -> `POST /api/decks` - sends Deck Name + *Final* Flashcard Data)
+10. **Persist Deck & Final Cards** (Backend: `/api/decks/route.ts` creates `decks` record, calls `cardActions.createCard`)
+11. **Confirm & Navigate** (Backend -> Client: `useAiGenerate` updates state, navigates to `/edit/[deckId]`)
 
 ---
 
@@ -1062,7 +1076,7 @@ The core SM-2 logic resides in the `calculateSm2State` function within `lib/srs.
 *   **Server Action Validation:**
     *   Verify user session/authentication within each action.
     *   Validate all input data using Zod schemas before processing or database interaction.
-*   **API Route Protection:** Secure API routes (e.g., `/api/tts`) by verifying user authentication if they handle sensitive data or actions.
+*   **API Route Protection:** Secure API routes (e.g., `/api/tts`, `/api/extract-pdf`, `/api/decks`) by verifying user authentication if they handle sensitive data or actions. Validate input payloads (e.g., file types/sizes in `/api/extract-pdf`, deck data structure in `/api/decks`).
 *   **Environment Variables:** Store sensitive keys (Supabase URL/anon key, Google Cloud credentials, JWT secret) securely in environment variables (`.env.local`, Vercel environment variables). Do not commit sensitive keys to Git.
 *   **Database Security:** Use parameterized queries (handled by Supabase client libraries) or properly sanitize inputs in DB functions (`resolve_study_query`) to prevent SQL injection. Limit database user permissions if not using Supabase defaults.
 *   **HTTPS:** Ensure all communication is over HTTPS (handled by Vercel/Supabase).
@@ -1133,6 +1147,7 @@ The core SM-2 logic resides in the `calculateSm2State` function within `lib/srs.
     *   Rich text editing for card content.
     *   Mobile App (React Native or native).
     *   Advanced query operators/UI in `StudySetBuilder`.
+    *   Optimize AI 'force_knowledge' regeneration: Avoid resending large original text from client to server in Step 2. Consider caching text server-side temporarily.
 
 ---
 
@@ -1297,11 +1312,11 @@ The core SM-2 logic resides in the `calculateSm2State` function within `lib/srs.
 *   [x] Task 1.1: AI Key Setup
 *   [x] Task 1.2: Install AI Dependencies
 *   [x] Task 1.3: Implement Client-side Upload (`useAiGenerate`, `AiGenerateInputCard`, `FileUpload`).
-*   [x] Task 1.4: Implement Backend Extraction/Generation API (`/api/extract-pdf`, services).
+*   [x] Task 1.4: Implement Backend Extraction/**Initial** Generation API (`/api/extract-pdf`, services).
 *   [x] Task 2.1: Integrate API call in `useAiGenerate`.
 *   [x] Task 2.2: Implement Results Display (`useAiGenerate`, `AiGenerateResultsCard`).
 *   [x] Task 3.1: Implement Save Deck UI/Logic (`useAiGenerate`, `AiGenerateSaveDeckCard`).
-*   [x] Task 3.2: Implement Save Deck API Call (`useAiGenerate` -> `POST /api/decks`).
+*   [x] Task 3.2: Implement Save Deck API Call (`useAiGenerate` -> `POST /api/decks` - **sends initial results + name**).
 *   [x] Task 4.1: Implement JSON Export (Client-side).
 *   [x] Task 4.2: Add comprehensive error handling and toast notifications.
 *   [x] Task 4.3: Add AI Gen Entry Point in Main UI (`/prepare/ai-generate` sidebar link).

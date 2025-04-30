@@ -1,17 +1,18 @@
 // app/api/extract-pdf/route.ts
 /**
  * API Route Handler for extracting text from PDF/Image files
- * and generating flashcards using AI.
- * Orchestrates calls to text extraction and flashcard generation services.
+ * and generating INITIAL flashcards using AI.
+ * Orchestrates calls to text extraction and initial flashcard generation services.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getFileFromStorage } from '@/lib/actions/storageActions';
 import { validateConfiguration, GCP_PROJECT_ID, GCP_SERVICE_ACCOUNT_EMAIL, GCP_PRIVATE_KEY, PAGE_LIMIT } from './config';
 import { getSupportedFileType, SupportedFileType } from './fileUtils';
 import { extractText } from './textExtractorService';
-// --- FIX: Import the actual function and potentially the return type if needed ---
-import { generateFlashcards, MappedFlashcardCore } from './flashcardGeneratorService'; // Assuming MappedFlashcardCore is exported or define locally
-import { ApiFlashcard, SkippedFile, PageLimitExceededError, ExtractionApiError, GenerationApiError } from './types'; // Ensure ApiFlashcard in types.ts is updated!
+// --- Import INITIAL generator function and its return type --- 
+import { generateInitialFlashcards, InitialGenerationResult } from './flashcardGeneratorService'; 
+// --- ApiFlashcard is no longer the direct output here --- 
+import { /* ApiFlashcard, */ SkippedFile, PageLimitExceededError, ExtractionApiError, GenerationApiError } from './types'; 
 
 // --- Runtime Configuration (Vercel specific) ---
 export const config = {
@@ -78,12 +79,14 @@ export async function POST(request: NextRequest) {
     }
 
   // Initialization
-    let skippedFiles: SkippedFile[] = [];
-  // --- Ensure this uses the UPDATED ApiFlashcard type from types.ts ---
-  let allFlashcards: ApiFlashcard[] = [];
-  let allResultsInfo: { filename: string; type: SupportedFileType; pages: number; characters: number; flashcardsGenerated: number }[] = [];
+  let skippedFiles: SkippedFile[] = [];
+  // --- Store initial results per file --- 
+  let allInitialResults: InitialGenerationResult[] = [];
+  let allResultsInfo: { filename: string; type: SupportedFileType; pages: number; characters: number; initialFlashcardsGenerated: number }[] = [];
   let totalPagesProcessed = 0;
   let combinedTextPreview = "";
+  // --- Add array to store full extracted text per file ---
+  let allExtractedTexts: { filename: string; extractedText: string }[] = [];
 
   try {
     const contentType = request.headers.get('content-type') || '';
@@ -148,38 +151,36 @@ export async function POST(request: NextRequest) {
             fileBuffer = await source.getBuffer();
             console.log(`[API Route POST] Attempting text extraction for ${source.filename} (Type: ${fileType})`);
             const extractionResult = await extractText(fileBuffer, source.filename, fileType);
-            console.log(`[API Route POST] Text extraction successful for ${source.filename}. Characters: ${extractionResult.info.metadata.characters}, Pages: ${extractionResult.info.pages}`);
+            // --- Log the raw extracted text immediately ---\n            console.log(`[API Route POST] Raw server-extracted text for ${source.filename} (first 500 chars):\n`, extractionResult.text.substring(0, 500));\n            // -------------------------------------------\n            console.log(`[API Route POST] Text extraction successful for ${source.filename}. Characters: ${extractionResult.info.metadata.characters}, Pages: ${extractionResult.info.pages}`);
             totalPagesProcessed += extractionResult.info.pages;
             combinedTextPreview += `--- Content from ${source.filename} ---\n${extractionResult.text.slice(0, 200)}...\n\n`;
 
-            // --- Step e: Flashcard Generation ---
-            let generatedFlashcards: ApiFlashcard[] = []; // Use updated ApiFlashcard type
+            // --- Store the FULL extracted text ---
+            allExtractedTexts.push({ filename: source.filename, extractedText: extractionResult.text });
+
+            // --- Step e: Initial Flashcard Generation --- 
+            let initialResult: InitialGenerationResult | null = null; // Variable to hold result for this file
             if (extractionResult.text && extractionResult.text.trim().length > 0) {
-                console.log(`[API Route POST] Attempting flashcard generation for ${source.filename}`);
+                console.log(`[API Route POST] Attempting initial flashcard generation for ${source.filename}`);
 
-                // Call the updated service - it now returns MappedFlashcardCore[]
-                const coreFlashcards: MappedFlashcardCore[] = await generateFlashcards(extractionResult.text, source.filename);
+                // --- Call the INITIAL generation service --- 
+                initialResult = await generateInitialFlashcards(extractionResult.text, source.filename);
+                // -------------------------------------------
 
-                // Map to ApiFlashcard. Spread operator (...) copies all fields from coreFlashcards,
-                // including the new classification fields.
-                // !! IMPORTANT: Assumes ApiFlashcard in types.ts includes the new fields !!
-                generatedFlashcards = coreFlashcards.map(card => ({
-                     ...card, // Includes all fields from MappedFlashcardCore
-                     source: source.filename,
-                     fileType: fileType! // fileType is guaranteed to be non-null here
-                }));
-
-                allFlashcards.push(...generatedFlashcards);
-                console.log(`[API Route POST] Generated ${generatedFlashcards.length} flashcards for ${source.filename}.`);
+                // Add source filename to the result for grouping later if needed (though client might handle this)
+                // initialResult.source = source.filename;
+                
+                allInitialResults.push(initialResult);
+                console.log(`[API Route POST] Initial generation complete for ${source.filename}. Mode: ${initialResult.mode}, Cards: ${initialResult.basicFlashcards.length}`);
             } else {
                  console.log(`[API Route POST] Skipping flashcard generation for ${source.filename} due to empty extracted text.`);
             }
             allResultsInfo.push({
                 filename: source.filename,
-                type: fileType,
+                type: fileType!,
                 pages: extractionResult.info.pages,
                 characters: extractionResult.info.metadata.characters,
-                flashcardsGenerated: generatedFlashcards.length,
+                initialFlashcardsGenerated: initialResult?.basicFlashcards.length || 0, // Count from initial result
             });
             console.log(`[API Route POST] Successfully processed ${source.filename}. Time: ${Date.now() - fileStartTime}ms`);
 
@@ -187,11 +188,12 @@ export async function POST(request: NextRequest) {
             console.error(`[API Route POST] Error processing file ${source.filename}: ${error.message}`);
             let reason = error.message || 'Unknown processing error';
             let pages: number | undefined = undefined;
+            let errorCode: string | undefined = undefined;
 
-            // Error handling logic remains the same
             if (error instanceof PageLimitExceededError) {
-                reason = `Exceeds ${error.limit}-page limit (${error.pageCount} pages)`;
+                reason = error.message;
                 pages = error.pageCount;
+                errorCode = 'PAGE_LIMIT_EXCEEDED';
             } else if (error instanceof ExtractionApiError || error instanceof GenerationApiError) {
                 reason = `${error.name}: ${error.message.substring(0, 200)}${error.message.length > 200 ? '...' : ''}`;
                  if (error instanceof GenerationApiError && error.reason) {
@@ -207,7 +209,7 @@ export async function POST(request: NextRequest) {
                  reason = `Processing error: ${reason.substring(0,150)}...`;
             }
 
-            skippedFiles.push({ filename: source.filename, pages: pages, reason: reason });
+            skippedFiles.push({ filename: source.filename, pages: pages, reason: reason, code: errorCode });
             continue;
         }
     }
@@ -217,21 +219,39 @@ export async function POST(request: NextRequest) {
     const duration = endTime - startTime;
     const processedCount = allResultsInfo.length;
     const skippedCount = skippedFiles.length;
-    console.log(`[API Route POST] Processing finished. Duration: ${duration}ms. Processed: ${processedCount}, Skipped: ${skippedCount}, Total Flashcards: ${allFlashcards.length}`);
+    const totalInitialCards = allInitialResults.reduce((sum, res) => sum + res.basicFlashcards.length, 0);
+    console.log(`[API Route POST] Initial processing finished. Duration: ${duration}ms. Processed: ${processedCount}, Skipped: ${skippedCount}, Total Initial Flashcards: ${totalInitialCards}`);
 
     if (processedCount === 0) {
-        // Logic for no files processed remains the same
         let message = 'No files could be processed successfully.';
         let status = 400;
-        let code = 'PROCESSING_FAILED';
-        if (skippedCount === 1 && skippedFiles[0].reason.includes(`Exceeds ${PAGE_LIMIT}-page limit`)) { // Use PAGE_LIMIT constant
-            message = `File "${skippedFiles[0].filename}" exceeds the ${PAGE_LIMIT}-page limit (${skippedFiles[0].pages} pages). No other files were processed.`;
-            code = 'PAGE_LIMIT_EXCEEDED';
+        let code = 'PROCESSING_FAILED'; // Default code
+
+        // --- Check if the first skipped file has our specific error code --- 
+        if (skippedCount === 1 && skippedFiles[0].code === 'PAGE_LIMIT_EXCEEDED') { 
+            // Use the specific reason from the skipped file as the primary message
+            message = skippedFiles[0].reason; 
+            // Set the specific code for the client to handle
+            code = skippedFiles[0].code; // Use the code from the skipped file object
+            console.log(`[API Route POST] Setting error code to ${code} for page limit exceeded error`);
         } else if (skippedCount > 0) {
             message = `Processed 0 files successfully. ${skippedCount} file(s) were skipped. See 'skippedFiles' for details.`;
+            // Ensure code remains PROCESSING_FAILED if it wasn't a page limit error
+            code = 'PROCESSING_FAILED'; 
         }
+        // --------------------------------------------------------------------
+
+        // --- Log the final code and message being sent ---
+        console.log(`[API Route POST] Returning error response. Code: ${code}, Message: ${message}`);
+        console.log(`[API Route POST] skippedFiles: ${JSON.stringify(skippedFiles)}`);
+        // --------------------------------------------------
+
         return NextResponse.json({
-            success: false, message, code, skippedFiles, flashcards: [], fileInfo: { pages: 0, files: 0, metadata: { sources: [] } },
+            success: false, message, code, skippedFiles,
+            // Ensure these fields are present even in error cases for consistent structure
+            initialResults: [],
+            extractedTexts: [],
+            fileInfo: { pages: 0, files: 0, metadata: { sources: [] } },
         }, { status });
     }
 
@@ -239,14 +259,16 @@ export async function POST(request: NextRequest) {
         pages: totalPagesProcessed, files: processedCount, metadata: { sources: allResultsInfo }
     };
 
-    // The final response includes allFlashcards, which now contain the classification data
-    // assuming ApiFlashcard type was updated correctly.
+    // --- Return the INITIAL results --- 
+    // The client will now receive mode, languages, and basicFlashcards per source.
     return NextResponse.json({
       success: true,
-        message: `Successfully processed ${processedCount} file(s) and generated ${allFlashcards.length} flashcards. ${skippedCount} file(s) skipped.`,
+        message: `Successfully processed ${processedCount} file(s) and generated ${totalInitialCards} initial flashcards. ${skippedCount} file(s) skipped.`,
         extractedTextPreview: combinedTextPreview.length > 1000 ? combinedTextPreview.slice(0, 1000) + "..." : combinedTextPreview,
         fileInfo: finalFileInfo,
-      flashcards: allFlashcards, // This array now contains items with the new fields
+        initialResults: allInitialResults, // Array of results, one per processed file
+        // --- Include the full extracted texts in the response ---
+        extractedTexts: allExtractedTexts,
         skippedFiles: skippedCount > 0 ? skippedFiles : undefined,
         processingTimeMs: duration
     });

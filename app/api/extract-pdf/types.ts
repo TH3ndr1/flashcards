@@ -10,6 +10,7 @@ export interface SkippedFile {
   filename: string;
   pages?: number;
   reason: string;
+  code?: string;
 }
 
 // ExtractionResult interface (no change)

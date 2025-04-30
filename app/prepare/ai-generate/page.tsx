@@ -18,15 +18,19 @@ export default function AiGeneratePage() {
     const {
         files,
         isLoading,
+        isProcessingStep2,
         error,
-        flashcards,
+        displayFlashcards,
         extractedTextPreview,
         processingSummary,
         deckName,
         isSavingDeck,
         savedDeckId,
+        needsModeConfirmationSource,
         handleFilesSelected,
         handleSubmit, // This is now the async function to call
+        handleConfirmTranslation,
+        handleForceKnowledge,
         handleSaveDeck,
         handleClearAll,
         handleSaveFlashcards, // For JSON download
@@ -56,24 +60,28 @@ export default function AiGeneratePage() {
                         onFilesSelected={handleFilesSelected}
                         onSubmit={handleFormSubmit} // Use the async wrapper here
                         onClearAll={handleClearAll}
-                        hasResults={flashcards.length > 0 || !!extractedTextPreview || !!processingSummary}
+                        hasResults={displayFlashcards.length > 0 || !!extractedTextPreview || !!processingSummary}
                     />
                 </div>
 
                 {/* Results & Save Column */}
                 <div className="space-y-6">
                     <AiGenerateResultsCard
-                        flashcards={flashcards}
+                        flashcards={displayFlashcards}
                         extractedTextPreview={extractedTextPreview}
                         processingSummary={processingSummary}
                         deckName={deckName}
                         savedDeckId={savedDeckId}
+                        needsModeConfirmationSource={needsModeConfirmationSource}
+                        isProcessingStep2={isProcessingStep2}
                         onSaveJson={handleSaveFlashcards}
                         onSwapSource={handleSwapSourceCards}
+                        onConfirmTranslation={handleConfirmTranslation}
+                        onForceKnowledge={handleForceKnowledge}
                     />
 
                     <AiGenerateSaveDeckCard
-                        flashcards={flashcards}
+                        flashcards={displayFlashcards}
                         deckName={deckName}
                         isSavingDeck={isSavingDeck}
                         savedDeckId={savedDeckId}

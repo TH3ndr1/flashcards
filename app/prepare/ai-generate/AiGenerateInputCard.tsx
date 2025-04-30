@@ -8,8 +8,8 @@ import { Loader2, BotMessageSquare, FileText } from 'lucide-react';
 import { MediaCaptureTabs } from '@/components/media-capture-tabs';
 
 // Constants defined here or imported from a central constants file
-const SUPPORTED_FILE_TYPES = "PDF, JPG, JPEG, PNG, GIF, BMP, WEBP";
-const SUPPORTED_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"];
+const SUPPORTED_FILE_TYPES = "PDF, JPG, JPEG, PNG, GIF, BMP, WEBP, HEIC, HEIF";
+const SUPPORTED_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".heic", ".heif"];
 const MAX_FILE_SIZE = 25; // 25MB
 const MAX_IMAGES = 10; // Example limit
 

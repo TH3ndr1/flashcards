@@ -36,6 +36,7 @@ export const VERTEX_MODEL_NAME = getEnvVariable('VERTEX_MODEL_NAME') || 'gemini-
 
 // --- Processing Limits ---
 export const PAGE_LIMIT = 30;
+export const DOCAI_OCR_PAGE_LIMIT = 15; // Limit for default OCR mode
 export const MAX_TEXT_CHARS_FOR_GEMINI = 50000;
 
 // --- Validation Function ---
@@ -73,6 +74,7 @@ console.log(`[Config Loaded] API Configuration:
   - Vertex AI Location: ${VERTEX_LOCATION}
   - Vertex AI Model: ${VERTEX_MODEL_NAME}
   - Page Limit: ${PAGE_LIMIT}
+  - Doc AI OCR Page Limit: ${DOCAI_OCR_PAGE_LIMIT}
   - Max Gemini Chars: ${MAX_TEXT_CHARS_FOR_GEMINI}
 `);
 

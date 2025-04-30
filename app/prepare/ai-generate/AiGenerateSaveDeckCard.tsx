@@ -8,15 +8,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, FilePlus, CheckCircle, ArrowRight } from 'lucide-react';
-import type { ApiFlashcard } from '@/app/api/extract-pdf/types'; // Adjust path if needed
+// Import both types
+import type { ApiFlashcard } from '@/app/api/extract-pdf/types';
+import type { BasicFlashcardData } from './useAiGenerate';
+
+// Define the union type locally or import if defined elsewhere
+type FlashcardData = ApiFlashcard | BasicFlashcardData;
 
 interface AiGenerateSaveDeckCardProps {
-    flashcards: ApiFlashcard[]; // Used only to determine if this card should render
+    flashcards: FlashcardData[]; // Use the union type
     deckName: string;
     isSavingDeck: boolean;
     savedDeckId: string | null;
     onDeckNameChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-    onSaveDeck: () => Promise<void>; // Make async if needed
+    onSaveDeck: () => Promise<void>;
 }
 
 export function AiGenerateSaveDeckCard({

@@ -5,22 +5,29 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Download, Eye, Languages, Repeat, Tag } from 'lucide-react'; // Added Repeat and Icons
-import type { ApiFlashcard } from '@/app/api/extract-pdf/types'; // Ensure this path is correct and type is updated
+import { Download, Eye, Languages, Repeat, Tag, Loader2, AlertTriangle, HelpCircle, Sparkles, BookOpen } from 'lucide-react'; // Updated Icons
+import type { ApiFlashcard } from '@/app/api/extract-pdf/types';
+// Import the basic type as well
+import type { BasicFlashcardData } from './useAiGenerate';
 
-type FlashcardData = ApiFlashcard; // Use consistent naming
+// Use a union type for the flashcards prop
+type FlashcardData = ApiFlashcard | BasicFlashcardData;
 
 interface AiGenerateResultsCardProps {
-    flashcards: FlashcardData[];
+    flashcards: FlashcardData[]; // Use the union type
     extractedTextPreview: string | null;
     processingSummary: string | null;
-    deckName: string; // Needed for JSON filename suggestion
-    savedDeckId: string | null; // To hide JSON download button after saving deck
-    onSaveJson: () => void; // Handler for JSON download button
-    onSwapSource: (source: string) => void; // Add this line
+    deckName: string;
+    savedDeckId: string | null;
+    needsModeConfirmationSource: string | null; // New prop
+    isProcessingStep2: boolean; // New prop
+    onSaveJson: () => void;
+    onSwapSource: (source: string) => void;
+    onConfirmTranslation: () => void; // New prop
+    onForceKnowledge: () => void; // New prop
 }
 
-// Helper to group cards (could also be moved to utils)
+// Helper to group cards (needs to handle union type)
 const getFlashcardsBySource = (cards: FlashcardData[]) => {
     const grouped: Record<string, FlashcardData[]> = {};
     cards.forEach(card => {
@@ -37,18 +44,27 @@ export function AiGenerateResultsCard({
     processingSummary,
     deckName,
     savedDeckId,
+    needsModeConfirmationSource,
+    isProcessingStep2,
     onSaveJson,
-    onSwapSource
+    onSwapSource,
+    onConfirmTranslation,
+    onForceKnowledge
 }: AiGenerateResultsCardProps) {
     const hasFlashcards = flashcards.length > 0;
-    const showJsonDownload = hasFlashcards && !savedDeckId;
+    // Disable JSON download if confirmation is needed
+    const showJsonDownload = hasFlashcards && !savedDeckId && !needsModeConfirmationSource;
 
-    // Helper to display classification info
+    // Helper to display classification info (check for existence of properties)
     const renderClassification = (
-        pos: string | undefined,
-        gender: string | undefined,
-        prefix: string = ""
+        card: FlashcardData,
+        prefix: string = "",
+        fieldPrefix: 'question' | 'answer'
     ) => {
+        // Check if the card is ApiFlashcard type before accessing classification fields
+        const pos = (card as ApiFlashcard)?. [`${fieldPrefix}PartOfSpeech`];
+        const gender = (card as ApiFlashcard)?. [`${fieldPrefix}Gender`];
+
         const posText = (pos && pos !== 'N/A') ? pos : null;
         const genderText = (gender && gender !== 'N/A') ? gender : null;
 
@@ -65,6 +81,42 @@ export function AiGenerateResultsCard({
         );
     };
 
+    // Confirmation UI Component
+    const renderConfirmationPrompt = (source: string) => {
+        return (
+            <div className="border-l-4 border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20 p-4 rounded-md mb-4">
+                <div className="flex items-center mb-2">
+                    <HelpCircle className="h-5 w-5 text-blue-600 dark:text-blue-400 mr-2" />
+                    <h4 className="font-semibold text-blue-800 dark:text-blue-200">We detected this as a 'Translation' list. How would you like to proceed?</h4>
+                </div>
+                <p className="text-sm text-blue-700 dark:text-blue-300 mb-3">
+                    Mode Confirmation for '{source}'
+                </p>
+                <div className="flex flex-col sm:flex-row gap-2">
+                    <Button 
+                        onClick={onConfirmTranslation}
+                        disabled={isProcessingStep2}
+                        size="sm"
+                        variant="default"
+                        className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 dark:text-white w-full"
+                    >
+                        {isProcessingStep2 ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4"/>}
+                        Add Grammar Details
+                    </Button>
+                    <Button 
+                        onClick={onForceKnowledge}
+                        disabled={isProcessingStep2}
+                        size="sm"
+                        variant="outline"
+                        className="dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700 dark:hover:text-white w-full"
+                    >
+                        {isProcessingStep2 ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BookOpen className="mr-2 h-4 w-4"/>}
+                        Change to Knowledge Mode
+                    </Button>
+                </div>
+            </div>
+        );
+    };
 
     return (
         <Card className="min-h-[300px] flex flex-col">
@@ -95,9 +147,17 @@ export function AiGenerateResultsCard({
                 ) : hasFlashcards ? (
                     // Grouped Flashcard Display
                     <div className="space-y-6 pr-2">
+                        {/* Render Confirmation Prompt if needed */}
+                        {needsModeConfirmationSource && renderConfirmationPrompt(needsModeConfirmationSource)}
+
                         {Object.entries(getFlashcardsBySource(flashcards)).map(([source, cards]) => {
                             const firstCard = cards[0]; // Use first card for group info
-                            const docLangs = { qName: firstCard?.questionLanguage, aName: firstCard?.answerLanguage, b: firstCard?.isBilingual };
+                            // Check if properties exist before accessing for languages
+                            const docLangs = {
+                                qName: (firstCard as ApiFlashcard)?.questionLanguage,
+                                aName: (firstCard as ApiFlashcard)?.answerLanguage,
+                                b: (firstCard as ApiFlashcard)?.isBilingual
+                             };
                             const showALang = docLangs.aName && docLangs.qName !== docLangs.aName;
                             return (
                             <div key={source}>
@@ -107,12 +167,12 @@ export function AiGenerateResultsCard({
                                         {firstCard?.fileType && <Badge variant="outline" className="text-xs">{firstCard.fileType}</Badge>}
                                         {docLangs.qName && <Badge variant="secondary" className="text-xs capitalize"><Languages className="inline h-3 w-3 mr-1"/>Q: {docLangs.qName}</Badge>}
                                         {showALang && <Badge variant="secondary" className="text-xs capitalize"><Languages className="inline h-3 w-3 mr-1"/>A: {docLangs.aName}</Badge>}
-                                        {/* {docLangs.b && <Badge className="text-xs">Bilingual</Badge>} */}
                                         <Badge variant="outline" className="text-xs">{cards.length} cards</Badge>
                                     </div>
                                 </div>
                                 <div className="mb-3 -mt-2 flex justify-end">
-                                    <Button variant="outline" size="sm" onClick={() => onSwapSource(source)}>
+                                    {/* Disable swap button if confirmation needed */}
+                                    <Button variant="outline" size="sm" onClick={() => onSwapSource(source)} disabled={!!needsModeConfirmationSource}>
                                         <Repeat className="h-4 w-4 mr-2"/>
                                         Swap Q/A for this Source
                                     </Button>
@@ -123,12 +183,12 @@ export function AiGenerateResultsCard({
                                             {/* Question and optional classification */}
                                             <div className="flex flex-wrap items-center gap-x-2 mb-1">
                                                 <p className="font-medium break-words">{card.question}</p>
-                                                {renderClassification(card.questionPartOfSpeech, card.questionGender)}
+                                                {renderClassification(card, "", 'question')}
                                             </div>
                                             {/* Answer and optional classification */}
                                             <div className="flex flex-wrap items-center gap-x-2">
                                                 <p className="text-muted-foreground whitespace-pre-line break-words">{card.answer}</p>
-                                                {renderClassification(card.answerPartOfSpeech, card.answerGender)}
+                                                {renderClassification(card, "", 'answer')}
                                             </div>
                                         </div>
                                     ))}
