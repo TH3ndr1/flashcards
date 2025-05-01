@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useStudySets } from '@/hooks/useStudySets';
+import { resolveStudyQuery } from '@/lib/actions/studyQueryActions';
 import type { StudyQueryCriteria } from '@/lib/schema/study-query.schema'; 
 import type { Database, Tables } from "@/types/database"; 
 import type { StudyInput, StudyMode } from "@/store/studySessionStore";
@@ -35,37 +36,128 @@ export function StudySetSelector({
   const [selectedDeckId, setSelectedDeckId] = useState<string | undefined>(undefined); 
   const [selectedStudySetId, setSelectedStudySetId] = useState<string | undefined>(undefined); 
   const [selectedMode, setSelectedMode] = useState<StudyMode>('learn');
+  
+  // New state for card counts
+  const [isLoadingCounts, setIsLoadingCounts] = useState<boolean>(false);
+  const [learnCount, setLearnCount] = useState<number>(0);
+  const [reviewCount, setReviewCount] = useState<number>(0);
+  const [countError, setCountError] = useState<string | null>(null);
+
+  // Generate the current selection criteria
+  const getCurrentCriteria = (): StudyInput | null => {
+    if (selectionType === 'all') {
+      return { criteria: { 
+        allCards: true,
+        tagLogic: 'ANY',
+        includeDifficult: false
+      } };
+    } else if (selectionType === 'deck') {
+      if (!selectedDeckId) return null;
+      return { criteria: { 
+        deckId: selectedDeckId,
+        tagLogic: 'ANY',
+        includeDifficult: false
+      } };
+    } else if (selectionType === 'studySet') {
+      if (!selectedStudySetId) return null;
+      return { studySetId: selectedStudySetId };
+    } 
+    return null;
+  };
+
+  // Fetch card counts whenever the selection changes
+  useEffect(() => {
+    const fetchCardCounts = async () => {
+      const currentInput = getCurrentCriteria();
+      if (!currentInput) {
+        setLearnCount(0);
+        setReviewCount(0);
+        return;
+      }
+
+      setIsLoadingCounts(true);
+      setCountError(null);
+      
+      try {
+        // Query for learning-eligible cards
+        const learnResult = 'criteria' in currentInput 
+          ? await resolveStudyQuery({ 
+              criteria: { 
+                ...currentInput.criteria, 
+                includeLearning: true 
+              } 
+            })
+          : await resolveStudyQuery(currentInput); // For studySetId
+
+        // Query for review-eligible cards
+        const reviewResult = 'criteria' in currentInput 
+          ? await resolveStudyQuery({ 
+              criteria: { 
+                ...currentInput.criteria, 
+                nextReviewDue: { operator: 'isDue' } 
+              } 
+            })
+          : await resolveStudyQuery(currentInput); // For studySetId
+
+        if (learnResult.error) {
+          console.error("Error fetching learn count:", learnResult.error);
+          setCountError("Failed to check available cards");
+        }
+        
+        if (reviewResult.error) {
+          console.error("Error fetching review count:", reviewResult.error);
+          setCountError("Failed to check available cards");
+        }
+
+        // Set counts
+        const learnCardIds = learnResult.data || [];
+        const reviewCardIds = reviewResult.data || [];
+        
+        // For the review count, we only count cards with a next_review_due
+        // This would ideally be filtered by the DB function, but for now we'll assume all returned cards are valid
+        setLearnCount(learnCardIds.length);
+        setReviewCount(reviewCardIds.length);
+        
+      } catch (error) {
+        console.error("Error fetching card counts:", error);
+        setCountError("Error checking available cards");
+        setLearnCount(0);
+        setReviewCount(0);
+      } finally {
+        setIsLoadingCounts(false);
+      }
+    };
+
+    fetchCardCounts();
+  }, [selectionType, selectedDeckId, selectedStudySetId]);
 
   const handleInitiateStudy = () => {
-    let actionInput: StudyInput | null = null;
-
-    if (selectionType === 'all') {
-      actionInput = { criteria: { allCards: true } };
-    } else if (selectionType === 'deck') {
-      if (!selectedDeckId) {
-        toast.error("Please select a deck.");
-        return;
-      }
-      actionInput = { criteria: { deckId: selectedDeckId } };
-    } else if (selectionType === 'studySet') {
-       if (!selectedStudySetId) {
-        toast.error("Please select a smart playlist.");
-        return;
-      }
-      actionInput = { studySetId: selectedStudySetId };
-    } else {
-      toast.error("Selection type not yet implemented.");
-      return; 
+    const actionInput = getCurrentCriteria();
+    
+    if (!actionInput) {
+      toast.error("Please select a valid study option.");
+      return;
     }
     
-    if (actionInput) {
-        onStartStudying(actionInput, selectedMode);
+    // Verify counts for the selected mode
+    if (selectedMode === 'learn' && learnCount === 0) {
+      toast.error("No cards available for learning in this selection.");
+      return;
     }
+    
+    if (selectedMode === 'review' && reviewCount === 0) {
+      toast.error("No cards due for review in this selection.");
+      return;
+    }
+    
+    onStartStudying(actionInput, selectedMode);
   };
 
   const isStartDisabled = 
     (selectionType === 'deck' && !selectedDeckId) || 
-    (selectionType === 'studySet' && !selectedStudySetId);
+    (selectionType === 'studySet' && !selectedStudySetId) ||
+    (selectedMode === 'learn' && learnCount === 0) ||
+    (selectedMode === 'review' && reviewCount === 0);
 
   return (
     <div className="space-y-6 p-4 border rounded-md">
@@ -143,6 +235,19 @@ export function StudySetSelector({
         </div>
       )}
 
+      {countError && (
+        <div className="text-destructive text-sm">
+          {countError}
+        </div>
+      )}
+
+      {isLoadingCounts && (
+        <div className="flex items-center text-muted-foreground text-sm">
+          <IconLoader className="w-3 h-3 mr-2 animate-spin" />
+          Checking available cards...
+        </div>
+      )}
+
       <hr />
 
       <div className="space-y-2">
@@ -153,12 +258,22 @@ export function StudySetSelector({
           className="flex space-x-4"
         >
            <div className="flex items-center space-x-2">
-            <RadioGroupItem value="learn" id="m-learn" />
-            <Label htmlFor="m-learn">Learn</Label>
+            <RadioGroupItem value="learn" id="m-learn" disabled={learnCount === 0} />
+            <Label 
+              htmlFor="m-learn" 
+              className={learnCount === 0 ? "text-muted-foreground" : ""}
+            >
+              Learn {learnCount > 0 && `(${learnCount})`}
+            </Label>
           </div>
           <div className="flex items-center space-x-2">
-            <RadioGroupItem value="review" id="m-review" />
-            <Label htmlFor="m-review">Review (SRS)</Label>
+            <RadioGroupItem value="review" id="m-review" disabled={reviewCount === 0} />
+            <Label 
+              htmlFor="m-review" 
+              className={reviewCount === 0 ? "text-muted-foreground" : ""}
+            >
+              Review (SRS) {reviewCount > 0 && `(${reviewCount})`}
+            </Label>
           </div>
         </RadioGroup>
         <p className="text-sm text-muted-foreground">

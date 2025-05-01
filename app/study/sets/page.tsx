@@ -1,10 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useStudySets } from '@/hooks/useStudySets';
-import { useStudySessionStore, StudyInput } from '@/store/studySessionStore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -13,13 +12,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { toast } from 'sonner';
-import { Edit, Play, BookOpen, GraduationCap } from 'lucide-react';
+import { Edit, Terminal } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import type { Tables } from '@/types/database';
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Terminal } from "lucide-react"
-import { cn } from "@/lib/utils";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { StudyModeButtons } from '@/components/study/StudyModeButtons';
 
 // Define DbStudySet using Tables
 type DbStudySet = Tables<'study_sets'>;
@@ -27,14 +24,6 @@ type DbStudySet = Tables<'study_sets'>;
 export default function ListStudySetsPage() {
   const router = useRouter();
   const { studySets, isLoading, error } = useStudySets();
-  const setStudyParameters = useStudySessionStore((state) => state.setStudyParameters);
-
-  const handleStudy = (studySetId: string, mode: 'learn' | 'review') => {
-    console.log(`[ListStudySetsPage] Starting session for Set ID: ${studySetId}, Mode: ${mode}`);
-    const actionInput: StudyInput = { studySetId: studySetId };
-    setStudyParameters(actionInput, mode);
-    router.push('/study/session');
-  };
 
   // --- Render Logic ---
 
@@ -93,22 +82,11 @@ export default function ListStudySetsPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardFooter className="flex justify-end items-center mt-auto pt-4">
-                   <div className="flex gap-3">
-                      <Button 
-                          onClick={() => handleStudy(set.id, 'learn')} 
-                          aria-label={`Learn ${set.name}`}
-                          className="h-9 px-3 text-sm bg-gradient-to-br from-pink-500 to-red-500 hover:from-pink-600 hover:to-red-600 text-white"
-                      >
-                         <GraduationCap className="h-4 w-4 mr-1" /> Learn
-                      </Button>
-                      <Button 
-                          onClick={() => handleStudy(set.id, 'review')} 
-                          aria-label={`Review ${set.name}`}
-                          className="h-9 px-3 text-sm bg-gradient-to-br from-blue-500 to-sky-500 hover:from-blue-600 hover:to-sky-600 text-white"
-                      >
-                         <Play className="h-4 w-4 mr-1" /> Review
-                      </Button>
-                  </div>
+                   <StudyModeButtons
+                     studyType="studySet"
+                     contentId={set.id}
+                     size="sm"
+                   />
                 </CardFooter>
               </Card>
             ))}

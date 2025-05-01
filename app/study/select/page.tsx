@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation'; 
-import { StudySetSelector } from '@/components/StudySetSelector'; // Adjust path if needed
+import { StudySetSelector } from '@/components/StudySetSelector'; // Correct the import path
 import { useStudySessionStore, StudyInput } from '@/store/studySessionStore'; 
 import { useDecks } from '@/hooks/useDecks'; // Adjust path if needed
 import { useStudySets } from '@/hooks/useStudySets'; // Import hook for study sets

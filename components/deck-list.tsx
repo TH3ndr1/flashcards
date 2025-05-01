@@ -4,15 +4,10 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { PlusCircle, Play, Edit, GraduationCap } from "lucide-react"
-// REMOVED: import { CreateDeckDialog } from "@/components/create-deck-dialog"
+import { PlusCircle, Edit } from "lucide-react"
 import { useDecks } from "@/hooks/use-decks"
-import { useRouter } from "next/navigation" // Keep useRouter
-// REMOVED: import { useSettings } from "@/providers/settings-provider" // No longer needed here
-// REMOVED: import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert" // No longer needed here
-// REMOVED: import { Terminal } from "lucide-react" // No longer needed here
-import { useStudySessionStore, StudyInput } from "@/store/studySessionStore"
-import { StudyQueryCriteria } from "@/lib/schema/study-query.schema"
+import { useRouter } from "next/navigation"
+import { useStudySessionStore } from "@/store/studySessionStore"
 import Link from 'next/link'
 import {
   Tooltip,
@@ -24,16 +19,13 @@ import { DeckProgressBar } from "@/components/deck/DeckProgressBar"
 import { useSettings } from "@/providers/settings-provider"
 import { cn } from "@/lib/utils"
 import { Separator } from "@/components/ui/separator"
+import { StudyModeButtons } from "@/components/study/StudyModeButtons"
 
 export function DeckList() {
   const { decks, loading, refetchDecks } = useDecks() // Added refetchDecks
   const { settings, loading: settingsLoading } = useSettings() // Get settings
-  // REMOVED: const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isVisible, setIsVisible] = useState(true)
   const router = useRouter() // Keep router
-  const setStudyParameters = useStudySessionStore((state) => state.setStudyParameters)
-  const clearStudyParameters = useStudySessionStore((state) => state.clearStudyParameters)
-  // REMOVED: const { settings } = useSettings(); // No longer needed here
 
   // Effect for handling page visibility (for spinner animation)
   useEffect(() => {
@@ -60,24 +52,6 @@ export function DeckList() {
   // Navigate to the edit page for a specific deck
   const handleEditDeck = (deckId: string) => {
     router.push(`/edit/${deckId}`)
-  }
-
-  // Prepare and navigate to a study session
-  const handleStudy = (deckId: string, mode: 'learn' | 'review') => {
-    console.log(`[DeckList] Starting session for Deck ID: ${deckId}, Mode: ${mode}`);
-    // Prepare study parameters based on the selected deck
-    // Ensure the criteria object includes default fields expected by StudyQueryCriteria
-    const criteria: StudyQueryCriteria = {
-        deckId: deckId,
-        // Add default values for fields that have defaults in the schema
-        tagLogic: 'ANY', // Default logic
-        includeDifficult: false, // Default value
-        // Other fields are optional and can be omitted
-    };
-    const actionInput: StudyInput = { criteria: criteria };
-    clearStudyParameters(); // Clear any previous session parameters
-    setStudyParameters(actionInput, mode); // Set parameters for the new session
-    router.push('/study/session'); // Navigate to the study session page
   }
 
   // Navigate to the intermediate deck creation choice page
@@ -120,8 +94,8 @@ export function DeckList() {
   return (
     <TooltipProvider>
       <div className="space-y-6 py-4 px-4 md:p-6">
-        {/* Header section - LEGEND REMOVED FROM HERE */}
-        <div className="flex justify-between items-center flex-wrap gap-4 mb-6"> {/* Added mb-6 */}
+        {/* Header section */}
+        <div className="flex justify-between items-center flex-wrap gap-4 mb-6">
           {/* Title remains */}
           <h2 className="text-2xl font-semibold">Your Decks</h2>
           {/* Create button remains */}
@@ -189,26 +163,12 @@ export function DeckList() {
                   </CardHeader>
                   {/* Footer with study buttons */}
                   <CardFooter className="flex justify-center pt-4 px-4 pb-4">
-                    <div className="flex gap-3">
-                      <Button
-                        onClick={() => handleStudy(deck.id, 'learn')}
-                        aria-label={`Learn ${deck.name}`}
-                        className="bg-gradient-to-br from-pink-500 to-red-500 hover:from-pink-600 hover:to-red-600 text-white shadow-sm hover:shadow"
-                        size="sm"
-                        disabled={totalCards === 0}
-                      >
-                        <GraduationCap className="h-4 w-4 mr-1" /> Learn
-                      </Button>
-                      <Button
-                        onClick={() => handleStudy(deck.id, 'review')}
-                        aria-label={`Review ${deck.name}`}
-                        className="bg-gradient-to-br from-blue-500 to-sky-500 hover:from-blue-600 hover:to-sky-600 text-white shadow-sm hover:shadow"
-                        size="sm"
-                        disabled={totalCards === 0}
-                      >
-                        <Play className="h-4 w-4 mr-1" /> Review
-                      </Button>
-                    </div>
+                    {/* Replace the buttons with the new component */}
+                    <StudyModeButtons 
+                      studyType="deck" 
+                      contentId={deck.id} 
+                      size="sm"
+                    />
                   </CardFooter>
                   {/* Conditionally render Separator AND DeckProgressBar */}
                   {showDeckProgress && (

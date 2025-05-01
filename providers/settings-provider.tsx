@@ -61,7 +61,7 @@ export interface Settings {
   initialLearningStepsMinutes: number[];
   lapsedEfPenalty: number;
   learnAgainPenalty: number;
-  learnHardPenalty: number;
+    learnHardPenalty: number;
   minEasinessFactor: number;
   defaultEasinessFactor: number;
 }

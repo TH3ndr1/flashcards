@@ -652,8 +652,8 @@ export function useStudySession({
       // Use currentQueueItemState (calculated by memo)
       if (!currentQueueItem || isProcessingAnswer || isComplete || !settings) { // Depends on settings here directly
           console.log("[answerCard] Ignoring answer: processing, complete, no card, or settings missing.");
-          return;
-      }
+            return;
+        }
 
       setIsProcessingAnswer(true); // Lock input
       setIsFlipped(true); // Auto-flip back to front/answer side before processing
@@ -990,7 +990,7 @@ export function useStudySession({
                    setCurrentCardIndex(nextIndex);
 
                    // scheduleNextDueCheck() will be triggered by the queue state update effect (dependency on sessionQueue)
-              } else {
+             } else {
                    // Session is complete, index doesn't matter
                    setCurrentCardIndex(0);
                    console.log("[answerCard] Session is now complete.");

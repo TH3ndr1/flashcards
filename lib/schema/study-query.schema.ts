@@ -75,6 +75,8 @@ export const StudyQueryCriteriaSchema = z.object({
     .describe("Logic for 'includeTags': ANY (default) or ALL"),
   includeDifficult: z.boolean().optional().default(false)
     .describe("If true, includes cards currently in the 'learning' stage (based on view cards_with_srs_stage)"),
+  includeLearning: z.boolean().optional()
+    .describe("If true, includes cards in the 'learning' state (srs_level = 0, learning_state = 'learning')"),
 
   // Date Filters
   createdDate: baseDateFilterSchema.optional()
