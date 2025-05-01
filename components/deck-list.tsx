@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation" // Keep useRouter
 // REMOVED: import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert" // No longer needed here
 // REMOVED: import { Terminal } from "lucide-react" // No longer needed here
 import { useStudySessionStore, StudyInput } from "@/store/studySessionStore"
+import { StudyQueryCriteria } from "@/lib/schema/study-query.schema"
 import Link from 'next/link'
 import {
   Tooltip,
@@ -65,7 +66,15 @@ export function DeckList() {
   const handleStudy = (deckId: string, mode: 'learn' | 'review') => {
     console.log(`[DeckList] Starting session for Deck ID: ${deckId}, Mode: ${mode}`);
     // Prepare study parameters based on the selected deck
-    const actionInput: StudyInput = { criteria: { deckId: deckId } };
+    // Ensure the criteria object includes default fields expected by StudyQueryCriteria
+    const criteria: StudyQueryCriteria = {
+        deckId: deckId,
+        // Add default values for fields that have defaults in the schema
+        tagLogic: 'ANY', // Default logic
+        includeDifficult: false, // Default value
+        // Other fields are optional and can be omitted
+    };
+    const actionInput: StudyInput = { criteria: criteria };
     clearStudyParameters(); // Clear any previous session parameters
     setStudyParameters(actionInput, mode); // Set parameters for the new session
     router.push('/study/session'); // Navigate to the study session page

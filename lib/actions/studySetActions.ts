@@ -2,9 +2,11 @@
 
 import { createActionClient } from '@/lib/supabase/server';
 import { revalidatePath } from "next/cache";
-import { z } from 'zod';
+// import { z } from 'zod'; // No longer needed directly if schemas are imported
 import { studyQueryCriteriaSchema } from '@/lib/schema/study-query.schema'; // Import the criteria schema
 import type { StudyQueryCriteria } from '@/lib/schema/study-query.schema';
+// Import the newly created study set schemas
+import { studySetInputSchema, partialStudySetInputSchema } from '@/lib/schema/study-set.schema';
 import type { Database, Tables } from "@/types/database"; // Assuming types_db defines Tables<'study_sets'> 
 import type { ActionResult } from '@/lib/actions/types'; // Import shared type
 
@@ -12,14 +14,18 @@ import type { ActionResult } from '@/lib/actions/types'; // Import shared type
 type DbStudySet = Tables<'study_sets'>;
 
 // Zod schema for creating/updating study sets (validates name, description, criteria)
+// REMOVE local definition
+/*
 const studySetInputSchema = z.object({
     name: z.string().trim().min(1, 'Study set name is required').max(100),
     description: z.string().trim().max(500).optional().nullable(),
     criteria: studyQueryCriteriaSchema, // Validate the criteria object
 });
+*/
 
 // Zod schema for partial updates
-const partialStudySetInputSchema = studySetInputSchema.partial(); 
+// REMOVE local definition
+// const partialStudySetInputSchema = studySetInputSchema.partial(); 
 
 // Helper to get Supabase client and user (Ensure correct usage)
 async function getSupabaseAndUser() {

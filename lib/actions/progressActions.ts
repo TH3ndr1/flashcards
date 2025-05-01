@@ -4,6 +4,8 @@ import { createActionClient, createDynamicRouteClient } from "@/lib/supabase/ser
 // import { cookies } from "next/headers";
 import type { Database, Tables, TablesUpdate } from "@/types/database";
 import type { ActionResult } from '@/lib/actions/types';
+import { updateCardProgressSchema, cardUpdateFieldsSchema } from "@/lib/schema/card.schema"; // Remove .ts extension
+import type { z } from 'zod';
 
 /**
  * Server actions for managing study progress and SRS state.
@@ -17,158 +19,84 @@ import type { ActionResult } from '@/lib/actions/types';
  */
 
 /**
- * Represents the necessary data to update a card's progress after a review.
- * Matches the SRS fields in the DbCard type.
- */
-export interface CardProgressUpdate extends Partial<Pick<Tables<'cards'>,
-    'last_reviewed_at' |
-    'next_review_due' |
-    'srs_level' |
-    'easiness_factor' |
-    'interval_days' |
-    'stability' |
-    'difficulty' |
-    'last_review_grade' |
-    'correct_count' |
-    'incorrect_count' |
-    'attempt_count'
->> {
-    // All fields are optional, but we'll set them in the function if not provided
-}
-
-// Helper function to convert camelCase keys to snake_case
-function camelToSnake(key: string): string {
-    return key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-}
-
-function convertPayloadToSnakeCase(payload: Record<string, any>): Record<string, any> {
-    console.log("[convertPayload] Input:", payload);
-    const snakeCasePayload: Record<string, any> = {};
-    for (const key in payload) {
-        if (Object.prototype.hasOwnProperty.call(payload, key)) {
-            const value = payload[key];
-            // Convert Date objects to ISO strings for Supabase timestamptz
-            if (value instanceof Date) {
-                snakeCasePayload[camelToSnake(key)] = value.toISOString();
-            } else {
-                 snakeCasePayload[camelToSnake(key)] = value;
-            }
-           
-        }
-    }
-    console.log("[convertPayload] Output:", snakeCasePayload);
-    return snakeCasePayload;
-}
-
-// Define the expected shape for the calculated next SRS state
-// These should match the relevant fields in Tables<'cards'>
-type CalculatedSrsState = Required<Pick<Tables<'cards'>, 
-    'next_review_due' | 
-    'srs_level' | 
-    'easiness_factor' | 
-    'interval_days'
-    // Add FSRS fields here if/when used: 'stability' | 'difficulty' 
->>;
-
-/**
- * Updates a card's progress and SRS state.
+ * Updates a card's progress and SRS state based on a review grade.
  * 
- * @param {Object} params - Progress update parameters
- * @param {string} params.cardId - ID of the card to update
- * @param {number} params.grade - The grade given to the card (1-4)
- * @param {SRSState} params.nextState - The calculated next SRS state
- * @returns {Promise<Card>} The updated card
- * @throws {Error} If progress update fails or user is not authenticated
+ * @param {object} input - The input object matching updateCardProgressSchema.
+ * @param {string} input.cardId - ID of the card to update.
+ * @param {number} input.grade - The grade given to the card (1-4).
+ * @param {object} input.updatedFields - An object containing the card fields to update (matching cardUpdateFieldsSchema).
+ * @returns {Promise<ActionResult<Tables<'cards'>>>} The result of the action, containing the updated card data or an error.
  */
-export async function updateCardProgress({
-  cardId,
-  grade,
-  nextState,
-}: {
-  cardId: string;
-  grade: number;
-  nextState: CalculatedSrsState;
-}): Promise<Tables<'cards'>> {
-    console.log(`[updateCardProgress] Action started for cardId: ${cardId}`, { grade, nextState });
+export async function updateCardProgress(
+    input: z.infer<typeof updateCardProgressSchema> // Use Zod type for input
+): Promise<ActionResult<Tables<'cards'>>> { // Return ActionResult
+
+    const validationResult = updateCardProgressSchema.safeParse(input);
+
+    if (!validationResult.success) {
+        console.error('[updateCardProgress] Invalid input:', validationResult.error.flatten());
+        return { data: null, error: "Invalid input: " + validationResult.error.flatten().fieldErrors };
+    }
+
+    const { cardId, grade, updatedFields } = validationResult.data;
+
+    console.log(`[updateCardProgress] Action started for cardId: ${cardId}`, { grade, updatedFields });
     
     try {
-        // Use the standard action client - must await
-        const supabase = await createActionClient();
+        const supabase = createActionClient(); // No need to await createActionClient
         
-        // Fetch user for authentication check
         const { data: { user }, error: authError } = await supabase.auth.getUser();
 
         if (authError || !user) {
             console.error('[updateCardProgress] Auth error or no user:', authError);
-            throw new Error('Not authenticated');
-        }
-
-        if (!cardId) {
-            console.error("[updateCardProgress] Card ID is required.");
-            throw new Error("Card ID is required to update progress.");
+            return { data: null, error: authError?.message || 'Not authenticated' };
         }
         
-        // Construct the DB update payload directly using snake_case keys
+        // Construct the DB update payload from validated fields
+        // The keys in updatedFields are already snake_case as defined in the schema
         const dbUpdatePayload: Partial<TablesUpdate<'cards'>> = {
-            last_reviewed_at: new Date().toISOString(), // Set directly here
-            next_review_due: nextState.next_review_due, 
-            srs_level: nextState.srs_level, 
-            easiness_factor: nextState.easiness_factor, 
-            interval_days: nextState.interval_days, 
-            last_review_grade: grade, 
-            // TODO: Add correct/incorrect/attempt count logic if needed
-            // e.g., fetch current counts and increment?
+            ...updatedFields, // Spread all validated fields
+            last_reviewed_at: new Date().toISOString(), // Set timestamp
+            last_review_grade: grade, // Set the grade that triggered this update
+            user_id: user.id // Ensure user_id is set for RLS, though update might handle it
         };
         
-        // Convert payload keys to snake_case for DB and handle Date conversion - No longer needed if constructed correctly
-        // const dbUpdatePayload = convertPayloadToSnakeCase(updatedProgress);
         console.log("[updateCardProgress] DB update payload prepared:", dbUpdatePayload);
 
-        // First verify the card belongs to a deck owned by the user
-        console.log(`[updateCardProgress] Verifying ownership for card: ${cardId}`);
-        const { data: card, error: cardError } = await supabase
-            .from('cards')
-            .select('deck_id')
-            .eq('id', cardId)
-            .single();
-        
-        console.log("[updateCardProgress] Ownership verification result:", { card, cardError });
-
-        if (cardError || !card) {
-            console.error("[updateCardProgress] Error fetching card or card not found/denied:", cardError);
-            throw new Error("Card not found or access denied");
-        }
-
-        // Now update the card
-        console.log(`[updateCardProgress] Updating card ${cardId} with payload:`, dbUpdatePayload);
+        // Perform the update
+        console.log(`[updateCardProgress] Updating card ${cardId}`);
         const { data: updatedCardData, error: updateError } = await supabase
             .from('cards')
             .update(dbUpdatePayload)
             .eq('id', cardId)
-            .eq('deck_id', card.deck_id)
-            .select('*') // Select the updated card data
+            .eq('user_id', user.id) // Ensure RLS check on update
+            .select('*')
             .single();
             
         console.log("[updateCardProgress] Supabase update result:", { updateError });
 
         if (updateError) {
             console.error("[updateCardProgress] Error during Supabase update:", updateError);
-            throw updateError;
+             // Consider mapping specific DB error codes (like 23503 FK violation) to user-friendly messages
+            return { data: null, error: updateError.message || "Failed to update card progress." };
         }
         
-        console.log("[updateCardProgress] Successfully updated card:", cardId);
         if (!updatedCardData) {
              console.error("[updateCardProgress] No data returned after update.");
-             throw new Error("Failed to confirm card update.");
+             return { data: null, error: "Failed to confirm card update." };
         }
-        return updatedCardData; // Return the full updated card
-    } catch (error) {
-        console.error("[updateCardProgress] Caught error during execution:", error);
+
+        console.log("[updateCardProgress] Successfully updated card:", cardId);
+        return { data: updatedCardData, error: null }; // Return success with updated card
+
+    } catch (error: unknown) {
+        console.error("[updateCardProgress] Caught unexpected error:", error); // Log the full error object
+        const errorMsg = error instanceof Error ? error.message : "An unknown error occurred.";
         // Log specific details if available (e.g., PostgreSQL error code)
         if (error && typeof error === 'object' && 'code' in error) {
            console.error("[updateCardProgress] DB Error Code:", error.code);
         }
-        throw error instanceof Error ? error : new Error("Failed to update card progress.");
+        return { data: null, error: `Failed to update card progress: ${errorMsg}` };
     }
 }
 
@@ -177,96 +105,80 @@ export async function updateCardProgress({
  * 
  * @param {Object} params - Progress reset parameters
  * @param {string} params.cardId - ID of the card to reset
- * @returns {Promise<Card>} The reset card
+ * @returns {Promise<ActionResult<Tables<'cards'>>>} The result of the action, containing the reset card data or an error.
  * @throws {Error} If progress reset fails or user is not authenticated
  */
 export async function resetCardProgress({
   cardId,
 }: {
   cardId: string;
-}): Promise<Tables<'cards'>> {
+}): Promise<ActionResult<Tables<'cards'>>> { // Return ActionResult
     console.log(`[resetCardProgress] Action started for cardId: ${cardId}`);
     
+    if (!cardId || typeof cardId !== 'string' || !cardId.match(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/)) {
+        console.error("[resetCardProgress] Invalid Card ID provided.");
+        return { data: null, error: "Invalid Card ID provided." };
+    }
+
     try {
-        // Use the standard action client - must await
-        const supabase = await createActionClient();
+        const supabase = createActionClient();
         
-        // Fetch user for authentication check
         const { data: { user }, error: authError } = await supabase.auth.getUser();
 
         if (authError || !user) {
             console.error('[resetCardProgress] Auth error or no user:', authError);
-            throw new Error('Not authenticated');
-        }
-
-        if (!cardId) {
-            console.error("[resetCardProgress] Card ID is required.");
-            throw new Error("Card ID is required to reset progress.");
+            return { data: null, error: authError?.message || 'Not authenticated' };
         }
         
-        // Reset the card progress
-        const resetProgress = {
+        // Reset payload - include new fields with default/reset values
+        const resetPayload: Partial<TablesUpdate<'cards'>> = {
             last_reviewed_at: null,
             next_review_due: null,
             srs_level: 0,
-            easiness_factor: 2.5,
+            easiness_factor: 2.5, // Use DB default or settings default?
             interval_days: 0,
-            stability: 0,
-            difficulty: 0,
             last_review_grade: null,
             correct_count: 0,
             incorrect_count: 0,
-            attempt_count: 0
+            attempt_count: 0,
+            // Reset new fields
+            learning_state: null,
+            learning_step_index: null,
+            failed_attempts_in_learn: 0,
+            hard_attempts_in_learn: 0,
+            user_id: user.id
         };
         
-        // Convert payload keys to snake_case for DB and handle Date conversion - Already snake_case
-        // const dbResetPayload = convertPayloadToSnakeCase(resetProgress);
-        console.log("[resetCardProgress] DB reset payload prepared:", resetProgress);
+        console.log("[resetCardProgress] DB reset payload prepared:", resetPayload);
 
-        // First verify the card belongs to a deck owned by the user
-        console.log(`[resetCardProgress] Verifying ownership for card: ${cardId}`);
-        const { data: card, error: cardError } = await supabase
-            .from('cards')
-            .select('deck_id')
-            .eq('id', cardId)
-            .single();
-        
-        console.log("[resetCardProgress] Ownership verification result:", { card, cardError });
-
-        if (cardError || !card) {
-            console.error("[resetCardProgress] Error fetching card or card not found/denied:", cardError);
-            throw new Error("Card not found or access denied");
-        }
-
-        // Now reset the card
-        console.log(`[resetCardProgress] Resetting card ${cardId} with payload:`, resetProgress);
+        // Perform the reset
+        console.log(`[resetCardProgress] Resetting card ${cardId}`);
         const { data: resetResult, error: resetError } = await supabase
             .from('cards')
-            .update(resetProgress)
+            .update(resetPayload)
             .eq('id', cardId)
-            .eq('deck_id', card.deck_id)
-            .select('*') // Select the reset card data
+            .eq('user_id', user.id) // Ensure RLS check
+            .select('*')
             .single();
             
         console.log("[resetCardProgress] Supabase reset result:", { resetError });
 
         if (resetError) {
             console.error("[resetCardProgress] Error during Supabase reset:", resetError);
-            throw resetError;
+            return { data: null, error: resetError.message || "Failed to reset card progress." };
         }
-        
-        console.log("[resetCardProgress] Successfully reset card:", cardId);
+
         if (!resetResult) {
-             console.error("[resetCardProgress] No data returned after reset.");
-             throw new Error("Failed to confirm card reset.");
+            console.error("[resetCardProgress] No data returned after reset.");
+            return { data: null, error: "Failed to confirm card reset." };
         }
-        return resetResult; // Return the full reset card data
-    } catch (error) {
-        console.error("[resetCardProgress] Caught error during execution:", error);
-        // Log specific details if available (e.g., PostgreSQL error code)
-        if (error && typeof error === 'object' && 'code' in error) {
-           console.error("[resetCardProgress] DB Error Code:", error.code);
-        }
-        throw error instanceof Error ? error : new Error("Failed to reset card progress.");
+
+        console.log("[resetCardProgress] Successfully reset card:", cardId);
+        return { data: resetResult, error: null }; // Return success with reset card
+
+    } catch (error: unknown) {
+        console.error("[resetCardProgress] Caught unexpected error:", error); // Log the full error object
+        const errorMsg = error instanceof Error ? error.message : "An unknown error occurred.";
+        return { data: null, error: `Failed to reset card progress: ${errorMsg}` };
     }
 } 

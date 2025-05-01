@@ -56,7 +56,7 @@ export async function getUserSettings(): Promise<ActionResult<DbSettings | null>
 export async function updateUserSettings({
   updates,
 }: {
-  updates: Partial<Settings>; // Expect camelCase from provider, including wordPaletteConfig
+  updates: Partial<Settings>; // Expect camelCase from provider
 }): Promise<ActionResult<DbSettings | null>> {
     console.log(`[updateUserSettings] Action started.`);
     try {
@@ -75,38 +75,30 @@ export async function updateUserSettings({
         if ('appLanguage' in updates && updates.appLanguage !== undefined) dbPayload.app_language = updates.appLanguage;
         if ('cardFont' in updates && updates.cardFont !== undefined) dbPayload.card_font = updates.cardFont;
         if ('showDifficulty' in updates && updates.showDifficulty !== undefined) dbPayload.show_difficulty = updates.showDifficulty;
-        if ('masteryThreshold' in updates && updates.masteryThreshold !== undefined) dbPayload.mastery_threshold = updates.masteryThreshold;
         if ('ttsEnabled' in updates && updates.ttsEnabled !== undefined) dbPayload.tts_enabled = updates.ttsEnabled;
         if ('languageDialects' in updates && updates.languageDialects !== undefined) dbPayload.language_dialects = updates.languageDialects as Json;
+        if ('colorOnlyNonNative' in updates && updates.colorOnlyNonNative !== undefined) dbPayload.color_only_non_native = updates.colorOnlyNonNative;
+        if ('enableBasicColorCoding' in updates && updates.enableBasicColorCoding !== undefined) dbPayload.enable_basic_color_coding = updates.enableBasicColorCoding;
+        if ('enableAdvancedColorCoding' in updates && updates.enableAdvancedColorCoding !== undefined) dbPayload.enable_advanced_color_coding = updates.enableAdvancedColorCoding;
+        if ('wordPaletteConfig' in updates && updates.wordPaletteConfig !== undefined) dbPayload.word_palette_config = updates.wordPaletteConfig as Json;
+        if ('showDeckProgress' in updates && updates.showDeckProgress !== undefined) dbPayload.show_deck_progress = updates.showDeckProgress;
+        if ('themePreference' in updates && updates.themePreference !== undefined) dbPayload.theme_light_dark_mode = String(updates.themePreference);
 
-        if ('colorOnlyNonNative' in updates && updates.colorOnlyNonNative !== undefined) {
-            dbPayload.color_only_non_native = updates.colorOnlyNonNative;
-        }
-
-        if ('enableBasicColorCoding' in updates && updates.enableBasicColorCoding !== undefined) {
-             dbPayload.enable_basic_color_coding = updates.enableBasicColorCoding;
-        }
-        if ('enableAdvancedColorCoding' in updates && updates.enableAdvancedColorCoding !== undefined) {
-             dbPayload.enable_advanced_color_coding = updates.enableAdvancedColorCoding;
-        }
-
-        // --- Map NEW Palette Config ---
-        // Remove old mapping
-        // if ('wordColorConfig' in updates && updates.wordColorConfig !== undefined) { ... }
-        // Add new mapping
-        if ('wordPaletteConfig' in updates && updates.wordPaletteConfig !== undefined) {
-             dbPayload.word_palette_config = updates.wordPaletteConfig as Json; // Save the object containing palette IDs
-        }
-        // -----------------------------
-
-        if ('showDeckProgress' in updates && updates.showDeckProgress !== undefined) {
-             dbPayload.show_deck_progress = updates.showDeckProgress;
-        }
-        // ADD MAPPING FOR NEW THEME FIELD
-        if ('themePreference' in updates && updates.themePreference !== undefined) {
-             // Explicitly cast the value to string, as DB column is TEXT
-             dbPayload.theme_light_dark_mode = String(updates.themePreference);
-        }
+        // --- NEW Study Algorithm Mappings ---
+        // Note: studyAlgorithm itself might not map directly if derived from enableDedicatedLearnMode
+        if ('enableDedicatedLearnMode' in updates && updates.enableDedicatedLearnMode !== undefined) dbPayload.enable_dedicated_learn_mode = updates.enableDedicatedLearnMode;
+        if ('masteryThreshold' in updates && updates.masteryThreshold !== undefined) dbPayload.mastery_threshold = updates.masteryThreshold;
+        if ('customLearnRequeueGap' in updates && updates.customLearnRequeueGap !== undefined) dbPayload.custom_learn_requeue_gap = updates.customLearnRequeueGap;
+        if ('graduatingIntervalDays' in updates && updates.graduatingIntervalDays !== undefined) dbPayload.graduating_interval_days = updates.graduatingIntervalDays;
+        if ('easyIntervalDays' in updates && updates.easyIntervalDays !== undefined) dbPayload.easy_interval_days = updates.easyIntervalDays;
+        if ('relearningStepsMinutes' in updates && updates.relearningStepsMinutes !== undefined) dbPayload.relearning_steps_minutes = updates.relearningStepsMinutes;
+        if ('initialLearningStepsMinutes' in updates && updates.initialLearningStepsMinutes !== undefined) dbPayload.initial_learning_steps_minutes = updates.initialLearningStepsMinutes;
+        if ('lapsedEfPenalty' in updates && updates.lapsedEfPenalty !== undefined) dbPayload.lapsed_ef_penalty = updates.lapsedEfPenalty;
+        if ('learnAgainPenalty' in updates && updates.learnAgainPenalty !== undefined) dbPayload.learn_again_penalty = updates.learnAgainPenalty;
+        if ('learnHardPenalty' in updates && updates.learnHardPenalty !== undefined) dbPayload.learn_hard_penalty = updates.learnHardPenalty;
+        if ('minEasinessFactor' in updates && updates.minEasinessFactor !== undefined) dbPayload.min_easiness_factor = updates.minEasinessFactor;
+        if ('defaultEasinessFactor' in updates && updates.defaultEasinessFactor !== undefined) dbPayload.default_easiness_factor = updates.defaultEasinessFactor;
+        // ------------------------------------
 
         if (Object.keys(dbPayload).length === 0) {
              console.log("[updateUserSettings] No valid fields provided for update after mapping.");

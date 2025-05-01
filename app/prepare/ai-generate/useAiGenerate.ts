@@ -282,22 +282,79 @@ export function useAiGenerate() {
         toast.loading(`Preparing ${currentFiles.length} file(s)...`, { id: loadingToastId });
 
         try {
-            // ... File Validation (unchanged) ...
-            for (const file of currentFiles) { /* ... */ }
+            // --- File Validation ---
+            let totalSizeMB = 0;
+            let isAnyFileLarge = false;
+            for (const file of currentFiles) {
+                const fileSizeMB = file.size / (1024 * 1024);
+                totalSizeMB += fileSizeMB;
+                const fileExtension = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
 
-            // ... Determine Upload Strategy & Prepare API Payload (unchanged) ...
-            let apiPayload: FormData | string; // ...
-            let fetchOptions: RequestInit = { method: 'POST', credentials: 'same-origin' }; // ...
-            if (/* isAnyFileLarge or totalSizeMB > limit */ false) {
-                 // ... storage upload logic ...
-            } else {
-                 // ... direct upload logic ...
-                 const formData = new FormData();
-                 currentFiles.forEach(file => formData.append('file', file));
-                 apiPayload = formData;
+                if (!SUPPORTED_EXTENSIONS.includes(fileExtension)) {
+                    throw new Error(`Unsupported file type: ${file.name}`);
+                }
+                if (fileSizeMB > MAX_FILE_SIZE) {
+                    throw new Error(`File too large: ${file.name} (${fileSizeMB.toFixed(2)}MB > ${MAX_FILE_SIZE}MB)`);
+                }
+                if (fileSizeMB > DIRECT_UPLOAD_LIMIT) {
+                    isAnyFileLarge = true;
+                }
             }
-            fetchOptions.body = apiPayload;
-            // ...
+            console.log(`[useAiGenerate] Validation passed. isAnyFileLarge: ${isAnyFileLarge}, totalSizeMB: ${totalSizeMB.toFixed(2)}`);
+
+
+            // --- Determine Upload Strategy & Prepare API Payload ---
+            let apiPayload: FormData | string; // Can be FormData or JSON string
+            let fetchOptions: RequestInit = { method: 'POST', credentials: 'same-origin' }; // Default method
+
+            if (isAnyFileLarge || totalSizeMB > COMBINED_SIZE_LIMIT) {
+                // Storage Upload Flow (Restored Logic)
+                toast.loading(`Uploading to storage...`, { id: loadingToastId });
+                let currentUploadIndex = 0;
+                const uploadPromises = currentFiles.map(async (file, index) => {
+                    // Ensure user object and id exist before using them
+                    if (!user?.id) throw new Error("User not authenticated for storage upload."); 
+                    const storagePath = `${user.id}/${uuidv4()}${file.name.slice(file.name.lastIndexOf('.'))}`; // Preserve original extension
+                    try {
+                        currentUploadIndex = index + 1;
+                        toast.loading(`Uploading ${currentUploadIndex}/${currentFiles.length}: ${file.name}`, { id: loadingToastId });
+                        // Ensure supabase client exists
+                        if (!supabase) throw new Error("Supabase client not available for storage upload."); 
+                        const { data: uploadData, error: uploadError } = await supabase.storage.from(UPLOAD_BUCKET).upload(storagePath, file, { upsert: false });
+                        if (uploadError) throw new Error(`Storage upload failed for ${file.name}: ${uploadError.message}`);
+                        // Check if uploadData and path exist
+                        if (!uploadData?.path) throw new Error(`Storage upload succeeded for ${file.name} but returned no path.`); 
+                        toast.success(`Uploaded: ${file.name}`, { id: `upload-${file.name}-${index}` });
+                        return { filename: file.name, filePath: uploadData.path };
+                    } catch (err: any) {
+                        console.error(`Upload Error ${file.name}:`, err);
+                        toast.error(`Failed to upload: ${file.name}`, { id: `upload-${file.name}-${index}`, description: err.message });
+                        return null;
+                    }
+                });
+                const uploadResults = await Promise.all(uploadPromises);
+                const successfulUploads = uploadResults.filter(
+                    (result): result is { filename: string; filePath: string } => result !== null
+                );
+                if (successfulUploads.length === 0) throw new Error('All storage uploads failed.');
+                if (successfulUploads.length < currentFiles.length) toast.warning(`${currentFiles.length - successfulUploads.length} file(s) failed to upload. Continuing with successful ones.`);
+                
+                // Prepare JSON payload with file paths
+                apiPayload = JSON.stringify({ files: successfulUploads }); 
+                fetchOptions.headers = { 'Content-Type': 'application/json' };
+                console.log("[useAiGenerate] Using Storage Upload Flow. Payload:", apiPayload);
+
+            } else {
+                // Direct Upload Flow (Unchanged)
+                const formData = new FormData();
+                currentFiles.forEach(file => formData.append('file', file));
+                apiPayload = formData;
+                // No specific Content-Type header needed for FormData; browser sets it
+                console.log("[useAiGenerate] Using Direct Upload Flow.");
+            }
+            // Assign body AFTER the if/else
+            fetchOptions.body = apiPayload; 
+            // ---------------------------------------------------------
 
             // --- API Call to Step 1 endpoint --- 
             const filesToProcess = currentFiles.map(f => f.name);

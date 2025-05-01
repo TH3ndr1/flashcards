@@ -46,12 +46,16 @@ export type Database = {
           difficulty: number | null
           difficulty_score: number | null
           easiness_factor: number | null
+          failed_attempts_in_learn: number
+          hard_attempts_in_learn: number
           id: string
           incorrect_count: number | null
           interval_days: number | null
           last_review_grade: number | null
           last_reviewed_at: string | null
           last_studied: string | null
+          learning_state: string | null
+          learning_step_index: number | null
           next_review_due: string | null
           question: string
           question_gender: string | null
@@ -72,12 +76,16 @@ export type Database = {
           difficulty?: number | null
           difficulty_score?: number | null
           easiness_factor?: number | null
+          failed_attempts_in_learn?: number
+          hard_attempts_in_learn?: number
           id?: string
           incorrect_count?: number | null
           interval_days?: number | null
           last_review_grade?: number | null
           last_reviewed_at?: string | null
           last_studied?: string | null
+          learning_state?: string | null
+          learning_step_index?: number | null
           next_review_due?: string | null
           question: string
           question_gender?: string | null
@@ -98,12 +106,16 @@ export type Database = {
           difficulty?: number | null
           difficulty_score?: number | null
           easiness_factor?: number | null
+          failed_attempts_in_learn?: number
+          hard_attempts_in_learn?: number
           id?: string
           incorrect_count?: number | null
           interval_days?: number | null
           last_review_grade?: number | null
           last_reviewed_at?: string | null
           last_studied?: string | null
+          learning_state?: string | null
+          learning_step_index?: number | null
           next_review_due?: string | null
           question?: string
           question_gender?: string | null
@@ -201,14 +213,25 @@ export type Database = {
           card_font: string | null
           color_only_non_native: boolean | null
           created_at: string | null
+          custom_learn_requeue_gap: number
+          default_easiness_factor: number
+          easy_interval_days: number
           enable_advanced_color_coding: boolean | null
           enable_basic_color_coding: boolean | null
+          enable_dedicated_learn_mode: boolean
           enable_word_color_coding: boolean | null
+          graduating_interval_days: number
           id: string
+          initial_learning_steps_minutes: number[]
           language_dialects: Json | null
+          lapsed_ef_penalty: number
+          learn_again_penalty: number
+          learn_hard_penalty: number
           mastery_threshold: number | null
           mature_interval_threshold: number
+          min_easiness_factor: number
           preferred_voices: Json
+          relearning_steps_minutes: number[]
           show_deck_progress: boolean
           show_difficulty: boolean | null
           theme_light_dark_mode: string
@@ -222,14 +245,25 @@ export type Database = {
           card_font?: string | null
           color_only_non_native?: boolean | null
           created_at?: string | null
+          custom_learn_requeue_gap?: number
+          default_easiness_factor?: number
+          easy_interval_days?: number
           enable_advanced_color_coding?: boolean | null
           enable_basic_color_coding?: boolean | null
+          enable_dedicated_learn_mode?: boolean
           enable_word_color_coding?: boolean | null
+          graduating_interval_days?: number
           id?: string
+          initial_learning_steps_minutes?: number[]
           language_dialects?: Json | null
+          lapsed_ef_penalty?: number
+          learn_again_penalty?: number
+          learn_hard_penalty?: number
           mastery_threshold?: number | null
           mature_interval_threshold?: number
+          min_easiness_factor?: number
           preferred_voices?: Json
+          relearning_steps_minutes?: number[]
           show_deck_progress?: boolean
           show_difficulty?: boolean | null
           theme_light_dark_mode?: string
@@ -243,14 +277,25 @@ export type Database = {
           card_font?: string | null
           color_only_non_native?: boolean | null
           created_at?: string | null
+          custom_learn_requeue_gap?: number
+          default_easiness_factor?: number
+          easy_interval_days?: number
           enable_advanced_color_coding?: boolean | null
           enable_basic_color_coding?: boolean | null
+          enable_dedicated_learn_mode?: boolean
           enable_word_color_coding?: boolean | null
+          graduating_interval_days?: number
           id?: string
+          initial_learning_steps_minutes?: number[]
           language_dialects?: Json | null
+          lapsed_ef_penalty?: number
+          learn_again_penalty?: number
+          learn_hard_penalty?: number
           mastery_threshold?: number | null
           mature_interval_threshold?: number
+          min_easiness_factor?: number
           preferred_voices?: Json
+          relearning_steps_minutes?: number[]
           show_deck_progress?: boolean
           show_difficulty?: boolean | null
           theme_light_dark_mode?: string
@@ -327,12 +372,16 @@ export type Database = {
           difficulty: number | null
           difficulty_score: number | null
           easiness_factor: number | null
+          failed_attempts_in_learn: number | null
+          hard_attempts_in_learn: number | null
           id: string | null
           incorrect_count: number | null
           interval_days: number | null
           last_review_grade: number | null
           last_reviewed_at: string | null
           last_studied: string | null
+          learning_state: string | null
+          learning_step_index: number | null
           next_review_due: string | null
           question: string | null
           question_gender: string | null
@@ -371,12 +420,7 @@ export type Database = {
         }[]
       }
       resolve_study_query: {
-        Args: {
-          p_user_id: string
-          p_query_criteria: Json
-          p_order_by_field?: string
-          p_order_by_direction?: string
-        }
+        Args: { p_query_criteria: Json; p_user_id: string }
         Returns: {
           card_id: string
         }[]

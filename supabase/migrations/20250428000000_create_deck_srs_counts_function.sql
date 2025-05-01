@@ -39,7 +39,7 @@ FROM
     public.decks d
 LEFT JOIN
     -- Join with the view that calculates srs_stage
-    public.cards_with_srs_stage cws ON d.id = cws.deck_id
+    public.cards_with_srs_stage cws ON d.id = cws.decak_id
 WHERE
     -- Filter decks for the specified user
     d.user_id = p_user_id

@@ -245,27 +245,27 @@ export function StudyFlashcardView({
                     </TooltipTrigger>
                     <TooltipContent side="bottom"><p className="font-medium">Again (1)</p><p className="text-sm text-muted-foreground">Complete reset. Use when you completely forgot or got it wrong.</p></TooltipContent>
                   </Tooltip>
-                  {/* Tooltip 2: Hard - EXACT ORIGINAL BUTTON CODE */}
+                  {/* Tooltip 2: Hard - **CHANGED ICON** */}
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button size="sm" variant="outline" className="flex-1 justify-center text-xs border-amber-500 text-amber-700 hover:bg-amber-500/10 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300 active:scale-95 transition-all duration-150 sm:w-auto sm:justify-start sm:text-sm" onClick={(e) => { e.stopPropagation(); onAnswer(2); }} disabled={isTransitioning || isSpeaking} aria-label="Hard - Remember with significant effort (Press 2)">
-                        <ThumbsDown className="h-4 w-4 sm:mr-1" />
+                        <ThumbsUp className="h-4 w-4 sm:mr-1" />
                         <span className="hidden sm:inline">Hard</span>
                         <span className="hidden sm:inline ml-1 opacity-50">(2)</span>
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="bottom"><p className="font-medium">Hard (2)</p><p className="text-sm text-muted-foreground">Remembered with significant effort. Review interval will increase slightly.</p></TooltipContent>
                   </Tooltip>
-                  {/* Tooltip 3: Good - EXACT ORIGINAL BUTTON CODE */}
+                  {/* Tooltip 3: Fair - **CHANGED LABEL & TOOLTIP** */}
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button size="sm" variant="outline" className="flex-1 justify-center text-xs border-green-500 text-green-700 hover:bg-green-500/10 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 active:scale-95 transition-all duration-150 sm:w-auto sm:justify-start sm:text-sm" onClick={(e) => { e.stopPropagation(); onAnswer(3); }} disabled={isTransitioning || isSpeaking} aria-label="Good - Remember with some effort (Press 3)">
+                      <Button size="sm" variant="outline" className="flex-1 justify-center text-xs border-green-500 text-green-700 hover:bg-green-500/10 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 active:scale-95 transition-all duration-150 sm:w-auto sm:justify-start sm:text-sm" onClick={(e) => { e.stopPropagation(); onAnswer(3); }} disabled={isTransitioning || isSpeaking} aria-label="Fair - Remember with some effort (Press 3)">
                         <ThumbsUp className="h-4 w-4 sm:mr-1" />
-                        <span className="hidden sm:inline">Good</span>
+                        <span className="hidden sm:inline">Fair</span>
                         <span className="hidden sm:inline ml-1 opacity-50">(3)</span>
                       </Button>
                     </TooltipTrigger>
-                     <TooltipContent side="bottom"><p className="font-medium">Good (3)</p><p className="text-sm text-muted-foreground">Remembered with some effort. Normal interval increase.</p></TooltipContent>
+                     <TooltipContent side="bottom"><p className="font-medium">Fair (3)</p><p className="text-sm text-muted-foreground">Remembered with some effort. Normal interval increase.</p></TooltipContent>
                   </Tooltip>
                   {/* Tooltip 4: Easy - EXACT ORIGINAL BUTTON CODE */}
                   <Tooltip>

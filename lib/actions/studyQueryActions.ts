@@ -2,7 +2,7 @@
 
 import { createActionClient } from '@/lib/supabase/server';
 import { cookies } from 'next/headers';
-import { studyQueryCriteriaSchema, type StudyQueryCriteria, type ResolvedCardId } from "@/lib/schema/study-query.schema";
+import { StudyQueryCriteriaSchema, type StudyQueryCriteria, type ResolvedCardId } from "@/lib/schema/study-query.schema";
 import { getStudySet } from '@/lib/actions/studySetActions'; // Import action to get study set details
 import { ZodError } from 'zod';
 import type { Database, Json } from "@/types/database"; // Import Json type if not global
@@ -67,7 +67,7 @@ export async function resolveStudyQuery(
 
         // Validate the criteria fetched from the study set
         // Supabase stores JSONB as any/unknown, so parse it.
-        const parsedCriteria = studyQueryCriteriaSchema.safeParse(studySetResult.data.query_criteria);
+        const parsedCriteria = StudyQueryCriteriaSchema.safeParse(studySetResult.data.query_criteria);
         if (!parsedCriteria.success) {
              console.error(`[resolveStudyQuery] Invalid criteria found in study set ${input.studySetId}:`, parsedCriteria.error.errors);
              validationError = `Study set contains invalid criteria: ${parsedCriteria.error.errors.map(e => e.message).join(', ')}`;
@@ -78,7 +78,7 @@ export async function resolveStudyQuery(
     } else if ('criteria' in input && input.criteria) {
         console.log("[resolveStudyQuery] Resolving via provided criteria:", input.criteria);
         // Validate the provided criteria
-        const parsedCriteria = studyQueryCriteriaSchema.safeParse(input.criteria);
+        const parsedCriteria = StudyQueryCriteriaSchema.safeParse(input.criteria);
          if (!parsedCriteria.success) {
              console.error('[resolveStudyQuery] Invalid criteria provided:', parsedCriteria.error.errors);
              validationError = `Invalid query criteria: ${parsedCriteria.error.errors.map(e => e.message).join(', ')}`;
@@ -120,8 +120,17 @@ export async function resolveStudyQuery(
       return { data: null, error: 'Failed to retrieve study cards. Please try again.' };
     }
 
+    // Log the raw data received from RPC for inspection
+    console.log("[resolveStudyQuery] Raw RPC data:", JSON.stringify(data, null, 2));
+
     // 4. Process and Return Data
-    const cardIds = data ? data.map((row: any) => row.card_id) : []; // Adjust typing if rpc<T> works
+    // The RPC function directly returns an array of UUID strings.
+    // No mapping is needed.
+    const cardIds: string[] = data ? data : []; 
+    
+    // Log the mapped card IDs for inspection
+    console.log("[resolveStudyQuery] Final cardIds array:", JSON.stringify(cardIds, null, 2)); // Renamed log
+
     console.log(`[resolveStudyQuery] Resolved ${cardIds.length} card IDs.`);
     return { data: cardIds, error: null };
 

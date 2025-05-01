@@ -33,7 +33,6 @@ export interface Settings {
   appLanguage: string;
   cardFont: FontOption;
   showDifficulty: boolean;
-  masteryThreshold: number;
   ttsEnabled: boolean;
   removeMasteredCards?: boolean;
   languageDialects: { // Non-nullable
@@ -50,6 +49,21 @@ export interface Settings {
   colorOnlyNonNative: boolean;
   showDeckProgress: boolean;
   themePreference: ThemePreference;
+
+  // --- NEW Study Algorithm Fields ---
+  studyAlgorithm: 'dedicated-learn' | 'standard-sm2';
+  enableDedicatedLearnMode: boolean;
+  masteryThreshold: number;
+  customLearnRequeueGap: number;
+  graduatingIntervalDays: number;
+  easyIntervalDays: number;
+  relearningStepsMinutes: number[];
+  initialLearningStepsMinutes: number[];
+  lapsedEfPenalty: number;
+  learnAgainPenalty: number;
+  learnHardPenalty: number;
+  minEasinessFactor: number;
+  defaultEasinessFactor: number;
 }
 
 // Re-declare DB Type Alias to potentially help TS
@@ -66,7 +80,6 @@ export const DEFAULT_SETTINGS: Settings = {
   appLanguage: "en",
   cardFont: "default",
   showDifficulty: true,
-  masteryThreshold: 3,
   ttsEnabled: true,
   removeMasteredCards: false,
   languageDialects: {
@@ -78,6 +91,21 @@ export const DEFAULT_SETTINGS: Settings = {
   colorOnlyNonNative: true,
   showDeckProgress: true,
   themePreference: 'system',
+
+  // --- NEW Study Algorithm Defaults ---
+  studyAlgorithm: 'dedicated-learn',
+  enableDedicatedLearnMode: true,
+  masteryThreshold: 3,
+  customLearnRequeueGap: 3,
+  graduatingIntervalDays: 1,
+  easyIntervalDays: 4,
+  relearningStepsMinutes: [10, 1440],
+  initialLearningStepsMinutes: [1, 10],
+  lapsedEfPenalty: 0.2,
+  learnAgainPenalty: 0.2,
+  learnHardPenalty: 0.05,
+  minEasinessFactor: 1.3,
+  defaultEasinessFactor: 2.5,
 };
 
 // --- Updated Transformation Function ---
@@ -102,12 +130,17 @@ const transformDbSettingsToSettings = (dbSettings: DbSettings | null): Settings 
         const wordPaletteConfigFinal = dbPaletteConfig ? { ...DEFAULT_PALETTE_CONFIG, ...dbPaletteConfig } : { ...DEFAULT_PALETTE_CONFIG };
         // --------------------------
 
+        // Determine studyAlgorithm based on enable_dedicated_learn_mode for simplicity
+        // You might want a dedicated 'study_algorithm' column in the DB later
+        const studyAlgorithmFinal = (dbSettings.enable_dedicated_learn_mode ?? DEFAULT_SETTINGS.enableDedicatedLearnMode)
+            ? 'dedicated-learn'
+            : 'standard-sm2';
+
         const transformed: Settings = {
             appLanguage: dbSettings.app_language ?? DEFAULT_SETTINGS.appLanguage,
             languageDialects: languageDialectsFinal,
             ttsEnabled: dbSettings.tts_enabled ?? DEFAULT_SETTINGS.ttsEnabled,
             showDifficulty: dbSettings.show_difficulty ?? DEFAULT_SETTINGS.showDifficulty,
-            masteryThreshold: dbSettings.mastery_threshold ?? DEFAULT_SETTINGS.masteryThreshold,
             cardFont: cardFontFinal,
             enableBasicColorCoding: dbSettings.enable_basic_color_coding ?? DEFAULT_SETTINGS.enableBasicColorCoding,
             enableAdvancedColorCoding: dbSettings.enable_advanced_color_coding ?? DEFAULT_SETTINGS.enableAdvancedColorCoding,
@@ -115,6 +148,23 @@ const transformDbSettingsToSettings = (dbSettings: DbSettings | null): Settings 
             colorOnlyNonNative: dbSettings.color_only_non_native ?? DEFAULT_SETTINGS.colorOnlyNonNative,
             showDeckProgress: dbSettings.show_deck_progress ?? DEFAULT_SETTINGS.showDeckProgress,
             themePreference: (dbSettings.theme_light_dark_mode ?? DEFAULT_SETTINGS.themePreference) as ThemePreference,
+
+            // --- NEW Study Algorithm Mappings ---
+            studyAlgorithm: studyAlgorithmFinal,
+            enableDedicatedLearnMode: dbSettings.enable_dedicated_learn_mode ?? DEFAULT_SETTINGS.enableDedicatedLearnMode,
+            masteryThreshold: dbSettings.mastery_threshold ?? DEFAULT_SETTINGS.masteryThreshold,
+            customLearnRequeueGap: dbSettings.custom_learn_requeue_gap ?? DEFAULT_SETTINGS.customLearnRequeueGap,
+            graduatingIntervalDays: dbSettings.graduating_interval_days ?? DEFAULT_SETTINGS.graduatingIntervalDays,
+            easyIntervalDays: dbSettings.easy_interval_days ?? DEFAULT_SETTINGS.easyIntervalDays,
+            // Ensure arrays are handled correctly, provide default if null/invalid
+            relearningStepsMinutes: Array.isArray(dbSettings.relearning_steps_minutes) ? dbSettings.relearning_steps_minutes : DEFAULT_SETTINGS.relearningStepsMinutes,
+            initialLearningStepsMinutes: Array.isArray(dbSettings.initial_learning_steps_minutes) ? dbSettings.initial_learning_steps_minutes : DEFAULT_SETTINGS.initialLearningStepsMinutes,
+            // Ensure numbers are handled correctly
+            lapsedEfPenalty: typeof dbSettings.lapsed_ef_penalty === 'number' ? dbSettings.lapsed_ef_penalty : DEFAULT_SETTINGS.lapsedEfPenalty,
+            learnAgainPenalty: typeof dbSettings.learn_again_penalty === 'number' ? dbSettings.learn_again_penalty : DEFAULT_SETTINGS.learnAgainPenalty,
+            learnHardPenalty: typeof dbSettings.learn_hard_penalty === 'number' ? dbSettings.learn_hard_penalty : DEFAULT_SETTINGS.learnHardPenalty,
+            minEasinessFactor: typeof dbSettings.min_easiness_factor === 'number' ? dbSettings.min_easiness_factor : DEFAULT_SETTINGS.minEasinessFactor,
+            defaultEasinessFactor: typeof dbSettings.default_easiness_factor === 'number' ? dbSettings.default_easiness_factor : DEFAULT_SETTINGS.defaultEasinessFactor,
         };
         debug('transformDbSettingsToSettings: Transformation result:', transformed);
         return transformed;

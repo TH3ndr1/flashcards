@@ -250,26 +250,16 @@ export function StudySetBuilder({ initialData, onSave, isSaving = false }: Study
                     <Label className="text-base font-medium">SRS Level</Label>
                     <div className="flex flex-col sm:flex-row items-start sm:items-end gap-2">
                         <FormField control={form.control} name="srsLevelOperator" render={({ field }) => (<FormItem className="w-full sm:flex-shrink-0 sm:w-auto sm:min-w-[180px]"><FormLabel className="sr-only">Condition</FormLabel><Select onValueChange={(value) => { field.onChange(value === 'any' ? null : value); form.resetField("srsLevelValue"); }} value={field.value ?? 'any'} disabled={isLoading}><FormControl><SelectTrigger><SelectValue placeholder="Any Level" /></SelectTrigger></FormControl><SelectContent><SelectItem value="any">Any Level</SelectItem>{allowedOperators.srsLevelOps.map(op => <SelectItem key={op} value={op}>{op}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
-                        <FormField control={form.control} name="srsLevelValue" render={({ field }) => (<FormItem className={`flex-grow ${srsLevelOperator && srsLevelOperator !== 'any' ? '' : 'invisible'}`}><FormLabel className="sr-only">Level</FormLabel><FormControl><Input type="number" placeholder="Enter level (e.g., 3)" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? null : parseInt(e.target.value, 10))} disabled={isLoading || !srsLevelOperator || srsLevelOperator === 'any'} min="0" /></FormControl><FormMessage /></FormItem>)} />
+                        <div className={`flex-grow grid grid-cols-1 gap-2 ${srsLevelOperator ? 'mt-2 sm:mt-0' : 'hidden'}`}>
+                            <FormField control={form.control} name="srsLevelValue" render={({ field }) => (<FormItem><FormLabel className="sr-only">Level</FormLabel><FormControl><Input type="number" placeholder="Level (e.g., 0, 1, 5)" {...field} value={typeof field.value === 'number' ? String(field.value) : ''} onChange={e => field.onChange(e.target.value === '' ? null : parseInt(e.target.value, 10))} disabled={isLoading || !srsLevelOperator} min="0" /></FormControl><FormMessage /></FormItem>)} />
+                        </div>
                     </div>
                 </div>
 
                 {/* Include Difficult Cards Checkbox */}
-                 <FormField
-                    control={form.control}
-                    name="includeDifficult"
-                    render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-x-3 space-y-0 p-4 border rounded-md">
-                            <FormControl><Checkbox checked={!!field.value} onCheckedChange={field.onChange} disabled={isLoading} /></FormControl>
-                            <div className="space-y-1 leading-none">
-                                <FormLabel className="text-base">Only Include Difficult Cards</FormLabel>
-                                <FormDescription> Filters for cards in learning (SRS Level {'<'} 3) or failed last review (Grade {'<='} 2). </FormDescription>
-                            </div>
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
-
+                <div className="p-4 border rounded-md">
+                  <FormField control={form.control} name="includeDifficult" render={({ field }) => (<FormItem className="flex flex-row items-start space-x-3 space-y-0"><FormControl><Checkbox checked={!!field.value} onCheckedChange={field.onChange} disabled={isLoading} /></FormControl><div className="space-y-1 leading-none"><FormLabel className="text-base">Only Include Difficult Cards</FormLabel><FormDescription>Filters for cards currently in the 'learning' SRS stage.</FormDescription></div><FormMessage /></FormItem>)} />
+                </div>
             </div> {/* End Filter Criteria Wrapper */}
 
 
