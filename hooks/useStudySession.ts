@@ -148,24 +148,29 @@ export function useStudySession({
       debounce(async (card: CardWithTags) => {
         try {
           const grade = card.last_review_grade as ReviewGrade || 1;
+          const now = new Date().toISOString(); // Current timestamp as ISO string for defaults
           
-          // Format the card data for the updateCardProgress action with non-null values
+          // Include all required fields with valid values
+          const updatedFields = {
+            srs_level: card.srs_level || 0,
+            easiness_factor: card.easiness_factor || 2.5,
+            interval_days: card.interval_days || 0,
+            next_review_due: card.next_review_due || now, // Use current timestamp as default
+            learning_state: (card.learning_state as LearningState) || null,
+            learning_step_index: card.learning_step_index || null,
+            failed_attempts_in_learn: card.failed_attempts_in_learn || 0,
+            hard_attempts_in_learn: card.hard_attempts_in_learn || 0,
+            last_reviewed_at: card.last_reviewed_at || now, // Use current timestamp as default
+            last_review_grade: card.last_review_grade
+          };
+          
           const updateData = {
             cardId: card.id,
-            grade: grade,
-            updatedFields: {
-              srs_level: card.srs_level || 0,
-              easiness_factor: card.easiness_factor || 2.5,
-              interval_days: card.interval_days || 0,
-              next_review_due: card.next_review_due || '',
-              learning_state: (card.learning_state as LearningState) || null,
-              learning_step_index: card.learning_step_index || null,
-              failed_attempts_in_learn: card.failed_attempts_in_learn || 0,
-              hard_attempts_in_learn: card.hard_attempts_in_learn || 0,
-              last_reviewed_at: card.last_reviewed_at || '',
-              last_review_grade: card.last_review_grade
-            }
+            grade,
+            updatedFields
           };
+          
+          console.log("Sending update data:", updateData);
           
           const result = await updateCardProgress(updateData);
           if (result.error) {
@@ -489,8 +494,8 @@ export function useStudySession({
           } else {
             // Custom learn with streak tracking
             if (grade === 1) {
-              // Again - reset streak
-              currentInternalState.streak = 0;
+              // Again - decrease streak by 1, minimum 0
+              currentInternalState.streak = Math.max(0, currentInternalState.streak - 1);
               currentInternalState.failedAttemptsInLearn++;
               updatedCard.failed_attempts_in_learn = currentInternalState.failedAttemptsInLearn;
               
@@ -511,12 +516,31 @@ export function useStudySession({
                 nextDueTime: new Date(),
                 intervalMinutes: 0
               };
-            } else {
-              // Good or Easy - increment streak
-              currentInternalState.streak++;
+            } else if (grade === 3) {
+              // Good - increment streak by 1
+              currentInternalState.streak += 1;
               
               // Check if card should graduate (reached threshold)
-              if (currentInternalState.streak >= settingsRef.current.masteryThreshold || grade === 4) {
+              if (currentInternalState.streak >= settingsRef.current.masteryThreshold) {
+                nextState = {
+                  nextStepIndex: 'graduated',
+                  nextDueTime: new Date(),
+                  intervalMinutes: null
+                };
+              } else {
+                // Not yet graduated - requeue
+                nextState = {
+                  nextStepIndex: 0,
+                  nextDueTime: new Date(),
+                  intervalMinutes: 0
+                };
+              }
+            } else { // grade === 4
+              // Easy - increment streak by 2
+              currentInternalState.streak += 2;
+              
+              // Check if card should graduate (reached threshold)
+              if (currentInternalState.streak >= settingsRef.current.masteryThreshold) {
                 nextState = {
                   nextStepIndex: 'graduated',
                   nextDueTime: new Date(),
@@ -608,24 +632,22 @@ export function useStudySession({
                 // Reinsert the card
                 newQueue.splice(reinsertPosition, 0, cardToRequeue);
                 setSessionQueue(newQueue);
-              } else {
+              } else if ((grade === 3 || grade === 4) && currentInternalState.streak < settingsRef.current.masteryThreshold) {
                 // For Good/Easy with streak < threshold, move card to back of queue
-                if (currentInternalState.streak < settingsRef.current.masteryThreshold && grade !== 4) {
-                  const newQueue = [...sessionQueue];
-                  
-                  // Remove card from current position
-                  const cardToRequeue = newQueue.splice(currentCardIndex, 1)[0];
-                  
-                  // Update the card's internal state
-                  cardToRequeue.internalState = currentInternalState;
-                  cardToRequeue.card = updatedCard;
-                  
-                  // Add to end of queue
-                  newQueue.push(cardToRequeue);
-                  setSessionQueue(newQueue);
-                }
-                // For graduated cards (Easy or streak >= threshold), card was already removed
+                const newQueue = [...sessionQueue];
+                
+                // Remove card from current position
+                const cardToRequeue = newQueue.splice(currentCardIndex, 1)[0];
+                
+                // Update the card's internal state
+                cardToRequeue.internalState = currentInternalState;
+                cardToRequeue.card = updatedCard;
+                
+                // Add to end of queue
+                newQueue.push(cardToRequeue);
+                setSessionQueue(newQueue);
               }
+              // For graduated cards (streak >= threshold), card was already removed
             }
           }
         }
