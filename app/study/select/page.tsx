@@ -19,7 +19,7 @@ export default function StudySelectPage() {
   const [studySets, setStudySets] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
   
-  const { initialize } = useStudySessionStore();
+  const { setStudyParameters } = useStudySessionStore();
 
   // Initialize data on component mount
   useEffect(() => {
@@ -63,15 +63,10 @@ export default function StudySelectPage() {
   const handleStartStudying = async (studyInput: StudyInput, mode: StudyMode) => {
     try {
       // Initialize the study session in the store
-      const initResult = await initialize(studyInput, mode);
+      setStudyParameters(studyInput, mode);
       
-      if (initResult.error) {
-        toast.error(initResult.error);
-        return;
-      }
-      
-      // Navigate to the study page
-      router.push('/study');
+      // Navigate to the study session page
+      router.push('/study/session');
     } catch (error) {
       console.error('Error starting study session:', error);
       toast.error('Failed to start study session');
