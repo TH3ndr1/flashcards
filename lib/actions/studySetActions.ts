@@ -314,4 +314,9 @@ export async function deleteStudySet(studySetId: string): Promise<ActionResult<n
         console.error("[deleteStudySet] Unexpected error:", err);
         return { data: null, error: 'An unexpected error occurred.' };
     }
-} 
+}
+
+/**
+ * Alias for getUserStudySets to maintain backward compatibility
+ */
+export const getStudySets = getUserStudySets; 

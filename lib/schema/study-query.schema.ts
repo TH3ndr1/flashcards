@@ -110,3 +110,6 @@ export type StudyQueryCriteria = z.infer<typeof StudyQueryCriteriaSchema>;
 
 // Define and export the type for the RPC function's return value (no changes)
 export type ResolvedCardId = { card_id: string };
+
+// Add an alias with lowercase initial to maintain backward compatibility
+export const studyQueryCriteriaSchema = StudyQueryCriteriaSchema;

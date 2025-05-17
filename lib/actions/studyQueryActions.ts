@@ -67,12 +67,28 @@ export async function resolveStudyQuery(
 
         // Validate the criteria fetched from the study set
         // Supabase stores JSONB as any/unknown, so parse it.
-        const parsedCriteria = StudyQueryCriteriaSchema.safeParse(studySetResult.data.query_criteria);
-        if (!parsedCriteria.success) {
-             console.error(`[resolveStudyQuery] Invalid criteria found in study set ${input.studySetId}:`, parsedCriteria.error.errors);
-             validationError = `Study set contains invalid criteria: ${parsedCriteria.error.errors.map(e => e.message).join(', ')}`;
-        } else {
-             criteriaToUse = parsedCriteria.data;
+        try {
+          const parsedCriteria = StudyQueryCriteriaSchema.safeParse(studySetResult.data.query_criteria);
+          if (!parsedCriteria.success) {
+            console.error(`[resolveStudyQuery] Invalid criteria found in study set ${input.studySetId}:`, parsedCriteria.error.errors);
+            // Instead of failing, use a safe default criteria
+            console.log("[resolveStudyQuery] Using safe default criteria for malformed study set");
+            criteriaToUse = {
+              allCards: true,
+              tagLogic: 'ANY',
+              includeDifficult: false
+            };
+          } else {
+            criteriaToUse = parsedCriteria.data;
+          }
+        } catch (err) {
+          console.error(`[resolveStudyQuery] Error parsing study set criteria:`, err);
+          // Fallback to safe default criteria
+          criteriaToUse = {
+            allCards: true,
+            tagLogic: 'ANY',
+            includeDifficult: false
+          };
         }
         
     } else if ('criteria' in input && input.criteria) {

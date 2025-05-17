@@ -1,7 +1,7 @@
 // components/deck-list.tsx
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { PlusCircle, Edit } from "lucide-react"
@@ -20,12 +20,19 @@ import { useSettings } from "@/providers/settings-provider"
 import { cn } from "@/lib/utils"
 import { Separator } from "@/components/ui/separator"
 import { StudyModeButtons } from "@/components/study/StudyModeButtons"
+import { getCardSrsStatesByIds } from '@/lib/actions/cardSrsActions';
+import { resolveStudyQuery } from '@/lib/actions/studyQueryActions';
+import { isValid, parseISO } from 'date-fns';
 
 export function DeckList() {
   const { decks, loading, refetchDecks } = useDecks() // Added refetchDecks
   const { settings, loading: settingsLoading } = useSettings() // Get settings
   const [isVisible, setIsVisible] = useState(true)
   const router = useRouter() // Keep router
+  const [deckCardCounts, setDeckCardCounts] = useState<{
+    [deckId: string]: { learn: number; review: number }
+  }>({});
+  const [isLoadingCounts, setIsLoadingCounts] = useState(true);
 
   // Effect for handling page visibility (for spinner animation)
   useEffect(() => {
@@ -70,6 +77,133 @@ export function DeckList() {
     { name: 'Young', startColor: '#6055DA', endColor: '#5386DD' },
     { name: 'Mature', startColor: '#55A9DA', endColor: '#53DDDD' },
   ];
+
+  // Function to fetch all card counts at once
+  const fetchAllDeckCardCounts = useCallback(async () => {
+    if (!decks?.length) return;
+    
+    setIsLoadingCounts(true);
+    
+    try {
+      console.log('[DeckList] Batch fetching card counts for all decks');
+      
+      // For each deck, get card IDs
+      const deckCardsPromises = decks.map(deck => 
+        resolveStudyQuery({
+          criteria: { 
+            deckId: deck.id, 
+            tagLogic: 'ANY' as const,
+            includeDifficult: false 
+          }
+        })
+      );
+      
+      // Wait for all queries to complete
+      const deckCardsResults = await Promise.all(deckCardsPromises);
+      
+      // Collect all card IDs
+      const allCardIds: string[] = [];
+      const deckCardIds: {[deckId: string]: string[]} = {};
+      
+      decks.forEach((deck, index) => {
+        const cardIds = deckCardsResults[index].data || [];
+        deckCardIds[deck.id] = cardIds;
+        allCardIds.push(...cardIds);
+      });
+      
+      if (allCardIds.length === 0) {
+        console.log('[DeckList] No cards found in any deck');
+        setDeckCardCounts({});
+        setIsLoadingCounts(false);
+        return;
+      }
+      
+      // Get SRS states for all cards in one request
+      const srsStatesResult = await getCardSrsStatesByIds([...new Set(allCardIds)]);
+      
+      if (srsStatesResult.error || !srsStatesResult.data) {
+        console.error('Error fetching SRS states:', srsStatesResult.error);
+        setIsLoadingCounts(false);
+        return;
+      }
+      
+      // Process the results
+      const now = new Date();
+      const cardStates = srsStatesResult.data;
+      const cardStateMap = new Map();
+      
+      // Create a lookup for faster access
+      cardStates.forEach(state => {
+        cardStateMap.set(state.id, state);
+      });
+      
+      // Calculate counts for each deck
+      const newCounts: {[deckId: string]: {learn: number; review: number}} = {};
+      
+      Object.entries(deckCardIds).forEach(([deckId, cardIds]) => {
+        let learnCount = 0;
+        let reviewCount = 0;
+        
+        cardIds.forEach(cardId => {
+          const state = cardStateMap.get(cardId);
+          if (!state) return;
+          
+          // Learn Mode eligibility
+          if (state.srs_level === 0 && 
+              (state.learning_state === null || state.learning_state === 'learning')) {
+            learnCount++;
+          }
+          
+          // Review Mode eligibility
+          const isGraduatedOrRelearning = 
+            (state.srs_level !== null && state.srs_level !== undefined && state.srs_level >= 1) || 
+            (state.srs_level === 0 && state.learning_state === 'relearning');
+          
+          const isDue = 
+            state.next_review_due && 
+            isValid(parseISO(state.next_review_due)) && 
+            parseISO(state.next_review_due) <= now;
+          
+          if (isGraduatedOrRelearning && isDue) {
+            reviewCount++;
+          }
+        });
+        
+        newCounts[deckId] = { learn: learnCount, review: reviewCount };
+      });
+      
+      console.log('[DeckList] Calculated counts for all decks:', newCounts);
+      
+      // Log an example of a single deck's counts for better debugging
+      if (Object.keys(newCounts).length > 0) {
+        const firstDeckId = Object.keys(newCounts)[0];
+        console.log(`[DeckList] Example count for deck ${firstDeckId}:`, newCounts[firstDeckId]);
+      }
+      
+      // Log state before update
+      console.log('[DeckList] Current state before update:', deckCardCounts);
+      
+      // Update state
+      setDeckCardCounts(newCounts);
+      
+      // This won't show the updated state due to React's state batching, but logging here for sequence
+      console.log('[DeckList] Updated deckCardCounts state');
+    } catch (error) {
+      console.error('Error in batch card count calculation:', error);
+    } finally {
+      setIsLoadingCounts(false);
+    }
+  }, [decks]);
+  
+  // Fetch counts when decks load
+  useEffect(() => {
+    fetchAllDeckCardCounts();
+  }, [fetchAllDeckCardCounts]);
+  
+  // Track loading state changes
+  useEffect(() => {
+    console.log('[DeckList] isLoadingCounts changed to:', isLoadingCounts);
+  }, [isLoadingCounts]);
 
   // Render loading state
   if (isLoading) {
@@ -168,6 +302,9 @@ export function DeckList() {
                       studyType="deck" 
                       contentId={deck.id} 
                       size="sm"
+                      preCalculatedLearnCount={deckCardCounts[deck.id]?.learn}
+                      preCalculatedReviewCount={deckCardCounts[deck.id]?.review}
+                      batchFetchInProgress={isLoadingCounts}
                     />
                   </CardFooter>
                   {/* Conditionally render Separator AND DeckProgressBar */}

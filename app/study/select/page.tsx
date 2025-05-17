@@ -1,64 +1,113 @@
 'use client';
 
-import React from 'react';
-import { useRouter } from 'next/navigation'; 
-import { StudySetSelector } from '@/components/StudySetSelector'; // Correct the import path
-import { useStudySessionStore, StudyInput } from '@/store/studySessionStore'; 
-import { useDecks } from '@/hooks/useDecks'; // Adjust path if needed
-import { useStudySets } from '@/hooks/useStudySets'; // Import hook for study sets
-import { Loader2 as IconLoader } from 'lucide-react';
-import type { StudyMode } from '@/store/studySessionStore'; // Import StudyMode type
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { StudySetSelector } from '@/components/study/StudySetSelector';
+import { getDecks } from '@/lib/actions/deckActions';
+import { getStudySets } from '@/lib/actions/studySetActions';
+import { useStudySessionStore } from '@/store/studySessionStore';
+import type { StudyInput, StudyMode } from '@/store/studySessionStore';
+import { PageHeading } from '@/components/ui/page-heading';
+import { Skeleton } from '@/components/ui/skeleton';
+import { toast } from 'sonner';
 
-export default function StudySetupPage() {
+export default function StudySelectPage() {
   const router = useRouter();
-  const setStudyParameters = useStudySessionStore((state) => state.setStudyParameters);
-  const clearStudyParameters = useStudySessionStore((state) => state.clearStudyParameters); // Get clear action
+  const [isLoadingDecks, setIsLoadingDecks] = useState(true);
+  const [isLoadingStudySets, setIsLoadingStudySets] = useState(true);
+  const [decks, setDecks] = useState<any[]>([]);
+  const [studySets, setStudySets] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
   
-  // Fetch both decks and study sets
-  const { decks, isLoading: isLoadingDecks, error: decksError } = useDecks();
-  const { studySets, isLoading: isLoadingStudySets, error: studySetsError } = useStudySets();
+  const { initialize } = useStudySessionStore();
 
-  // Callback for StudySetSelector
-  const handleStartStudying = (
-    actionInput: StudyInput,
-    mode: StudyMode
-  ) => {
-    console.log("Setting study parameters and navigating:", { actionInput, mode });
-    
-    // Clear previous params BEFORE setting new ones and navigating
-    clearStudyParameters(); 
-    
-    setStudyParameters(actionInput, mode);
-    router.push('/study/session'); 
+  // Initialize data on component mount
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setIsLoadingDecks(true);
+        setIsLoadingStudySets(true);
+        setError(null);
+        
+        // Fetch decks
+        const decksResult = await getDecks();
+        if (decksResult.error) {
+          console.error('Error fetching decks:', decksResult.error);
+          setError('Failed to load decks');
+        } else {
+          setDecks(decksResult.data || []);
+        }
+        setIsLoadingDecks(false);
+        
+        // Fetch study sets
+        const studySetsResult = await getStudySets();
+        if (studySetsResult.error) {
+          console.error('Error fetching study sets:', studySetsResult.error);
+          setError('Failed to load smart playlists');
+        } else {
+          setStudySets(studySetsResult.data || []);
+        }
+        setIsLoadingStudySets(false);
+      } catch (error) {
+        console.error('Error in fetching data:', error);
+        setError('Something went wrong');
+        setIsLoadingDecks(false);
+        setIsLoadingStudySets(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  // Handle starting a study session
+  const handleStartStudying = async (studyInput: StudyInput, mode: StudyMode) => {
+    try {
+      // Initialize the study session in the store
+      const initResult = await initialize(studyInput, mode);
+      
+      if (initResult.error) {
+        toast.error(initResult.error);
+        return;
+      }
+      
+      // Navigate to the study page
+      router.push('/study');
+    } catch (error) {
+      console.error('Error starting study session:', error);
+      toast.error('Failed to start study session');
+    }
   };
 
-  // Combine loading states
-  const isLoadingData = isLoadingDecks || isLoadingStudySets;
-  // Combine errors (show first one)
-  const dataError = decksError || studySetsError;
-
   return (
-    <div className="container mx-auto p-4 md:p-6">
-      <h1 className="text-2xl font-bold mb-6">Start a Study Session</h1>
+    <div className="container max-w-3xl py-6">
+      <PageHeading 
+        title="Study Cards" 
+        description="Choose what to study and how you want to review" 
+        backHref="/"
+      />
       
-      {isLoadingData && (
-          <div className="flex justify-center items-center h-40">
-              <IconLoader className="h-6 w-6 animate-spin mr-2" /> Loading options...
+      {error && (
+        <div className="mt-6 p-4 border border-destructive/50 rounded-lg bg-destructive/10 text-destructive">
+          {error}
+        </div>
+      )}
+      
+      <div className="mt-8">
+        {isLoadingDecks ? (
+          <div className="space-y-4">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-28 w-full" />
+            <Skeleton className="h-16 w-full" />
           </div>
-      )}
-      
-      {dataError && (
-           <div className="text-destructive p-4">Error loading options: {dataError}</div>
-      )}
-
-      {!isLoadingData && !dataError && (
+        ) : (
           <StudySetSelector 
-             decks={decks} // Pass fetched decks
-             studySets={studySets} // Pass fetched study sets
-             isLoadingStudySets={isLoadingStudySets} // Pass loading state for study sets
-             onStartStudying={handleStartStudying} 
+            decks={decks}
+            studySets={studySets}
+            isLoadingStudySets={isLoadingStudySets}
+            onStartStudying={handleStartStudying}
           />
-      )}
+        )}
+      </div>
     </div>
   );
 } 

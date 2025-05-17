@@ -59,3 +59,5 @@ Thumbs.db
 
 # Ignore SpecStory directory and its contents
 .specstory/
+# SpecStory explanation file
+.specstory/.what-is-this.md
