@@ -421,3 +421,45 @@ export async function deleteDeck(
         return { data: null, error: error instanceof Error ? error.message : 'Unknown error deleting deck' };
     }
 } 
+
+/**
+ * Fetches all decks with complete SRS counts (including learn/review eligibility) in a single database call.
+ * 
+ * This function is optimized for server-side rendering, reducing multiple DB calls to just one.
+ * 
+ * @returns {Promise<ActionResult<EnhancedDeck[]>>} Decks with all SRS counts
+ */
+export async function getDecksWithSrsCounts(): Promise<ActionResult<EnhancedDeck[]>> {
+  const supabase = createActionClient();
+  
+  // Check authentication
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    console.error('Auth error in getDecksWithSrsCounts:', authError);
+    return { data: null, error: 'Authentication required' };
+  }
+
+  try {
+    console.log('[getDecksWithSrsCounts] Fetching decks with complete SRS counts');
+    
+    // Use a custom RPC function that does all the work in one database call
+    const { data, error } = await supabase.rpc(
+      'get_decks_with_complete_srs_counts',
+      { p_user_id: user.id }
+    );
+
+    if (error) {
+      console.error('Error fetching decks with SRS counts:', error);
+      return { data: null, error: error.message };
+    }
+
+    console.log(`[getDecksWithSrsCounts] Successfully fetched ${data?.length || 0} decks with complete data`);
+    return { data, error: null };
+  } catch (error) {
+    console.error('Error in getDecksWithSrsCounts:', error);
+    return { 
+      data: null, 
+      error: error instanceof Error ? error.message : 'Unknown error fetching decks' 
+    };
+  }
+} 
