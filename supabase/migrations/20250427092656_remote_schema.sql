@@ -704,15 +704,6 @@ for all
 to public
 using ((auth.uid() = user_id));
 
-
-create policy "Allow individual user access to their settings"
-on "public"."settings"
-as permissive
-for all
-to public
-using ((auth.uid() = user_id));
-
-
 create policy "Users can only access their own settings"
 on "public"."settings"
 as permissive

@@ -10,6 +10,7 @@ import "./globals.css";
 import { ClientProviders } from "@/components/ClientProviders";
 import { ResponsiveLayout } from '@/components/layout/ResponsiveLayout';
 import LayoutScript from "./layout-script";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export const metadata: Metadata = {
   title: "StudyCards - Interactive Flashcard App",
@@ -76,6 +77,7 @@ export default function RootLayout({
           </ResponsiveLayout>
         </ClientProviders>
         <LayoutScript />
+        <SpeedInsights />
       </body>
     </html>
   )
