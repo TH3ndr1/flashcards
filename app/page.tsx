@@ -1,43 +1,44 @@
-"use client"
-
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { useAuth } from "@/hooks/use-auth"
-import { Card } from "@/components/ui/card"
-import { DeckList } from "@/components/deck-list"
+import { DeckListClient } from "@/components/DeckListClient";
+import { getDecksWithSrsCounts } from "@/lib/actions/deckActions";
+import { redirect } from "next/navigation";
+import { createServerClient } from "@/lib/supabase/server";
+import { cookies } from "next/headers";
 
 /**
  * Home page component.
- *
- * This page is protected and requires authentication. It checks the user's
- * authentication status using the `useAuth` hook. If the user is not authenticated
- * or the auth state is loading, it redirects to the '/login' page or shows
- * a loading state (null). Once authenticated, it displays the user's decks
- * using the `DeckList` component.
- *
- * @returns {JSX.Element | null} The Home page UI or null if loading/unauthenticated.
+ * 
+ * This is a Server Component that pre-fetches deck data with all SRS counts
+ * server-side before rendering the page. This eliminates client-side requests
+ * and provides a faster initial load experience.
+ * 
+ * The page is protected and requires authentication. If the user is not
+ * authenticated, they are redirected to the login page.
+ * 
+ * @returns {Promise<JSX.Element>} The Home page with pre-fetched data
  */
-export default function Home() {
-  const router = useRouter()
-  const { user, loading } = useAuth()
-
-  useEffect(() => {
-    // Only redirect if we're not loading and there's no user
-    if (!loading && !user) {
-      router.push("/login")
-    }
-  }, [user, router, loading])
-
-  // Show nothing while loading or if no user
-  if (loading || !user) {
-    return null
+export default async function Home() {
+  // Check authentication server-side
+  const cookieStore = cookies();
+  const supabase = createServerClient(cookieStore);
+  const { data: { session }, error: authError } = await supabase.auth.getSession();
+  
+  // Redirect to login if not authenticated
+  if (!session) {
+    redirect("/login");
   }
-
+  
+  // Fetch all deck data with SRS counts in a single database call
+  const { data: decksWithCounts, error: fetchError } = await getDecksWithSrsCounts();
+  
+  // Log any fetch errors but still render the page (client will handle empty state)
+  if (fetchError) {
+    console.error("Error fetching decks with counts:", fetchError);
+  }
+  
   return (
     <div className="grid gap-4">
-      <DeckList />
+      <DeckListClient initialData={decksWithCounts || []} />
     </div>
-  )
+  );
 }
 

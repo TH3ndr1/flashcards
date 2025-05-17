@@ -93,6 +93,22 @@ type DeckListItemWithCounts = {
     // card_count: number; // Total card count is derived from stage counts
 };
 
+// Define the enhanced deck type that includes learn/review eligibility counts
+type EnhancedDeck = {
+  id: string;
+  name: string;
+  primary_language: string | null;
+  secondary_language: string | null;
+  is_bilingual: boolean;
+  updated_at: string;
+  new_count: number;
+  learning_count: number;
+  young_count: number;
+  mature_count: number;
+  learn_eligible_count: number;
+  review_eligible_count: number;
+};
+
 /**
  * Fetches all decks with basic info and card stage counts for the authenticated user.
  * Uses the get_deck_list_with_srs_counts database function.
@@ -443,8 +459,9 @@ export async function getDecksWithSrsCounts(): Promise<ActionResult<EnhancedDeck
     console.log('[getDecksWithSrsCounts] Fetching decks with complete SRS counts');
     
     // Use a custom RPC function that does all the work in one database call
+    // Add type assertion to fix TypeScript error
     const { data, error } = await supabase.rpc(
-      'get_decks_with_complete_srs_counts',
+      'get_decks_with_complete_srs_counts' as any,
       { p_user_id: user.id }
     );
 
@@ -453,8 +470,19 @@ export async function getDecksWithSrsCounts(): Promise<ActionResult<EnhancedDeck
       return { data: null, error: error.message };
     }
 
-    console.log(`[getDecksWithSrsCounts] Successfully fetched ${data?.length || 0} decks with complete data`);
-    return { data, error: null };
+    // Transform any numeric values to ensure correct types
+    const processedData = data ? data.map((deck: any) => ({
+      ...deck,
+      new_count: Number(deck.new_count || 0),
+      learning_count: Number(deck.learning_count || 0),
+      young_count: Number(deck.young_count || 0),
+      mature_count: Number(deck.mature_count || 0),
+      learn_eligible_count: Number(deck.learn_eligible_count || 0),
+      review_eligible_count: Number(deck.review_eligible_count || 0)
+    })) : [];
+
+    console.log(`[getDecksWithSrsCounts] Successfully fetched ${processedData.length} decks with complete data`);
+    return { data: processedData as EnhancedDeck[], error: null };
   } catch (error) {
     console.error('Error in getDecksWithSrsCounts:', error);
     return { 
