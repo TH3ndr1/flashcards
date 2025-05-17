@@ -70,3 +70,40 @@ Additional documentation can be found in the `docs` directory:
 3. Commit your changes (`git commit -m 'Add some amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request 
+
+## Performance Optimization
+
+This application utilizes server-side rendering to optimize performance and reduce loading times:
+
+### Server-Side Data Fetching
+
+Several key pages have been optimized to use server components that pre-fetch data:
+
+1. **Home Page (`app/page.tsx`)**
+   - Uses `getDecksWithSrsCounts()` to fetch all deck data in a single database call
+   - Pre-calculates SRS statistics (learn/review eligible counts)
+   - Sends complete data to the client component, eliminating client-side API requests
+
+2. **Study Sets Page (`app/study/sets/page.tsx`)**
+   - Pre-fetches study sets server-side
+   - Eliminates loading states and API request waterfalls
+   
+3. **Study Selection Page (`app/study/select/page.tsx`)**
+   - Fetches both decks and study sets in parallel server-side
+   - Passes pre-loaded data to the client for better user experience
+   
+4. **Tags Management Page (`app/tags/page.tsx`)**
+   - Pre-fetches all tags server-side
+   - Client component receives data immediately on page load
+
+### Database Optimizations
+
+1. **Single-query Optimizations**
+   - Custom database function `get_decks_with_complete_srs_counts` performs all calculations in one query
+   - Reduced multiple API calls to a single database call
+
+2. **RLS Policy Improvements**
+   - Optimized RLS policies using `(SELECT auth.uid() AS uid)` pattern
+   - Fixed duplicate policies on the settings table
+
+This architecture significantly improves page load performance by eliminating client-side request waterfalls and taking advantage of server-side rendering capabilities in Next.js. 

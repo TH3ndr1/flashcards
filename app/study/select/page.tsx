@@ -1,108 +1,57 @@
-'use client';
-
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { StudySetSelector } from '@/components/study/StudySetSelector';
+import { cookies } from 'next/headers';
+import { createServerClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
 import { getDecks } from '@/lib/actions/deckActions';
-import { getStudySets } from '@/lib/actions/studySetActions';
-import { useStudySessionStore } from '@/store/studySessionStore';
-import type { StudyInput, StudyMode } from '@/store/studySessionStore';
+import { getUserStudySets } from '@/lib/actions/studySetActions';
 import { PageHeading } from '@/components/ui/page-heading';
-import { Skeleton } from '@/components/ui/skeleton';
-import { toast } from 'sonner';
+import { StudySelectClient } from '../../../components/study/StudySelectClient';
+import type { Tables } from '@/types/database';
 
-export default function StudySelectPage() {
-  const router = useRouter();
-  const [isLoadingDecks, setIsLoadingDecks] = useState(true);
-  const [isLoadingStudySets, setIsLoadingStudySets] = useState(true);
-  const [decks, setDecks] = useState<any[]>([]);
-  const [studySets, setStudySets] = useState<any[]>([]);
-  const [error, setError] = useState<string | null>(null);
+/**
+ * Study Selection Page
+ * 
+ * This is a Server Component that pre-fetches both decks and study sets data
+ * server-side before rendering the page, eliminating client-side data fetching delays.
+ * 
+ * @returns {Promise<JSX.Element>} The Study Selection page with pre-fetched data
+ */
+export default async function StudySelectPage() {
+  // Check authentication server-side
+  const supabase = createServerClient();
+  const { data: { session }, error: authError } = await supabase.auth.getSession();
   
-  const { setStudyParameters } = useStudySessionStore();
+  if (!session) {
+    redirect("/login");
+  }
 
-  // Initialize data on component mount
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setIsLoadingDecks(true);
-        setIsLoadingStudySets(true);
-        setError(null);
-        
-        // Fetch decks
-        const decksResult = await getDecks();
-        if (decksResult.error) {
-          console.error('Error fetching decks:', decksResult.error);
-          setError('Failed to load decks');
-        } else {
-          setDecks(decksResult.data || []);
-        }
-        setIsLoadingDecks(false);
-        
-        // Fetch study sets
-        const studySetsResult = await getStudySets();
-        if (studySetsResult.error) {
-          console.error('Error fetching study sets:', studySetsResult.error);
-          setError('Failed to load smart playlists');
-        } else {
-          setStudySets(studySetsResult.data || []);
-        }
-        setIsLoadingStudySets(false);
-      } catch (error) {
-        console.error('Error in fetching data:', error);
-        setError('Something went wrong');
-        setIsLoadingDecks(false);
-        setIsLoadingStudySets(false);
-      }
-    };
+  // Pre-fetch both decks and study sets in parallel server-side
+  const [decksResult, studySetsResult] = await Promise.all([
+    getDecks(),
+    getUserStudySets()
+  ]);
 
-    fetchData();
-  }, []);
+  const hasErrors = Boolean(decksResult.error || studySetsResult.error);
 
-  // Handle starting a study session
-  const handleStartStudying = async (studyInput: StudyInput, mode: StudyMode) => {
-    try {
-      // Initialize the study session in the store
-      setStudyParameters(studyInput, mode);
-      
-      // Navigate to the study session page
-      router.push('/study/session');
-    } catch (error) {
-      console.error('Error starting study session:', error);
-      toast.error('Failed to start study session');
-    }
+  // Type for Deck with SRS counts from StudySelectClient
+  type DeckWithCounts = Tables<'decks'> & {
+    new_count: number;
+    learning_count: number;
+    young_count: number;
+    mature_count: number;
   };
 
   return (
-    <div className="container max-w-3xl py-6">
+    <div className="container py-6">
       <PageHeading 
-        title="Study Cards" 
-        description="Choose what to study and how you want to review" 
+        title="Choose Study Material"
+        description="Select what you want to review" 
         backHref="/"
       />
-      
-      {error && (
-        <div className="mt-6 p-4 border border-destructive/50 rounded-lg bg-destructive/10 text-destructive">
-          {error}
-        </div>
-      )}
-      
-      <div className="mt-8">
-        {isLoadingDecks ? (
-          <div className="space-y-4">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-28 w-full" />
-            <Skeleton className="h-16 w-full" />
-          </div>
-        ) : (
-          <StudySetSelector 
-            decks={decks}
-            studySets={studySets}
-            isLoadingStudySets={isLoadingStudySets}
-            onStartStudying={handleStartStudying}
-          />
-        )}
-      </div>
+      <StudySelectClient 
+        initialDecks={(decksResult.data || []) as unknown as DeckWithCounts[]} 
+        initialStudySets={studySetsResult.data || []}
+        hasErrors={hasErrors}
+      />
     </div>
   );
 } 
