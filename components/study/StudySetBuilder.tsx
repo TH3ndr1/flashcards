@@ -256,10 +256,6 @@ export function StudySetBuilder({ initialData, onSave, isSaving = false }: Study
                     </div>
                 </div>
 
-                {/* Include Difficult Cards Checkbox */}
-                <div className="p-4 border rounded-md">
-                  <FormField control={form.control} name="includeDifficult" render={({ field }) => (<FormItem className="flex flex-row items-start space-x-3 space-y-0"><FormControl><Checkbox checked={!!field.value} onCheckedChange={field.onChange} disabled={isLoading} /></FormControl><div className="space-y-1 leading-none"><FormLabel className="text-base">Only Include Difficult Cards</FormLabel><FormDescription>Filters for cards currently in the 'learning' SRS stage.</FormDescription></div><FormMessage /></FormItem>)} />
-                </div>
             </div> {/* End Filter Criteria Wrapper */}
 
 

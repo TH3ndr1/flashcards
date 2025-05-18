@@ -296,3 +296,50 @@ export async function getDeckTags(deckId: string): Promise<ActionResult<Tables<'
     return { data: null, error: 'An unexpected error occurred.' };
   }
 }
+
+/**
+ * Fetches all tags associated with a specific card (via its deck) for the current user.
+ */
+export async function getCardTags(cardId: string): Promise<ActionResult<Tables<'tags'>[]>> {
+  const { supabase, user, error: authError } = await getSupabaseAndUser();
+  if (authError || !supabase || !user) {
+    return { data: null, error: authError };
+  }
+
+  if (!cardId) {
+    return { data: null, error: "Card ID is required." };
+  }
+
+  try {
+    // 1. Fetch the card to get its deck_id
+    const { data: card, error: cardError } = await supabase
+      .from('cards')
+      .select('id, deck_id')
+      .eq('id', cardId)
+      // RLS policy on cards table ensures user can only access cards in their own decks.
+      // Direct user_id check here is not needed and column doesn't exist on cards table.
+      .single();
+
+    if (cardError) {
+      console.error(`Error fetching card ${cardId} to get deck_id:`, cardError);
+      return { data: null, error: "Failed to fetch card details to retrieve tags." };
+    }
+
+    if (!card || !card.deck_id) {
+      console.error(`Card ${cardId} not found or has no deck_id.`);
+      return { data: null, error: "Card not found or not associated with a deck." };
+    }
+
+    // 2. Call getDeckTags with the obtained deck_id
+    // Make sure getDeckTags is imported or defined above if in the same file.
+    return getDeckTags(card.deck_id);
+
+  } catch (error) {
+    console.error(`Unexpected error in getCardTags for card ${cardId}:`, error);
+    return { data: null, error: 'An unexpected error occurred while fetching tags for the card.' };
+  }
+}
+
+/**
+ * Creates a new study set for the user.
+ */

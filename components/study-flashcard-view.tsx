@@ -151,10 +151,6 @@ export function StudyFlashcardView({
   }, [card, settings, theme]); // Add theme dependency
   // ----------------------------------------------------
 
-  if (!card) { return ( <Card className="w-full max-w-2xl h-80 flex items-center justify-center"><p className="text-muted-foreground">Loading card...</p></Card> ); }
-
-  const fontClass = getFontClass(settings?.cardFont);
-
   // handleSpeak function (Original logic kept)
   const handleSpeak = async (text: string | null | undefined, defaultLang: string) => {
     if (!settings?.ttsEnabled || !text || isSpeaking) return;
@@ -170,6 +166,8 @@ export function StudyFlashcardView({
 
   // useEffect for keypress (Original logic kept)
   useEffect(() => {
+    if (!card) return; // Early return inside the effect is fine
+    
     const handleKeyPress = (e: KeyboardEvent) => {
         if (isTransitioning) return;
         if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -184,7 +182,18 @@ export function StudyFlashcardView({
     };
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [isFlipped, isTransitioning, onAnswer, onFlip, card?.id, card?.question, card?.answer, questionLang, answerLang, isSpeaking, speak, settings]); // Keep original deps + settings
+  }, [isFlipped, isTransitioning, onAnswer, onFlip, card, questionLang, answerLang, isSpeaking, handleSpeak, settings?.ttsEnabled]); 
+
+  // Move the early return after all hooks have been called
+  if (!card) { 
+    return ( 
+      <Card className="w-full max-w-2xl h-80 flex items-center justify-center">
+        <p className="text-muted-foreground">Loading card...</p>
+      </Card> 
+    ); 
+  }
+
+  const fontClass = getFontClass(settings?.cardFont);
 
   // --- Conditionally apply dark mode background to card ---
   const cardDarkBgStyle: React.CSSProperties = cardStyles.cardRequiresDarkBg ? { backgroundColor: DARK_MODE_CARD_BG } : {};

@@ -330,7 +330,6 @@ export function useStudySession({
                  criteria: { 
                    deckId: studyInput.deckId as string,
                    tagLogic: "ANY",
-                   includeDifficult: true
                  } 
                });
           } else {

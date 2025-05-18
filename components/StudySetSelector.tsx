@@ -49,14 +49,12 @@ export function StudySetSelector({
       return { criteria: { 
         allCards: true,
         tagLogic: 'ANY',
-        includeDifficult: false
       } };
     } else if (selectionType === 'deck') {
       if (!selectedDeckId) return null;
       return { criteria: { 
         deckId: selectedDeckId,
         tagLogic: 'ANY',
-        includeDifficult: false
       } };
     } else if (selectionType === 'studySet') {
       if (!selectedStudySetId) return null;

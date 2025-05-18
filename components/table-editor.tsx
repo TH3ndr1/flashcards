@@ -1,28 +1,36 @@
+// components/table-editor.tsx
 "use client"
 import { useMemo } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { Input } from "@/components/ui/input" // Using Input for simpler inline editing
 import { Trash2, Plus } from "lucide-react"
-import type { FlashCard } from "@/types/deck"
+import type { Tables } from "@/types/database" // Import Tables
 import { debounce } from "@/lib/utils"
 
 const DEBOUNCE_WAIT_MS = 500;
 
+// Use Tables<'cards'> as the source of truth for card type
+type DbCard = Tables<'cards'>;
+
 interface TableEditorProps {
-  cards: FlashCard[]
-  onUpdate: (id: string, question: string, answer: string) => void
-  onDelete: (id: string) => void
-  onAdd: () => void
+  cards: DbCard[]; // Expect DbCard array
+  onUpdate: (id: string, question: string, answer: string) => void; // Simple update for Q/A
+  onDelete: (id: string) => void;
+  onAdd: () => void;
 }
 
 export function TableEditor({ cards, onUpdate, onDelete, onAdd }: TableEditorProps) {
+  // Debounced update handlers remain the same, onUpdate is simple
   const debouncedUpdateHandlers = useMemo(() => {
     const handlers: Record<string, (question: string, answer: string) => void> = {};
     cards.forEach(card => {
-      handlers[card.id] = debounce((question: string, answer: string) => {
-        onUpdate(card.id, question, answer);
-      }, DEBOUNCE_WAIT_MS);
+      // Ensure card.id is not null or undefined before using it as a key
+      if (card.id) {
+        handlers[card.id] = debounce((question: string, answer: string) => {
+          onUpdate(card.id!, question, answer); // Use non-null assertion if ID is guaranteed here
+        }, DEBOUNCE_WAIT_MS);
+      }
     });
     return handlers;
   }, [cards, onUpdate]);
@@ -36,13 +44,13 @@ export function TableEditor({ cards, onUpdate, onDelete, onAdd }: TableEditorPro
         </Button>
       </div>
 
-      <div className="border rounded-md">
+      <div className="border rounded-md overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[50%]">Question</TableHead>
-              <TableHead className="w-[45%]">Answer</TableHead>
-              <TableHead className="w-[5%]"></TableHead>
+              <TableHead className="w-[calc(50%-2rem)]">Question</TableHead>
+              <TableHead className="w-[calc(50%-2rem)]">Answer</TableHead>
+              <TableHead className="w-[4rem] text-right pr-2">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -53,31 +61,39 @@ export function TableEditor({ cards, onUpdate, onDelete, onAdd }: TableEditorPro
                 </TableCell>
               </TableRow>
             ) : (
-              cards.map((card) => (
+              cards.map((card) => ( // card is now DbCard
                 <TableRow key={card.id}>
-                  <TableCell>
+                  <TableCell className="py-1">
                     <Input
-                      defaultValue={card.question}
+                      defaultValue={card.question} // Access question directly
                       onChange={(e) => {
                         const newQuestion = e.target.value;
-                        debouncedUpdateHandlers[card.id]?.(newQuestion, card.answer);
+                        // Ensure card.id and card.answer are not null/undefined
+                        if (card.id && card.answer !== null && card.answer !== undefined) {
+                           debouncedUpdateHandlers[card.id]?.(newQuestion, card.answer);
+                        }
                       }}
                       placeholder="Enter question"
+                      className="h-9 text-sm"
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="py-1">
                     <Input
-                      defaultValue={card.answer}
+                      defaultValue={card.answer} // Access answer directly
                       onChange={(e) => {
                         const newAnswer = e.target.value;
-                        debouncedUpdateHandlers[card.id]?.(card.question, newAnswer);
+                        // Ensure card.id and card.question are not null/undefined
+                         if (card.id && card.question !== null && card.question !== undefined) {
+                            debouncedUpdateHandlers[card.id]?.(card.question, newAnswer);
+                         }
                       }}
                       placeholder="Enter answer"
+                      className="h-9 text-sm"
                     />
                   </TableCell>
-                  <TableCell>
-                    <Button variant="ghost" size="icon" onClick={() => onDelete(card.id)}>
-                      <Trash2 className="h-4 w-4" />
+                  <TableCell className="py-1 text-right pr-2">
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => card.id && onDelete(card.id)}>
+                      <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -89,4 +105,3 @@ export function TableEditor({ cards, onUpdate, onDelete, onAdd }: TableEditorPro
     </div>
   )
 }
-

@@ -31,6 +31,31 @@ import {
   PanelLeftOpen,
 } from 'lucide-react';
 import { CreateDeckDialog } from '@/components/create-deck-dialog';
+import { type LucideProps } from 'lucide-react'; // Changed import for LucideProps
+
+// Define explicit types for navigation items
+type LucideIconComponent = React.ComponentType<LucideProps>; // Defined LucideIconComponent type
+
+type NavLink = {
+  href: string;
+  label: string;
+  icon: LucideIconComponent; // Used LucideIconComponent
+  id?: undefined; // Explicitly state id is not expected for link items
+};
+
+type NavButtonAction = {
+  id: 'create-deck'; // Specific ID for this button type
+  label: string;
+  icon: LucideIconComponent; // Used LucideIconComponent
+  href?: undefined; // Explicitly state href is not expected for this button item
+};
+
+type NavItemUnion = NavLink | NavButtonAction;
+
+interface NavGroupDefinition {
+  group: string;
+  items: NavItemUnion[];
+}
 
 interface SidebarProps {
   isOpen: boolean;
@@ -39,7 +64,7 @@ interface SidebarProps {
   onToggleCollapse: () => void;
 }
 
-const navItems = [
+const navItems: NavGroupDefinition[] = [
   {
     group: 'Practice',
     items: [
@@ -75,8 +100,36 @@ function NavigationContent({ isCollapsed, onClose }: { isCollapsed: boolean; onC
         {navItems.map((group) => (
           <div key={group.group} className={cn("px-3", isCollapsed && "px-1")}>
             <div className="space-y-1">
-              {group.items.map((item) => {
-                if (item.id === 'create-deck') {
+              {group.items.map((item: NavItemUnion) => { // Added NavItemUnion type for item
+                if ('href' in item && typeof item.href === 'string') {
+                  // This is a NavLink item
+                  return (
+                    <Tooltip key={item.href}>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant={pathname === item.href ? 'secondary' : 'ghost'}
+                          className={cn(
+                            "w-full justify-start",
+                            isCollapsed && "justify-center h-10"
+                          )}
+                          asChild
+                          onClick={onClose} // onClose for closing mobile sheet
+                        >
+                          <Link href={item.href} aria-label={item.label}>
+                            <item.icon className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
+                            <span className={cn(isCollapsed && "hidden")}>{item.label}</span>
+                          </Link>
+                        </Button>
+                      </TooltipTrigger>
+                      {isCollapsed && (
+                        <TooltipContent side="right">
+                          <p>{item.label}</p>
+                        </TooltipContent>
+                      )}
+                    </Tooltip>
+                  );
+                } else if ('id' in item && item.id === 'create-deck') {
+                  // This is the NavButtonAction for 'create-deck'
                   return (
                     <Tooltip key={item.id}>
                       <TooltipTrigger asChild>
@@ -101,32 +154,7 @@ function NavigationContent({ isCollapsed, onClose }: { isCollapsed: boolean; onC
                     </Tooltip>
                   );
                 }
-
-                return (
-                  <Tooltip key={item.href}>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant={pathname === item.href ? 'secondary' : 'ghost'}
-                        className={cn(
-                          "w-full justify-start",
-                          isCollapsed && "justify-center h-10"
-                        )}
-                        asChild
-                        onClick={onClose}
-                      >
-                        <Link href={item.href} aria-label={item.label}>
-                          <item.icon className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
-                          <span className={cn(isCollapsed && "hidden")}>{item.label}</span>
-                        </Link>
-                      </Button>
-                    </TooltipTrigger>
-                    {isCollapsed && (
-                      <TooltipContent side="right">
-                        <p>{item.label}</p>
-                      </TooltipContent>
-                    )}
-                  </Tooltip>
-                );
+                return null; // Fallback for items that don't match (shouldn't happen with correct types)
               })}
             </div>
           </div>

@@ -11,19 +11,38 @@
 │   │   ├── ./app/api/cards
 │   │   │   └── ./app/api/cards/route.ts
 │   │   ├── ./app/api/decks
-│   │   │   └── ./app/api/decks/[deckId]
-│   │   │       └── ./app/api/decks/[deckId]/name
-│   │   │           └── ./app/api/decks/[deckId]/name/route.ts
+│   │   │   ├── ./app/api/decks/[deckId]
+│   │   │   │   └── ./app/api/decks/[deckId]/name
+│   │   │   │       └── ./app/api/decks/[deckId]/name/route.ts
+│   │   │   └── ./app/api/decks/route.ts
 │   │   ├── ./app/api/extract-pdf
-│   │   │   └── ./app/api/extract-pdf/route.ts
+│   │   │   ├── ./app/api/extract-pdf/config.ts
+│   │   │   ├── ./app/api/extract-pdf/fileUtils.ts
+│   │   │   ├── ./app/api/extract-pdf/flashcardGeneratorService.ts
+│   │   │   ├── ./app/api/extract-pdf/gcpClients.ts
+│   │   │   ├── ./app/api/extract-pdf/route.ts
+│   │   │   ├── ./app/api/extract-pdf/textExtractorService.ts
+│   │   │   └── ./app/api/extract-pdf/types.ts
+│   │   ├── ./app/api/process-ai-step2
+│   │   │   └── ./app/api/process-ai-step2/route.ts
 │   │   └── ./app/api/tts
 │   │       └── ./app/api/tts/route.ts
 │   ├── ./app/auth
 │   │   └── ./app/auth/callback
 │   │       └── ./app/auth/callback/route.ts
+│   ├── ./app/decks
+│   │   ├── ./app/decks/create-choice
+│   │   │   └── ./app/decks/create-choice/page.tsx
+│   │   └── ./app/decks/new
+│   │       └── ./app/decks/new/page.tsx
 │   ├── ./app/edit
 │   │   └── ./app/edit/[deckId]
-│   │       └── ./app/edit/[deckId]/page.tsx
+│   │       ├── ./app/edit/[deckId]/CardViewTabContent.tsx
+│   │       ├── ./app/edit/[deckId]/DeckDangerZone.tsx
+│   │       ├── ./app/edit/[deckId]/DeckMetadataEditor.tsx
+│   │       ├── ./app/edit/[deckId]/TableViewTabContent.tsx
+│   │       ├── ./app/edit/[deckId]/page.tsx
+│   │       └── ./app/edit/[deckId]/useEditDeck.ts
 │   ├── ./app/globals.css
 │   ├── ./app/layout-script.tsx
 │   ├── ./app/layout.tsx
@@ -32,7 +51,11 @@
 │   ├── ./app/page.tsx
 │   ├── ./app/prepare
 │   │   └── ./app/prepare/ai-generate
-│   │       └── ./app/prepare/ai-generate/page.tsx
+│   │       ├── ./app/prepare/ai-generate/AiGenerateInputCard.tsx
+│   │       ├── ./app/prepare/ai-generate/AiGenerateResultsCard.tsx
+│   │       ├── ./app/prepare/ai-generate/AiGenerateSaveDeckCard.tsx
+│   │       ├── ./app/prepare/ai-generate/page.tsx
+│   │       └── ./app/prepare/ai-generate/useAiGenerate.ts
 │   ├── ./app/profile
 │   │   └── ./app/profile/page.tsx
 │   ├── ./app/settings
@@ -55,16 +78,18 @@
 │   └── ./app/tags
 │       └── ./app/tags/page.tsx
 ├── ./components
-│   ├── ./components/CardTagEditor.tsx
 │   ├── ./components/ClientProviders.tsx
+│   ├── ./components/DeckListClient.tsx
 │   ├── ./components/StudySetSelector.tsx
 │   ├── ./components/camera-capture.tsx
 │   ├── ./components/card-editor.tsx
 │   ├── ./components/create-deck-dialog.tsx
 │   ├── ./components/deck
+│   │   ├── ./components/deck/DeckProgressBar.tsx
 │   │   └── ./components/deck/EditableCardTable.tsx
 │   ├── ./components/deck-header.tsx
 │   ├── ./components/deck-list.tsx
+│   ├── ./components/deck-tag-editor.tsx
 │   ├── ./components/difficulty-indicator.tsx -remove
 │   ├── ./components/file-upload.tsx
 │   ├── ./components/flippable-flashcard.tsx -remove
@@ -76,14 +101,19 @@
 │   ├── ./components/media-capture-tabs.tsx
 │   ├── ./components/settings-button.tsx
 │   ├── ./components/study
-│   │   └── ./components/study/StudySetBuilder.tsx
+│   │   ├── ./components/study/StudyModeButtons.tsx
+│   │   ├── ./components/study/StudySelectClient.tsx
+│   │   ├── ./components/study/StudySetBuilder.tsx
+│   │   ├── ./components/study/StudySetListClient.tsx
+│   │   └── ./components/study/StudySetSelector.tsx
 │   ├── ./components/study-completion-screen.tsx
 │   ├── ./components/study-flashcard-view.tsx
 │   ├── ./components/study-progress.tsx
 │   ├── ./components/study-session.tsx
 │   ├── ./components/table-editor.tsx
 │   ├── ./components/tags
-│   │   └── ./components/tags/TagManager.tsx
+│   │   ├── ./components/tags/TagManager.tsx
+│   │   └── ./components/tags/TagManagerClient.tsx
 │   ├── ./components/tags-button.tsx
 │   ├── ./components/theme-provider.tsx
 │   ├── ./components/tts-toggle-button.tsx
@@ -114,6 +144,7 @@
 │   │   ├── ./components/ui/label.tsx
 │   │   ├── ./components/ui/menubar.tsx
 │   │   ├── ./components/ui/navigation-menu.tsx
+│   │   ├── ./components/ui/page-heading.tsx
 │   │   ├── ./components/ui/pagination.tsx
 │   │   ├── ./components/ui/popover.tsx
 │   │   ├── ./components/ui/progress.tsx
@@ -140,15 +171,13 @@
 ├── ./directory_structure.txt
 ├── ./docker-compose.yml
 ├── ./docs
-│   ├── ./docs/ai-refactoring-plan.md
 │   ├── ./docs/best-practices.md
-│   ├── ./docs/deck-refactoring-plan.md
 │   ├── ./docs/docv2
 │   ├── ./docs/google-api-integration.md
+│   ├── ./docs/project-documentation v3.md
 │   ├── ./docs/project-documentation.md
 │   └── ./docs/setup
 │       └── ./docs/setup/setup-fonts.sh
-├── ./generated-flashcards.json
 ├── ./git_push.sh
 ├── ./hooks
 │   ├── ./hooks/use-auth.tsx
@@ -160,13 +189,16 @@
 │   ├── ./hooks/useCardTags.ts
 │   ├── ./hooks/useDecks.ts
 │   ├── ./hooks/useStudySession.ts
+│   ├── ./hooks/useStudySetForm.ts
 │   ├── ./hooks/useStudySets.ts
 │   └── ./hooks/useTags.ts
+├── ./instrumentation.ts
 ├── ./jest.config.js
 ├── ./jest.setup.js
 ├── ./lib
 │   ├── ./lib/actions
 │   │   ├── ./lib/actions/cardActions.ts
+│   │   ├── ./lib/actions/cardSrsActions.ts
 │   │   ├── ./lib/actions/deckActions.ts
 │   │   ├── ./lib/actions/progressActions.ts
 │   │   ├── ./lib/actions/settingsActions.ts
@@ -178,9 +210,12 @@
 │   │   └── ./lib/actions/types.ts
 │   ├── ./lib/fonts.ts
 │   ├── ./lib/localStorageUtils.ts
+│   ├── ./lib/palettes.ts
 │   ├── ./lib/schema
+│   │   ├── ./lib/schema/card.schema.ts
 │   │   ├── ./lib/schema/deckSchemas.ts
-│   │   └── ./lib/schema/study-query.schema.ts
+│   │   ├── ./lib/schema/study-query.schema.ts
+│   │   └── ./lib/schema/study-set.schema.ts
 │   ├── ./lib/srs.ts
 │   ├── ./lib/study-utils.ts
 │   ├── ./lib/supabase
@@ -235,10 +270,14 @@
 │   │   └── ./node_modules/@testing-library/react-hooks -> ../.pnpm/@testing-library+react-hooks@8.0.1_@types+react@19.0.12_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/@testing-library/react-hooks
 │   ├── ./node_modules/@types
 │   │   ├── ./node_modules/@types/jest -> ../.pnpm/@types+jest@29.5.14/node_modules/@types/jest
+│   │   ├── ./node_modules/@types/lodash -> ../.pnpm/@types+lodash@4.17.16/node_modules/@types/lodash
 │   │   ├── ./node_modules/@types/node -> ../.pnpm/@types+node@22.13.13/node_modules/@types/node
 │   │   ├── ./node_modules/@types/react -> ../.pnpm/@types+react@19.0.12/node_modules/@types/react
 │   │   ├── ./node_modules/@types/react-dom -> ../.pnpm/@types+react-dom@19.0.4_@types+react@19.0.12/node_modules/@types/react-dom
 │   │   └── ./node_modules/@types/uuid -> ../.pnpm/@types+uuid@10.0.0/node_modules/@types/uuid
+│   ├── ./node_modules/@vercel
+│   │   ├── ./node_modules/@vercel/otel -> ../.pnpm/@vercel+otel@1.12.0_@opentelemetry+api@1.9.0_@opentelemetry+resources@1.30.1_@opentelem_d019681a37fd8b8c70c998f266d5ee42/node_modules/@vercel/otel
+│   │   └── ./node_modules/@vercel/speed-insights -> ../.pnpm/@vercel+speed-insights@1.2.0_next@15.2.4_@babel+core@7.26.10_@opentelemetry+api@1.9.0_r_6399523ea17323effe33002ab04c4c0d/node_modules/@vercel/speed-insights
 │   ├── ./node_modules/autoprefixer -> .pnpm/autoprefixer@10.4.21_postcss@8.5.3/node_modules/autoprefixer
 │   ├── ./node_modules/canvas -> .pnpm/canvas@3.1.0/node_modules/canvas
 │   ├── ./node_modules/class-variance-authority -> .pnpm/class-variance-authority@0.7.1/node_modules/class-variance-authority
@@ -250,8 +289,9 @@
 │   ├── ./node_modules/input-otp -> .pnpm/input-otp@1.4.1_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/input-otp
 │   ├── ./node_modules/jest -> .pnpm/jest@29.7.0_@types+node@22.13.13_ts-node@10.9.2_@types+node@22.13.13_typescript@5.8.2_/node_modules/jest
 │   ├── ./node_modules/jest-environment-jsdom -> .pnpm/jest-environment-jsdom@29.7.0_canvas@3.1.0/node_modules/jest-environment-jsdom
+│   ├── ./node_modules/lodash -> .pnpm/lodash@4.17.21/node_modules/lodash
 │   ├── ./node_modules/lucide-react -> .pnpm/lucide-react@0.454.0_react@19.1.0/node_modules/lucide-react
-│   ├── ./node_modules/next -> .pnpm/next@15.2.4_@babel+core@7.26.10_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/next
+│   ├── ./node_modules/next -> .pnpm/next@15.2.4_@babel+core@7.26.10_@opentelemetry+api@1.9.0_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/next
 │   ├── ./node_modules/next-themes -> .pnpm/next-themes@0.4.6_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/next-themes
 │   ├── ./node_modules/pdf-lib -> .pnpm/pdf-lib@1.17.1/node_modules/pdf-lib
 │   ├── ./node_modules/pdfjs-dist -> .pnpm/pdfjs-dist@5.1.91/node_modules/pdfjs-dist
@@ -299,22 +339,30 @@
 │   └── ./public/web-app-manifest-512x512.png
 ├── ./refactoring-plan.md
 ├── ./schema.sql
-├── ./scripts
 ├── ./store
 │   └── ./store/studySessionStore.ts
 ├── ./supabase
 │   ├── ./supabase/config.toml
 │   └── ./supabase/migrations
-│       ├── ./supabase/migrations/20240728000000_add_srs_study_sets.sql
-│       ├── ./supabase/migrations/20250330170254_resolve_study_query_function.sql
-│       ├── ./supabase/migrations/20250405134304_resolve_study_query_function.sql
-│       ├── ./supabase/migrations/20250405145036_enhanced_resolve_study_query_function.sql
-│       └── ./supabase/migrations/20250407212122_add_card_id_default.sql
+│       ├── ./supabase/migrations/20250426200000_add_ai_uploads_storage_policies.sql
+│       ├── ./supabase/migrations/20250427092434_remote_schema.sql
+│       ├── ./supabase/migrations/20250427092656_remote_schema.sql
+│       ├── ./supabase/migrations/20250427171814_create_cards_with_difficulty_view.sql
+│       ├── ./supabase/migrations/20250428000000_create_deck_srs_counts_function.sql
+│       ├── ./supabase/migrations/20250428010000_add_show_deck_progress_setting.sql
+│       ├── ./supabase/migrations/20250428020000_add_theme_preference_setting.sql
+│       ├── ./supabase/migrations/20250430214258_update_resolve_study_query.sql
+│       ├── ./supabase/migrations/20250501153215_update_resolve_study_query_difficult_logic_v3.sql.sql
+│       ├── ./supabase/migrations/20250501154500_add_missing_study_fields.sql
+│       ├── ./supabase/migrations/20250510000000_optimize_deck_listing_performance.sql
+│       ├── ./supabase/migrations/20250510010000_optimize_rls_performance.sql
+│       ├── ./supabase/migrations/20250510020000_add_complete_srs_counts_function.sql
+│       └── ./supabase/migrations/supabase migrations.txt
 ├── ./tailwind.config.ts
-├── ./test
 ├── ./test-gcp-apis.ts
 ├── ./tsconfig.jest.json
 ├── ./tsconfig.json
+├── ./tsconfig.tsbuildinfo
 ├── ./types
 │   ├── ./types/card.ts
 │   ├── ./types/database.ts
@@ -323,4 +371,4 @@
 │   └── ./types/study.ts
 └── ./vercel.json
 
-135 directories, 189 files
+142 directories, 230 files

@@ -1,493 +1,283 @@
+// lib/actions/deckActions.ts
 'use server';
 
-import { createActionClient, createDynamicRouteClient } from "@/lib/supabase/server";
-import type { Database, Tables, Json } from "@/types/database"; // Import Tables helper
-import type { ActionResult } from "@/lib/actions/types"; // Correct import path
-import { z } from 'zod';
+import { createActionClient } from "@/lib/supabase/server";
+import type { Database, Tables, Json, TablesUpdate } from "@/types/database"; // Import TablesUpdate
+import type { ActionResult } from "@/lib/actions/types";
 import { revalidatePath } from 'next/cache';
 
-/**
- * Server actions for managing decks.
- * 
- * This module provides:
- * - Deck creation, reading, updating, and deletion
- * - Deck metadata management
- * - Deck query and filtering operations
- * 
- * @module deckActions
- */
-
-/**
- * Get the name of a deck by its ID
- * 
- * @param deckId The deck UUID to fetch
- */
-export async function getDeckName(
-    deckId: string
-): Promise<{ data: string | null, error: string | null }> {
-    console.log("[getDeckName] Action started for deckId:", deckId);
-    
-    try {
-        // Use the standard action client - must await
-        const supabase = await createActionClient();
-        
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-        if (authError || !user) {
-            console.error('[getDeckName] Auth error or no user:', authError);
-            return { data: null, error: authError?.message || 'Not authenticated' };
-        }
-        
-        console.log("[getDeckName] User authenticated:", user.id);
-
-        try {
-            console.log(`[getDeckName] Querying decks table for id: ${deckId} and user_id: ${user.id}`);
-            const { data, error } = await supabase
-                .from('decks')
-                .select('name')
-                .eq('id', deckId)
-                .eq('user_id', user.id)
-                .single();
-            
-            // Log result immediately
-            console.log("[getDeckName] Supabase query result:", { data, error });
-
-            if (error) {
-               console.error("[getDeckName] Supabase query failed:", error);
-               // Throw the original Supabase error if possible
-               return { data: null, error: error.message || 'Supabase query failed' };
-            }
-            
-            console.log("[getDeckName] Successfully fetched name:", data?.name);
-            return { data: data?.name ?? null, error: null };
-            
-        } catch (error) {
-            // Log the caught error more specifically before returning generic one
-            console.error('[getDeckName] Caught error during query execution:', error);
-            return { data: null, error: error instanceof Error ? error.message : 'Unknown error fetching deck name' };
-        }
-    } catch (error) {
-        // Log the caught error more specifically before returning generic one
-        console.error('[getDeckName] Caught error during client selection:', error);
-        return { data: null, error: error instanceof Error ? error.message : 'Unknown error fetching deck name' };
-    }
-} 
-
-// Define the type for the deck including its tags
-type DeckWithTags = Tables<'decks'> & { tags: Tables<'tags'>[] };
-
-// Define the type for the deck list item returned by the RPC function
-// NOTE: Adjust based on the actual return type if DB function changes
-type DeckListItemWithCounts = {
+export type DeckListItemWithCounts = {
     id: string;
     name: string;
     primary_language: string | null;
     secondary_language: string | null;
-    is_bilingual: boolean | null;
-    updated_at: string | null;
+    is_bilingual: boolean;
+    updated_at: string;
     new_count: number;
     learning_count: number;
     young_count: number;
     mature_count: number;
-    // tags: Tables<'tags'>[]; // Tags are NOT included in the new function, add if needed via separate query or function modification
-    // card_count: number; // Total card count is derived from stage counts
+    learn_eligible_count: number;
+    review_eligible_count: number;
 };
 
-// Define the enhanced deck type that includes learn/review eligibility counts
-type EnhancedDeck = {
-  id: string;
-  name: string;
-  primary_language: string | null;
-  secondary_language: string | null;
-  is_bilingual: boolean;
-  updated_at: string;
-  new_count: number;
-  learning_count: number;
-  young_count: number;
-  mature_count: number;
-  learn_eligible_count: number;
-  review_eligible_count: number;
-};
+type DeckWithTags = Tables<'decks'> & { tags: Tables<'tags'>[] };
+export type DeckWithCardsAndTags = DeckWithTags & { cards: Tables<'cards'>[] };
 
-/**
- * Fetches all decks with basic info and card stage counts for the authenticated user.
- * Uses the get_deck_list_with_srs_counts database function.
- */
-export async function getDecks(): Promise<ActionResult<DeckListItemWithCounts[]>> { // Updated return type
-    console.log("[getDecks] Action started - fetching via RPC");
+import { createDeckSchema, updateDeckSchema } from '@/lib/schema/deckSchemas';
+import type { CreateDeckInput, UpdateDeckInput } from '@/lib/schema/deckSchemas';
+
+
+export async function getDecks(): Promise<ActionResult<DeckListItemWithCounts[]>> {
+    console.log("[deckActions - getDecks] Action started - fetching via RPC get_decks_with_complete_srs_counts");
     try {
         const supabase = createActionClient();
         const { data: { user }, error: authError } = await supabase.auth.getUser();
 
         if (authError || !user) {
-            console.error('[getDecks] Auth error or no user:', authError);
+            console.error('[deckActions - getDecks] Auth error or no user:', authError);
             return { data: null, error: authError?.message || 'Not authenticated' };
         }
 
-        console.log(`[getDecks] User authenticated: ${user.id}, calling RPC get_deck_list_with_srs_counts`);
+        console.log(`[deckActions - getDecks] User authenticated: ${user.id}, calling RPC get_decks_with_complete_srs_counts`);
 
-        // Call the database function - types should now be inferred correctly
         const { data: rpcData, error: rpcError } = await supabase.rpc(
-            'get_deck_list_with_srs_counts', // Function name as runtime argument
+            'get_decks_with_complete_srs_counts',
             { p_user_id: user.id }
         );
 
         if (rpcError) {
-            console.error('[getDecks] Supabase RPC failed:', rpcError);
+            console.error('[deckActions - getDecks] Supabase RPC failed:', rpcError);
             return { data: null, error: rpcError.message || 'Failed to fetch decks via RPC.' };
         }
 
-        // Ensure data is not null and process (casting to expected type)
-        // Use type assertion cautiously, but it should align now
         const processedData = (rpcData || []).map(deck => ({
             ...deck,
-            // Ensure counts are numbers (bigint from DB needs conversion)
             new_count: Number(deck.new_count ?? 0),
             learning_count: Number(deck.learning_count ?? 0),
             young_count: Number(deck.young_count ?? 0),
             mature_count: Number(deck.mature_count ?? 0),
+            learn_eligible_count: Number(deck.learn_eligible_count ?? 0),
+            review_eligible_count: Number(deck.review_eligible_count ?? 0),
+            // Ensure primary_language and secondary_language are handled if RPC can return null
+            // but your type DeckListItemWithCounts expects string (though it allows null now)
+            primary_language: deck.primary_language, // Assuming RPC returns string or null matching type
+            secondary_language: deck.secondary_language,
+            is_bilingual: deck.is_bilingual,
+            updated_at: deck.updated_at,
         }));
 
-        console.log(`[getDecks] Successfully fetched and processed ${processedData.length} decks via RPC.`);
-        // Type assertion should now be safe
+        console.log(`[deckActions - getDecks] Successfully fetched and processed ${processedData.length} decks via RPC.`);
         return { data: processedData as DeckListItemWithCounts[], error: null };
 
     } catch (err: any) {
-        console.error('[getDecks] Caught unexpected error:', err);
+        console.error('[deckActions - getDecks] Caught unexpected error:', err);
         return { data: null, error: err.message || 'An unexpected error occurred while fetching decks.' };
     }
-} 
+}
 
-/**
- * Fetches a single deck by ID, including its cards and associated tags, for the authenticated user.
- * 
- * @param deckId The deck UUID to fetch
- * @returns Promise with the DeckWithTags object including cards and tags, or error
- */
 export async function getDeck(
     deckId: string
-): Promise<ActionResult<DeckWithTags & { cards: Tables<'cards'>[] }>> { // Updated return type
-    console.log(`[getDeck] Action started for deckId: ${deckId}`);
-    
+): Promise<ActionResult<DeckWithCardsAndTags | null>> {
+    console.log(`[deckActions - getDeck] Action started for deckId: ${deckId}`);
     if (!deckId) {
         return { data: null, error: 'Deck ID is required.' };
     }
-
     try {
         const supabase = createActionClient();
         const { data: { user }, error: authError } = await supabase.auth.getUser();
-
         if (authError || !user) {
-            console.error('[getDeck] Auth error or no user:', authError);
+            console.error('[deckActions - getDeck] Auth error or no user:', authError);
             return { data: null, error: authError?.message || 'Not authenticated' };
         }
-        
-        console.log(`[getDeck] User authenticated: ${user.id}, fetching deck ${deckId}`);
-
-        // --- Fetch deck, its cards, AND associated tags --- 
+        console.log(`[deckActions - getDeck] User authenticated: ${user.id}, fetching deck ${deckId}`);
         const { data: deckData, error: dbError } = await supabase
             .from('decks')
-            .select(`
-                *,
-                cards (*),
-                tags (*)
-            `)
+            .select(`*, cards (*), tags (*)`)
             .eq('id', deckId)
             .eq('user_id', user.id)
-            .maybeSingle(); // Use maybeSingle as deck might not exist or be accessible
-        // --------------------------------------------------
-
+            .maybeSingle();
         if (dbError) {
-            console.error('[getDeck] Database error:', dbError);
+            console.error('[deckActions - getDeck] Database error:', dbError);
             return { data: null, error: dbError.message || 'Failed to fetch deck data.' };
         }
-
         if (!deckData) {
-            console.log('[getDeck] Deck not found or not authorized:', deckId);
-            return { data: null, error: null }; 
+            console.log('[deckActions - getDeck] Deck not found or not authorized:', deckId);
+            return { data: null, error: null };
         }
-
-        // --- Ensure cards and tags arrays are present, even if empty --- 
         const deckWithDetails = {
             ...deckData,
-            cards: (deckData.cards || []) as Tables<'cards'>[], // Ensure cards is array and typed correctly
-            tags: (deckData.tags || []) as Tables<'tags'>[] // Ensure tags is array and typed correctly
+            cards: (deckData.cards || []) as Tables<'cards'>[],
+            tags: (deckData.tags || []) as Tables<'tags'>[]
         };
-        // ----------------------------------------------------------
-
-        console.log(`[getDeck] Successfully fetched deck ${deckId} with ${deckWithDetails.cards.length} cards and ${deckWithDetails.tags.length} tags.`);
-        // Type assertion might be needed if TypeScript can't infer the final structure perfectly
-        return { data: deckWithDetails as DeckWithTags & { cards: Tables<'cards'>[] }, error: null }; 
-        
+        console.log(`[deckActions - getDeck] Successfully fetched deck ${deckId} with ${deckWithDetails.cards.length} cards and ${deckWithDetails.tags.length} tags.`);
+        return { data: deckWithDetails as DeckWithCardsAndTags, error: null };
     } catch (error) {
-        console.error('[getDeck] Caught unexpected error:', error);
-        return { data: null, error: error instanceof Error ? error.message : 'An unknown error occurred.' }; // More specific error return
+        console.error('[deckActions - getDeck] Caught unexpected error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
+        return { data: null, error: errorMessage };
     }
-} 
+}
 
-// --- Zod Schemas for Validation ---
-
-// Schema for creating a deck
-const createDeckSchema = z.object({
-    name: z.string().trim().min(1, 'Deck name is required').max(100, 'Deck name too long'),
-    primary_language: z.string().optional().nullable(),
-    secondary_language: z.string().optional().nullable(),
-    is_bilingual: z.boolean().optional().default(false),
-    // user_id will be added from the authenticated user
-});
-type CreateDeckInput = z.infer<typeof createDeckSchema>;
-
-// Schema for updating a deck (all fields optional)
-const updateDeckSchema = z.object({
-    name: z.string().trim().min(1, 'Deck name is required').max(100, 'Deck name too long').optional(),
-    primary_language: z.string().nullable().optional(),
-    secondary_language: z.string().nullable().optional(),
-    is_bilingual: z.boolean().nullable().optional(),
-    // Note: Tags are updated via separate actions (addTagToDeck, removeTagFromDeck)
-    // Cards are updated via cardActions
-}).refine(data => Object.keys(data).length > 0, {
-    message: "At least one field must be provided for update.",
-});
-
-type UpdateDeckInput = z.infer<typeof updateDeckSchema>;
-
-
-// --- CRUD Actions ---
-
-/**
- * Creates a new deck for the authenticated user.
- */
 export async function createDeck(
     inputData: CreateDeckInput
-): Promise<ActionResult<Tables<'decks'>>> { // Use Tables<>
-    console.log(`[createDeck] Action started.`);
+): Promise<ActionResult<Tables<'decks'>>> {
+    console.log(`[deckActions - createDeck] Action started.`);
     try {
         const supabase = createActionClient();
         const { data: { user }, error: authError } = await supabase.auth.getUser();
-
         if (authError || !user) {
-             console.error('[createDeck] Auth error:', authError);
+             console.error('[deckActions - createDeck] Auth error:', authError);
              return { data: null, error: authError?.message || 'Not authenticated' };
         }
-
-        // Validate input data
         const validation = createDeckSchema.safeParse(inputData);
         if (!validation.success) {
-             console.warn("[createDeck] Validation failed:", validation.error.errors);
-             return { data: null, error: validation.error.errors[0].message };
+             console.warn("[deckActions - createDeck] Validation failed:", validation.error.format());
+             return { data: null, error: validation.error.flatten().fieldErrors.name?.[0] || "Invalid input." };
         }
         const { name, primary_language, secondary_language, is_bilingual } = validation.data;
-
-        console.log(`[createDeck] User: ${user.id}, Creating deck: ${name}`);
-
+        console.log(`[deckActions - createDeck] User: ${user.id}, Creating deck: ${name}`);
         const { data: newDeck, error: insertError } = await supabase
             .from('decks')
             .insert({
                 user_id: user.id,
                 name,
-                primary_language: primary_language ?? undefined, // Convert null to undefined
-                secondary_language: secondary_language ?? undefined, // Convert null to undefined
-                is_bilingual
+                primary_language: primary_language ?? 'en',
+                secondary_language: secondary_language ?? primary_language ?? 'en',
+                is_bilingual: is_bilingual ?? false,
             })
-            .select() // Select * to get all fields the DB has
+            .select()
             .single();
-
         if (insertError) {
-            console.error('[createDeck] Insert error:', insertError);
-            // TODO: Check for specific DB errors like unique constraints if needed
+            console.error('[deckActions - createDeck] Insert error:', insertError);
             return { data: null, error: insertError.message || 'Failed to create deck.' };
         }
-
-        console.log(`[createDeck] Success, ID: ${newDeck?.id}`);
-        revalidatePath('/'); // Revalidate home/dashboard where decks might be listed
-        revalidatePath('/study/sets'); // Revalidate study set list page
-        return { data: newDeck as Tables<'decks'>, error: null }; // Cast might be needed depending on select() return type
-
+        console.log(`[deckActions - createDeck] Success, ID: ${newDeck?.id}`);
+        revalidatePath('/');
+        revalidatePath('/study/select');
+        return { data: newDeck, error: null };
     } catch (error) {
-        console.error('[createDeck] Caught unexpected error:', error);
-        return { data: null, error: error instanceof Error ? error.message : 'Unknown error creating deck' };
+        console.error('[deckActions - createDeck] Caught unexpected error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error creating deck';
+        return { data: null, error: errorMessage };
     }
 }
 
-/**
- * Updates metadata for an existing deck.
- * Does not handle cards or tags.
- */
 export async function updateDeck(
     deckId: string,
     inputData: UpdateDeckInput
-): Promise<ActionResult<Tables<'decks'>>> { // Use Tables<>
-     console.log(`[updateDeck] Action started for deckId: ${deckId}`);
+): Promise<ActionResult<Tables<'decks'>>> {
+     console.log(`[deckActions - updateDeck] Action started for deckId: ${deckId}`);
      if (!deckId) return { data: null, error: 'Deck ID is required.' };
-
      try {
         const supabase = createActionClient();
         const { data: { user }, error: authError } = await supabase.auth.getUser();
-
         if (authError || !user) {
-             console.error('[updateDeck] Auth error:', authError);
+             console.error('[deckActions - updateDeck] Auth error:', authError);
              return { data: null, error: authError?.message || 'Not authenticated' };
         }
-
-        // Validate input data
         const validation = updateDeckSchema.safeParse(inputData);
         if (!validation.success) {
-             console.warn("[updateDeck] Validation failed:", validation.error.errors);
-             return { data: null, error: validation.error.errors[0].message };
+             console.warn("[deckActions - updateDeck] Validation failed:", validation.error.format());
+             return { data: null, error: validation.error.flatten().fieldErrors.name?.[0] || "Invalid input." };
         }
-        const updates = validation.data;
+        const updatesFromSchema = validation.data;
 
-        if (Object.keys(updates).length === 0) {
-             return { data: null, error: "No fields provided for update." };
-        }
-        
-        // --- Convert nulls to undefined for Supabase update --- 
-        const updatePayloadForSupabase = {
-            ...updates,
-            // Explicitly handle potential null for boolean field
-            is_bilingual: updates.is_bilingual === null ? undefined : updates.is_bilingual,
-            // Ensure language fields are also handled if they are present in the update
-            primary_language: updates.primary_language === null ? undefined : updates.primary_language,
-            secondary_language: updates.secondary_language === null ? undefined : updates.secondary_language,
-        };
-        // Remove fields that ended up as undefined to avoid sending them unnecessarily
-        // (though Supabase client might handle this)
-        Object.keys(updatePayloadForSupabase).forEach(key => {
-            if (updatePayloadForSupabase[key as keyof typeof updatePayloadForSupabase] === undefined) {
-                delete updatePayloadForSupabase[key as keyof typeof updatePayloadForSupabase];
+        // FIX: Prepare payload for Supabase, converting nulls to undefined for optional fields
+        // if the DB schema doesn't want explicit nulls for updates where a value previously existed.
+        // However, `TablesUpdate<'decks'>` usually defines optional fields as `string | undefined`, not `string | null | undefined`.
+        // The `updateDeckSchema` uses `.nullable().optional()`, so `updatesFromSchema` can have `null`.
+        // We need to ensure the payload passed to `.update()` matches `Partial<TablesUpdate<'decks'>>`.
+        const dbUpdatePayload: Partial<TablesUpdate<'decks'>> = {};
+        if (updatesFromSchema.name !== undefined) dbUpdatePayload.name = updatesFromSchema.name;
+        if (updatesFromSchema.is_bilingual !== undefined) dbUpdatePayload.is_bilingual = updatesFromSchema.is_bilingual ?? undefined; // Handle null for boolean
+
+        // For string fields that can be null in schema but undefined in DB update type
+        dbUpdatePayload.primary_language = updatesFromSchema.primary_language === null ? undefined : updatesFromSchema.primary_language;
+        dbUpdatePayload.secondary_language = updatesFromSchema.secondary_language === null ? undefined : updatesFromSchema.secondary_language;
+
+        // Remove any keys that are explicitly undefined to avoid sending them
+        Object.keys(dbUpdatePayload).forEach(keyStr => {
+            const key = keyStr as keyof typeof dbUpdatePayload;
+            if (dbUpdatePayload[key] === undefined) {
+                delete dbUpdatePayload[key];
             }
         });
-        // -----------------------------------------------------
 
-        console.log(`[updateDeck] User: ${user.id}, Updating deck ${deckId} with processed payload:`, updatePayloadForSupabase);
-        
+
+        if (Object.keys(dbUpdatePayload).length === 0) {
+             return { data: null, error: "No valid fields provided for update." };
+        }
+
+        console.log(`[deckActions - updateDeck] User: ${user.id}, Updating deck ${deckId} with:`, dbUpdatePayload);
+
         const { data: updatedDeck, error: updateError } = await supabase
             .from('decks')
-            .update(updatePayloadForSupabase) // Use the processed payload
+            .update(dbUpdatePayload) // Use the explicitly typed payload
             .eq('id', deckId)
-            .eq('user_id', user.id) // Ensure ownership
+            .eq('user_id', user.id)
             .select()
             .single();
-
         if (updateError) {
-            console.error('[updateDeck] Update error:', updateError);
+            console.error('[deckActions - updateDeck] Update error:', updateError);
             return { data: null, error: updateError.message || 'Failed to update deck.' };
         }
-
         if (!updatedDeck) {
-             console.warn(`[updateDeck] Deck ${deckId} not found or not authorized for update.`);
+             console.warn(`[deckActions - updateDeck] Deck ${deckId} not found or not authorized for update.`);
              return { data: null, error: 'Deck not found or update failed.' };
         }
-
-        console.log(`[updateDeck] Success, ID: ${updatedDeck.id}`);
-        revalidatePath('/'); 
-        revalidatePath('/study/sets');
-        return { data: updatedDeck as Tables<'decks'>, error: null };
-
+        console.log(`[deckActions - updateDeck] Success, ID: ${updatedDeck.id}`);
+        revalidatePath('/');
+        revalidatePath('/study/select');
+        revalidatePath(`/edit/${deckId}`);
+        return { data: updatedDeck, error: null };
     } catch (error) {
-        console.error('[updateDeck] Caught unexpected error:', error);
-        return { data: null, error: error instanceof Error ? error.message : 'Unknown error updating deck' };
+        console.error('[deckActions - updateDeck] Caught unexpected error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error updating deck';
+        return { data: null, error: errorMessage };
     }
 }
 
-/**
- * Deletes an existing deck and associated cards/tags (via CASCADE). 
- */
 export async function deleteDeck(
     deckId: string
-): Promise<ActionResult<null>> { // Returns null on success
-     console.log(`[deleteDeck] Action started for deckId: ${deckId}`);
+): Promise<ActionResult<null>> {
+     console.log(`[deckActions - deleteDeck] Action started for deckId: ${deckId}`);
      if (!deckId) return { data: null, error: 'Deck ID is required.' };
-
       try {
         const supabase = createActionClient();
         const { data: { user }, error: authError } = await supabase.auth.getUser();
-
         if (authError || !user) {
-             console.error('[deleteDeck] Auth error:', authError);
+             console.error('[deckActions - deleteDeck] Auth error:', authError);
              return { data: null, error: authError?.message || 'Not authenticated' };
         }
-
-        console.log(`[deleteDeck] User: ${user.id}, Deleting deck ${deckId}`);
-
+        console.log(`[deckActions - deleteDeck] User: ${user.id}, Deleting deck ${deckId}`);
         const { error: deleteError, count } = await supabase
             .from('decks')
             .delete()
             .eq('id', deckId)
-            .eq('user_id', user.id); // Ensure ownership
-
+            .eq('user_id', user.id);
         if (deleteError) {
-            console.error('[deleteDeck] Delete error:', deleteError);
+            console.error('[deckActions - deleteDeck] Delete error:', deleteError);
             return { data: null, error: deleteError.message || 'Failed to delete deck.' };
         }
-
          if (count === 0) {
-             console.warn("[deleteDeck] Delete affected 0 rows for ID:", deckId, "(Might be already deleted or unauthorized)");
-             // Don't return an error, just means nothing was deleted
+             console.warn("[deckActions - deleteDeck] Delete affected 0 rows for ID:", deckId);
         }
-
-        console.log(`[deleteDeck] Success for ID: ${deckId}`);
-        revalidatePath('/'); 
-        revalidatePath('/study/sets');
-        // No need to revalidate /edit/[deckId] as it won't exist
-        return { data: null, error: null }; // Success
-
+        console.log(`[deckActions - deleteDeck] Success for ID: ${deckId}`);
+        revalidatePath('/');
+        revalidatePath('/study/select');
+        return { data: null, error: null };
     } catch (error) {
-        console.error('[deleteDeck] Caught unexpected error:', error);
-        return { data: null, error: error instanceof Error ? error.message : 'Unknown error deleting deck' };
+        console.error('[deckActions - deleteDeck] Caught unexpected error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error deleting deck';
+        return { data: null, error: errorMessage };
     }
-} 
+}
 
 /**
- * Fetches all decks with complete SRS counts (including learn/review eligibility) in a single database call.
- * 
- * This function is optimized for server-side rendering, reducing multiple DB calls to just one.
- * 
- * @returns {Promise<ActionResult<EnhancedDeck[]>>} Decks with all SRS counts
+ * @deprecated Prefer using the main `getDecks()` function which now uses the new RPC.
  */
-export async function getDecksWithSrsCounts(): Promise<ActionResult<EnhancedDeck[]>> {
-  const supabase = createActionClient();
-  
-  // Check authentication
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    console.error('Auth error in getDecksWithSrsCounts:', authError);
-    return { data: null, error: 'Authentication required' };
-  }
-
-  try {
-    console.log('[getDecksWithSrsCounts] Fetching decks with complete SRS counts');
-    
-    // Use a custom RPC function that does all the work in one database call
-    // Add type assertion to fix TypeScript error
-    const { data, error } = await supabase.rpc(
-      'get_decks_with_complete_srs_counts' as any,
-      { p_user_id: user.id }
-    );
-
-    if (error) {
-      console.error('Error fetching decks with SRS counts:', error);
-      return { data: null, error: error.message };
-    }
-
-    // Transform any numeric values to ensure correct types
-    const processedData = data ? data.map((deck: any) => ({
-      ...deck,
-      new_count: Number(deck.new_count || 0),
-      learning_count: Number(deck.learning_count || 0),
-      young_count: Number(deck.young_count || 0),
-      mature_count: Number(deck.mature_count || 0),
-      learn_eligible_count: Number(deck.learn_eligible_count || 0),
-      review_eligible_count: Number(deck.review_eligible_count || 0)
-    })) : [];
-
-    console.log(`[getDecksWithSrsCounts] Successfully fetched ${processedData.length} decks with complete data`);
-    return { data: processedData as EnhancedDeck[], error: null };
-  } catch (error) {
-    console.error('Error in getDecksWithSrsCounts:', error);
-    return { 
-      data: null, 
-      error: error instanceof Error ? error.message : 'Unknown error fetching decks' 
-    };
-  }
-} 
+export async function getDecksWithSrsCounts(): Promise<ActionResult<DeckListItemWithCounts[]>> {
+  console.warn("[deckActions - getDecksWithSrsCounts] This function is deprecated. Use getDecks() instead.");
+  return getDecks();
+}

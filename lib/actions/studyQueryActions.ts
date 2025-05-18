@@ -76,7 +76,6 @@ export async function resolveStudyQuery(
             criteriaToUse = {
               allCards: true,
               tagLogic: 'ANY',
-              includeDifficult: false
             };
           } else {
             criteriaToUse = parsedCriteria.data;
@@ -87,7 +86,6 @@ export async function resolveStudyQuery(
           criteriaToUse = {
             allCards: true,
             tagLogic: 'ANY',
-            includeDifficult: false
           };
         }
         

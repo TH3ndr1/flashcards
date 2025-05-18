@@ -19,7 +19,7 @@ import { cookies } from "next/headers";
 export default async function Home() {
   // Check authentication server-side
   const cookieStore = cookies();
-  const supabase = createServerClient(cookieStore);
+  const supabase = createServerClient();
   const { data: { session }, error: authError } = await supabase.auth.getSession();
   
   // Redirect to login if not authenticated

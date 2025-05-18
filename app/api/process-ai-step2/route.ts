@@ -104,9 +104,10 @@ export async function POST(request: NextRequest) {
                 },
                 processingTimeMs: duration
             });
-
         } else {
-            return NextResponse.json({ success: false, message: `Invalid action specified: ${payload.action}. Must be 'classify' or 'force_knowledge'.`, code: 'INVALID_ACTION' }, { status: 400 });
+            // Use a type assertion to tell TypeScript that we know 'action' exists
+            const actionValue = (payload as { action?: string }).action || 'unknown';
+            return NextResponse.json({ success: false, message: `Invalid action specified: ${actionValue}. Must be 'classify' or 'force_knowledge'.`, code: 'INVALID_ACTION' }, { status: 400 });
         }
 
     } catch (error: any) {

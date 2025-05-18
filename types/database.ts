@@ -7,31 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          operationName?: string
-          query?: string
-          variables?: Json
-          extensions?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       cards: {
@@ -365,12 +340,10 @@ export type Database = {
           answer_gender: string | null
           answer_part_of_speech: string | null
           attempt_count: number | null
-          card_mature_threshold_days: number | null
           correct_count: number | null
           created_at: string | null
           deck_id: string | null
           difficulty: number | null
-          difficulty_score: number | null
           easiness_factor: number | null
           failed_attempts_in_learn: number | null
           hard_attempts_in_learn: number | null
@@ -379,9 +352,9 @@ export type Database = {
           interval_days: number | null
           last_review_grade: number | null
           last_reviewed_at: string | null
-          last_studied: string | null
           learning_state: string | null
           learning_step_index: number | null
+          mature_interval_threshold: number | null
           next_review_due: string | null
           question: string | null
           question_gender: string | null
@@ -404,7 +377,7 @@ export type Database = {
       }
     }
     Functions: {
-      get_deck_list_with_srs_counts: {
+      get_decks_with_complete_srs_counts: {
         Args: { p_user_id: string }
         Returns: {
           id: string
@@ -417,13 +390,13 @@ export type Database = {
           learning_count: number
           young_count: number
           mature_count: number
+          learn_eligible_count: number
+          review_eligible_count: number
         }[]
       }
       resolve_study_query: {
-        Args: { p_query_criteria: Json; p_user_id: string }
-        Returns: {
-          card_id: string
-        }[]
+        Args: { p_user_id: string; p_query_criteria: Json }
+        Returns: string[]
       }
     }
     Enums: {
@@ -541,9 +514,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       font_option: ["default", "opendyslexic", "atkinson"],

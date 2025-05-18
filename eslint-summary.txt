@@ -1,0 +1,13 @@
+ESLint Report Summary
+====================
+
+Total warnings: 570
+Total errors: 326
+
+Most common issue types:
+----------------------
+ 316 no-console
+ 166 @typescript-eslint/no-unused-vars
+  73 @typescript-eslint/no-explicit-any
+  13 react-hooks/exhaustive-deps
+   2 no-img-element

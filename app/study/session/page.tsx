@@ -59,7 +59,7 @@ export default function StudySessionPage() {
 
   const { speak, ttsState } = useTTS({});
   const isLoadingPage = isInitializing || isLoadingSettings || !isInitialized;
-  const prevCardIdRef = useRef<string | undefined | null>(null);
+  const prevSpokenStateRef = useRef<{ cardId: string; isFlipped: boolean } | null>(null);
 
   // Redirect if parameters aren't set after initial client-side check
   useEffect(() => {
@@ -78,55 +78,48 @@ export default function StudySessionPage() {
     return () => clearTimeout(checkTimer);
   }, [isInitialized, currentInput, currentMode, router]);
 
-  // Reset VISUAL transition state when card changes
-  useEffect(() => {
-    if (currentCard?.id) {
-      setIsTransitioningVisual(false);
-    }
-    // Keep ref update here, it runs before TTS effect
-    prevCardIdRef.current = currentCard?.id;
-  }, [currentCard?.id]);
-
   // --- TTS Trigger Effect (Refined Logic) --- 
   useEffect(() => {
-      if (!currentCard || ttsState === 'loading' || !settings?.ttsEnabled || isLoadingPage) return;
-
-      const cardIdHasChanged = prevCardIdRef.current !== currentCard.id;
-      prevCardIdRef.current = currentCard.id;
-      
-      // Debug language dialects in settings
-      console.log('[Study Session] Language dialects in settings:', settings?.languageDialects);
-      
-      let textToSpeak: string | null | undefined = null;
-      let langToUse: string | null = null;
-
-      // Safe casting of currentCard to StudyCard type
-      const studyCard = currentCard as StudyCard;
-
-      // Determine what to speak based on change or flip state
-      if (cardIdHasChanged || !isFlipped) { 
-          textToSpeak = studyCard.question;
-          // Safely access deck properties
-          langToUse = studyCard.decks?.primary_language ?? 'en-US';
-          console.log('[Study Session] Speaking question, original language:', langToUse);
-      } else if (isFlipped) { 
-          textToSpeak = studyCard.answer;
-          // Safely access deck properties
-          langToUse = studyCard.decks?.secondary_language ?? 
-                      studyCard.decks?.primary_language ?? 
-                      'en-US';
-          console.log('[Study Session] Speaking answer, original language:', langToUse);
+      // Initial guard: ensures essential data is present and TTS is enabled.
+      if (!currentCard || !settings || !settings.ttsEnabled || isLoadingPage || ttsState === 'loading') {
+          return;
       }
 
-      // Ensure we have a proper language code with dialect - direct fix
+      const actualCardId = currentCard.id;
+      const actualIsFlipped = isFlipped;
+
+      // Determine if a speech-worthy state change has occurred.
+      const shouldSpeakDueToStateChange =
+          prevSpokenStateRef.current?.cardId !== actualCardId ||
+          prevSpokenStateRef.current?.isFlipped !== actualIsFlipped;
+
+      if (!shouldSpeakDueToStateChange) {
+          return; // No change in card or flip state relevant to speech since last time.
+      }
+
+      let textToSpeak: string | null | undefined = null;
+      let langToUse: string | null = null;
+      let speechLogContext = ""; // For clearer logging
+
+      const studyCard = currentCard as StudyCard;
+
+      // Determine text and language based on current card and flip state.
+      // This logic runs if shouldSpeakDueToStateChange is true.
+      if (prevSpokenStateRef.current?.cardId !== actualCardId) { // Card has changed or first card
+          speechLogContext = actualIsFlipped ? "New Card - Answer" : "New Card - Question";
+      } else { // Card is the same, so flip state must have changed
+          speechLogContext = actualIsFlipped ? "Card Flipped - Answer" : "Card Flipped - Question";
+      }
+
+      textToSpeak = actualIsFlipped ? studyCard.answer : studyCard.question;
+      langToUse = actualIsFlipped
+          ? (studyCard.decks?.secondary_language ?? studyCard.decks?.primary_language ?? 'en-US')
+          : (studyCard.decks?.primary_language ?? 'en-US');
+      
       if (textToSpeak && langToUse) {
-          // Map language code directly at the point of use
-          // This ensures the correct language code is used even if the hook has issues
-          console.log(`[Study Session] Calling speak() with language: ${langToUse}`);
-          
+          console.log(`[TTS Trigger] ${speechLogContext}: Speaking lang ${langToUse}. Text: "${textToSpeak.substring(0, 30)}..."`);
           speak(textToSpeak, langToUse).catch(error => {
               console.error("Failed to speak text:", error);
-              // Only show TTS errors once per session to avoid repeated notifications
               if (!window.ttsErrorShown) {
                   toast.error("Text-to-speech error", { 
                       description: "TTS functionality is unavailable. Check your settings.",
@@ -135,10 +128,21 @@ export default function StudySessionPage() {
                   window.ttsErrorShown = true;
               }
           });
+          // Update the ref to reflect the state for which speech was just initiated.
+          prevSpokenStateRef.current = { cardId: actualCardId, isFlipped: actualIsFlipped };
+      } else if (shouldSpeakDueToStateChange) {
+          // If a state change occurred that should have triggered speech, but text was empty,
+          // still update the ref to prevent retrying for this empty state.
+          prevSpokenStateRef.current = { cardId: actualCardId, isFlipped: actualIsFlipped };
+          if (!textToSpeak) {
+            console.log(`[TTS Trigger] ${speechLogContext}: Determined no text to speak (empty question/answer).`);
+          }
       }
        
-  // Minimal dependencies: card ID, flip state, TTS enabled setting, and session loading state.
-  }, [currentCard?.id, isFlipped, settings?.ttsEnabled, isLoadingPage, speak]); 
+  // Key dependencies: currentCard (for ID and content), isFlipped (for side),
+  // settings (for ttsEnabled and languageDialects used by speak),
+  // isLoadingPage (guard), speak (action), ttsState (guard and potential trigger).
+  }, [currentCard, isFlipped, settings, isLoadingPage, speak, ttsState]);
 
   // --- Callbacks ---
   const handleFlip = useCallback(() => {
@@ -191,19 +195,18 @@ export default function StudySessionPage() {
          title = "No Cards Found";
          description = "There were no cards matching your selection criteria.";
      } else if (sessionHadCards) { 
-         // Extract results
-         const { correct = 0, incorrect = 0, completedInSession = 0 } = sessionResults ?? {};
-         const totalAnswered = correct + incorrect;
-         const accuracy = totalAnswered > 0 ? Math.round((correct / totalAnswered) * 100) : 0;
+         // Extract results with correct property names
+         const { correctCount = 0, incorrectCount = 0, totalAnswered = 0 } = sessionResults ?? {};
+         const totalCardsCompleted = totalAnswered; // Use as a replacement for completedInSession
+         const accuracy = totalAnswered > 0 ? Math.round((correctCount / totalAnswered) * 100) : 0;
 
          if (studyMode === 'review') {
              title = "🎉 Review Complete! 🎉";
-             // initialSelectionCount might differ from completedInSession if user stops early?
-             // Use completedInSession for number reviewed in this specific session.
-             description = `You reviewed ${completedInSession} card${completedInSession === 1 ? '' : 's'}. Correct: ${correct}, Incorrect: ${incorrect} (${accuracy}% accuracy).`;
+             // Use totalCardsCompleted for number reviewed in this specific session
+             description = `You reviewed ${totalCardsCompleted} card${totalCardsCompleted === 1 ? '' : 's'}. Correct: ${correctCount}, Incorrect: ${incorrectCount} (${accuracy}% accuracy).`;
          } else { // Learn mode complete
              title = "🎉 Learn Session Complete! 🎉";
-             description = `You learned ${completedInSession} card${completedInSession === 1 ? '' : 's'} in this session! Correct: ${correct}, Incorrect: ${incorrect}. Great work!`;
+             description = `You learned ${totalCardsCompleted} card${totalCardsCompleted === 1 ? '' : 's'} in this session! Correct: ${correctCount}, Incorrect: ${incorrectCount}. Great work!`;
          }
      } // Handle initialSelectionCount === -1 (init error) if needed
      

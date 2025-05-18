@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { resolveStudyQuery } from '@/lib/actions/studyQueryActions';
-import { getCardSrsStatesByIds } from '@/lib/actions/cardSrsActions';
+import { getCardSrsStatesByIds } from '@/lib/actions/cardActions';
 import { useStudySessionStore, type StudyInput, type StudyMode } from '@/store/studySessionStore';
 import { isValid, parseISO } from 'date-fns';
 import { useRouter } from 'next/navigation';
@@ -58,13 +58,11 @@ export function StudySetSelector({
       return { 
         allCards: true,
         tagLogic: 'ANY',
-        includeDifficult: false
       };
     } else if (selectionType === 'deck' && selectedDeckId) {
       return { 
         deckId: selectedDeckId,
         tagLogic: 'ANY',
-        includeDifficult: false
       };
     } else if (selectionType === 'studySet' && selectedStudySetId) {
       // For study sets, we'll get the criteria from the backend

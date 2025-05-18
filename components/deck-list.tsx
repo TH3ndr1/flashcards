@@ -20,7 +20,7 @@ import { useSettings } from "@/providers/settings-provider"
 import { cn } from "@/lib/utils"
 import { Separator } from "@/components/ui/separator"
 import { StudyModeButtons } from "@/components/study/StudyModeButtons"
-import { getCardSrsStatesByIds } from '@/lib/actions/cardSrsActions';
+import { getCardSrsStatesByIds } from '@/lib/actions/cardActions';
 import { resolveStudyQuery } from '@/lib/actions/studyQueryActions';
 import { isValid, parseISO } from 'date-fns';
 
@@ -93,7 +93,6 @@ export function DeckList() {
           criteria: { 
             deckId: deck.id, 
             tagLogic: 'ANY' as const,
-            includeDifficult: false 
           }
         })
       );

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 import { resolveStudyQuery } from '@/lib/actions/studyQueryActions';
-import { getCardSrsStatesByIds } from '@/lib/actions/cardSrsActions';
+import { getCardSrsStatesByIds } from '@/lib/actions/cardActions';
 import { useStudySessionStore, type StudyInput, type StudyMode } from '@/store/studySessionStore';
 import { Loader2 as IconLoader, GraduationCap, Play } from 'lucide-react';
 import { toast } from 'sonner';
@@ -82,7 +82,7 @@ export function StudyModeButtons({
       setLearnCount(preCalculatedLearnCount);
       setReviewCount(preCalculatedReviewCount);
     }
-  }, [preCalculatedLearnCount, preCalculatedReviewCount, contentId]);
+  }, [preCalculatedLearnCount, preCalculatedReviewCount, contentId, setIsLoading, setLearnCount, setReviewCount]);
 
   // Track loading state changes
   useEffect(() => {
@@ -220,7 +220,19 @@ export function StudyModeButtons({
     };
     
     fetchCardCounts();
-  }, [contentId, studyType, preCalculatedLearnCount, preCalculatedReviewCount, batchFetchInProgress]);
+  }, [
+    contentId, 
+    studyType, 
+    preCalculatedLearnCount, 
+    preCalculatedReviewCount, 
+    batchFetchInProgress,
+    resolveStudyQuery,
+    getCardSrsStatesByIds,
+    setIsLoading,
+    setError,
+    setLearnCount,
+    setReviewCount
+  ]);
   
   const handleStartStudying = (mode: StudyMode) => {
     // Create the appropriate StudyInput based on type and mode
@@ -235,13 +247,11 @@ export function StudyModeButtons({
             includeLearning: true,
             srsLevel: { operator: 'equals', value: 0 },
             tagLogic: 'ANY' as const,
-            includeDifficult: false
           } : 
           {
             nextReviewDue: { operator: 'isDue' },
             srsLevel: { operator: 'greaterThan', value: 0 },
             tagLogic: 'ANY' as const,
-            includeDifficult: false
           }
       };
     } else {
@@ -250,7 +260,6 @@ export function StudyModeButtons({
         criteria: { 
           deckId: contentId, 
           tagLogic: 'ANY' as const, 
-          includeDifficult: false,
           // Include special criteria for Learn mode
           ...(mode === 'learn' ? {
             srsLevel: { operator: 'equals', value: 0 },

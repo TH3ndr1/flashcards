@@ -1,0 +1,3644 @@
+=== 20250426200000_add_ai_uploads_storage_policies.sql ===
+-- supabase/migrations/add_ai_uploads_storage_policies.sql
+-- Migration to add Row Level Security (RLS) policies for the 'ai-uploads' storage bucket.
+-- These policies restrict access based on authenticated user ID matching the first part of the file path.
+-- Uses DROP IF EXISTS / CREATE to ensure idempotency on older PostgreSQL versions.
+
+-- 1. Policy: Allow authenticated users to upload (INSERT) files into their own folder.
+DROP POLICY IF EXISTS "Allow authenticated uploads to own folder" ON storage.objects;
+CREATE POLICY "Allow authenticated uploads to own folder" 
+ON storage.objects FOR INSERT 
+TO authenticated 
+WITH CHECK (
+  bucket_id = 'ai-uploads' AND 
+  auth.uid() = ((storage.foldername(name))[1])::uuid -- Cast text folder name to uuid
+);
+
+-- 2. Policy: Allow authenticated users to download/view (SELECT) files from their own folder.
+DROP POLICY IF EXISTS "Allow authenticated selects from own folder" ON storage.objects;
+CREATE POLICY "Allow authenticated selects from own folder" 
+ON storage.objects FOR SELECT 
+TO authenticated 
+USING (
+  bucket_id = 'ai-uploads' AND 
+  auth.uid() = ((storage.foldername(name))[1])::uuid -- Cast text folder name to uuid
+);
+
+-- 3. Policy: Allow authenticated users to delete (DELETE) files from their own folder.
+DROP POLICY IF EXISTS "Allow authenticated deletes from own folder" ON storage.objects;
+CREATE POLICY "Allow authenticated deletes from own folder" 
+ON storage.objects FOR DELETE 
+TO authenticated 
+USING (
+  bucket_id = 'ai-uploads' AND 
+  auth.uid() = ((storage.foldername(name))[1])::uuid -- Cast text folder name to uuid
+);
+
+-- 4. Policy: Allow authenticated users to update (UPDATE) files in their own folder.
+DROP POLICY IF EXISTS "Allow authenticated updates in own folder" ON storage.objects;
+CREATE POLICY "Allow authenticated updates in own folder" 
+ON storage.objects FOR UPDATE 
+TO authenticated 
+USING (
+  bucket_id = 'ai-uploads' AND 
+  auth.uid() = ((storage.foldername(name))[1])::uuid -- Cast text folder name to uuid
+);
+
+-- Optional: Log the creation of policies (informational)
+-- INSERT INTO supabase_migrations.schema_migrations (version) VALUES ('add_ai_uploads_storage_policies');
+-- Note: Supabase CLI handles migration versioning automatically. 
+=== 20250427092656_remote_schema.sql ===
+create type "public"."font_option" as enum ('default', 'opendyslexic', 'atkinson');
+
+create table "public"."cards" (
+    "id" uuid not null default uuid_generate_v4(),
+    "deck_id" uuid not null,
+    "question" text not null,
+    "answer" text not null,
+    "correct_count" integer default 0,
+    "incorrect_count" integer default 0,
+    "last_studied" timestamp with time zone,
+    "created_at" timestamp with time zone default timezone('utc'::text, now()),
+    "updated_at" timestamp with time zone default timezone('utc'::text, now()),
+    "attempt_count" integer default 0,
+    "difficulty_score" double precision default 0,
+    "user_id" uuid,
+    "last_reviewed_at" timestamp with time zone,
+    "next_review_due" timestamp with time zone,
+    "srs_level" integer not null default 0,
+    "easiness_factor" double precision default 2.5,
+    "interval_days" integer default 0,
+    "stability" double precision,
+    "difficulty" double precision,
+    "last_review_grade" integer,
+    "question_part_of_speech" text default 'N/A'::text,
+    "question_gender" text default 'N/A'::text,
+    "answer_part_of_speech" text default 'N/A'::text,
+    "answer_gender" text default 'N/A'::text
+);
+
+
+alter table "public"."cards" enable row level security;
+
+create table "public"."deck_tags" (
+    "deck_id" uuid not null,
+    "tag_id" uuid not null,
+    "user_id" uuid not null,
+    "created_at" timestamp with time zone not null default now()
+);
+
+
+alter table "public"."deck_tags" enable row level security;
+
+create table "public"."decks" (
+    "id" uuid not null default gen_random_uuid(),
+    "user_id" uuid not null,
+    "name" text not null,
+    "progress" jsonb not null default '{"streak": 0, "correct": 0, "incorrect": 0, "lastStudied": null}'::jsonb,
+    "created_at" timestamp with time zone default timezone('utc'::text, now()),
+    "updated_at" timestamp with time zone default timezone('utc'::text, now()),
+    "is_bilingual" boolean not null default false,
+    "primary_language" text not null default 'en'::text,
+    "secondary_language" text not null default 'en'::text
+);
+
+
+alter table "public"."decks" enable row level security;
+
+create table "public"."settings" (
+    "id" uuid not null default gen_random_uuid(),
+    "user_id" uuid not null,
+    "app_language" text not null default 'english'::text,
+    "preferred_voices" jsonb not null default '{"dutch": null, "french": null, "english": null}'::jsonb,
+    "created_at" timestamp with time zone default timezone('utc'::text, now()),
+    "updated_at" timestamp with time zone default timezone('utc'::text, now()),
+    "language_dialects" jsonb default jsonb_build_object('en', 'en-GB', 'nl', 'nl-NL', 'fr', 'fr-FR', 'de', 'de-DE', 'es', 'es-ES', 'it', 'it-IT'),
+    "tts_enabled" boolean default true,
+    "show_difficulty" boolean default true,
+    "mastery_threshold" integer default 3,
+    "card_font" character varying(20) default 'default'::character varying,
+    "enable_word_color_coding" boolean default false,
+    "enable_basic_color_coding" boolean default true,
+    "enable_advanced_color_coding" boolean default false,
+    "word_palette_config" jsonb,
+    "color_only_non_native" boolean default true
+);
+
+
+alter table "public"."settings" enable row level security;
+
+create table "public"."study_sets" (
+    "id" uuid not null default uuid_generate_v4(),
+    "user_id" uuid not null,
+    "name" text not null,
+    "description" text,
+    "query_criteria" jsonb not null,
+    "created_at" timestamp with time zone not null default now(),
+    "updated_at" timestamp with time zone not null default now()
+);
+
+
+alter table "public"."study_sets" enable row level security;
+
+create table "public"."tags" (
+    "id" uuid not null default uuid_generate_v4(),
+    "user_id" uuid not null,
+    "name" text not null,
+    "created_at" timestamp with time zone not null default now()
+);
+
+
+alter table "public"."tags" enable row level security;
+
+CREATE UNIQUE INDEX cards_pkey ON public.cards USING btree (id);
+
+CREATE UNIQUE INDEX deck_tags_pkey ON public.deck_tags USING btree (deck_id, tag_id);
+
+CREATE UNIQUE INDEX decks_pkey ON public.decks USING btree (id);
+
+CREATE INDEX idx_cards_deck_id ON public.cards USING btree (deck_id);
+
+CREATE INDEX idx_cards_user_id_next_review_due ON public.cards USING btree (user_id, next_review_due);
+
+CREATE INDEX idx_deck_tags_deck_id ON public.deck_tags USING btree (deck_id);
+
+CREATE INDEX idx_deck_tags_tag_id ON public.deck_tags USING btree (tag_id);
+
+CREATE INDEX idx_deck_tags_user_id ON public.deck_tags USING btree (user_id);
+
+CREATE INDEX idx_decks_user_id ON public.decks USING btree (user_id);
+
+CREATE INDEX idx_settings_user_id ON public.settings USING btree (user_id);
+
+CREATE UNIQUE INDEX settings_pkey ON public.settings USING btree (id);
+
+CREATE UNIQUE INDEX study_sets_pkey ON public.study_sets USING btree (id);
+
+CREATE UNIQUE INDEX tags_pkey ON public.tags USING btree (id);
+
+CREATE UNIQUE INDEX tags_user_id_name_key ON public.tags USING btree (user_id, name);
+
+CREATE UNIQUE INDEX unique_user_settings ON public.settings USING btree (user_id);
+
+alter table "public"."cards" add constraint "cards_pkey" PRIMARY KEY using index "cards_pkey";
+
+alter table "public"."deck_tags" add constraint "deck_tags_pkey" PRIMARY KEY using index "deck_tags_pkey";
+
+alter table "public"."decks" add constraint "decks_pkey" PRIMARY KEY using index "decks_pkey";
+
+alter table "public"."settings" add constraint "settings_pkey" PRIMARY KEY using index "settings_pkey";
+
+alter table "public"."study_sets" add constraint "study_sets_pkey" PRIMARY KEY using index "study_sets_pkey";
+
+alter table "public"."tags" add constraint "tags_pkey" PRIMARY KEY using index "tags_pkey";
+
+alter table "public"."cards" add constraint "cards_user_id_fkey" FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE not valid;
+
+alter table "public"."cards" validate constraint "cards_user_id_fkey";
+
+alter table "public"."cards" add constraint "fk_deck" FOREIGN KEY (deck_id) REFERENCES decks(id) ON DELETE CASCADE not valid;
+
+alter table "public"."cards" validate constraint "fk_deck";
+
+alter table "public"."deck_tags" add constraint "deck_tags_deck_id_fkey" FOREIGN KEY (deck_id) REFERENCES decks(id) ON DELETE CASCADE not valid;
+
+alter table "public"."deck_tags" validate constraint "deck_tags_deck_id_fkey";
+
+alter table "public"."deck_tags" add constraint "deck_tags_tag_id_fkey" FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE not valid;
+
+alter table "public"."deck_tags" validate constraint "deck_tags_tag_id_fkey";
+
+alter table "public"."deck_tags" add constraint "deck_tags_user_id_fkey" FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE not valid;
+
+alter table "public"."deck_tags" validate constraint "deck_tags_user_id_fkey";
+
+alter table "public"."decks" add constraint "fk_user" FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE not valid;
+
+alter table "public"."decks" validate constraint "fk_user";
+
+alter table "public"."settings" add constraint "settings_user_id_fkey" FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE not valid;
+
+alter table "public"."settings" validate constraint "settings_user_id_fkey";
+
+alter table "public"."settings" add constraint "unique_user_settings" UNIQUE using index "unique_user_settings";
+
+alter table "public"."study_sets" add constraint "study_sets_user_id_fkey" FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE not valid;
+
+alter table "public"."study_sets" validate constraint "study_sets_user_id_fkey";
+
+alter table "public"."tags" add constraint "tags_user_id_fkey" FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE not valid;
+
+alter table "public"."tags" validate constraint "tags_user_id_fkey";
+
+alter table "public"."tags" add constraint "tags_user_id_name_key" UNIQUE using index "tags_user_id_name_key";
+
+set check_function_bodies = off;
+
+CREATE OR REPLACE FUNCTION public.resolve_study_query(p_user_id uuid, p_query_criteria jsonb, p_order_by_field text DEFAULT 'created_at'::text, p_order_by_direction text DEFAULT 'DESC'::text)
+ RETURNS TABLE(card_id uuid)
+ LANGUAGE plpgsql
+AS $function$DECLARE
+    v_sql                  TEXT;
+    v_from_clause          TEXT := 'FROM cards c';
+    v_where_clauses        TEXT[] := ARRAY[]::TEXT[];
+    v_params               TEXT[] := ARRAY[]::TEXT[];
+    v_param_index          INTEGER := 0;
+
+    -- Parsed criteria variables
+    v_deck_id              UUID;
+    v_all_cards            BOOLEAN;
+    v_include_tags         UUID[];
+    v_exclude_tags         UUID[];
+    v_tag_logic            TEXT;
+    v_deck_title_contains  TEXT;
+    v_deck_languages_raw   JSONB;
+    v_deck_languages       TEXT[];
+    v_created_date_filter  JSONB;
+    v_updated_date_filter  JSONB;
+    v_last_reviewed_filter JSONB;
+    v_next_review_due_filter JSONB;
+    v_srs_level_filter     JSONB;
+    v_date_operator        TEXT;
+    v_date_value_days      INTEGER;
+    v_date_value_start     TEXT;
+    v_date_value_end       TEXT;
+    v_srs_operator         TEXT;
+    v_srs_value            INTEGER;
+    v_include_difficult    BOOLEAN; -- **[ADDED]**
+
+    -- Ordering variables
+    v_order_by_clause      TEXT;
+    v_valid_order_field    TEXT;
+    v_valid_order_direction TEXT;
+    -- ** Use current schema column names, not front_content/back_content **
+    v_allowed_order_fields TEXT[] := ARRAY[
+        'created_at','updated_at','question','answer', -- Updated field names
+        'last_reviewed_at','next_review_due','srs_level',
+        'easiness_factor','interval_days','stability','difficulty'
+    ];
+    v_allowed_directions   TEXT[] := ARRAY['ASC','DESC'];
+BEGIN
+    RAISE NOTICE '[DEBUG resolve_study_query V4+Diff] START - User: %, Criteria: %', p_user_id, p_query_criteria;
+
+    -- 0. Mandatory user_id filter
+    v_where_clauses := array_append(
+        v_where_clauses,
+        format('c.user_id = %L::uuid', p_user_id)
+    );
+    RAISE NOTICE '[DEBUG V4+Diff] Added user_id clause';
+
+    -- 1. allCards flag
+    v_all_cards := (p_query_criteria->>'allCards')::BOOLEAN;
+    IF v_all_cards IS TRUE THEN
+        RAISE NOTICE '[DEBUG V4+Diff] allCards = true, skipping filters';
+    ELSE
+        RAISE NOTICE '[DEBUG V4+Diff] allCards = false, applying filters';
+
+        -- 2. Deck filter (Literal embedding - unchanged from V4)
+        v_deck_id := (p_query_criteria->>'deckId')::UUID;
+        IF v_deck_id IS NOT NULL THEN
+            v_where_clauses := array_append(
+                v_where_clauses,
+                format('c.deck_id = %L::uuid', v_deck_id)
+            );
+            RAISE NOTICE '[DEBUG V4+Diff] Added deck_id clause (%)', v_deck_id;
+        END IF;
+
+        -- 3. Deck Title / Language Filters (JOIN needed, unchanged from V4)
+        v_deck_title_contains := p_query_criteria->>'deckTitleContains';
+        v_deck_languages_raw  := p_query_criteria->'deckLanguages';
+        IF v_deck_title_contains IS NOT NULL
+           OR (v_deck_languages_raw IS NOT NULL
+               AND jsonb_typeof(v_deck_languages_raw) = 'array'
+               AND jsonb_array_length(v_deck_languages_raw) > 0) THEN
+            RAISE NOTICE '[DEBUG V4+Diff] Adding JOIN decks';
+            v_from_clause := v_from_clause || ' JOIN decks d ON c.deck_id = d.id';
+            IF v_deck_title_contains IS NOT NULL THEN
+                v_param_index := v_param_index + 1;
+                v_where_clauses := array_append(v_where_clauses, format('d.title ILIKE $%s', v_param_index));
+                v_params := array_append(v_params, ('%' || v_deck_title_contains || '%')::TEXT);
+                RAISE NOTICE '[DEBUG V4+Diff] Added param $%: deckTitleContains', v_param_index;
+            END IF;
+            IF v_deck_languages_raw IS NOT NULL AND jsonb_typeof(v_deck_languages_raw) = 'array' AND jsonb_array_length(v_deck_languages_raw) > 0 THEN
+                SELECT array_agg(elem::TEXT) INTO v_deck_languages FROM jsonb_array_elements_text(v_deck_languages_raw) AS elem;
+                v_param_index := v_param_index + 1;
+                v_where_clauses := array_append(v_where_clauses, format('(d.primary_language = ANY($%s::text[]) OR d.secondary_language = ANY($%s::text[]))', v_param_index, v_param_index));
+                v_params := array_append(v_params, v_deck_languages::TEXT);
+                RAISE NOTICE '[DEBUG V4+Diff] Added param $%: deckLanguages', v_param_index;
+            END IF;
+        END IF;
+
+        -- 4. Tag filtering (Refactored for deck_tags)
+        v_tag_logic := COALESCE(p_query_criteria->>'tagLogic','ANY'); -- 'ANY' or 'ALL'
+
+        -- Include Tags Logic
+        IF (p_query_criteria->'includeTags') IS NOT NULL AND jsonb_typeof(p_query_criteria->'includeTags') = 'array' AND jsonb_array_length(p_query_criteria->'includeTags') > 0 THEN
+            SELECT array_agg(elem::TEXT::UUID) INTO v_include_tags FROM jsonb_array_elements_text(p_query_criteria->'includeTags') AS elem;
+            v_param_index := v_param_index + 1;
+            RAISE NOTICE '[DEBUG V4+Diff] includeTags (Deck Level) param index $%', v_param_index;
+
+            IF v_tag_logic = 'ALL' THEN
+                 -- Deck must have ALL the specified tags
+                 v_where_clauses := array_append(v_where_clauses, format(
+                    'c.deck_id IN (SELECT dt.deck_id FROM deck_tags dt WHERE dt.user_id = %L::uuid AND dt.tag_id = ANY($%s::uuid[]) GROUP BY dt.deck_id HAVING count(DISTINCT dt.tag_id) = %s)',
+                    p_user_id,
+                    v_param_index,
+                    array_length(v_include_tags,1)
+                 ));
+                 RAISE NOTICE '[DEBUG V4+Diff] Added deck_tags includeTags (ALL) clause';
+            ELSE -- ANY (Default)
+                -- Deck must have AT LEAST ONE of the specified tags
+                v_where_clauses := array_append(v_where_clauses, format(
+                    'c.deck_id IN (SELECT DISTINCT dt.deck_id FROM deck_tags dt WHERE dt.user_id = %L::uuid AND dt.tag_id = ANY($%s::uuid[]))',
+                    p_user_id,
+                    v_param_index
+                ));
+                 RAISE NOTICE '[DEBUG V4+Diff] Added deck_tags includeTags (ANY) clause';
+            END IF;
+
+            v_params := array_append(v_params, v_include_tags::TEXT); -- Pass UUID array as text for parameter binding
+            RAISE NOTICE '[DEBUG V4+Diff] Added includeTags param $% value: %', v_param_index, v_include_tags;
+        END IF;
+
+        -- Exclude Tags Logic
+        IF (p_query_criteria->'excludeTags') IS NOT NULL AND jsonb_typeof(p_query_criteria->'excludeTags') = 'array' AND jsonb_array_length(p_query_criteria->'excludeTags') > 0 THEN
+            SELECT array_agg(elem::TEXT::UUID) INTO v_exclude_tags FROM jsonb_array_elements_text(p_query_criteria->'excludeTags') AS elem;
+            v_param_index := v_param_index + 1;
+            RAISE NOTICE '[DEBUG V4+Diff] excludeTags (Deck Level) param index $%', v_param_index;
+
+            -- Deck must NOT have ANY of the specified tags
+            v_where_clauses := array_append(v_where_clauses, format(
+                'c.deck_id NOT IN (SELECT DISTINCT dt.deck_id FROM deck_tags dt WHERE dt.user_id = %L::uuid AND dt.tag_id = ANY($%s::uuid[]))',
+                 p_user_id,
+                 v_param_index
+            ));
+            v_params := array_append(v_params, v_exclude_tags::TEXT); -- Pass UUID array as text
+            RAISE NOTICE '[DEBUG V4+Diff] Added excludeTags param $% value: %', v_param_index, v_exclude_tags;
+        END IF;
+        -- End Refactored Tag Filtering
+
+        -- 5. Date/Timestamp Filters (Partial logic from V4 - assumes other dates were similar)
+        v_created_date_filter := p_query_criteria->'createdDate';
+        IF v_created_date_filter IS NOT NULL AND jsonb_typeof(v_created_date_filter) = 'object' THEN
+            v_date_operator := v_created_date_filter->>'operator';
+            RAISE NOTICE '[DEBUG V4+Diff] Processing createdDate filter, operator: %', v_date_operator;
+            IF v_date_operator = 'newerThanDays' THEN v_date_value_days := (v_created_date_filter->>'value')::INT; v_where_clauses := array_append(v_where_clauses, format('c.created_at >= (NOW() - interval ''%s day'')', v_date_value_days));
+            ELSIF v_date_operator = 'olderThanDays' THEN v_date_value_days := (v_created_date_filter->>'value')::INT; v_where_clauses := array_append(v_where_clauses, format('c.created_at < (NOW() - interval ''%s day'')', v_date_value_days));
+            ELSIF v_date_operator = 'onDate' THEN v_date_value_start := v_created_date_filter->>'value'; v_param_index := v_param_index + 1; v_where_clauses := array_append(v_where_clauses, format('c.created_at::date = $%s::date', v_param_index)); v_params := array_append(v_params, v_date_value_start);
+            ELSIF v_date_operator = 'betweenDates' THEN v_date_value_start := v_created_date_filter->'value'->>0; v_date_value_end := v_created_date_filter->'value'->>1; IF v_date_value_start IS NOT NULL AND v_date_value_end IS NOT NULL THEN v_param_index := v_param_index + 1; v_where_clauses := array_append(v_where_clauses, format('c.created_at >= $%s::timestamptz', v_param_index)); v_params := array_append(v_params, v_date_value_start); v_param_index := v_param_index + 1; v_where_clauses := array_append(v_where_clauses, format('c.created_at <= $%s::timestamptz', v_param_index)); v_params := array_append(v_params, v_date_value_end); END IF;
+            END IF;
+        END IF;
+        -- *** Add similar IF blocks here for updatedDate, lastReviewed, nextReviewDue ***
+        -- *** based on your original V4 code if they existed and used parameters ***
+
+        -- 6. SRS level filter (Unchanged from V4)
+        v_srs_level_filter := p_query_criteria->'srsLevel';
+        IF v_srs_level_filter IS NOT NULL AND jsonb_typeof(v_srs_level_filter) = 'object' THEN
+            v_srs_operator := v_srs_level_filter->>'operator';
+            v_srs_value    := (v_srs_level_filter->>'value')::INT;
+            RAISE NOTICE '[DEBUG V4+Diff] Processing srsLevel filter, op: %, val: %', v_srs_operator, v_srs_value;
+            IF v_srs_value IS NOT NULL THEN
+                IF v_srs_operator = 'equals' THEN v_where_clauses := array_append(v_where_clauses, format('c.srs_level = %s', v_srs_value));
+                ELSIF v_srs_operator = 'lessThan' THEN v_where_clauses := array_append(v_where_clauses, format('c.srs_level < %s', v_srs_value));
+                ELSIF v_srs_operator = 'greaterThan' THEN v_where_clauses := array_append(v_where_clauses, format('c.srs_level > %s', v_srs_value));
+                END IF;
+                 RAISE NOTICE '[DEBUG V4+Diff] Added srsLevel clause';
+            END IF;
+        END IF;
+
+        -- 7. Difficult Filter **[NEW LOGIC ADDED HERE]**
+        v_include_difficult := (p_query_criteria ->> 'includeDifficult')::boolean;
+        IF v_include_difficult IS TRUE THEN
+             RAISE NOTICE '[DEBUG V4+Diff] includeDifficult=true, adding clause';
+             -- This clause uses only literals, no parameters, so safe to add
+             v_where_clauses := array_append(v_where_clauses, '(c.srs_level < 3 OR c.last_review_grade IS NULL OR c.last_review_grade <= 2)');
+        END IF;
+        -- **[END NEW LOGIC]**
+
+    END IF;  -- END allCards
+
+    -- 8. Build ORDER BY (Unchanged from V4, but using updated allowed fields)
+    v_valid_order_field     := COALESCE(p_order_by_field,'created_at');
+    v_valid_order_direction := UPPER(COALESCE(p_order_by_direction,'DESC'));
+    IF NOT v_valid_order_field = ANY(v_allowed_order_fields) THEN v_valid_order_field := 'created_at'; END IF;
+    IF NOT v_valid_order_direction = ANY(v_allowed_directions) THEN v_valid_order_direction := 'DESC'; END IF;
+    v_order_by_clause := format('ORDER BY c.%I %s NULLS LAST', v_valid_order_field, v_valid_order_direction);
+    RAISE NOTICE '[DEBUG V4+Diff] Order By Clause: %', v_order_by_clause;
+
+    -- 9. Final SQL & execution
+    v_sql := 'SELECT c.id ' || v_from_clause || ' WHERE ' ||
+             -- Handle case where only user_id filter exists
+             (CASE WHEN array_length(v_where_clauses, 1) > 0 THEN array_to_string(v_where_clauses,' AND ') ELSE 'TRUE' END)
+             || ' ' || v_order_by_clause;
+
+    RAISE NOTICE '[FINAL V4+Diff] SQL: %', v_sql;
+    RAISE NOTICE '[FINAL V4+Diff] PARAMS: %', v_params;
+
+    -- Execute using original USING syntax, passing the params array
+    RETURN QUERY EXECUTE v_sql USING v_params;
+
+EXCEPTION
+    WHEN others THEN
+        RAISE WARNING '[ERROR V4+Diff] SQLSTATE: %, MSG: %', SQLSTATE, SQLERRM;
+        RAISE WARNING '[FAILED SQL V4+Diff] %', v_sql;
+        RAISE WARNING '[FAILED PARAMS V4+Diff] %', v_params;
+        RETURN;
+END;$function$
+;
+
+CREATE OR REPLACE FUNCTION public.update_updated_at_column()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$function$
+;
+
+grant delete on table "public"."cards" to "anon";
+
+grant insert on table "public"."cards" to "anon";
+
+grant references on table "public"."cards" to "anon";
+
+grant select on table "public"."cards" to "anon";
+
+grant trigger on table "public"."cards" to "anon";
+
+grant truncate on table "public"."cards" to "anon";
+
+grant update on table "public"."cards" to "anon";
+
+grant delete on table "public"."cards" to "authenticated";
+
+grant insert on table "public"."cards" to "authenticated";
+
+grant references on table "public"."cards" to "authenticated";
+
+grant select on table "public"."cards" to "authenticated";
+
+grant trigger on table "public"."cards" to "authenticated";
+
+grant truncate on table "public"."cards" to "authenticated";
+
+grant update on table "public"."cards" to "authenticated";
+
+grant delete on table "public"."cards" to "service_role";
+
+grant insert on table "public"."cards" to "service_role";
+
+grant references on table "public"."cards" to "service_role";
+
+grant select on table "public"."cards" to "service_role";
+
+grant trigger on table "public"."cards" to "service_role";
+
+grant truncate on table "public"."cards" to "service_role";
+
+grant update on table "public"."cards" to "service_role";
+
+grant delete on table "public"."deck_tags" to "anon";
+
+grant insert on table "public"."deck_tags" to "anon";
+
+grant references on table "public"."deck_tags" to "anon";
+
+grant select on table "public"."deck_tags" to "anon";
+
+grant trigger on table "public"."deck_tags" to "anon";
+
+grant truncate on table "public"."deck_tags" to "anon";
+
+grant update on table "public"."deck_tags" to "anon";
+
+grant delete on table "public"."deck_tags" to "authenticated";
+
+grant insert on table "public"."deck_tags" to "authenticated";
+
+grant references on table "public"."deck_tags" to "authenticated";
+
+grant select on table "public"."deck_tags" to "authenticated";
+
+grant trigger on table "public"."deck_tags" to "authenticated";
+
+grant truncate on table "public"."deck_tags" to "authenticated";
+
+grant update on table "public"."deck_tags" to "authenticated";
+
+grant delete on table "public"."deck_tags" to "service_role";
+
+grant insert on table "public"."deck_tags" to "service_role";
+
+grant references on table "public"."deck_tags" to "service_role";
+
+grant select on table "public"."deck_tags" to "service_role";
+
+grant trigger on table "public"."deck_tags" to "service_role";
+
+grant truncate on table "public"."deck_tags" to "service_role";
+
+grant update on table "public"."deck_tags" to "service_role";
+
+grant delete on table "public"."decks" to "anon";
+
+grant insert on table "public"."decks" to "anon";
+
+grant references on table "public"."decks" to "anon";
+
+grant select on table "public"."decks" to "anon";
+
+grant trigger on table "public"."decks" to "anon";
+
+grant truncate on table "public"."decks" to "anon";
+
+grant update on table "public"."decks" to "anon";
+
+grant delete on table "public"."decks" to "authenticated";
+
+grant insert on table "public"."decks" to "authenticated";
+
+grant references on table "public"."decks" to "authenticated";
+
+grant select on table "public"."decks" to "authenticated";
+
+grant trigger on table "public"."decks" to "authenticated";
+
+grant truncate on table "public"."decks" to "authenticated";
+
+grant update on table "public"."decks" to "authenticated";
+
+grant delete on table "public"."decks" to "service_role";
+
+grant insert on table "public"."decks" to "service_role";
+
+grant references on table "public"."decks" to "service_role";
+
+grant select on table "public"."decks" to "service_role";
+
+grant trigger on table "public"."decks" to "service_role";
+
+grant truncate on table "public"."decks" to "service_role";
+
+grant update on table "public"."decks" to "service_role";
+
+grant delete on table "public"."settings" to "anon";
+
+grant insert on table "public"."settings" to "anon";
+
+grant references on table "public"."settings" to "anon";
+
+grant select on table "public"."settings" to "anon";
+
+grant trigger on table "public"."settings" to "anon";
+
+grant truncate on table "public"."settings" to "anon";
+
+grant update on table "public"."settings" to "anon";
+
+grant delete on table "public"."settings" to "authenticated";
+
+grant insert on table "public"."settings" to "authenticated";
+
+grant references on table "public"."settings" to "authenticated";
+
+grant select on table "public"."settings" to "authenticated";
+
+grant trigger on table "public"."settings" to "authenticated";
+
+grant truncate on table "public"."settings" to "authenticated";
+
+grant update on table "public"."settings" to "authenticated";
+
+grant delete on table "public"."settings" to "service_role";
+
+grant insert on table "public"."settings" to "service_role";
+
+grant references on table "public"."settings" to "service_role";
+
+grant select on table "public"."settings" to "service_role";
+
+grant trigger on table "public"."settings" to "service_role";
+
+grant truncate on table "public"."settings" to "service_role";
+
+grant update on table "public"."settings" to "service_role";
+
+grant delete on table "public"."study_sets" to "anon";
+
+grant insert on table "public"."study_sets" to "anon";
+
+grant references on table "public"."study_sets" to "anon";
+
+grant select on table "public"."study_sets" to "anon";
+
+grant trigger on table "public"."study_sets" to "anon";
+
+grant truncate on table "public"."study_sets" to "anon";
+
+grant update on table "public"."study_sets" to "anon";
+
+grant delete on table "public"."study_sets" to "authenticated";
+
+grant insert on table "public"."study_sets" to "authenticated";
+
+grant references on table "public"."study_sets" to "authenticated";
+
+grant select on table "public"."study_sets" to "authenticated";
+
+grant trigger on table "public"."study_sets" to "authenticated";
+
+grant truncate on table "public"."study_sets" to "authenticated";
+
+grant update on table "public"."study_sets" to "authenticated";
+
+grant delete on table "public"."study_sets" to "service_role";
+
+grant insert on table "public"."study_sets" to "service_role";
+
+grant references on table "public"."study_sets" to "service_role";
+
+grant select on table "public"."study_sets" to "service_role";
+
+grant trigger on table "public"."study_sets" to "service_role";
+
+grant truncate on table "public"."study_sets" to "service_role";
+
+grant update on table "public"."study_sets" to "service_role";
+
+grant delete on table "public"."tags" to "anon";
+
+grant insert on table "public"."tags" to "anon";
+
+grant references on table "public"."tags" to "anon";
+
+grant select on table "public"."tags" to "anon";
+
+grant trigger on table "public"."tags" to "anon";
+
+grant truncate on table "public"."tags" to "anon";
+
+grant update on table "public"."tags" to "anon";
+
+grant delete on table "public"."tags" to "authenticated";
+
+grant insert on table "public"."tags" to "authenticated";
+
+grant references on table "public"."tags" to "authenticated";
+
+grant select on table "public"."tags" to "authenticated";
+
+grant trigger on table "public"."tags" to "authenticated";
+
+grant truncate on table "public"."tags" to "authenticated";
+
+grant update on table "public"."tags" to "authenticated";
+
+grant delete on table "public"."tags" to "service_role";
+
+grant insert on table "public"."tags" to "service_role";
+
+grant references on table "public"."tags" to "service_role";
+
+grant select on table "public"."tags" to "service_role";
+
+grant trigger on table "public"."tags" to "service_role";
+
+grant truncate on table "public"."tags" to "service_role";
+
+grant update on table "public"."tags" to "service_role";
+
+create policy "Users can only access cards in their decks"
+on "public"."cards"
+as permissive
+for all
+to public
+using ((EXISTS ( SELECT 1
+   FROM decks
+  WHERE ((decks.id = cards.deck_id) AND (decks.user_id = auth.uid())))));
+
+
+create policy "Allow users to DELETE their own deck_tags"
+on "public"."deck_tags"
+as permissive
+for delete
+to public
+using ((auth.uid() = user_id));
+
+
+create policy "Allow users to INSERT deck_tags for their own decks"
+on "public"."deck_tags"
+as permissive
+for insert
+to public
+with check (((auth.uid() = user_id) AND (EXISTS ( SELECT 1
+   FROM decks
+  WHERE ((decks.id = deck_tags.deck_id) AND (decks.user_id = auth.uid())))) AND (EXISTS ( SELECT 1
+   FROM tags
+  WHERE ((tags.id = deck_tags.tag_id) AND (tags.user_id = auth.uid()))))));
+
+
+create policy "Allow users to SELECT their own deck_tags"
+on "public"."deck_tags"
+as permissive
+for select
+to public
+using ((auth.uid() = user_id));
+
+
+create policy "Users can only access their own decks"
+on "public"."decks"
+as permissive
+for all
+to public
+using ((auth.uid() = user_id));
+
+create policy "Users can only access their own settings"
+on "public"."settings"
+as permissive
+for all
+to public
+using ((auth.uid() = user_id));
+
+
+create policy "Allow individual user access to their study_sets"
+on "public"."study_sets"
+as permissive
+for all
+to public
+using ((auth.uid() = user_id));
+
+
+create policy "Allow individual user access to their tags"
+on "public"."tags"
+as permissive
+for all
+to public
+using ((auth.uid() = user_id));
+
+
+CREATE TRIGGER set_cards_updated_at BEFORE UPDATE ON public.cards FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER set_settings_updated_at BEFORE UPDATE ON public.settings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER set_study_sets_updated_at BEFORE UPDATE ON public.study_sets FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+
+
+=== 20250427171814_create_cards_with_difficulty_view.sql ===
+-- introduce new column 'mature_interval_threshold' to settings table
+ALTER TABLE public.settings
+ADD COLUMN mature_interval_threshold INTEGER DEFAULT 21 NOT NULL;
+
+COMMENT ON COLUMN public.settings.mature_interval_threshold IS 'SRS interval (days) threshold for a card to be considered mature (default: 21).';
+
+
+-- Drop the previous view if it exists
+DROP VIEW IF EXISTS public.cards_with_difficulty;
+
+-- Create the new view joining cards and settings to catch the mature_threshold_days parameter which is 21 by default
+CREATE VIEW public.cards_with_srs_stage AS
+SELECT
+    c.*, -- Select all columns from cards
+    COALESCE(s.mature_interval_threshold, 21) AS card_mature_threshold_days, -- Include the threshold used for debugging/info
+    CASE
+        WHEN c.last_reviewed_at IS NULL THEN 'new'::text -- We haven’t seen this card before. It’s waiting for its first turn.
+        WHEN COALESCE(c.interval_days, 0) = 0 OR c.last_review_grade = 1 THEN 'learning'::text -- This card is still tricky, so we look at it a lot to help it stick.
+        WHEN COALESCE(c.interval_days, 0) < COALESCE(s.mature_interval_threshold, 21) THEN 'young'::text -- We remember this card pretty well, but we still check it every so often to keep it fresh.
+        ELSE 'mature'::text -- We know this card really well, so we only peek at it now and then to stay sharp.
+    END AS srs_stage
+FROM
+    public.cards c
+    -- Left join settings on user_id to get the threshold
+    LEFT JOIN public.settings s ON c.user_id = s.user_id;
+
+-- Add comment
+COMMENT ON VIEW public.cards_with_srs_stage IS 'Extends cards with calculated SRS stage (new, learning, young, mature) based on SRS state and user settings.';
+
+-- to improve performance of the view, we create a composite btree index on the user_id and mature_interval_threshold columns
+-- create the composite btree index
+CREATE INDEX IF NOT EXISTS settings_userid_maturethreshold_idx
+    ON public.settings
+    USING btree (user_id, mature_interval_threshold);
+
+
+
+-- IMPORTANT: Ensure RLS is already enabled and correctly configured on the base table 'public.cards'
+--            (e.g., checking auth.uid() = user_id)
+--            No separate RLS enablement or policies are needed DIRECTLY on the view here.
+
+
+=== 20250428000000_create_deck_srs_counts_function.sql ===
+-- Migration: Create function to get deck list with SRS stage counts
+
+-- Drop function if it exists (optional, for idempotency during development)
+DROP FUNCTION IF EXISTS public.get_deck_list_with_srs_counts(uuid);
+
+-- Create the function
+CREATE OR REPLACE FUNCTION public.get_deck_list_with_srs_counts(
+    p_user_id uuid
+)
+RETURNS TABLE (
+    id uuid,
+    name text,
+    primary_language text,
+    secondary_language text,
+    is_bilingual boolean,
+    updated_at timestamptz,
+    new_count bigint,       -- Use bigint for counts
+    learning_count bigint,
+    young_count bigint,
+    mature_count bigint
+)
+LANGUAGE sql
+STABLE -- Function does not modify the database
+SECURITY DEFINER -- To bypass RLS within the function if needed, ensure function owner has appropriate base table permissions
+AS $$
+WITH deck_base AS (
+    -- First query only the user's decks to reduce data processed
+    SELECT
+        d.id,
+        d.name,
+        d.primary_language,
+        d.secondary_language,
+        d.is_bilingual,
+        d.updated_at
+    FROM
+        public.decks d
+    WHERE
+        d.user_id = p_user_id
+),
+srs_counts AS (
+    -- Calculate counts separately with optimized classification logic
+    SELECT
+        c.deck_id,
+        COUNT(*) FILTER (WHERE c.last_reviewed_at IS NULL) AS new_count,
+        COUNT(*) FILTER (WHERE c.last_reviewed_at IS NOT NULL AND 
+                        (COALESCE(c.interval_days, 0) = 0 OR c.last_review_grade = 1)) AS learning_count,
+        COUNT(*) FILTER (WHERE c.last_reviewed_at IS NOT NULL AND
+                        COALESCE(c.interval_days, 0) > 0 AND 
+                        c.last_review_grade != 1 AND
+                        COALESCE(c.interval_days, 0) < COALESCE(
+                            (SELECT mature_interval_threshold FROM public.settings WHERE user_id = p_user_id), 
+                            21)) AS young_count,
+        COUNT(*) FILTER (WHERE c.last_reviewed_at IS NOT NULL AND
+                        COALESCE(c.interval_days, 0) > 0 AND 
+                        c.last_review_grade != 1 AND
+                        COALESCE(c.interval_days, 0) >= COALESCE(
+                            (SELECT mature_interval_threshold FROM public.settings WHERE user_id = p_user_id), 
+                            21)) AS mature_count
+    FROM
+        public.cards c
+    WHERE
+        -- Only count cards for this user
+        c.user_id = p_user_id
+        -- Only include decks for this user (redundant with RLS but helps optimizer)
+        AND c.deck_id IN (SELECT id FROM deck_base)
+    GROUP BY
+        c.deck_id
+)
+-- Join the base decks with the counts
+SELECT
+    d.id,
+    d.name,
+    d.primary_language,
+    d.secondary_language,
+    d.is_bilingual,
+    d.updated_at,
+    COALESCE(s.new_count, 0) AS new_count,
+    COALESCE(s.learning_count, 0) AS learning_count,
+    COALESCE(s.young_count, 0) AS young_count,
+    COALESCE(s.mature_count, 0) AS mature_count
+FROM
+    deck_base d
+LEFT JOIN
+    srs_counts s ON d.id = s.deck_id
+ORDER BY
+    d.name ASC;
+$$;
+
+-- Add comment to the function
+COMMENT ON FUNCTION public.get_deck_list_with_srs_counts(uuid)
+IS 'Retrieves all decks for a user along with counts of cards in each SRS stage (new, learning, young, mature). Optimized version that avoids using the full view.';
+
+-- Grant execution rights to the authenticated role
+-- Important: Ensure the 'authenticated' role exists and RLS on base tables (decks, cards) is correctly configured.
+GRANT EXECUTE ON FUNCTION public.get_deck_list_with_srs_counts(uuid) TO authenticated;
+
+-- Create an index to optimize the query
+CREATE INDEX IF NOT EXISTS idx_cards_user_deck_reviewed 
+ON public.cards(user_id, deck_id, last_reviewed_at, interval_days, last_review_grade);
+
+-- Optional: Grant to service_role if called from backend bypassing RLS
+-- GRANT EXECUTE ON FUNCTION public.get_deck_list_with_srs_counts(uuid) TO service_role; 
+=== 20250428010000_add_show_deck_progress_setting.sql ===
+-- Migration: Add show_deck_progress setting
+
+ALTER TABLE public.settings
+ADD COLUMN IF NOT EXISTS show_deck_progress BOOLEAN NOT NULL DEFAULT true;
+
+COMMENT ON COLUMN public.settings.show_deck_progress IS 'Whether to display the SRS stage progress bar on deck list items.'; 
+=== 20250428020000_add_theme_preference_setting.sql ===
+-- Migration: Add theme_light_dark_mode setting
+
+ALTER TABLE public.settings
+ADD COLUMN IF NOT EXISTS theme_light_dark_mode TEXT NOT NULL DEFAULT 'system';
+-- Optional: Add a check constraint
+-- ALTER TABLE public.settings
+-- ADD CONSTRAINT valid_theme_light_dark_mode CHECK (theme_light_dark_mode IN ('light', 'dark', 'system'));
+
+COMMENT ON COLUMN public.settings.theme_light_dark_mode IS 'User preferred theme (light, dark, system).'; 
+=== 20250430214258_update_resolve_study_query.sql ===
+-- Migration file: YYYYMMDDHHMMSS_update_resolve_study_query_difficult_logic_v3.sql
+-- Description: Updates the resolve_study_query function to use cards_with_srs_stage 
+--              for the includeDifficult flag, filtering for 'learning' stage.
+--              Restores original deck_tags filtering logic.
+--              Uses TEXT variables for date values.
+
+-- Drop the existing function if it exists
+DROP FUNCTION IF EXISTS resolve_study_query(jsonb, uuid);
+
+-- Recreate the function with updated logic
+CREATE OR REPLACE FUNCTION resolve_study_query(
+    p_query_criteria jsonb,
+    p_user_id uuid
+    -- Assuming original function did not have p_order_by parameters, add if needed
+    -- p_order_by_field TEXT DEFAULT 'created_at',
+    -- p_order_by_direction TEXT DEFAULT 'DESC'
+)
+RETURNS TABLE(card_id uuid)
+LANGUAGE plpgsql
+STABLE 
+SECURITY INVOKER 
+AS $$
+DECLARE
+    v_sql                  TEXT;
+    v_from_clause          TEXT := 'FROM cards c';
+    v_join_clauses         TEXT := ''; -- For joins needed by filters
+    v_where_clauses        TEXT[] := ARRAY[]::TEXT[];
+    -- Use original's parameter approach if preferred, otherwise format() can work
+    -- v_params               TEXT[] := ARRAY[]::TEXT[]; 
+    -- v_param_index          INTEGER := 0;
+
+    -- Parsed criteria variables
+    v_deck_id              UUID;
+    v_include_tags         UUID[];
+    v_exclude_tags         UUID[];
+    v_tag_logic            TEXT;
+    v_srs_level_op         TEXT;
+    v_srs_level_value      INT;
+    v_include_difficult    BOOLEAN; -- Flag we are changing logic for
+    
+    -- Date related variables (using TEXT like corrected proposal)
+    v_created_op           TEXT;
+    v_created_value        TEXT; 
+    v_updated_op           TEXT;
+    v_updated_value        TEXT; 
+    v_last_reviewed_op     TEXT;
+    v_last_reviewed_value  TEXT; 
+    v_next_due_op          TEXT;
+    v_next_due_value       TEXT; 
+    v_date_range_value     TEXT[]; -- Specific for 'betweenDates'
+
+    -- Ordering variables (if needed, adapt from original)
+    -- v_order_by_clause      TEXT;
+    -- v_valid_order_field    TEXT;
+    -- v_valid_order_direction TEXT;
+    -- v_allowed_order_fields TEXT[] := ARRAY[...]; -- Use updated field names
+    -- v_allowed_directions   TEXT[] := ARRAY['ASC','DESC'];
+
+BEGIN
+    -- Add mandatory user filter (using format %L for safety)
+    v_where_clauses := array_append(v_where_clauses, format('c.user_id = %L', p_user_id));
+
+    -- Extract criteria
+    v_deck_id := p_query_criteria->>'deckId';
+    v_tag_logic := COALESCE(p_query_criteria->>'tagLogic', 'ANY');
+    v_include_difficult := (p_query_criteria->>'includeDifficult')::BOOLEAN;
+
+    SELECT ARRAY(SELECT jsonb_array_elements_text(p_query_criteria->'includeTags')) INTO v_include_tags;
+    SELECT ARRAY(SELECT jsonb_array_elements_text(p_query_criteria->'excludeTags')) INTO v_exclude_tags;
+    v_include_tags := COALESCE(v_include_tags, ARRAY[]::UUID[]);
+    v_exclude_tags := COALESCE(v_exclude_tags, ARRAY[]::UUID[]);
+
+    -- --- Filter by Deck ---
+    IF v_deck_id IS NOT NULL THEN
+        v_where_clauses := array_append(v_where_clauses, format('c.deck_id = %L', v_deck_id));
+    END IF;
+
+    -- --- Filter by Tags (Restored Original Deck Tag Logic) ---
+    -- Include Tags Logic
+    IF array_length(v_include_tags, 1) > 0 THEN
+        IF v_tag_logic = 'ALL' THEN
+             -- Deck must have ALL the specified tags
+             v_where_clauses := array_append(v_where_clauses, format(
+                'c.deck_id IN (SELECT dt.deck_id FROM deck_tags dt WHERE dt.user_id = %L AND dt.tag_id = ANY(%L::uuid[]) GROUP BY dt.deck_id HAVING count(DISTINCT dt.tag_id) = %s)',
+                p_user_id,
+                v_include_tags, -- Embed UUID array directly with ::uuid[] cast
+                array_length(v_include_tags,1)
+             ));
+        ELSE -- ANY (Default)
+            -- Deck must have AT LEAST ONE of the specified tags
+            v_where_clauses := array_append(v_where_clauses, format(
+                'c.deck_id IN (SELECT DISTINCT dt.deck_id FROM deck_tags dt WHERE dt.user_id = %L AND dt.tag_id = ANY(%L::uuid[]))',
+                p_user_id,
+                v_include_tags -- Embed UUID array directly with ::uuid[] cast
+            ));
+        END IF;
+    END IF;
+
+    -- Exclude Tags Logic
+    IF array_length(v_exclude_tags, 1) > 0 THEN
+        -- Deck must NOT have ANY of the specified tags
+        v_where_clauses := array_append(v_where_clauses, format(
+            'c.deck_id NOT IN (SELECT DISTINCT dt.deck_id FROM deck_tags dt WHERE dt.user_id = %L AND dt.tag_id = ANY(%L::uuid[]))',
+             p_user_id,
+             v_exclude_tags -- Embed UUID array directly with ::uuid[] cast
+        ));
+    END IF;
+    -- --- End Restored Tag Logic ---
+
+    -- --- Filter by 'includeDifficult' flag (NEW LOGIC) ---
+    IF v_include_difficult IS TRUE THEN
+        -- Join with the view is required
+        v_join_clauses := v_join_clauses || ' INNER JOIN cards_with_srs_stage cws ON c.id = cws.id';
+        -- Add the condition to filter for 'learning' stage
+        v_where_clauses := array_append(v_where_clauses, 'cws.srs_stage = ''learning''');
+    END IF;
+    -- --- End New Difficult Logic ---
+
+    -- --- Filter by SRS Level (manual filter - simplified embedding) ---
+    v_srs_level_op := p_query_criteria->'srsLevel'->>'operator';
+    IF p_query_criteria->'srsLevel'->>'value' IS NOT NULL THEN
+       v_srs_level_value := (p_query_criteria->'srsLevel'->>'value')::INT;
+    ELSE
+       v_srs_level_value := NULL;
+    END IF;
+    IF v_srs_level_op IS NOT NULL AND v_srs_level_value IS NOT NULL THEN
+        CASE v_srs_level_op
+            WHEN 'equals' THEN v_where_clauses := array_append(v_where_clauses, format('c.srs_level = %s', v_srs_level_value));
+            WHEN 'lessThan' THEN v_where_clauses := array_append(v_where_clauses, format('c.srs_level < %s', v_srs_level_value));
+            WHEN 'greaterThan' THEN v_where_clauses := array_append(v_where_clauses, format('c.srs_level > %s', v_srs_level_value));
+        END CASE;
+    END IF;
+
+    -- --- Date Filters (Using TEXT variables, requires full implementation) ---
+    -- Example for 'createdDate' - Apply pattern to others
+    v_created_op := p_query_criteria->'createdDate'->>'operator';
+    IF v_created_op IS NOT NULL THEN
+        v_created_value := p_query_criteria->'createdDate'->>'value'; 
+        IF v_created_value IS NOT NULL THEN 
+            IF v_created_op = 'newerThanDays' OR v_created_op = 'olderThanDays' THEN
+                 v_where_clauses := array_append(v_where_clauses, format('c.created_at %s now() - interval %L', CASE v_created_op WHEN 'newerThanDays' THEN '>' ELSE '<' END, v_created_value || ' days'));
+            ELSIF v_created_op = 'onDate' THEN
+                 v_where_clauses := array_append(v_where_clauses, format('c.created_at::date = %L::date', v_created_value));
+            -- >>> ADD 'betweenDates' logic here <<<
+            END IF;
+        -- >>> Handle operators without values ('never', 'isDue') here <<<
+        END IF;
+    END IF;
+    -- >>> REPEAT for updatedDate, lastReviewed, nextReviewDue <<<
+
+    -- --- Construct Final SQL ---
+    v_sql := 'SELECT DISTINCT c.id ' || v_from_clause || ' ' || v_join_clauses;
+    IF array_length(v_where_clauses, 1) > 0 THEN
+        v_sql := v_sql || ' WHERE ' || array_to_string(v_where_clauses, ' AND ');
+    END IF;
+
+    -- Add Ordering (adapt from original if needed)
+    -- v_sql := v_sql || ' ORDER BY c.created_at DESC NULLS LAST'; -- Example default
+
+    RAISE LOG 'Executing SQL (v3): %', v_sql;
+
+    -- Execute (using EXECUTE without USING as values are embedded via format)
+    RETURN QUERY EXECUTE v_sql;
+
+EXCEPTION WHEN others THEN
+    RAISE LOG 'Error in resolve_study_query (v3): %', SQLERRM;
+    RETURN QUERY SELECT uuid_nil(); 
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION resolve_study_query(jsonb, uuid) TO authenticated;
+
+COMMENT ON FUNCTION resolve_study_query(jsonb, uuid) IS 
+'Resolves study query criteria JSON into a list of matching card IDs. v3: Uses cards_with_srs_stage for includeDifficult flag, keeps original deck_tags logic.';
+
+=== 20250501153215_update_resolve_study_query_difficult_logic_v3.sql.sql ===
+-- resolve_study_query function definition
+
+CREATE OR REPLACE FUNCTION public.resolve_study_query(
+    p_user_id uuid,
+    p_query_criteria jsonb
+)
+RETURNS SETOF uuid -- Return a set of card IDs
+LANGUAGE plpgsql
+STABLE -- Function does not modify the database
+SECURITY DEFINER -- Important for accessing tables with RLS based on p_user_id
+AS $$
+DECLARE
+    v_sql                  TEXT;
+    v_from_clause          TEXT := 'FROM cards c';
+    v_join_clauses         TEXT := ''; -- For joins needed by filters
+    v_where_clauses        TEXT[] := ARRAY[]::TEXT[];
+
+    -- Parsed criteria variables
+    v_deck_id              UUID;
+    v_include_tags         UUID[];
+    v_exclude_tags         UUID[];
+    v_tag_logic            TEXT;
+    v_srs_level_op         TEXT;
+    v_srs_level_value      INT;
+    v_include_difficult    BOOLEAN;
+
+    -- Date related variables (using TEXT as in provided code)
+    v_created_op           TEXT;
+    v_created_value        TEXT;
+    v_updated_op           TEXT;
+    v_updated_value        TEXT;
+    v_last_reviewed_op     TEXT;
+    v_last_reviewed_value  TEXT;
+    v_next_due_op          TEXT;
+    v_next_due_value       TEXT;
+    v_date_range_value     TEXT[]; -- Specific for 'betweenDates'
+BEGIN
+    -- Add mandatory user filter
+    v_where_clauses := array_append(v_where_clauses, format('c.user_id = %L', p_user_id));
+
+    -- Extract criteria
+    v_deck_id := p_query_criteria->>'deckId';
+    v_tag_logic := COALESCE(p_query_criteria->>'tagLogic', 'ANY');
+    -- Ensure boolean conversion handles JSON null properly -> defaults to FALSE if null or not 'true'
+    v_include_difficult := COALESCE((p_query_criteria->>'includeDifficult')::BOOLEAN, FALSE);
+
+    -- Extract UUID arrays safely, checking for array type
+    SELECT ARRAY(SELECT jsonb_array_elements_text(p_query_criteria->'includeTags') WHERE jsonb_typeof(p_query_criteria->'includeTags') = 'array') INTO v_include_tags;
+    SELECT ARRAY(SELECT jsonb_array_elements_text(p_query_criteria->'excludeTags') WHERE jsonb_typeof(p_query_criteria->'excludeTags') = 'array') INTO v_exclude_tags;
+    v_include_tags := COALESCE(v_include_tags, ARRAY[]::UUID[]);
+    v_exclude_tags := COALESCE(v_exclude_tags, ARRAY[]::UUID[]);
+
+
+    -- --- Filter by Deck ---
+    IF v_deck_id IS NOT NULL THEN
+        v_where_clauses := array_append(v_where_clauses, format('c.deck_id = %L', v_deck_id));
+    END IF;
+
+    -- --- Filter by Tags (Deck Tag Logic - Restored as per original) ---
+    -- Assumes deck_tags table exists with deck_id, tag_id, user_id
+    IF array_length(v_include_tags, 1) > 0 THEN
+        IF v_tag_logic = 'ALL' THEN
+             v_where_clauses := array_append(v_where_clauses, format(
+                'c.deck_id IN (SELECT dt.deck_id FROM deck_tags dt WHERE dt.user_id = %L AND dt.tag_id = ANY(%L::uuid[]) GROUP BY dt.deck_id HAVING count(DISTINCT dt.tag_id) = %s)',
+                p_user_id, v_include_tags, array_length(v_include_tags,1) ));
+        ELSE -- ANY
+            v_where_clauses := array_append(v_where_clauses, format(
+                'c.deck_id IN (SELECT DISTINCT dt.deck_id FROM deck_tags dt WHERE dt.user_id = %L AND dt.tag_id = ANY(%L::uuid[]))',
+                p_user_id, v_include_tags ));
+        END IF;
+    END IF;
+    IF array_length(v_exclude_tags, 1) > 0 THEN
+        v_where_clauses := array_append(v_where_clauses, format(
+            'c.deck_id NOT IN (SELECT DISTINCT dt.deck_id FROM deck_tags dt WHERE dt.user_id = %L AND dt.tag_id = ANY(%L::uuid[]))',
+             p_user_id, v_exclude_tags ));
+    END IF;
+
+    -- --- Filter by 'includeDifficult' flag (Uses cards_with_srs_stage) ---
+    -- Keep this logic AS IS from the provided code.
+    -- Assumes cards_with_srs_stage view exists and includes srs_stage='learning' for difficult cards.
+    IF v_include_difficult IS TRUE THEN
+        -- No need to join if already done for other filters, but simpler to just add it if flag is true
+        -- Avoid duplicate joins if possible in more complex scenarios
+        IF v_join_clauses NOT LIKE '%cards_with_srs_stage%' THEN
+             v_join_clauses := v_join_clauses || ' INNER JOIN public.cards_with_srs_stage cws ON c.id = cws.id';
+        END IF;
+        -- This filter means srs_stage = 'learning' based on your current view/code.
+        v_where_clauses := array_append(v_where_clauses, 'cws.srs_stage = ''learning''');
+    END IF;
+
+    -- --- Filter by SRS Level (manual filter) ---
+    v_srs_level_op := p_query_criteria->'srsLevel'->>'operator';
+    -- Check if the value field exists and is a valid number before casting
+    IF p_query_criteria->'srsLevel'->>'value' IS NOT NULL AND p_query_criteria->'srsLevel'->>'value' ~ '^\d+$' THEN
+       v_srs_level_value := (p_query_criteria->'srsLevel'->>'value')::INT;
+    ELSE v_srs_level_value := NULL; END IF;
+
+    IF v_srs_level_op IS NOT NULL AND v_srs_level_value IS NOT NULL THEN
+        CASE v_srs_level_op
+            WHEN 'equals' THEN v_where_clauses := array_append(v_where_clauses, format('c.srs_level = %s', v_srs_level_value));
+            WHEN 'lessThan' THEN v_where_clauses := array_append(v_where_clauses, format('c.srs_level < %s', v_srs_level_value));
+            WHEN 'greaterThan' THEN v_where_clauses := array_append(v_where_clauses, format('c.srs_level > %s', v_srs_level_value));
+            -- Add default or error handling?
+            ELSE -- Invalid operator
+                 RAISE WARNING 'resolve_study_query: Invalid srsLevel operator: %', v_srs_level_op;
+            -- Consider adding a WHERE 1=0 clause here if invalid operator should return no results
+        END CASE;
+    END IF;
+
+    -- --- Date Filters (COMPLETE THE LOGIC FOR ALL 4 FIELDS) ---
+    -- Filter by createdDate
+    v_created_op := p_query_criteria->'createdDate'->>'operator';
+    IF v_created_op IS NOT NULL THEN
+        -- Value for createdDate can be number of days (string) or date string
+        v_created_value := p_query_criteria->'createdDate'->>'value';
+        -- Value for betweenDates is always an array
+        SELECT ARRAY(SELECT jsonb_array_elements_text(p_query_criteria->'createdDate'->'value') WHERE jsonb_typeof(p_query_criteria->'createdDate'->'value') = 'array') INTO v_date_range_value;
+
+        CASE v_created_op
+            WHEN 'newerThanDays' OR 'olderThanDays' THEN
+                 IF v_created_value IS NOT NULL AND v_created_value ~ '^\d+$' THEN -- Check if value is number of days
+                    v_where_clauses := array_append(v_where_clauses, format('c.created_at %s now() - interval %L', CASE v_created_op WHEN 'newerThanDays' THEN '>=' ELSE '<=' END, v_created_value || ' days'));
+                 END IF;
+            WHEN 'onDate' THEN
+                 IF v_created_value IS NOT NULL THEN -- Check if value is a date string
+                    -- Use date comparison to ignore time part
+                    v_where_clauses := array_append(v_where_clauses, format('c.created_at::date = %L::date', v_created_value));
+                 END IF;
+            WHEN 'betweenDates' THEN
+                 IF array_length(v_date_range_value, 1) = 2 AND v_date_range_value[1] IS NOT NULL AND v_date_range_value[2] IS NOT NULL THEN
+                      -- Include both start and end date by comparing dates
+                      v_where_clauses := array_append(v_where_clauses, format('c.created_at::date >= %L::date', v_date_range_value[1]));
+                      v_where_clauses := array_append(v_where_clauses, format('c.created_at::date <= %L::date', v_date_range_value[2]));
+                 END IF;
+             ELSE -- Invalid operator
+                  RAISE WARNING 'resolve_study_query: Invalid createdDate operator: %', v_created_op;
+             -- Consider adding a WHERE 1=0 clause here
+        END CASE;
+    END IF;
+
+    -- Filter by updatedDate
+     v_updated_op := p_query_criteria->'updatedDate'->>'operator';
+    IF v_updated_op IS NOT NULL THEN
+        v_updated_value := p_query_criteria->'updatedDate'->>'value';
+        SELECT ARRAY(SELECT jsonb_array_elements_text(p_query_criteria->'updatedDate'->'value') WHERE jsonb_typeof(p_query_criteria->'updatedDate'->'value') = 'array') INTO v_date_range_value;
+
+        CASE v_updated_op
+             WHEN 'newerThanDays' OR 'olderThanDays' THEN
+                 IF v_updated_value IS NOT NULL AND v_updated_value ~ '^\d+$' THEN
+                     v_where_clauses := array_append(v_where_clauses, format('c.updated_at %s now() - interval %L', CASE v_updated_op WHEN 'newerThanDays' THEN '>=' ELSE '<=' END, v_updated_value || ' days'));
+                 END IF;
+             WHEN 'onDate' THEN
+                 IF v_updated_value IS NOT NULL THEN
+                     v_where_clauses := array_append(v_where_clauses, format('c.updated_at::date = %L::date', v_updated_value));
+                 END IF;
+             WHEN 'betweenDates' THEN
+                 IF array_length(v_date_range_value, 1) = 2 AND v_date_range_value[1] IS NOT NULL AND v_date_range_value[2] IS NOT NULL THEN
+                      v_where_clauses := array_append(v_where_clauses, format('c.updated_at::date >= %L::date', v_date_range_value[1]));
+                      v_where_clauses := array_append(v_where_clauses, format('c.updated_at::date <= %L::date', v_date_range_value[2]));
+                 END IF;
+             ELSE -- Invalid operator
+                  RAISE WARNING 'resolve_study_query: Invalid updatedDate operator: %', v_updated_op;
+        END CASE;
+    END IF;
+
+    -- Filter by lastReviewed
+     v_last_reviewed_op := p_query_criteria->'lastReviewed'->>'operator';
+    IF v_last_reviewed_op IS NOT NULL THEN
+        v_last_reviewed_value := p_query_criteria->'lastReviewed'->>'value';
+        SELECT ARRAY(SELECT jsonb_array_elements_text(p_query_criteria->'lastReviewed'->'value') WHERE jsonb_typeof(p_query_criteria->'lastReviewed'->'value') = 'array') INTO v_date_range_value;
+
+        CASE v_last_reviewed_op
+             WHEN 'newerThanDays' OR 'olderThanDays' THEN
+                 IF v_last_reviewed_value IS NOT NULL AND v_last_reviewed_value ~ '^\d+$' THEN
+                     -- Apply IS NOT NULL check for reviewed dates
+                     v_where_clauses := array_append(v_where_clauses, format('c.last_reviewed_at IS NOT NULL AND c.last_reviewed_at %s now() - interval %L', CASE v_last_reviewed_op WHEN 'newerThanDays' THEN '>=' ELSE '<=' END, v_last_reviewed_value || ' days'));
+                 END IF;
+             WHEN 'onDate' THEN
+                 IF v_last_reviewed_value IS NOT NULL THEN
+                      v_where_clauses := array_append(v_where_clauses, format('c.last_reviewed_at IS NOT NULL AND c.last_reviewed_at::date = %L::date', v_last_reviewed_value));
+                 END IF;
+             WHEN 'betweenDates' THEN
+                 IF array_length(v_date_range_value, 1) = 2 AND v_date_range_value[1] IS NOT NULL AND v_date_range_value[2] IS NOT NULL THEN
+                      v_where_clauses := array_append(v_where_clauses, format('c.last_reviewed_at IS NOT NULL AND c.last_reviewed_at::date >= %L::date', v_date_range_value[1]));
+                      v_where_clauses := array_append(v_where_clauses, format('c.last_reviewed_at::date <= %L::date', v_date_range_value[2]));
+                 END IF;
+             WHEN 'never' THEN
+                 v_where_clauses := array_append(v_where_clauses, 'c.last_reviewed_at IS NULL');
+             ELSE -- Invalid operator
+                  RAISE WARNING 'resolve_study_query: Invalid lastReviewed operator: %', v_last_reviewed_op;
+        END CASE;
+    END IF;
+
+    -- Filter by nextReviewDue
+     v_next_due_op := p_query_criteria->'nextReviewDue'->>'operator';
+    IF v_next_due_op IS NOT NULL THEN
+        v_next_due_value := p_query_criteria->'nextReviewDue'->>'value';
+        SELECT ARRAY(SELECT jsonb_array_elements_text(p_query_criteria->'nextReviewDue'->'value') WHERE jsonb_typeof(p_query_criteria->'nextReviewDue'->'value') = 'array') INTO v_date_range_value;
+
+        CASE v_next_due_op
+            WHEN 'newerThanDays' OR 'olderThanDays' THEN
+                -- Note: 'newerThanDays' for next_review_due means FURTHER in the future (>= now() - interval)
+                -- Note: 'olderThanDays' for next_review_due means CLOSER to now (or past) (<= now() - interval)
+                 IF v_next_due_value IS NOT NULL AND v_next_due_value ~ '^\d+$' THEN
+                     v_where_clauses := array_append(v_where_clauses, format('c.next_review_due IS NOT NULL AND c.next_review_due %s now() - interval %L', CASE v_next_due_op WHEN 'newerThanDays' THEN '>=' ELSE '<=' END, v_next_due_value || ' days')); -- Fixed operators here
+                 END IF;
+            WHEN 'onDate' THEN
+                 IF v_next_due_value IS NOT NULL THEN
+                     v_where_clauses := array_append(v_where_clauses, format('c.next_review_due IS NOT NULL AND c.next_review_due::date = %L::date', v_next_due_value));
+                 END IF;
+            WHEN 'betweenDates' THEN
+                 IF array_length(v_date_range_value, 1) = 2 AND v_date_range_value[1] IS NOT NULL AND v_date_range_value[2] IS NOT NULL THEN
+                      v_where_clauses := array_append(v_where_clauses, format('c.next_review_due IS NOT NULL AND c.next_review_due::date >= %L::date', v_date_range_value[1]));
+                      v_where_clauses := array_append(v_where_clauses, format('c.next_review_due::date <= %L::date', v_date_range_value[2]));
+                 END IF;
+            WHEN 'never' THEN
+                 v_where_clauses := array_append(v_where_clauses, 'c.next_review_due IS NULL');
+            WHEN 'isDue' THEN
+                 -- Cards are due if next_review_due is NULL (never scheduled) OR in the past/present.
+                 v_where_clauses := array_append(v_where_clauses, '(c.next_review_due IS NULL OR c.next_review_due <= NOW())');
+            ELSE -- Invalid operator
+                 RAISE WARNING 'resolve_study_query: Invalid nextReviewDue operator: %', v_next_due_op;
+        END CASE;
+    END IF;
+
+
+    -- --- Construct Final SQL ---
+    v_sql := 'SELECT DISTINCT c.id ' || v_from_clause || ' ' || v_join_clauses;
+    IF array_length(v_where_clauses, 1) > 0 THEN
+        v_sql := v_sql || ' WHERE ' || array_to_string(v_where_clauses, ' AND ');
+    END IF;
+
+    RAISE LOG '[resolve_study_query] User: %, Criteria: %, SQL: %', p_user_id, p_query_criteria, v_sql;
+
+    RETURN QUERY EXECUTE v_sql;
+
+EXCEPTION WHEN others THEN
+    -- Log the error and return empty set on error
+    RAISE WARNING '[resolve_study_query] Error building or executing query for User: %, Criteria: %. Error: %', p_user_id, p_query_criteria, SQLERRM;
+    RETURN; -- Returns empty table
+END;
+$$;
+
+COMMENT ON FUNCTION public.resolve_study_query(uuid, jsonb) IS
+'Resolves study query criteria JSON into a list of matching card IDs. v6: Uses deck_tags for tag filtering, maps `includeDifficult` to ''learning'' stage, completes all date filter logic.';
+=== 20250501154500_add_missing_study_fields.sql ===
+-- migrate:up
+-- UP Migration: Add study-related columns and index
+-- Add new columns to the cards table for tracking learning/relearning state
+ALTER TABLE public.cards
+ADD COLUMN IF NOT EXISTS learning_state text NULL,
+ADD COLUMN IF NOT EXISTS learning_step_index integer NULL,
+ADD COLUMN IF NOT EXISTS failed_attempts_in_learn integer NOT NULL DEFAULT 0,
+ADD COLUMN IF NOT EXISTS hard_attempts_in_learn integer NOT NULL DEFAULT 0;
+
+-- Add comments for the new cards columns
+COMMENT ON COLUMN public.cards.learning_state IS 'Tracks if a card is in initial learning (''learning'') or relearning (''relearning'') state.';
+COMMENT ON COLUMN public.cards.learning_step_index IS 'Tracks the current step index within the learning or relearning phase.';
+COMMENT ON COLUMN public.cards.failed_attempts_in_learn IS 'Counts ''Again'' (Grade 1) answers during initial learning for EF calculation.';
+COMMENT ON COLUMN public.cards.hard_attempts_in_learn IS 'Counts ''Hard'' (Grade 2) answers during initial learning for EF calculation.';
+
+-- Drop the dependent view before altering the column type
+DROP VIEW IF EXISTS public.cards_with_srs_stage;
+
+-- Change interval_days type to float to support fractional intervals for learning steps
+ALTER TABLE public.cards
+ALTER COLUMN interval_days TYPE float USING interval_days::float;
+-- Note: The NOT NULL DEFAULT 0 constraint is preserved by ALTER TYPE
+
+-- Set easiness_factor to NOT NULL as it should always have a value (default 2.5)
+ALTER TABLE public.cards
+ALTER COLUMN easiness_factor SET NOT NULL;
+
+-- Add new columns to the settings table for study algorithm parameters
+ALTER TABLE public.settings
+ADD COLUMN IF NOT EXISTS enable_dedicated_learn_mode boolean NOT NULL DEFAULT TRUE,
+ADD COLUMN IF NOT EXISTS mastery_threshold integer NOT NULL DEFAULT 3,
+ADD COLUMN IF NOT EXISTS custom_learn_requeue_gap integer NOT NULL DEFAULT 3,
+ADD COLUMN IF NOT EXISTS graduating_interval_days integer NOT NULL DEFAULT 1,
+ADD COLUMN IF NOT EXISTS easy_interval_days integer NOT NULL DEFAULT 4,
+ADD COLUMN IF NOT EXISTS relearning_steps_minutes integer[] NOT NULL DEFAULT '{}'::integer[],
+ADD COLUMN IF NOT EXISTS initial_learning_steps_minutes integer[] NOT NULL DEFAULT '{}'::integer[],
+ADD COLUMN IF NOT EXISTS lapsed_ef_penalty numeric NOT NULL DEFAULT 0.2,
+ADD COLUMN IF NOT EXISTS learn_again_penalty numeric NOT NULL DEFAULT 0.2,
+ADD COLUMN IF NOT EXISTS learn_hard_penalty numeric NOT NULL DEFAULT 0.05,
+ADD COLUMN IF NOT EXISTS min_easiness_factor numeric NOT NULL DEFAULT 1.3,
+ADD COLUMN IF NOT EXISTS default_easiness_factor numeric NOT NULL DEFAULT 2.5;
+
+-- Add comments for the new settings columns
+COMMENT ON COLUMN public.settings.enable_dedicated_learn_mode IS 'Flag to use the dedicated streak-based learning mode (vs standard SM2 steps).';
+COMMENT ON COLUMN public.settings.mastery_threshold IS 'Required streak/success count to graduate from dedicated learn mode.';
+COMMENT ON COLUMN public.settings.custom_learn_requeue_gap IS 'Number of other cards to show before re-queueing a failed card in dedicated learn mode.';
+COMMENT ON COLUMN public.settings.graduating_interval_days IS 'Initial interval (days) assigned when a card graduates from learning/relearning.';
+COMMENT ON COLUMN public.settings.easy_interval_days IS 'Interval (days) assigned when graduating with ''Easy'' (Grade 4).';
+COMMENT ON COLUMN public.settings.relearning_steps_minutes IS 'Intervals (in minutes) for steps during relearning phase (e.g., {10, 1440} for 10m, 1d).';
+COMMENT ON COLUMN public.settings.initial_learning_steps_minutes IS 'Intervals (in minutes) for steps during initial learning phase (standard SM2 algorithm; e.g., {1, 10}).';
+COMMENT ON COLUMN public.settings.lapsed_ef_penalty IS 'Amount subtracted from easiness factor when a card lapses.';
+COMMENT ON COLUMN public.settings.learn_again_penalty IS 'Penalty subtracted from initial EF per ''Again'' (Grade 1) in dedicated learn.';
+COMMENT ON COLUMN public.settings.learn_hard_penalty IS 'Penalty subtracted from initial EF per ''Hard'' (Grade 2) in dedicated learn.';
+COMMENT ON COLUMN public.settings.min_easiness_factor IS 'Minimum allowed easiness factor.';
+COMMENT ON COLUMN public.settings.default_easiness_factor IS 'Default starting easiness factor for new cards.';
+
+-- Recreate the view after altering the base table
+CREATE OR REPLACE VIEW public.cards_with_srs_stage AS
+SELECT
+    c.*, -- Select all columns from cards
+    COALESCE(s.mature_interval_threshold, 21) AS card_mature_threshold_days, -- Include the threshold used for debugging/info
+    CASE
+        WHEN c.last_reviewed_at IS NULL THEN 'new'::text -- We haven't seen this card before. It's waiting for its first turn.
+        WHEN COALESCE(c.interval_days, 0) = 0 OR c.last_review_grade = 1 THEN 'learning'::text -- This card is still tricky, so we look at it a lot to help it stick.
+        WHEN COALESCE(c.interval_days, 0) < COALESCE(s.mature_interval_threshold, 21) THEN 'young'::text -- We remember this card pretty well, but we still check it every so often to keep it fresh.
+        ELSE 'mature'::text -- We know this card really well, so we only peek at it now and then to stay sharp.
+    END AS srs_stage
+FROM
+    public.cards c
+    -- Left join settings on user_id to get the threshold
+    LEFT JOIN public.settings s ON c.user_id = s.user_id;
+
+-- Add an index to optimize queries filtering by user and SRS state
+CREATE INDEX IF NOT EXISTS cards_user_id_srs_state_idx ON public.cards (user_id, srs_level, learning_state);
+
+
+=== 20250510000000_optimize_deck_listing_performance.sql ===
+-- migrate:up
+-- Fix function signature to match how it's called by the application
+
+-- Drop the problematic function
+DROP FUNCTION IF EXISTS public.get_deck_list_with_srs_counts(uuid);
+
+CREATE OR REPLACE FUNCTION public.get_deck_list_with_srs_counts(
+  p_user_id uuid
+)
+RETURNS TABLE (
+  id uuid,
+  name text,
+  primary_language text,
+  secondary_language text,
+  is_bilingual boolean,
+  updated_at timestamptz,
+  new_count bigint,
+  learning_count bigint,
+  young_count bigint,
+  mature_count bigint
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+AS $$
+WITH deck_base AS (
+  SELECT
+    d.id,
+    d.name,
+    d.primary_language,
+    d.secondary_language,
+    d.is_bilingual,
+    d.updated_at
+  FROM
+    public.decks d
+  WHERE
+    d.user_id = p_user_id
+),
+srs_counts AS (
+  SELECT
+    c.deck_id,
+    COUNT(*) FILTER (WHERE c.last_reviewed_at IS NULL) AS new_count,
+    COUNT(*) FILTER (WHERE c.last_reviewed_at IS NOT NULL AND 
+                    (COALESCE(c.interval_days, 0) = 0 OR c.last_review_grade = 1)) AS learning_count,
+    COUNT(*) FILTER (WHERE c.last_reviewed_at IS NOT NULL AND
+                    COALESCE(c.interval_days, 0) > 0 AND 
+                    c.last_review_grade != 1 AND
+                    COALESCE(c.interval_days, 0) < COALESCE(
+                        (SELECT mature_interval_threshold FROM public.settings WHERE user_id = p_user_id), 
+                        21)) AS young_count,
+    COUNT(*) FILTER (WHERE c.last_reviewed_at IS NOT NULL AND
+                    COALESCE(c.interval_days, 0) > 0 AND 
+                    c.last_review_grade != 1 AND
+                    COALESCE(c.interval_days, 0) >= COALESCE(
+                        (SELECT mature_interval_threshold FROM public.settings WHERE user_id = p_user_id), 
+                        21)) AS mature_count
+  FROM
+    public.cards c
+  WHERE
+    c.user_id = p_user_id
+    AND c.deck_id IN (SELECT id FROM deck_base)
+  GROUP BY
+    c.deck_id
+)
+SELECT
+  d.id,
+  d.name,
+  d.primary_language,
+  d.secondary_language,
+  d.is_bilingual,
+  d.updated_at,
+  COALESCE(s.new_count, 0) AS new_count,
+  COALESCE(s.learning_count, 0) AS learning_count,
+  COALESCE(s.young_count, 0) AS young_count,
+  COALESCE(s.mature_count, 0) AS mature_count
+FROM
+  deck_base d
+LEFT JOIN
+  srs_counts s ON d.id = s.deck_id
+ORDER BY
+  d.name ASC;
+$$;
+
+COMMENT ON FUNCTION public.get_deck_list_with_srs_counts(uuid)
+IS 'Retrieves all decks for a user along with counts of cards in each SRS stage (new, learning, young, mature). Optimized version that avoids using the full view.';
+
+GRANT EXECUTE ON FUNCTION public.get_deck_list_with_srs_counts(uuid) TO authenticated;
+=== 20250510010000_optimize_rls_performance.sql ===
+-- migrate:up
+-- Optimize RLS policy performance by reducing function calls
+-- Based on Supabase Performance Advisor recommendations
+
+-- First drop all existing policies
+DROP POLICY IF EXISTS "Users can only access cards in their decks" ON public.cards;
+DROP POLICY IF EXISTS "Allow users to DELETE their own deck_tags" ON public.deck_tags;
+DROP POLICY IF EXISTS "Allow users to INSERT deck_tags for their own decks" ON public.deck_tags;
+DROP POLICY IF EXISTS "Allow users to SELECT their own deck_tags" ON public.deck_tags;
+DROP POLICY IF EXISTS "Users can only access their own decks" ON public.decks;
+DROP POLICY IF EXISTS "Allow individual user access to their settings" ON public.settings;
+DROP POLICY IF EXISTS "Users can only access their own settings" ON public.settings;
+DROP POLICY IF EXISTS "Allow individual user access to their study_sets" ON public.study_sets;
+DROP POLICY IF EXISTS "Allow individual user access to their tags" ON public.tags;
+
+-- Recreate policies with optimized (SELECT auth.uid() AS uid) form
+CREATE POLICY "Users can only access cards in their decks" 
+ON public.cards 
+FOR ALL
+TO public
+USING (
+    EXISTS (
+        SELECT 1
+        FROM decks
+        WHERE decks.id = cards.deck_id 
+        AND decks.user_id = (SELECT auth.uid() AS uid)
+    )
+);
+
+CREATE POLICY "Allow users to DELETE their own deck_tags"
+ON public.deck_tags
+FOR DELETE
+TO public
+USING (user_id = (SELECT auth.uid() AS uid));
+
+CREATE POLICY "Allow users to INSERT deck_tags for their own decks"
+ON public.deck_tags
+FOR INSERT
+TO public
+WITH CHECK (
+    (user_id = (SELECT auth.uid() AS uid)) AND 
+    (EXISTS (
+        SELECT 1
+        FROM decks
+        WHERE decks.id = deck_tags.deck_id 
+        AND decks.user_id = (SELECT auth.uid() AS uid)
+    )) AND 
+    (EXISTS (
+        SELECT 1
+        FROM tags
+        WHERE tags.id = deck_tags.tag_id 
+        AND tags.user_id = (SELECT auth.uid() AS uid)
+    ))
+);
+
+CREATE POLICY "Allow users to SELECT their own deck_tags"
+ON public.deck_tags
+FOR SELECT
+TO public
+USING (user_id = (SELECT auth.uid() AS uid));
+
+CREATE POLICY "Users can only access their own decks" 
+ON public.decks 
+FOR ALL
+TO public
+USING (user_id = (SELECT auth.uid() AS uid));
+
+CREATE POLICY "Allow individual user access to their settings" 
+ON public.settings 
+FOR ALL
+TO public
+USING (user_id = (SELECT auth.uid() AS uid));
+
+CREATE POLICY "Users can only access their own settings" 
+ON public.settings 
+FOR ALL
+TO public
+USING (user_id = (SELECT auth.uid() AS uid));
+
+CREATE POLICY "Allow individual user access to their study_sets" 
+ON public.study_sets 
+FOR ALL
+TO public
+USING (user_id = (SELECT auth.uid() AS uid));
+
+CREATE POLICY "Allow individual user access to their tags" 
+ON public.tags 
+FOR ALL
+TO public
+USING (user_id = (SELECT auth.uid() AS uid));
+
+-- migrate:down
+-- Revert to original policies
+DROP POLICY IF EXISTS "Users can only access cards in their decks" ON public.cards;
+DROP POLICY IF EXISTS "Allow users to DELETE their own deck_tags" ON public.deck_tags;
+DROP POLICY IF EXISTS "Allow users to INSERT deck_tags for their own decks" ON public.deck_tags;
+DROP POLICY IF EXISTS "Allow users to SELECT their own deck_tags" ON public.deck_tags;
+DROP POLICY IF EXISTS "Users can only access their own decks" ON public.decks;
+DROP POLICY IF EXISTS "Allow individual user access to their settings" ON public.settings;
+DROP POLICY IF EXISTS "Users can only access their own settings" ON public.settings;
+DROP POLICY IF EXISTS "Allow individual user access to their study_sets" ON public.study_sets;
+DROP POLICY IF EXISTS "Allow individual user access to their tags" ON public.tags;
+
+-- Restore original cards policy
+CREATE POLICY "Users can only access cards in their decks"
+ON public.cards
+FOR ALL
+TO public
+USING (
+    EXISTS (
+        SELECT 1
+        FROM decks
+        WHERE decks.id = cards.deck_id 
+        AND decks.user_id = auth.uid()
+    )
+);
+
+-- Restore original deck_tags policies
+CREATE POLICY "Allow users to DELETE their own deck_tags"
+ON public.deck_tags
+FOR DELETE
+TO public
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Allow users to INSERT deck_tags for their own decks"
+ON public.deck_tags
+FOR INSERT
+TO public
+WITH CHECK (
+    (auth.uid() = user_id) AND 
+    (EXISTS (
+        SELECT 1
+        FROM decks
+        WHERE decks.id = deck_tags.deck_id 
+        AND decks.user_id = auth.uid()
+    )) AND 
+    (EXISTS (
+        SELECT 1
+        FROM tags
+        WHERE tags.id = deck_tags.tag_id 
+        AND tags.user_id = auth.uid()
+    ))
+);
+
+CREATE POLICY "Allow users to SELECT their own deck_tags"
+ON public.deck_tags
+FOR SELECT
+TO public
+USING (auth.uid() = user_id);
+
+-- Restore original decks policy
+CREATE POLICY "Users can only access their own decks"
+ON public.decks
+FOR ALL
+TO public
+USING (auth.uid() = user_id);
+
+-- Restore original settings policies
+CREATE POLICY "Allow individual user access to their settings"
+ON public.settings
+FOR ALL
+TO public
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can only access their own settings"
+ON public.settings
+FOR ALL
+TO public
+USING (auth.uid() = user_id);
+
+-- Restore original study_sets policy
+CREATE POLICY "Allow individual user access to their study_sets"
+ON public.study_sets
+FOR ALL
+TO public
+USING (auth.uid() = user_id);
+
+-- Restore original tags policy
+CREATE POLICY "Allow individual user access to their tags"
+ON public.tags
+FOR ALL
+TO public
+USING (auth.uid() = user_id); 
+=== 20250510020000_add_complete_srs_counts_function.sql ===
+-- Add database function to fetch decks with complete SRS counts in one query
+
+CREATE OR REPLACE FUNCTION public.get_decks_with_complete_srs_counts(
+  p_user_id uuid
+)
+RETURNS TABLE (
+  id uuid,
+  name text,
+  primary_language text,
+  secondary_language text,
+  is_bilingual boolean,
+  updated_at timestamptz,
+  new_count bigint,           -- Standard SRS stage counts
+  learning_count bigint,
+  young_count bigint,
+  mature_count bigint,
+  learn_eligible_count bigint, -- New Learn button count
+  review_eligible_count bigint -- New Review button count
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+AS $$
+WITH 
+deck_base AS (
+  SELECT
+    d.id,
+    d.name,
+    d.primary_language,
+    d.secondary_language,
+    d.is_bilingual,
+    d.updated_at
+  FROM
+    public.decks d
+  WHERE
+    d.user_id = p_user_id
+),
+-- Calculate standard SRS stages
+srs_counts AS (
+  SELECT
+    c.deck_id,
+    COUNT(*) FILTER (WHERE c.last_reviewed_at IS NULL) AS new_count,
+    COUNT(*) FILTER (WHERE c.last_reviewed_at IS NOT NULL AND 
+                    (COALESCE(c.interval_days, 0) = 0 OR c.last_review_grade = 1)) AS learning_count,
+    COUNT(*) FILTER (WHERE c.last_reviewed_at IS NOT NULL AND
+                    COALESCE(c.interval_days, 0) > 0 AND 
+                    c.last_review_grade != 1 AND
+                    COALESCE(c.interval_days, 0) < COALESCE(
+                        (SELECT mature_interval_threshold FROM public.settings WHERE user_id = p_user_id), 
+                        21)) AS young_count,
+    COUNT(*) FILTER (WHERE c.last_reviewed_at IS NOT NULL AND
+                    COALESCE(c.interval_days, 0) > 0 AND 
+                    c.last_review_grade != 1 AND
+                    COALESCE(c.interval_days, 0) >= COALESCE(
+                        (SELECT mature_interval_threshold FROM public.settings WHERE user_id = p_user_id), 
+                        21)) AS mature_count,
+    -- Learn Mode eligibility: srs_level=0, learning_state=null or 'learning'
+    COUNT(*) FILTER (WHERE c.srs_level = 0 AND 
+                    (c.learning_state IS NULL OR c.learning_state = 'learning')) AS learn_eligible_count,
+    -- Review Mode eligibility
+    COUNT(*) FILTER (WHERE 
+                    -- graduated or relearning
+                    ((c.srs_level >= 1) OR (c.srs_level = 0 AND c.learning_state = 'relearning'))
+                    -- and due for review
+                    AND c.next_review_due <= CURRENT_TIMESTAMP) AS review_eligible_count
+  FROM
+    public.cards c
+  WHERE
+    c.user_id = p_user_id
+    AND c.deck_id IN (SELECT id FROM deck_base)
+  GROUP BY
+    c.deck_id
+)
+-- Combine the data
+SELECT
+  d.id,
+  d.name,
+  d.primary_language,
+  d.secondary_language,
+  d.is_bilingual,
+  d.updated_at,
+  COALESCE(s.new_count, 0) AS new_count,
+  COALESCE(s.learning_count, 0) AS learning_count,
+  COALESCE(s.young_count, 0) AS young_count,
+  COALESCE(s.mature_count, 0) AS mature_count,
+  COALESCE(s.learn_eligible_count, 0) AS learn_eligible_count,
+  COALESCE(s.review_eligible_count, 0) AS review_eligible_count
+FROM
+  deck_base d
+LEFT JOIN
+  srs_counts s ON d.id = s.deck_id
+ORDER BY
+  d.name ASC;
+$$;
+
+COMMENT ON FUNCTION public.get_decks_with_complete_srs_counts(uuid)
+IS 'Retrieves all decks for a user with complete SRS information in a single query. Includes standard SRS stage counts and eligible counts for learn/review modes.';
+
+GRANT EXECUTE ON FUNCTION public.get_decks_with_complete_srs_counts(uuid) TO authenticated;
+=== 20250426200000_add_ai_uploads_storage_policies.sql ===
+-- supabase/migrations/add_ai_uploads_storage_policies.sql
+-- Migration to add Row Level Security (RLS) policies for the 'ai-uploads' storage bucket.
+-- These policies restrict access based on authenticated user ID matching the first part of the file path.
+-- Uses DROP IF EXISTS / CREATE to ensure idempotency on older PostgreSQL versions.
+
+-- 1. Policy: Allow authenticated users to upload (INSERT) files into their own folder.
+DROP POLICY IF EXISTS "Allow authenticated uploads to own folder" ON storage.objects;
+CREATE POLICY "Allow authenticated uploads to own folder" 
+ON storage.objects FOR INSERT 
+TO authenticated 
+WITH CHECK (
+  bucket_id = 'ai-uploads' AND 
+  auth.uid() = ((storage.foldername(name))[1])::uuid -- Cast text folder name to uuid
+);
+
+-- 2. Policy: Allow authenticated users to download/view (SELECT) files from their own folder.
+DROP POLICY IF EXISTS "Allow authenticated selects from own folder" ON storage.objects;
+CREATE POLICY "Allow authenticated selects from own folder" 
+ON storage.objects FOR SELECT 
+TO authenticated 
+USING (
+  bucket_id = 'ai-uploads' AND 
+  auth.uid() = ((storage.foldername(name))[1])::uuid -- Cast text folder name to uuid
+);
+
+-- 3. Policy: Allow authenticated users to delete (DELETE) files from their own folder.
+DROP POLICY IF EXISTS "Allow authenticated deletes from own folder" ON storage.objects;
+CREATE POLICY "Allow authenticated deletes from own folder" 
+ON storage.objects FOR DELETE 
+TO authenticated 
+USING (
+  bucket_id = 'ai-uploads' AND 
+  auth.uid() = ((storage.foldername(name))[1])::uuid -- Cast text folder name to uuid
+);
+
+-- 4. Policy: Allow authenticated users to update (UPDATE) files in their own folder.
+DROP POLICY IF EXISTS "Allow authenticated updates in own folder" ON storage.objects;
+CREATE POLICY "Allow authenticated updates in own folder" 
+ON storage.objects FOR UPDATE 
+TO authenticated 
+USING (
+  bucket_id = 'ai-uploads' AND 
+  auth.uid() = ((storage.foldername(name))[1])::uuid -- Cast text folder name to uuid
+);
+
+-- Optional: Log the creation of policies (informational)
+-- INSERT INTO supabase_migrations.schema_migrations (version) VALUES ('add_ai_uploads_storage_policies');
+-- Note: Supabase CLI handles migration versioning automatically. 
+=== 20250427092656_remote_schema.sql ===
+create type "public"."font_option" as enum ('default', 'opendyslexic', 'atkinson');
+
+create table "public"."cards" (
+    "id" uuid not null default uuid_generate_v4(),
+    "deck_id" uuid not null,
+    "question" text not null,
+    "answer" text not null,
+    "correct_count" integer default 0,
+    "incorrect_count" integer default 0,
+    "last_studied" timestamp with time zone,
+    "created_at" timestamp with time zone default timezone('utc'::text, now()),
+    "updated_at" timestamp with time zone default timezone('utc'::text, now()),
+    "attempt_count" integer default 0,
+    "difficulty_score" double precision default 0,
+    "user_id" uuid,
+    "last_reviewed_at" timestamp with time zone,
+    "next_review_due" timestamp with time zone,
+    "srs_level" integer not null default 0,
+    "easiness_factor" double precision default 2.5,
+    "interval_days" integer default 0,
+    "stability" double precision,
+    "difficulty" double precision,
+    "last_review_grade" integer,
+    "question_part_of_speech" text default 'N/A'::text,
+    "question_gender" text default 'N/A'::text,
+    "answer_part_of_speech" text default 'N/A'::text,
+    "answer_gender" text default 'N/A'::text
+);
+
+
+alter table "public"."cards" enable row level security;
+
+create table "public"."deck_tags" (
+    "deck_id" uuid not null,
+    "tag_id" uuid not null,
+    "user_id" uuid not null,
+    "created_at" timestamp with time zone not null default now()
+);
+
+
+alter table "public"."deck_tags" enable row level security;
+
+create table "public"."decks" (
+    "id" uuid not null default gen_random_uuid(),
+    "user_id" uuid not null,
+    "name" text not null,
+    "progress" jsonb not null default '{"streak": 0, "correct": 0, "incorrect": 0, "lastStudied": null}'::jsonb,
+    "created_at" timestamp with time zone default timezone('utc'::text, now()),
+    "updated_at" timestamp with time zone default timezone('utc'::text, now()),
+    "is_bilingual" boolean not null default false,
+    "primary_language" text not null default 'en'::text,
+    "secondary_language" text not null default 'en'::text
+);
+
+
+alter table "public"."decks" enable row level security;
+
+create table "public"."settings" (
+    "id" uuid not null default gen_random_uuid(),
+    "user_id" uuid not null,
+    "app_language" text not null default 'english'::text,
+    "preferred_voices" jsonb not null default '{"dutch": null, "french": null, "english": null}'::jsonb,
+    "created_at" timestamp with time zone default timezone('utc'::text, now()),
+    "updated_at" timestamp with time zone default timezone('utc'::text, now()),
+    "language_dialects" jsonb default jsonb_build_object('en', 'en-GB', 'nl', 'nl-NL', 'fr', 'fr-FR', 'de', 'de-DE', 'es', 'es-ES', 'it', 'it-IT'),
+    "tts_enabled" boolean default true,
+    "show_difficulty" boolean default true,
+    "mastery_threshold" integer default 3,
+    "card_font" character varying(20) default 'default'::character varying,
+    "enable_word_color_coding" boolean default false,
+    "enable_basic_color_coding" boolean default true,
+    "enable_advanced_color_coding" boolean default false,
+    "word_palette_config" jsonb,
+    "color_only_non_native" boolean default true
+);
+
+
+alter table "public"."settings" enable row level security;
+
+create table "public"."study_sets" (
+    "id" uuid not null default uuid_generate_v4(),
+    "user_id" uuid not null,
+    "name" text not null,
+    "description" text,
+    "query_criteria" jsonb not null,
+    "created_at" timestamp with time zone not null default now(),
+    "updated_at" timestamp with time zone not null default now()
+);
+
+
+alter table "public"."study_sets" enable row level security;
+
+create table "public"."tags" (
+    "id" uuid not null default uuid_generate_v4(),
+    "user_id" uuid not null,
+    "name" text not null,
+    "created_at" timestamp with time zone not null default now()
+);
+
+
+alter table "public"."tags" enable row level security;
+
+CREATE UNIQUE INDEX cards_pkey ON public.cards USING btree (id);
+
+CREATE UNIQUE INDEX deck_tags_pkey ON public.deck_tags USING btree (deck_id, tag_id);
+
+CREATE UNIQUE INDEX decks_pkey ON public.decks USING btree (id);
+
+CREATE INDEX idx_cards_deck_id ON public.cards USING btree (deck_id);
+
+CREATE INDEX idx_cards_user_id_next_review_due ON public.cards USING btree (user_id, next_review_due);
+
+CREATE INDEX idx_deck_tags_deck_id ON public.deck_tags USING btree (deck_id);
+
+CREATE INDEX idx_deck_tags_tag_id ON public.deck_tags USING btree (tag_id);
+
+CREATE INDEX idx_deck_tags_user_id ON public.deck_tags USING btree (user_id);
+
+CREATE INDEX idx_decks_user_id ON public.decks USING btree (user_id);
+
+CREATE INDEX idx_settings_user_id ON public.settings USING btree (user_id);
+
+CREATE UNIQUE INDEX settings_pkey ON public.settings USING btree (id);
+
+CREATE UNIQUE INDEX study_sets_pkey ON public.study_sets USING btree (id);
+
+CREATE UNIQUE INDEX tags_pkey ON public.tags USING btree (id);
+
+CREATE UNIQUE INDEX tags_user_id_name_key ON public.tags USING btree (user_id, name);
+
+CREATE UNIQUE INDEX unique_user_settings ON public.settings USING btree (user_id);
+
+alter table "public"."cards" add constraint "cards_pkey" PRIMARY KEY using index "cards_pkey";
+
+alter table "public"."deck_tags" add constraint "deck_tags_pkey" PRIMARY KEY using index "deck_tags_pkey";
+
+alter table "public"."decks" add constraint "decks_pkey" PRIMARY KEY using index "decks_pkey";
+
+alter table "public"."settings" add constraint "settings_pkey" PRIMARY KEY using index "settings_pkey";
+
+alter table "public"."study_sets" add constraint "study_sets_pkey" PRIMARY KEY using index "study_sets_pkey";
+
+alter table "public"."tags" add constraint "tags_pkey" PRIMARY KEY using index "tags_pkey";
+
+alter table "public"."cards" add constraint "cards_user_id_fkey" FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE not valid;
+
+alter table "public"."cards" validate constraint "cards_user_id_fkey";
+
+alter table "public"."cards" add constraint "fk_deck" FOREIGN KEY (deck_id) REFERENCES decks(id) ON DELETE CASCADE not valid;
+
+alter table "public"."cards" validate constraint "fk_deck";
+
+alter table "public"."deck_tags" add constraint "deck_tags_deck_id_fkey" FOREIGN KEY (deck_id) REFERENCES decks(id) ON DELETE CASCADE not valid;
+
+alter table "public"."deck_tags" validate constraint "deck_tags_deck_id_fkey";
+
+alter table "public"."deck_tags" add constraint "deck_tags_tag_id_fkey" FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE not valid;
+
+alter table "public"."deck_tags" validate constraint "deck_tags_tag_id_fkey";
+
+alter table "public"."deck_tags" add constraint "deck_tags_user_id_fkey" FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE not valid;
+
+alter table "public"."deck_tags" validate constraint "deck_tags_user_id_fkey";
+
+alter table "public"."decks" add constraint "fk_user" FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE not valid;
+
+alter table "public"."decks" validate constraint "fk_user";
+
+alter table "public"."settings" add constraint "settings_user_id_fkey" FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE not valid;
+
+alter table "public"."settings" validate constraint "settings_user_id_fkey";
+
+alter table "public"."settings" add constraint "unique_user_settings" UNIQUE using index "unique_user_settings";
+
+alter table "public"."study_sets" add constraint "study_sets_user_id_fkey" FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE not valid;
+
+alter table "public"."study_sets" validate constraint "study_sets_user_id_fkey";
+
+alter table "public"."tags" add constraint "tags_user_id_fkey" FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE not valid;
+
+alter table "public"."tags" validate constraint "tags_user_id_fkey";
+
+alter table "public"."tags" add constraint "tags_user_id_name_key" UNIQUE using index "tags_user_id_name_key";
+
+set check_function_bodies = off;
+
+CREATE OR REPLACE FUNCTION public.resolve_study_query(p_user_id uuid, p_query_criteria jsonb, p_order_by_field text DEFAULT 'created_at'::text, p_order_by_direction text DEFAULT 'DESC'::text)
+ RETURNS TABLE(card_id uuid)
+ LANGUAGE plpgsql
+AS $function$DECLARE
+    v_sql                  TEXT;
+    v_from_clause          TEXT := 'FROM cards c';
+    v_where_clauses        TEXT[] := ARRAY[]::TEXT[];
+    v_params               TEXT[] := ARRAY[]::TEXT[];
+    v_param_index          INTEGER := 0;
+
+    -- Parsed criteria variables
+    v_deck_id              UUID;
+    v_all_cards            BOOLEAN;
+    v_include_tags         UUID[];
+    v_exclude_tags         UUID[];
+    v_tag_logic            TEXT;
+    v_deck_title_contains  TEXT;
+    v_deck_languages_raw   JSONB;
+    v_deck_languages       TEXT[];
+    v_created_date_filter  JSONB;
+    v_updated_date_filter  JSONB;
+    v_last_reviewed_filter JSONB;
+    v_next_review_due_filter JSONB;
+    v_srs_level_filter     JSONB;
+    v_date_operator        TEXT;
+    v_date_value_days      INTEGER;
+    v_date_value_start     TEXT;
+    v_date_value_end       TEXT;
+    v_srs_operator         TEXT;
+    v_srs_value            INTEGER;
+    v_include_difficult    BOOLEAN; -- **[ADDED]**
+
+    -- Ordering variables
+    v_order_by_clause      TEXT;
+    v_valid_order_field    TEXT;
+    v_valid_order_direction TEXT;
+    -- ** Use current schema column names, not front_content/back_content **
+    v_allowed_order_fields TEXT[] := ARRAY[
+        'created_at','updated_at','question','answer', -- Updated field names
+        'last_reviewed_at','next_review_due','srs_level',
+        'easiness_factor','interval_days','stability','difficulty'
+    ];
+    v_allowed_directions   TEXT[] := ARRAY['ASC','DESC'];
+BEGIN
+    RAISE NOTICE '[DEBUG resolve_study_query V4+Diff] START - User: %, Criteria: %', p_user_id, p_query_criteria;
+
+    -- 0. Mandatory user_id filter
+    v_where_clauses := array_append(
+        v_where_clauses,
+        format('c.user_id = %L::uuid', p_user_id)
+    );
+    RAISE NOTICE '[DEBUG V4+Diff] Added user_id clause';
+
+    -- 1. allCards flag
+    v_all_cards := (p_query_criteria->>'allCards')::BOOLEAN;
+    IF v_all_cards IS TRUE THEN
+        RAISE NOTICE '[DEBUG V4+Diff] allCards = true, skipping filters';
+    ELSE
+        RAISE NOTICE '[DEBUG V4+Diff] allCards = false, applying filters';
+
+        -- 2. Deck filter (Literal embedding - unchanged from V4)
+        v_deck_id := (p_query_criteria->>'deckId')::UUID;
+        IF v_deck_id IS NOT NULL THEN
+            v_where_clauses := array_append(
+                v_where_clauses,
+                format('c.deck_id = %L::uuid', v_deck_id)
+            );
+            RAISE NOTICE '[DEBUG V4+Diff] Added deck_id clause (%)', v_deck_id;
+        END IF;
+
+        -- 3. Deck Title / Language Filters (JOIN needed, unchanged from V4)
+        v_deck_title_contains := p_query_criteria->>'deckTitleContains';
+        v_deck_languages_raw  := p_query_criteria->'deckLanguages';
+        IF v_deck_title_contains IS NOT NULL
+           OR (v_deck_languages_raw IS NOT NULL
+               AND jsonb_typeof(v_deck_languages_raw) = 'array'
+               AND jsonb_array_length(v_deck_languages_raw) > 0) THEN
+            RAISE NOTICE '[DEBUG V4+Diff] Adding JOIN decks';
+            v_from_clause := v_from_clause || ' JOIN decks d ON c.deck_id = d.id';
+            IF v_deck_title_contains IS NOT NULL THEN
+                v_param_index := v_param_index + 1;
+                v_where_clauses := array_append(v_where_clauses, format('d.title ILIKE $%s', v_param_index));
+                v_params := array_append(v_params, ('%' || v_deck_title_contains || '%')::TEXT);
+                RAISE NOTICE '[DEBUG V4+Diff] Added param $%: deckTitleContains', v_param_index;
+            END IF;
+            IF v_deck_languages_raw IS NOT NULL AND jsonb_typeof(v_deck_languages_raw) = 'array' AND jsonb_array_length(v_deck_languages_raw) > 0 THEN
+                SELECT array_agg(elem::TEXT) INTO v_deck_languages FROM jsonb_array_elements_text(v_deck_languages_raw) AS elem;
+                v_param_index := v_param_index + 1;
+                v_where_clauses := array_append(v_where_clauses, format('(d.primary_language = ANY($%s::text[]) OR d.secondary_language = ANY($%s::text[]))', v_param_index, v_param_index));
+                v_params := array_append(v_params, v_deck_languages::TEXT);
+                RAISE NOTICE '[DEBUG V4+Diff] Added param $%: deckLanguages', v_param_index;
+            END IF;
+        END IF;
+
+        -- 4. Tag filtering (Refactored for deck_tags)
+        v_tag_logic := COALESCE(p_query_criteria->>'tagLogic','ANY'); -- 'ANY' or 'ALL'
+
+        -- Include Tags Logic
+        IF (p_query_criteria->'includeTags') IS NOT NULL AND jsonb_typeof(p_query_criteria->'includeTags') = 'array' AND jsonb_array_length(p_query_criteria->'includeTags') > 0 THEN
+            SELECT array_agg(elem::TEXT::UUID) INTO v_include_tags FROM jsonb_array_elements_text(p_query_criteria->'includeTags') AS elem;
+            v_param_index := v_param_index + 1;
+            RAISE NOTICE '[DEBUG V4+Diff] includeTags (Deck Level) param index $%', v_param_index;
+
+            IF v_tag_logic = 'ALL' THEN
+                 -- Deck must have ALL the specified tags
+                 v_where_clauses := array_append(v_where_clauses, format(
+                    'c.deck_id IN (SELECT dt.deck_id FROM deck_tags dt WHERE dt.user_id = %L::uuid AND dt.tag_id = ANY($%s::uuid[]) GROUP BY dt.deck_id HAVING count(DISTINCT dt.tag_id) = %s)',
+                    p_user_id,
+                    v_param_index,
+                    array_length(v_include_tags,1)
+                 ));
+                 RAISE NOTICE '[DEBUG V4+Diff] Added deck_tags includeTags (ALL) clause';
+            ELSE -- ANY (Default)
+                -- Deck must have AT LEAST ONE of the specified tags
+                v_where_clauses := array_append(v_where_clauses, format(
+                    'c.deck_id IN (SELECT DISTINCT dt.deck_id FROM deck_tags dt WHERE dt.user_id = %L::uuid AND dt.tag_id = ANY($%s::uuid[]))',
+                    p_user_id,
+                    v_param_index
+                ));
+                 RAISE NOTICE '[DEBUG V4+Diff] Added deck_tags includeTags (ANY) clause';
+            END IF;
+
+            v_params := array_append(v_params, v_include_tags::TEXT); -- Pass UUID array as text for parameter binding
+            RAISE NOTICE '[DEBUG V4+Diff] Added includeTags param $% value: %', v_param_index, v_include_tags;
+        END IF;
+
+        -- Exclude Tags Logic
+        IF (p_query_criteria->'excludeTags') IS NOT NULL AND jsonb_typeof(p_query_criteria->'excludeTags') = 'array' AND jsonb_array_length(p_query_criteria->'excludeTags') > 0 THEN
+            SELECT array_agg(elem::TEXT::UUID) INTO v_exclude_tags FROM jsonb_array_elements_text(p_query_criteria->'excludeTags') AS elem;
+            v_param_index := v_param_index + 1;
+            RAISE NOTICE '[DEBUG V4+Diff] excludeTags (Deck Level) param index $%', v_param_index;
+
+            -- Deck must NOT have ANY of the specified tags
+            v_where_clauses := array_append(v_where_clauses, format(
+                'c.deck_id NOT IN (SELECT DISTINCT dt.deck_id FROM deck_tags dt WHERE dt.user_id = %L::uuid AND dt.tag_id = ANY($%s::uuid[]))',
+                 p_user_id,
+                 v_param_index
+            ));
+            v_params := array_append(v_params, v_exclude_tags::TEXT); -- Pass UUID array as text
+            RAISE NOTICE '[DEBUG V4+Diff] Added excludeTags param $% value: %', v_param_index, v_exclude_tags;
+        END IF;
+        -- End Refactored Tag Filtering
+
+        -- 5. Date/Timestamp Filters (Partial logic from V4 - assumes other dates were similar)
+        v_created_date_filter := p_query_criteria->'createdDate';
+        IF v_created_date_filter IS NOT NULL AND jsonb_typeof(v_created_date_filter) = 'object' THEN
+            v_date_operator := v_created_date_filter->>'operator';
+            RAISE NOTICE '[DEBUG V4+Diff] Processing createdDate filter, operator: %', v_date_operator;
+            IF v_date_operator = 'newerThanDays' THEN v_date_value_days := (v_created_date_filter->>'value')::INT; v_where_clauses := array_append(v_where_clauses, format('c.created_at >= (NOW() - interval ''%s day'')', v_date_value_days));
+            ELSIF v_date_operator = 'olderThanDays' THEN v_date_value_days := (v_created_date_filter->>'value')::INT; v_where_clauses := array_append(v_where_clauses, format('c.created_at < (NOW() - interval ''%s day'')', v_date_value_days));
+            ELSIF v_date_operator = 'onDate' THEN v_date_value_start := v_created_date_filter->>'value'; v_param_index := v_param_index + 1; v_where_clauses := array_append(v_where_clauses, format('c.created_at::date = $%s::date', v_param_index)); v_params := array_append(v_params, v_date_value_start);
+            ELSIF v_date_operator = 'betweenDates' THEN v_date_value_start := v_created_date_filter->'value'->>0; v_date_value_end := v_created_date_filter->'value'->>1; IF v_date_value_start IS NOT NULL AND v_date_value_end IS NOT NULL THEN v_param_index := v_param_index + 1; v_where_clauses := array_append(v_where_clauses, format('c.created_at >= $%s::timestamptz', v_param_index)); v_params := array_append(v_params, v_date_value_start); v_param_index := v_param_index + 1; v_where_clauses := array_append(v_where_clauses, format('c.created_at <= $%s::timestamptz', v_param_index)); v_params := array_append(v_params, v_date_value_end); END IF;
+            END IF;
+        END IF;
+        -- *** Add similar IF blocks here for updatedDate, lastReviewed, nextReviewDue ***
+        -- *** based on your original V4 code if they existed and used parameters ***
+
+        -- 6. SRS level filter (Unchanged from V4)
+        v_srs_level_filter := p_query_criteria->'srsLevel';
+        IF v_srs_level_filter IS NOT NULL AND jsonb_typeof(v_srs_level_filter) = 'object' THEN
+            v_srs_operator := v_srs_level_filter->>'operator';
+            v_srs_value    := (v_srs_level_filter->>'value')::INT;
+            RAISE NOTICE '[DEBUG V4+Diff] Processing srsLevel filter, op: %, val: %', v_srs_operator, v_srs_value;
+            IF v_srs_value IS NOT NULL THEN
+                IF v_srs_operator = 'equals' THEN v_where_clauses := array_append(v_where_clauses, format('c.srs_level = %s', v_srs_value));
+                ELSIF v_srs_operator = 'lessThan' THEN v_where_clauses := array_append(v_where_clauses, format('c.srs_level < %s', v_srs_value));
+                ELSIF v_srs_operator = 'greaterThan' THEN v_where_clauses := array_append(v_where_clauses, format('c.srs_level > %s', v_srs_value));
+                END IF;
+                 RAISE NOTICE '[DEBUG V4+Diff] Added srsLevel clause';
+            END IF;
+        END IF;
+
+        -- 7. Difficult Filter **[NEW LOGIC ADDED HERE]**
+        v_include_difficult := (p_query_criteria ->> 'includeDifficult')::boolean;
+        IF v_include_difficult IS TRUE THEN
+             RAISE NOTICE '[DEBUG V4+Diff] includeDifficult=true, adding clause';
+             -- This clause uses only literals, no parameters, so safe to add
+             v_where_clauses := array_append(v_where_clauses, '(c.srs_level < 3 OR c.last_review_grade IS NULL OR c.last_review_grade <= 2)');
+        END IF;
+        -- **[END NEW LOGIC]**
+
+    END IF;  -- END allCards
+
+    -- 8. Build ORDER BY (Unchanged from V4, but using updated allowed fields)
+    v_valid_order_field     := COALESCE(p_order_by_field,'created_at');
+    v_valid_order_direction := UPPER(COALESCE(p_order_by_direction,'DESC'));
+    IF NOT v_valid_order_field = ANY(v_allowed_order_fields) THEN v_valid_order_field := 'created_at'; END IF;
+    IF NOT v_valid_order_direction = ANY(v_allowed_directions) THEN v_valid_order_direction := 'DESC'; END IF;
+    v_order_by_clause := format('ORDER BY c.%I %s NULLS LAST', v_valid_order_field, v_valid_order_direction);
+    RAISE NOTICE '[DEBUG V4+Diff] Order By Clause: %', v_order_by_clause;
+
+    -- 9. Final SQL & execution
+    v_sql := 'SELECT c.id ' || v_from_clause || ' WHERE ' ||
+             -- Handle case where only user_id filter exists
+             (CASE WHEN array_length(v_where_clauses, 1) > 0 THEN array_to_string(v_where_clauses,' AND ') ELSE 'TRUE' END)
+             || ' ' || v_order_by_clause;
+
+    RAISE NOTICE '[FINAL V4+Diff] SQL: %', v_sql;
+    RAISE NOTICE '[FINAL V4+Diff] PARAMS: %', v_params;
+
+    -- Execute using original USING syntax, passing the params array
+    RETURN QUERY EXECUTE v_sql USING v_params;
+
+EXCEPTION
+    WHEN others THEN
+        RAISE WARNING '[ERROR V4+Diff] SQLSTATE: %, MSG: %', SQLSTATE, SQLERRM;
+        RAISE WARNING '[FAILED SQL V4+Diff] %', v_sql;
+        RAISE WARNING '[FAILED PARAMS V4+Diff] %', v_params;
+        RETURN;
+END;$function$
+;
+
+CREATE OR REPLACE FUNCTION public.update_updated_at_column()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$function$
+;
+
+grant delete on table "public"."cards" to "anon";
+
+grant insert on table "public"."cards" to "anon";
+
+grant references on table "public"."cards" to "anon";
+
+grant select on table "public"."cards" to "anon";
+
+grant trigger on table "public"."cards" to "anon";
+
+grant truncate on table "public"."cards" to "anon";
+
+grant update on table "public"."cards" to "anon";
+
+grant delete on table "public"."cards" to "authenticated";
+
+grant insert on table "public"."cards" to "authenticated";
+
+grant references on table "public"."cards" to "authenticated";
+
+grant select on table "public"."cards" to "authenticated";
+
+grant trigger on table "public"."cards" to "authenticated";
+
+grant truncate on table "public"."cards" to "authenticated";
+
+grant update on table "public"."cards" to "authenticated";
+
+grant delete on table "public"."cards" to "service_role";
+
+grant insert on table "public"."cards" to "service_role";
+
+grant references on table "public"."cards" to "service_role";
+
+grant select on table "public"."cards" to "service_role";
+
+grant trigger on table "public"."cards" to "service_role";
+
+grant truncate on table "public"."cards" to "service_role";
+
+grant update on table "public"."cards" to "service_role";
+
+grant delete on table "public"."deck_tags" to "anon";
+
+grant insert on table "public"."deck_tags" to "anon";
+
+grant references on table "public"."deck_tags" to "anon";
+
+grant select on table "public"."deck_tags" to "anon";
+
+grant trigger on table "public"."deck_tags" to "anon";
+
+grant truncate on table "public"."deck_tags" to "anon";
+
+grant update on table "public"."deck_tags" to "anon";
+
+grant delete on table "public"."deck_tags" to "authenticated";
+
+grant insert on table "public"."deck_tags" to "authenticated";
+
+grant references on table "public"."deck_tags" to "authenticated";
+
+grant select on table "public"."deck_tags" to "authenticated";
+
+grant trigger on table "public"."deck_tags" to "authenticated";
+
+grant truncate on table "public"."deck_tags" to "authenticated";
+
+grant update on table "public"."deck_tags" to "authenticated";
+
+grant delete on table "public"."deck_tags" to "service_role";
+
+grant insert on table "public"."deck_tags" to "service_role";
+
+grant references on table "public"."deck_tags" to "service_role";
+
+grant select on table "public"."deck_tags" to "service_role";
+
+grant trigger on table "public"."deck_tags" to "service_role";
+
+grant truncate on table "public"."deck_tags" to "service_role";
+
+grant update on table "public"."deck_tags" to "service_role";
+
+grant delete on table "public"."decks" to "anon";
+
+grant insert on table "public"."decks" to "anon";
+
+grant references on table "public"."decks" to "anon";
+
+grant select on table "public"."decks" to "anon";
+
+grant trigger on table "public"."decks" to "anon";
+
+grant truncate on table "public"."decks" to "anon";
+
+grant update on table "public"."decks" to "anon";
+
+grant delete on table "public"."decks" to "authenticated";
+
+grant insert on table "public"."decks" to "authenticated";
+
+grant references on table "public"."decks" to "authenticated";
+
+grant select on table "public"."decks" to "authenticated";
+
+grant trigger on table "public"."decks" to "authenticated";
+
+grant truncate on table "public"."decks" to "authenticated";
+
+grant update on table "public"."decks" to "authenticated";
+
+grant delete on table "public"."decks" to "service_role";
+
+grant insert on table "public"."decks" to "service_role";
+
+grant references on table "public"."decks" to "service_role";
+
+grant select on table "public"."decks" to "service_role";
+
+grant trigger on table "public"."decks" to "service_role";
+
+grant truncate on table "public"."decks" to "service_role";
+
+grant update on table "public"."decks" to "service_role";
+
+grant delete on table "public"."settings" to "anon";
+
+grant insert on table "public"."settings" to "anon";
+
+grant references on table "public"."settings" to "anon";
+
+grant select on table "public"."settings" to "anon";
+
+grant trigger on table "public"."settings" to "anon";
+
+grant truncate on table "public"."settings" to "anon";
+
+grant update on table "public"."settings" to "anon";
+
+grant delete on table "public"."settings" to "authenticated";
+
+grant insert on table "public"."settings" to "authenticated";
+
+grant references on table "public"."settings" to "authenticated";
+
+grant select on table "public"."settings" to "authenticated";
+
+grant trigger on table "public"."settings" to "authenticated";
+
+grant truncate on table "public"."settings" to "authenticated";
+
+grant update on table "public"."settings" to "authenticated";
+
+grant delete on table "public"."settings" to "service_role";
+
+grant insert on table "public"."settings" to "service_role";
+
+grant references on table "public"."settings" to "service_role";
+
+grant select on table "public"."settings" to "service_role";
+
+grant trigger on table "public"."settings" to "service_role";
+
+grant truncate on table "public"."settings" to "service_role";
+
+grant update on table "public"."settings" to "service_role";
+
+grant delete on table "public"."study_sets" to "anon";
+
+grant insert on table "public"."study_sets" to "anon";
+
+grant references on table "public"."study_sets" to "anon";
+
+grant select on table "public"."study_sets" to "anon";
+
+grant trigger on table "public"."study_sets" to "anon";
+
+grant truncate on table "public"."study_sets" to "anon";
+
+grant update on table "public"."study_sets" to "anon";
+
+grant delete on table "public"."study_sets" to "authenticated";
+
+grant insert on table "public"."study_sets" to "authenticated";
+
+grant references on table "public"."study_sets" to "authenticated";
+
+grant select on table "public"."study_sets" to "authenticated";
+
+grant trigger on table "public"."study_sets" to "authenticated";
+
+grant truncate on table "public"."study_sets" to "authenticated";
+
+grant update on table "public"."study_sets" to "authenticated";
+
+grant delete on table "public"."study_sets" to "service_role";
+
+grant insert on table "public"."study_sets" to "service_role";
+
+grant references on table "public"."study_sets" to "service_role";
+
+grant select on table "public"."study_sets" to "service_role";
+
+grant trigger on table "public"."study_sets" to "service_role";
+
+grant truncate on table "public"."study_sets" to "service_role";
+
+grant update on table "public"."study_sets" to "service_role";
+
+grant delete on table "public"."tags" to "anon";
+
+grant insert on table "public"."tags" to "anon";
+
+grant references on table "public"."tags" to "anon";
+
+grant select on table "public"."tags" to "anon";
+
+grant trigger on table "public"."tags" to "anon";
+
+grant truncate on table "public"."tags" to "anon";
+
+grant update on table "public"."tags" to "anon";
+
+grant delete on table "public"."tags" to "authenticated";
+
+grant insert on table "public"."tags" to "authenticated";
+
+grant references on table "public"."tags" to "authenticated";
+
+grant select on table "public"."tags" to "authenticated";
+
+grant trigger on table "public"."tags" to "authenticated";
+
+grant truncate on table "public"."tags" to "authenticated";
+
+grant update on table "public"."tags" to "authenticated";
+
+grant delete on table "public"."tags" to "service_role";
+
+grant insert on table "public"."tags" to "service_role";
+
+grant references on table "public"."tags" to "service_role";
+
+grant select on table "public"."tags" to "service_role";
+
+grant trigger on table "public"."tags" to "service_role";
+
+grant truncate on table "public"."tags" to "service_role";
+
+grant update on table "public"."tags" to "service_role";
+
+create policy "Users can only access cards in their decks"
+on "public"."cards"
+as permissive
+for all
+to public
+using ((EXISTS ( SELECT 1
+   FROM decks
+  WHERE ((decks.id = cards.deck_id) AND (decks.user_id = auth.uid())))));
+
+
+create policy "Allow users to DELETE their own deck_tags"
+on "public"."deck_tags"
+as permissive
+for delete
+to public
+using ((auth.uid() = user_id));
+
+
+create policy "Allow users to INSERT deck_tags for their own decks"
+on "public"."deck_tags"
+as permissive
+for insert
+to public
+with check (((auth.uid() = user_id) AND (EXISTS ( SELECT 1
+   FROM decks
+  WHERE ((decks.id = deck_tags.deck_id) AND (decks.user_id = auth.uid())))) AND (EXISTS ( SELECT 1
+   FROM tags
+  WHERE ((tags.id = deck_tags.tag_id) AND (tags.user_id = auth.uid()))))));
+
+
+create policy "Allow users to SELECT their own deck_tags"
+on "public"."deck_tags"
+as permissive
+for select
+to public
+using ((auth.uid() = user_id));
+
+
+create policy "Users can only access their own decks"
+on "public"."decks"
+as permissive
+for all
+to public
+using ((auth.uid() = user_id));
+
+create policy "Users can only access their own settings"
+on "public"."settings"
+as permissive
+for all
+to public
+using ((auth.uid() = user_id));
+
+
+create policy "Allow individual user access to their study_sets"
+on "public"."study_sets"
+as permissive
+for all
+to public
+using ((auth.uid() = user_id));
+
+
+create policy "Allow individual user access to their tags"
+on "public"."tags"
+as permissive
+for all
+to public
+using ((auth.uid() = user_id));
+
+
+CREATE TRIGGER set_cards_updated_at BEFORE UPDATE ON public.cards FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER set_settings_updated_at BEFORE UPDATE ON public.settings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER set_study_sets_updated_at BEFORE UPDATE ON public.study_sets FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+
+
+=== 20250427171814_create_cards_with_difficulty_view.sql ===
+-- introduce new column 'mature_interval_threshold' to settings table
+ALTER TABLE public.settings
+ADD COLUMN mature_interval_threshold INTEGER DEFAULT 21 NOT NULL;
+
+COMMENT ON COLUMN public.settings.mature_interval_threshold IS 'SRS interval (days) threshold for a card to be considered mature (default: 21).';
+
+
+-- Drop the previous view if it exists
+DROP VIEW IF EXISTS public.cards_with_difficulty;
+
+-- Create the new view joining cards and settings to catch the mature_threshold_days parameter which is 21 by default
+CREATE VIEW public.cards_with_srs_stage AS
+SELECT
+    c.*, -- Select all columns from cards
+    COALESCE(s.mature_interval_threshold, 21) AS card_mature_threshold_days, -- Include the threshold used for debugging/info
+    CASE
+        WHEN c.last_reviewed_at IS NULL THEN 'new'::text -- We haven’t seen this card before. It’s waiting for its first turn.
+        WHEN COALESCE(c.interval_days, 0) = 0 OR c.last_review_grade = 1 THEN 'learning'::text -- This card is still tricky, so we look at it a lot to help it stick.
+        WHEN COALESCE(c.interval_days, 0) < COALESCE(s.mature_interval_threshold, 21) THEN 'young'::text -- We remember this card pretty well, but we still check it every so often to keep it fresh.
+        ELSE 'mature'::text -- We know this card really well, so we only peek at it now and then to stay sharp.
+    END AS srs_stage
+FROM
+    public.cards c
+    -- Left join settings on user_id to get the threshold
+    LEFT JOIN public.settings s ON c.user_id = s.user_id;
+
+-- Add comment
+COMMENT ON VIEW public.cards_with_srs_stage IS 'Extends cards with calculated SRS stage (new, learning, young, mature) based on SRS state and user settings.';
+
+-- to improve performance of the view, we create a composite btree index on the user_id and mature_interval_threshold columns
+-- create the composite btree index
+CREATE INDEX IF NOT EXISTS settings_userid_maturethreshold_idx
+    ON public.settings
+    USING btree (user_id, mature_interval_threshold);
+
+
+
+-- IMPORTANT: Ensure RLS is already enabled and correctly configured on the base table 'public.cards'
+--            (e.g., checking auth.uid() = user_id)
+--            No separate RLS enablement or policies are needed DIRECTLY on the view here.
+
+
+=== 20250428000000_create_deck_srs_counts_function.sql ===
+-- Migration: Create function to get deck list with SRS stage counts
+
+-- Drop function if it exists (optional, for idempotency during development)
+DROP FUNCTION IF EXISTS public.get_deck_list_with_srs_counts(uuid);
+
+-- Create the function
+CREATE OR REPLACE FUNCTION public.get_deck_list_with_srs_counts(
+    p_user_id uuid
+)
+RETURNS TABLE (
+    id uuid,
+    name text,
+    primary_language text,
+    secondary_language text,
+    is_bilingual boolean,
+    updated_at timestamptz,
+    new_count bigint,       -- Use bigint for counts
+    learning_count bigint,
+    young_count bigint,
+    mature_count bigint
+)
+LANGUAGE sql
+STABLE -- Function does not modify the database
+SECURITY DEFINER -- To bypass RLS within the function if needed, ensure function owner has appropriate base table permissions
+AS $$
+WITH deck_base AS (
+    -- First query only the user's decks to reduce data processed
+    SELECT
+        d.id,
+        d.name,
+        d.primary_language,
+        d.secondary_language,
+        d.is_bilingual,
+        d.updated_at
+    FROM
+        public.decks d
+    WHERE
+        d.user_id = p_user_id
+),
+srs_counts AS (
+    -- Calculate counts separately with optimized classification logic
+    SELECT
+        c.deck_id,
+        COUNT(*) FILTER (WHERE c.last_reviewed_at IS NULL) AS new_count,
+        COUNT(*) FILTER (WHERE c.last_reviewed_at IS NOT NULL AND 
+                        (COALESCE(c.interval_days, 0) = 0 OR c.last_review_grade = 1)) AS learning_count,
+        COUNT(*) FILTER (WHERE c.last_reviewed_at IS NOT NULL AND
+                        COALESCE(c.interval_days, 0) > 0 AND 
+                        c.last_review_grade != 1 AND
+                        COALESCE(c.interval_days, 0) < COALESCE(
+                            (SELECT mature_interval_threshold FROM public.settings WHERE user_id = p_user_id), 
+                            21)) AS young_count,
+        COUNT(*) FILTER (WHERE c.last_reviewed_at IS NOT NULL AND
+                        COALESCE(c.interval_days, 0) > 0 AND 
+                        c.last_review_grade != 1 AND
+                        COALESCE(c.interval_days, 0) >= COALESCE(
+                            (SELECT mature_interval_threshold FROM public.settings WHERE user_id = p_user_id), 
+                            21)) AS mature_count
+    FROM
+        public.cards c
+    WHERE
+        -- Only count cards for this user
+        c.user_id = p_user_id
+        -- Only include decks for this user (redundant with RLS but helps optimizer)
+        AND c.deck_id IN (SELECT id FROM deck_base)
+    GROUP BY
+        c.deck_id
+)
+-- Join the base decks with the counts
+SELECT
+    d.id,
+    d.name,
+    d.primary_language,
+    d.secondary_language,
+    d.is_bilingual,
+    d.updated_at,
+    COALESCE(s.new_count, 0) AS new_count,
+    COALESCE(s.learning_count, 0) AS learning_count,
+    COALESCE(s.young_count, 0) AS young_count,
+    COALESCE(s.mature_count, 0) AS mature_count
+FROM
+    deck_base d
+LEFT JOIN
+    srs_counts s ON d.id = s.deck_id
+ORDER BY
+    d.name ASC;
+$$;
+
+-- Add comment to the function
+COMMENT ON FUNCTION public.get_deck_list_with_srs_counts(uuid)
+IS 'Retrieves all decks for a user along with counts of cards in each SRS stage (new, learning, young, mature). Optimized version that avoids using the full view.';
+
+-- Grant execution rights to the authenticated role
+-- Important: Ensure the 'authenticated' role exists and RLS on base tables (decks, cards) is correctly configured.
+GRANT EXECUTE ON FUNCTION public.get_deck_list_with_srs_counts(uuid) TO authenticated;
+
+-- Create an index to optimize the query
+CREATE INDEX IF NOT EXISTS idx_cards_user_deck_reviewed 
+ON public.cards(user_id, deck_id, last_reviewed_at, interval_days, last_review_grade);
+
+-- Optional: Grant to service_role if called from backend bypassing RLS
+-- GRANT EXECUTE ON FUNCTION public.get_deck_list_with_srs_counts(uuid) TO service_role; 
+=== 20250428010000_add_show_deck_progress_setting.sql ===
+-- Migration: Add show_deck_progress setting
+
+ALTER TABLE public.settings
+ADD COLUMN IF NOT EXISTS show_deck_progress BOOLEAN NOT NULL DEFAULT true;
+
+COMMENT ON COLUMN public.settings.show_deck_progress IS 'Whether to display the SRS stage progress bar on deck list items.'; 
+=== 20250428020000_add_theme_preference_setting.sql ===
+-- Migration: Add theme_light_dark_mode setting
+
+ALTER TABLE public.settings
+ADD COLUMN IF NOT EXISTS theme_light_dark_mode TEXT NOT NULL DEFAULT 'system';
+-- Optional: Add a check constraint
+-- ALTER TABLE public.settings
+-- ADD CONSTRAINT valid_theme_light_dark_mode CHECK (theme_light_dark_mode IN ('light', 'dark', 'system'));
+
+COMMENT ON COLUMN public.settings.theme_light_dark_mode IS 'User preferred theme (light, dark, system).'; 
+=== 20250430214258_update_resolve_study_query.sql ===
+-- Migration file: YYYYMMDDHHMMSS_update_resolve_study_query_difficult_logic_v3.sql
+-- Description: Updates the resolve_study_query function to use cards_with_srs_stage 
+--              for the includeDifficult flag, filtering for 'learning' stage.
+--              Restores original deck_tags filtering logic.
+--              Uses TEXT variables for date values.
+
+-- Drop the existing function if it exists
+DROP FUNCTION IF EXISTS resolve_study_query(jsonb, uuid);
+
+-- Recreate the function with updated logic
+CREATE OR REPLACE FUNCTION resolve_study_query(
+    p_query_criteria jsonb,
+    p_user_id uuid
+    -- Assuming original function did not have p_order_by parameters, add if needed
+    -- p_order_by_field TEXT DEFAULT 'created_at',
+    -- p_order_by_direction TEXT DEFAULT 'DESC'
+)
+RETURNS TABLE(card_id uuid)
+LANGUAGE plpgsql
+STABLE 
+SECURITY INVOKER 
+AS $$
+DECLARE
+    v_sql                  TEXT;
+    v_from_clause          TEXT := 'FROM cards c';
+    v_join_clauses         TEXT := ''; -- For joins needed by filters
+    v_where_clauses        TEXT[] := ARRAY[]::TEXT[];
+    -- Use original's parameter approach if preferred, otherwise format() can work
+    -- v_params               TEXT[] := ARRAY[]::TEXT[]; 
+    -- v_param_index          INTEGER := 0;
+
+    -- Parsed criteria variables
+    v_deck_id              UUID;
+    v_include_tags         UUID[];
+    v_exclude_tags         UUID[];
+    v_tag_logic            TEXT;
+    v_srs_level_op         TEXT;
+    v_srs_level_value      INT;
+    v_include_difficult    BOOLEAN; -- Flag we are changing logic for
+    
+    -- Date related variables (using TEXT like corrected proposal)
+    v_created_op           TEXT;
+    v_created_value        TEXT; 
+    v_updated_op           TEXT;
+    v_updated_value        TEXT; 
+    v_last_reviewed_op     TEXT;
+    v_last_reviewed_value  TEXT; 
+    v_next_due_op          TEXT;
+    v_next_due_value       TEXT; 
+    v_date_range_value     TEXT[]; -- Specific for 'betweenDates'
+
+    -- Ordering variables (if needed, adapt from original)
+    -- v_order_by_clause      TEXT;
+    -- v_valid_order_field    TEXT;
+    -- v_valid_order_direction TEXT;
+    -- v_allowed_order_fields TEXT[] := ARRAY[...]; -- Use updated field names
+    -- v_allowed_directions   TEXT[] := ARRAY['ASC','DESC'];
+
+BEGIN
+    -- Add mandatory user filter (using format %L for safety)
+    v_where_clauses := array_append(v_where_clauses, format('c.user_id = %L', p_user_id));
+
+    -- Extract criteria
+    v_deck_id := p_query_criteria->>'deckId';
+    v_tag_logic := COALESCE(p_query_criteria->>'tagLogic', 'ANY');
+    v_include_difficult := (p_query_criteria->>'includeDifficult')::BOOLEAN;
+
+    SELECT ARRAY(SELECT jsonb_array_elements_text(p_query_criteria->'includeTags')) INTO v_include_tags;
+    SELECT ARRAY(SELECT jsonb_array_elements_text(p_query_criteria->'excludeTags')) INTO v_exclude_tags;
+    v_include_tags := COALESCE(v_include_tags, ARRAY[]::UUID[]);
+    v_exclude_tags := COALESCE(v_exclude_tags, ARRAY[]::UUID[]);
+
+    -- --- Filter by Deck ---
+    IF v_deck_id IS NOT NULL THEN
+        v_where_clauses := array_append(v_where_clauses, format('c.deck_id = %L', v_deck_id));
+    END IF;
+
+    -- --- Filter by Tags (Restored Original Deck Tag Logic) ---
+    -- Include Tags Logic
+    IF array_length(v_include_tags, 1) > 0 THEN
+        IF v_tag_logic = 'ALL' THEN
+             -- Deck must have ALL the specified tags
+             v_where_clauses := array_append(v_where_clauses, format(
+                'c.deck_id IN (SELECT dt.deck_id FROM deck_tags dt WHERE dt.user_id = %L AND dt.tag_id = ANY(%L::uuid[]) GROUP BY dt.deck_id HAVING count(DISTINCT dt.tag_id) = %s)',
+                p_user_id,
+                v_include_tags, -- Embed UUID array directly with ::uuid[] cast
+                array_length(v_include_tags,1)
+             ));
+        ELSE -- ANY (Default)
+            -- Deck must have AT LEAST ONE of the specified tags
+            v_where_clauses := array_append(v_where_clauses, format(
+                'c.deck_id IN (SELECT DISTINCT dt.deck_id FROM deck_tags dt WHERE dt.user_id = %L AND dt.tag_id = ANY(%L::uuid[]))',
+                p_user_id,
+                v_include_tags -- Embed UUID array directly with ::uuid[] cast
+            ));
+        END IF;
+    END IF;
+
+    -- Exclude Tags Logic
+    IF array_length(v_exclude_tags, 1) > 0 THEN
+        -- Deck must NOT have ANY of the specified tags
+        v_where_clauses := array_append(v_where_clauses, format(
+            'c.deck_id NOT IN (SELECT DISTINCT dt.deck_id FROM deck_tags dt WHERE dt.user_id = %L AND dt.tag_id = ANY(%L::uuid[]))',
+             p_user_id,
+             v_exclude_tags -- Embed UUID array directly with ::uuid[] cast
+        ));
+    END IF;
+    -- --- End Restored Tag Logic ---
+
+    -- --- Filter by 'includeDifficult' flag (NEW LOGIC) ---
+    IF v_include_difficult IS TRUE THEN
+        -- Join with the view is required
+        v_join_clauses := v_join_clauses || ' INNER JOIN cards_with_srs_stage cws ON c.id = cws.id';
+        -- Add the condition to filter for 'learning' stage
+        v_where_clauses := array_append(v_where_clauses, 'cws.srs_stage = ''learning''');
+    END IF;
+    -- --- End New Difficult Logic ---
+
+    -- --- Filter by SRS Level (manual filter - simplified embedding) ---
+    v_srs_level_op := p_query_criteria->'srsLevel'->>'operator';
+    IF p_query_criteria->'srsLevel'->>'value' IS NOT NULL THEN
+       v_srs_level_value := (p_query_criteria->'srsLevel'->>'value')::INT;
+    ELSE
+       v_srs_level_value := NULL;
+    END IF;
+    IF v_srs_level_op IS NOT NULL AND v_srs_level_value IS NOT NULL THEN
+        CASE v_srs_level_op
+            WHEN 'equals' THEN v_where_clauses := array_append(v_where_clauses, format('c.srs_level = %s', v_srs_level_value));
+            WHEN 'lessThan' THEN v_where_clauses := array_append(v_where_clauses, format('c.srs_level < %s', v_srs_level_value));
+            WHEN 'greaterThan' THEN v_where_clauses := array_append(v_where_clauses, format('c.srs_level > %s', v_srs_level_value));
+        END CASE;
+    END IF;
+
+    -- --- Date Filters (Using TEXT variables, requires full implementation) ---
+    -- Example for 'createdDate' - Apply pattern to others
+    v_created_op := p_query_criteria->'createdDate'->>'operator';
+    IF v_created_op IS NOT NULL THEN
+        v_created_value := p_query_criteria->'createdDate'->>'value'; 
+        IF v_created_value IS NOT NULL THEN 
+            IF v_created_op = 'newerThanDays' OR v_created_op = 'olderThanDays' THEN
+                 v_where_clauses := array_append(v_where_clauses, format('c.created_at %s now() - interval %L', CASE v_created_op WHEN 'newerThanDays' THEN '>' ELSE '<' END, v_created_value || ' days'));
+            ELSIF v_created_op = 'onDate' THEN
+                 v_where_clauses := array_append(v_where_clauses, format('c.created_at::date = %L::date', v_created_value));
+            -- >>> ADD 'betweenDates' logic here <<<
+            END IF;
+        -- >>> Handle operators without values ('never', 'isDue') here <<<
+        END IF;
+    END IF;
+    -- >>> REPEAT for updatedDate, lastReviewed, nextReviewDue <<<
+
+    -- --- Construct Final SQL ---
+    v_sql := 'SELECT DISTINCT c.id ' || v_from_clause || ' ' || v_join_clauses;
+    IF array_length(v_where_clauses, 1) > 0 THEN
+        v_sql := v_sql || ' WHERE ' || array_to_string(v_where_clauses, ' AND ');
+    END IF;
+
+    -- Add Ordering (adapt from original if needed)
+    -- v_sql := v_sql || ' ORDER BY c.created_at DESC NULLS LAST'; -- Example default
+
+    RAISE LOG 'Executing SQL (v3): %', v_sql;
+
+    -- Execute (using EXECUTE without USING as values are embedded via format)
+    RETURN QUERY EXECUTE v_sql;
+
+EXCEPTION WHEN others THEN
+    RAISE LOG 'Error in resolve_study_query (v3): %', SQLERRM;
+    RETURN QUERY SELECT uuid_nil(); 
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION resolve_study_query(jsonb, uuid) TO authenticated;
+
+COMMENT ON FUNCTION resolve_study_query(jsonb, uuid) IS 
+'Resolves study query criteria JSON into a list of matching card IDs. v3: Uses cards_with_srs_stage for includeDifficult flag, keeps original deck_tags logic.';
+
+=== 20250501153215_update_resolve_study_query_difficult_logic_v3.sql.sql ===
+-- resolve_study_query function definition
+
+CREATE OR REPLACE FUNCTION public.resolve_study_query(
+    p_user_id uuid,
+    p_query_criteria jsonb
+)
+RETURNS SETOF uuid -- Return a set of card IDs
+LANGUAGE plpgsql
+STABLE -- Function does not modify the database
+SECURITY DEFINER -- Important for accessing tables with RLS based on p_user_id
+AS $$
+DECLARE
+    v_sql                  TEXT;
+    v_from_clause          TEXT := 'FROM cards c';
+    v_join_clauses         TEXT := ''; -- For joins needed by filters
+    v_where_clauses        TEXT[] := ARRAY[]::TEXT[];
+
+    -- Parsed criteria variables
+    v_deck_id              UUID;
+    v_include_tags         UUID[];
+    v_exclude_tags         UUID[];
+    v_tag_logic            TEXT;
+    v_srs_level_op         TEXT;
+    v_srs_level_value      INT;
+    v_include_difficult    BOOLEAN;
+
+    -- Date related variables (using TEXT as in provided code)
+    v_created_op           TEXT;
+    v_created_value        TEXT;
+    v_updated_op           TEXT;
+    v_updated_value        TEXT;
+    v_last_reviewed_op     TEXT;
+    v_last_reviewed_value  TEXT;
+    v_next_due_op          TEXT;
+    v_next_due_value       TEXT;
+    v_date_range_value     TEXT[]; -- Specific for 'betweenDates'
+BEGIN
+    -- Add mandatory user filter
+    v_where_clauses := array_append(v_where_clauses, format('c.user_id = %L', p_user_id));
+
+    -- Extract criteria
+    v_deck_id := p_query_criteria->>'deckId';
+    v_tag_logic := COALESCE(p_query_criteria->>'tagLogic', 'ANY');
+    -- Ensure boolean conversion handles JSON null properly -> defaults to FALSE if null or not 'true'
+    v_include_difficult := COALESCE((p_query_criteria->>'includeDifficult')::BOOLEAN, FALSE);
+
+    -- Extract UUID arrays safely, checking for array type
+    SELECT ARRAY(SELECT jsonb_array_elements_text(p_query_criteria->'includeTags') WHERE jsonb_typeof(p_query_criteria->'includeTags') = 'array') INTO v_include_tags;
+    SELECT ARRAY(SELECT jsonb_array_elements_text(p_query_criteria->'excludeTags') WHERE jsonb_typeof(p_query_criteria->'excludeTags') = 'array') INTO v_exclude_tags;
+    v_include_tags := COALESCE(v_include_tags, ARRAY[]::UUID[]);
+    v_exclude_tags := COALESCE(v_exclude_tags, ARRAY[]::UUID[]);
+
+
+    -- --- Filter by Deck ---
+    IF v_deck_id IS NOT NULL THEN
+        v_where_clauses := array_append(v_where_clauses, format('c.deck_id = %L', v_deck_id));
+    END IF;
+
+    -- --- Filter by Tags (Deck Tag Logic - Restored as per original) ---
+    -- Assumes deck_tags table exists with deck_id, tag_id, user_id
+    IF array_length(v_include_tags, 1) > 0 THEN
+        IF v_tag_logic = 'ALL' THEN
+             v_where_clauses := array_append(v_where_clauses, format(
+                'c.deck_id IN (SELECT dt.deck_id FROM deck_tags dt WHERE dt.user_id = %L AND dt.tag_id = ANY(%L::uuid[]) GROUP BY dt.deck_id HAVING count(DISTINCT dt.tag_id) = %s)',
+                p_user_id, v_include_tags, array_length(v_include_tags,1) ));
+        ELSE -- ANY
+            v_where_clauses := array_append(v_where_clauses, format(
+                'c.deck_id IN (SELECT DISTINCT dt.deck_id FROM deck_tags dt WHERE dt.user_id = %L AND dt.tag_id = ANY(%L::uuid[]))',
+                p_user_id, v_include_tags ));
+        END IF;
+    END IF;
+    IF array_length(v_exclude_tags, 1) > 0 THEN
+        v_where_clauses := array_append(v_where_clauses, format(
+            'c.deck_id NOT IN (SELECT DISTINCT dt.deck_id FROM deck_tags dt WHERE dt.user_id = %L AND dt.tag_id = ANY(%L::uuid[]))',
+             p_user_id, v_exclude_tags ));
+    END IF;
+
+    -- --- Filter by 'includeDifficult' flag (Uses cards_with_srs_stage) ---
+    -- Keep this logic AS IS from the provided code.
+    -- Assumes cards_with_srs_stage view exists and includes srs_stage='learning' for difficult cards.
+    IF v_include_difficult IS TRUE THEN
+        -- No need to join if already done for other filters, but simpler to just add it if flag is true
+        -- Avoid duplicate joins if possible in more complex scenarios
+        IF v_join_clauses NOT LIKE '%cards_with_srs_stage%' THEN
+             v_join_clauses := v_join_clauses || ' INNER JOIN public.cards_with_srs_stage cws ON c.id = cws.id';
+        END IF;
+        -- This filter means srs_stage = 'learning' based on your current view/code.
+        v_where_clauses := array_append(v_where_clauses, 'cws.srs_stage = ''learning''');
+    END IF;
+
+    -- --- Filter by SRS Level (manual filter) ---
+    v_srs_level_op := p_query_criteria->'srsLevel'->>'operator';
+    -- Check if the value field exists and is a valid number before casting
+    IF p_query_criteria->'srsLevel'->>'value' IS NOT NULL AND p_query_criteria->'srsLevel'->>'value' ~ '^\d+$' THEN
+       v_srs_level_value := (p_query_criteria->'srsLevel'->>'value')::INT;
+    ELSE v_srs_level_value := NULL; END IF;
+
+    IF v_srs_level_op IS NOT NULL AND v_srs_level_value IS NOT NULL THEN
+        CASE v_srs_level_op
+            WHEN 'equals' THEN v_where_clauses := array_append(v_where_clauses, format('c.srs_level = %s', v_srs_level_value));
+            WHEN 'lessThan' THEN v_where_clauses := array_append(v_where_clauses, format('c.srs_level < %s', v_srs_level_value));
+            WHEN 'greaterThan' THEN v_where_clauses := array_append(v_where_clauses, format('c.srs_level > %s', v_srs_level_value));
+            -- Add default or error handling?
+            ELSE -- Invalid operator
+                 RAISE WARNING 'resolve_study_query: Invalid srsLevel operator: %', v_srs_level_op;
+            -- Consider adding a WHERE 1=0 clause here if invalid operator should return no results
+        END CASE;
+    END IF;
+
+    -- --- Date Filters (COMPLETE THE LOGIC FOR ALL 4 FIELDS) ---
+    -- Filter by createdDate
+    v_created_op := p_query_criteria->'createdDate'->>'operator';
+    IF v_created_op IS NOT NULL THEN
+        -- Value for createdDate can be number of days (string) or date string
+        v_created_value := p_query_criteria->'createdDate'->>'value';
+        -- Value for betweenDates is always an array
+        SELECT ARRAY(SELECT jsonb_array_elements_text(p_query_criteria->'createdDate'->'value') WHERE jsonb_typeof(p_query_criteria->'createdDate'->'value') = 'array') INTO v_date_range_value;
+
+        CASE v_created_op
+            WHEN 'newerThanDays' OR 'olderThanDays' THEN
+                 IF v_created_value IS NOT NULL AND v_created_value ~ '^\d+$' THEN -- Check if value is number of days
+                    v_where_clauses := array_append(v_where_clauses, format('c.created_at %s now() - interval %L', CASE v_created_op WHEN 'newerThanDays' THEN '>=' ELSE '<=' END, v_created_value || ' days'));
+                 END IF;
+            WHEN 'onDate' THEN
+                 IF v_created_value IS NOT NULL THEN -- Check if value is a date string
+                    -- Use date comparison to ignore time part
+                    v_where_clauses := array_append(v_where_clauses, format('c.created_at::date = %L::date', v_created_value));
+                 END IF;
+            WHEN 'betweenDates' THEN
+                 IF array_length(v_date_range_value, 1) = 2 AND v_date_range_value[1] IS NOT NULL AND v_date_range_value[2] IS NOT NULL THEN
+                      -- Include both start and end date by comparing dates
+                      v_where_clauses := array_append(v_where_clauses, format('c.created_at::date >= %L::date', v_date_range_value[1]));
+                      v_where_clauses := array_append(v_where_clauses, format('c.created_at::date <= %L::date', v_date_range_value[2]));
+                 END IF;
+             ELSE -- Invalid operator
+                  RAISE WARNING 'resolve_study_query: Invalid createdDate operator: %', v_created_op;
+             -- Consider adding a WHERE 1=0 clause here
+        END CASE;
+    END IF;
+
+    -- Filter by updatedDate
+     v_updated_op := p_query_criteria->'updatedDate'->>'operator';
+    IF v_updated_op IS NOT NULL THEN
+        v_updated_value := p_query_criteria->'updatedDate'->>'value';
+        SELECT ARRAY(SELECT jsonb_array_elements_text(p_query_criteria->'updatedDate'->'value') WHERE jsonb_typeof(p_query_criteria->'updatedDate'->'value') = 'array') INTO v_date_range_value;
+
+        CASE v_updated_op
+             WHEN 'newerThanDays' OR 'olderThanDays' THEN
+                 IF v_updated_value IS NOT NULL AND v_updated_value ~ '^\d+$' THEN
+                     v_where_clauses := array_append(v_where_clauses, format('c.updated_at %s now() - interval %L', CASE v_updated_op WHEN 'newerThanDays' THEN '>=' ELSE '<=' END, v_updated_value || ' days'));
+                 END IF;
+             WHEN 'onDate' THEN
+                 IF v_updated_value IS NOT NULL THEN
+                     v_where_clauses := array_append(v_where_clauses, format('c.updated_at::date = %L::date', v_updated_value));
+                 END IF;
+             WHEN 'betweenDates' THEN
+                 IF array_length(v_date_range_value, 1) = 2 AND v_date_range_value[1] IS NOT NULL AND v_date_range_value[2] IS NOT NULL THEN
+                      v_where_clauses := array_append(v_where_clauses, format('c.updated_at::date >= %L::date', v_date_range_value[1]));
+                      v_where_clauses := array_append(v_where_clauses, format('c.updated_at::date <= %L::date', v_date_range_value[2]));
+                 END IF;
+             ELSE -- Invalid operator
+                  RAISE WARNING 'resolve_study_query: Invalid updatedDate operator: %', v_updated_op;
+        END CASE;
+    END IF;
+
+    -- Filter by lastReviewed
+     v_last_reviewed_op := p_query_criteria->'lastReviewed'->>'operator';
+    IF v_last_reviewed_op IS NOT NULL THEN
+        v_last_reviewed_value := p_query_criteria->'lastReviewed'->>'value';
+        SELECT ARRAY(SELECT jsonb_array_elements_text(p_query_criteria->'lastReviewed'->'value') WHERE jsonb_typeof(p_query_criteria->'lastReviewed'->'value') = 'array') INTO v_date_range_value;
+
+        CASE v_last_reviewed_op
+             WHEN 'newerThanDays' OR 'olderThanDays' THEN
+                 IF v_last_reviewed_value IS NOT NULL AND v_last_reviewed_value ~ '^\d+$' THEN
+                     -- Apply IS NOT NULL check for reviewed dates
+                     v_where_clauses := array_append(v_where_clauses, format('c.last_reviewed_at IS NOT NULL AND c.last_reviewed_at %s now() - interval %L', CASE v_last_reviewed_op WHEN 'newerThanDays' THEN '>=' ELSE '<=' END, v_last_reviewed_value || ' days'));
+                 END IF;
+             WHEN 'onDate' THEN
+                 IF v_last_reviewed_value IS NOT NULL THEN
+                      v_where_clauses := array_append(v_where_clauses, format('c.last_reviewed_at IS NOT NULL AND c.last_reviewed_at::date = %L::date', v_last_reviewed_value));
+                 END IF;
+             WHEN 'betweenDates' THEN
+                 IF array_length(v_date_range_value, 1) = 2 AND v_date_range_value[1] IS NOT NULL AND v_date_range_value[2] IS NOT NULL THEN
+                      v_where_clauses := array_append(v_where_clauses, format('c.last_reviewed_at IS NOT NULL AND c.last_reviewed_at::date >= %L::date', v_date_range_value[1]));
+                      v_where_clauses := array_append(v_where_clauses, format('c.last_reviewed_at::date <= %L::date', v_date_range_value[2]));
+                 END IF;
+             WHEN 'never' THEN
+                 v_where_clauses := array_append(v_where_clauses, 'c.last_reviewed_at IS NULL');
+             ELSE -- Invalid operator
+                  RAISE WARNING 'resolve_study_query: Invalid lastReviewed operator: %', v_last_reviewed_op;
+        END CASE;
+    END IF;
+
+    -- Filter by nextReviewDue
+     v_next_due_op := p_query_criteria->'nextReviewDue'->>'operator';
+    IF v_next_due_op IS NOT NULL THEN
+        v_next_due_value := p_query_criteria->'nextReviewDue'->>'value';
+        SELECT ARRAY(SELECT jsonb_array_elements_text(p_query_criteria->'nextReviewDue'->'value') WHERE jsonb_typeof(p_query_criteria->'nextReviewDue'->'value') = 'array') INTO v_date_range_value;
+
+        CASE v_next_due_op
+            WHEN 'newerThanDays' OR 'olderThanDays' THEN
+                -- Note: 'newerThanDays' for next_review_due means FURTHER in the future (>= now() - interval)
+                -- Note: 'olderThanDays' for next_review_due means CLOSER to now (or past) (<= now() - interval)
+                 IF v_next_due_value IS NOT NULL AND v_next_due_value ~ '^\d+$' THEN
+                     v_where_clauses := array_append(v_where_clauses, format('c.next_review_due IS NOT NULL AND c.next_review_due %s now() - interval %L', CASE v_next_due_op WHEN 'newerThanDays' THEN '>=' ELSE '<=' END, v_next_due_value || ' days')); -- Fixed operators here
+                 END IF;
+            WHEN 'onDate' THEN
+                 IF v_next_due_value IS NOT NULL THEN
+                     v_where_clauses := array_append(v_where_clauses, format('c.next_review_due IS NOT NULL AND c.next_review_due::date = %L::date', v_next_due_value));
+                 END IF;
+            WHEN 'betweenDates' THEN
+                 IF array_length(v_date_range_value, 1) = 2 AND v_date_range_value[1] IS NOT NULL AND v_date_range_value[2] IS NOT NULL THEN
+                      v_where_clauses := array_append(v_where_clauses, format('c.next_review_due IS NOT NULL AND c.next_review_due::date >= %L::date', v_date_range_value[1]));
+                      v_where_clauses := array_append(v_where_clauses, format('c.next_review_due::date <= %L::date', v_date_range_value[2]));
+                 END IF;
+            WHEN 'never' THEN
+                 v_where_clauses := array_append(v_where_clauses, 'c.next_review_due IS NULL');
+            WHEN 'isDue' THEN
+                 -- Cards are due if next_review_due is NULL (never scheduled) OR in the past/present.
+                 v_where_clauses := array_append(v_where_clauses, '(c.next_review_due IS NULL OR c.next_review_due <= NOW())');
+            ELSE -- Invalid operator
+                 RAISE WARNING 'resolve_study_query: Invalid nextReviewDue operator: %', v_next_due_op;
+        END CASE;
+    END IF;
+
+
+    -- --- Construct Final SQL ---
+    v_sql := 'SELECT DISTINCT c.id ' || v_from_clause || ' ' || v_join_clauses;
+    IF array_length(v_where_clauses, 1) > 0 THEN
+        v_sql := v_sql || ' WHERE ' || array_to_string(v_where_clauses, ' AND ');
+    END IF;
+
+    RAISE LOG '[resolve_study_query] User: %, Criteria: %, SQL: %', p_user_id, p_query_criteria, v_sql;
+
+    RETURN QUERY EXECUTE v_sql;
+
+EXCEPTION WHEN others THEN
+    -- Log the error and return empty set on error
+    RAISE WARNING '[resolve_study_query] Error building or executing query for User: %, Criteria: %. Error: %', p_user_id, p_query_criteria, SQLERRM;
+    RETURN; -- Returns empty table
+END;
+$$;
+
+COMMENT ON FUNCTION public.resolve_study_query(uuid, jsonb) IS
+'Resolves study query criteria JSON into a list of matching card IDs. v6: Uses deck_tags for tag filtering, maps `includeDifficult` to ''learning'' stage, completes all date filter logic.';
+=== 20250501154500_add_missing_study_fields.sql ===
+-- migrate:up
+-- UP Migration: Add study-related columns and index
+-- Add new columns to the cards table for tracking learning/relearning state
+ALTER TABLE public.cards
+ADD COLUMN IF NOT EXISTS learning_state text NULL,
+ADD COLUMN IF NOT EXISTS learning_step_index integer NULL,
+ADD COLUMN IF NOT EXISTS failed_attempts_in_learn integer NOT NULL DEFAULT 0,
+ADD COLUMN IF NOT EXISTS hard_attempts_in_learn integer NOT NULL DEFAULT 0;
+
+-- Add comments for the new cards columns
+COMMENT ON COLUMN public.cards.learning_state IS 'Tracks if a card is in initial learning (''learning'') or relearning (''relearning'') state.';
+COMMENT ON COLUMN public.cards.learning_step_index IS 'Tracks the current step index within the learning or relearning phase.';
+COMMENT ON COLUMN public.cards.failed_attempts_in_learn IS 'Counts ''Again'' (Grade 1) answers during initial learning for EF calculation.';
+COMMENT ON COLUMN public.cards.hard_attempts_in_learn IS 'Counts ''Hard'' (Grade 2) answers during initial learning for EF calculation.';
+
+-- Drop the dependent view before altering the column type
+DROP VIEW IF EXISTS public.cards_with_srs_stage;
+
+-- Change interval_days type to float to support fractional intervals for learning steps
+ALTER TABLE public.cards
+ALTER COLUMN interval_days TYPE float USING interval_days::float;
+-- Note: The NOT NULL DEFAULT 0 constraint is preserved by ALTER TYPE
+
+-- Set easiness_factor to NOT NULL as it should always have a value (default 2.5)
+ALTER TABLE public.cards
+ALTER COLUMN easiness_factor SET NOT NULL;
+
+-- Add new columns to the settings table for study algorithm parameters
+ALTER TABLE public.settings
+ADD COLUMN IF NOT EXISTS enable_dedicated_learn_mode boolean NOT NULL DEFAULT TRUE,
+ADD COLUMN IF NOT EXISTS mastery_threshold integer NOT NULL DEFAULT 3,
+ADD COLUMN IF NOT EXISTS custom_learn_requeue_gap integer NOT NULL DEFAULT 3,
+ADD COLUMN IF NOT EXISTS graduating_interval_days integer NOT NULL DEFAULT 1,
+ADD COLUMN IF NOT EXISTS easy_interval_days integer NOT NULL DEFAULT 4,
+ADD COLUMN IF NOT EXISTS relearning_steps_minutes integer[] NOT NULL DEFAULT '{}'::integer[],
+ADD COLUMN IF NOT EXISTS initial_learning_steps_minutes integer[] NOT NULL DEFAULT '{}'::integer[],
+ADD COLUMN IF NOT EXISTS lapsed_ef_penalty numeric NOT NULL DEFAULT 0.2,
+ADD COLUMN IF NOT EXISTS learn_again_penalty numeric NOT NULL DEFAULT 0.2,
+ADD COLUMN IF NOT EXISTS learn_hard_penalty numeric NOT NULL DEFAULT 0.05,
+ADD COLUMN IF NOT EXISTS min_easiness_factor numeric NOT NULL DEFAULT 1.3,
+ADD COLUMN IF NOT EXISTS default_easiness_factor numeric NOT NULL DEFAULT 2.5;
+
+-- Add comments for the new settings columns
+COMMENT ON COLUMN public.settings.enable_dedicated_learn_mode IS 'Flag to use the dedicated streak-based learning mode (vs standard SM2 steps).';
+COMMENT ON COLUMN public.settings.mastery_threshold IS 'Required streak/success count to graduate from dedicated learn mode.';
+COMMENT ON COLUMN public.settings.custom_learn_requeue_gap IS 'Number of other cards to show before re-queueing a failed card in dedicated learn mode.';
+COMMENT ON COLUMN public.settings.graduating_interval_days IS 'Initial interval (days) assigned when a card graduates from learning/relearning.';
+COMMENT ON COLUMN public.settings.easy_interval_days IS 'Interval (days) assigned when graduating with ''Easy'' (Grade 4).';
+COMMENT ON COLUMN public.settings.relearning_steps_minutes IS 'Intervals (in minutes) for steps during relearning phase (e.g., {10, 1440} for 10m, 1d).';
+COMMENT ON COLUMN public.settings.initial_learning_steps_minutes IS 'Intervals (in minutes) for steps during initial learning phase (standard SM2 algorithm; e.g., {1, 10}).';
+COMMENT ON COLUMN public.settings.lapsed_ef_penalty IS 'Amount subtracted from easiness factor when a card lapses.';
+COMMENT ON COLUMN public.settings.learn_again_penalty IS 'Penalty subtracted from initial EF per ''Again'' (Grade 1) in dedicated learn.';
+COMMENT ON COLUMN public.settings.learn_hard_penalty IS 'Penalty subtracted from initial EF per ''Hard'' (Grade 2) in dedicated learn.';
+COMMENT ON COLUMN public.settings.min_easiness_factor IS 'Minimum allowed easiness factor.';
+COMMENT ON COLUMN public.settings.default_easiness_factor IS 'Default starting easiness factor for new cards.';
+
+-- Recreate the view after altering the base table
+CREATE OR REPLACE VIEW public.cards_with_srs_stage AS
+SELECT
+    c.*, -- Select all columns from cards
+    COALESCE(s.mature_interval_threshold, 21) AS card_mature_threshold_days, -- Include the threshold used for debugging/info
+    CASE
+        WHEN c.last_reviewed_at IS NULL THEN 'new'::text -- We haven't seen this card before. It's waiting for its first turn.
+        WHEN COALESCE(c.interval_days, 0) = 0 OR c.last_review_grade = 1 THEN 'learning'::text -- This card is still tricky, so we look at it a lot to help it stick.
+        WHEN COALESCE(c.interval_days, 0) < COALESCE(s.mature_interval_threshold, 21) THEN 'young'::text -- We remember this card pretty well, but we still check it every so often to keep it fresh.
+        ELSE 'mature'::text -- We know this card really well, so we only peek at it now and then to stay sharp.
+    END AS srs_stage
+FROM
+    public.cards c
+    -- Left join settings on user_id to get the threshold
+    LEFT JOIN public.settings s ON c.user_id = s.user_id;
+
+-- Add an index to optimize queries filtering by user and SRS state
+CREATE INDEX IF NOT EXISTS cards_user_id_srs_state_idx ON public.cards (user_id, srs_level, learning_state);
+
+
+=== 20250510000000_optimize_deck_listing_performance.sql ===
+-- migrate:up
+-- Fix function signature to match how it's called by the application
+
+-- Drop the problematic function
+DROP FUNCTION IF EXISTS public.get_deck_list_with_srs_counts(uuid);
+
+CREATE OR REPLACE FUNCTION public.get_deck_list_with_srs_counts(
+  p_user_id uuid
+)
+RETURNS TABLE (
+  id uuid,
+  name text,
+  primary_language text,
+  secondary_language text,
+  is_bilingual boolean,
+  updated_at timestamptz,
+  new_count bigint,
+  learning_count bigint,
+  young_count bigint,
+  mature_count bigint
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+AS $$
+WITH deck_base AS (
+  SELECT
+    d.id,
+    d.name,
+    d.primary_language,
+    d.secondary_language,
+    d.is_bilingual,
+    d.updated_at
+  FROM
+    public.decks d
+  WHERE
+    d.user_id = p_user_id
+),
+srs_counts AS (
+  SELECT
+    c.deck_id,
+    COUNT(*) FILTER (WHERE c.last_reviewed_at IS NULL) AS new_count,
+    COUNT(*) FILTER (WHERE c.last_reviewed_at IS NOT NULL AND 
+                    (COALESCE(c.interval_days, 0) = 0 OR c.last_review_grade = 1)) AS learning_count,
+    COUNT(*) FILTER (WHERE c.last_reviewed_at IS NOT NULL AND
+                    COALESCE(c.interval_days, 0) > 0 AND 
+                    c.last_review_grade != 1 AND
+                    COALESCE(c.interval_days, 0) < COALESCE(
+                        (SELECT mature_interval_threshold FROM public.settings WHERE user_id = p_user_id), 
+                        21)) AS young_count,
+    COUNT(*) FILTER (WHERE c.last_reviewed_at IS NOT NULL AND
+                    COALESCE(c.interval_days, 0) > 0 AND 
+                    c.last_review_grade != 1 AND
+                    COALESCE(c.interval_days, 0) >= COALESCE(
+                        (SELECT mature_interval_threshold FROM public.settings WHERE user_id = p_user_id), 
+                        21)) AS mature_count
+  FROM
+    public.cards c
+  WHERE
+    c.user_id = p_user_id
+    AND c.deck_id IN (SELECT id FROM deck_base)
+  GROUP BY
+    c.deck_id
+)
+SELECT
+  d.id,
+  d.name,
+  d.primary_language,
+  d.secondary_language,
+  d.is_bilingual,
+  d.updated_at,
+  COALESCE(s.new_count, 0) AS new_count,
+  COALESCE(s.learning_count, 0) AS learning_count,
+  COALESCE(s.young_count, 0) AS young_count,
+  COALESCE(s.mature_count, 0) AS mature_count
+FROM
+  deck_base d
+LEFT JOIN
+  srs_counts s ON d.id = s.deck_id
+ORDER BY
+  d.name ASC;
+$$;
+
+COMMENT ON FUNCTION public.get_deck_list_with_srs_counts(uuid)
+IS 'Retrieves all decks for a user along with counts of cards in each SRS stage (new, learning, young, mature). Optimized version that avoids using the full view.';
+
+GRANT EXECUTE ON FUNCTION public.get_deck_list_with_srs_counts(uuid) TO authenticated;
+=== 20250510010000_optimize_rls_performance.sql ===
+-- migrate:up
+-- Optimize RLS policy performance by reducing function calls
+-- Based on Supabase Performance Advisor recommendations
+
+-- First drop all existing policies
+DROP POLICY IF EXISTS "Users can only access cards in their decks" ON public.cards;
+DROP POLICY IF EXISTS "Allow users to DELETE their own deck_tags" ON public.deck_tags;
+DROP POLICY IF EXISTS "Allow users to INSERT deck_tags for their own decks" ON public.deck_tags;
+DROP POLICY IF EXISTS "Allow users to SELECT their own deck_tags" ON public.deck_tags;
+DROP POLICY IF EXISTS "Users can only access their own decks" ON public.decks;
+DROP POLICY IF EXISTS "Allow individual user access to their settings" ON public.settings;
+DROP POLICY IF EXISTS "Users can only access their own settings" ON public.settings;
+DROP POLICY IF EXISTS "Allow individual user access to their study_sets" ON public.study_sets;
+DROP POLICY IF EXISTS "Allow individual user access to their tags" ON public.tags;
+
+-- Recreate policies with optimized (SELECT auth.uid() AS uid) form
+CREATE POLICY "Users can only access cards in their decks" 
+ON public.cards 
+FOR ALL
+TO public
+USING (
+    EXISTS (
+        SELECT 1
+        FROM decks
+        WHERE decks.id = cards.deck_id 
+        AND decks.user_id = (SELECT auth.uid() AS uid)
+    )
+);
+
+CREATE POLICY "Allow users to DELETE their own deck_tags"
+ON public.deck_tags
+FOR DELETE
+TO public
+USING (user_id = (SELECT auth.uid() AS uid));
+
+CREATE POLICY "Allow users to INSERT deck_tags for their own decks"
+ON public.deck_tags
+FOR INSERT
+TO public
+WITH CHECK (
+    (user_id = (SELECT auth.uid() AS uid)) AND 
+    (EXISTS (
+        SELECT 1
+        FROM decks
+        WHERE decks.id = deck_tags.deck_id 
+        AND decks.user_id = (SELECT auth.uid() AS uid)
+    )) AND 
+    (EXISTS (
+        SELECT 1
+        FROM tags
+        WHERE tags.id = deck_tags.tag_id 
+        AND tags.user_id = (SELECT auth.uid() AS uid)
+    ))
+);
+
+CREATE POLICY "Allow users to SELECT their own deck_tags"
+ON public.deck_tags
+FOR SELECT
+TO public
+USING (user_id = (SELECT auth.uid() AS uid));
+
+CREATE POLICY "Users can only access their own decks" 
+ON public.decks 
+FOR ALL
+TO public
+USING (user_id = (SELECT auth.uid() AS uid));
+
+CREATE POLICY "Allow individual user access to their settings" 
+ON public.settings 
+FOR ALL
+TO public
+USING (user_id = (SELECT auth.uid() AS uid));
+
+CREATE POLICY "Users can only access their own settings" 
+ON public.settings 
+FOR ALL
+TO public
+USING (user_id = (SELECT auth.uid() AS uid));
+
+CREATE POLICY "Allow individual user access to their study_sets" 
+ON public.study_sets 
+FOR ALL
+TO public
+USING (user_id = (SELECT auth.uid() AS uid));
+
+CREATE POLICY "Allow individual user access to their tags" 
+ON public.tags 
+FOR ALL
+TO public
+USING (user_id = (SELECT auth.uid() AS uid));
+
+-- migrate:down
+-- Revert to original policies
+DROP POLICY IF EXISTS "Users can only access cards in their decks" ON public.cards;
+DROP POLICY IF EXISTS "Allow users to DELETE their own deck_tags" ON public.deck_tags;
+DROP POLICY IF EXISTS "Allow users to INSERT deck_tags for their own decks" ON public.deck_tags;
+DROP POLICY IF EXISTS "Allow users to SELECT their own deck_tags" ON public.deck_tags;
+DROP POLICY IF EXISTS "Users can only access their own decks" ON public.decks;
+DROP POLICY IF EXISTS "Allow individual user access to their settings" ON public.settings;
+DROP POLICY IF EXISTS "Users can only access their own settings" ON public.settings;
+DROP POLICY IF EXISTS "Allow individual user access to their study_sets" ON public.study_sets;
+DROP POLICY IF EXISTS "Allow individual user access to their tags" ON public.tags;
+
+-- Restore original cards policy
+CREATE POLICY "Users can only access cards in their decks"
+ON public.cards
+FOR ALL
+TO public
+USING (
+    EXISTS (
+        SELECT 1
+        FROM decks
+        WHERE decks.id = cards.deck_id 
+        AND decks.user_id = auth.uid()
+    )
+);
+
+-- Restore original deck_tags policies
+CREATE POLICY "Allow users to DELETE their own deck_tags"
+ON public.deck_tags
+FOR DELETE
+TO public
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Allow users to INSERT deck_tags for their own decks"
+ON public.deck_tags
+FOR INSERT
+TO public
+WITH CHECK (
+    (auth.uid() = user_id) AND 
+    (EXISTS (
+        SELECT 1
+        FROM decks
+        WHERE decks.id = deck_tags.deck_id 
+        AND decks.user_id = auth.uid()
+    )) AND 
+    (EXISTS (
+        SELECT 1
+        FROM tags
+        WHERE tags.id = deck_tags.tag_id 
+        AND tags.user_id = auth.uid()
+    ))
+);
+
+CREATE POLICY "Allow users to SELECT their own deck_tags"
+ON public.deck_tags
+FOR SELECT
+TO public
+USING (auth.uid() = user_id);
+
+-- Restore original decks policy
+CREATE POLICY "Users can only access their own decks"
+ON public.decks
+FOR ALL
+TO public
+USING (auth.uid() = user_id);
+
+-- Restore original settings policies
+CREATE POLICY "Allow individual user access to their settings"
+ON public.settings
+FOR ALL
+TO public
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can only access their own settings"
+ON public.settings
+FOR ALL
+TO public
+USING (auth.uid() = user_id);
+
+-- Restore original study_sets policy
+CREATE POLICY "Allow individual user access to their study_sets"
+ON public.study_sets
+FOR ALL
+TO public
+USING (auth.uid() = user_id);
+
+-- Restore original tags policy
+CREATE POLICY "Allow individual user access to their tags"
+ON public.tags
+FOR ALL
+TO public
+USING (auth.uid() = user_id); 
+=== 20250510020000_add_complete_srs_counts_function.sql ===
+-- Add database function to fetch decks with complete SRS counts in one query
+
+CREATE OR REPLACE FUNCTION public.get_decks_with_complete_srs_counts(
+  p_user_id uuid
+)
+RETURNS TABLE (
+  id uuid,
+  name text,
+  primary_language text,
+  secondary_language text,
+  is_bilingual boolean,
+  updated_at timestamptz,
+  new_count bigint,           -- Standard SRS stage counts
+  learning_count bigint,
+  young_count bigint,
+  mature_count bigint,
+  learn_eligible_count bigint, -- New Learn button count
+  review_eligible_count bigint -- New Review button count
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+AS $$
+WITH 
+deck_base AS (
+  SELECT
+    d.id,
+    d.name,
+    d.primary_language,
+    d.secondary_language,
+    d.is_bilingual,
+    d.updated_at
+  FROM
+    public.decks d
+  WHERE
+    d.user_id = p_user_id
+),
+-- Calculate standard SRS stages
+srs_counts AS (
+  SELECT
+    c.deck_id,
+    COUNT(*) FILTER (WHERE c.last_reviewed_at IS NULL) AS new_count,
+    COUNT(*) FILTER (WHERE c.last_reviewed_at IS NOT NULL AND 
+                    (COALESCE(c.interval_days, 0) = 0 OR c.last_review_grade = 1)) AS learning_count,
+    COUNT(*) FILTER (WHERE c.last_reviewed_at IS NOT NULL AND
+                    COALESCE(c.interval_days, 0) > 0 AND 
+                    c.last_review_grade != 1 AND
+                    COALESCE(c.interval_days, 0) < COALESCE(
+                        (SELECT mature_interval_threshold FROM public.settings WHERE user_id = p_user_id), 
+                        21)) AS young_count,
+    COUNT(*) FILTER (WHERE c.last_reviewed_at IS NOT NULL AND
+                    COALESCE(c.interval_days, 0) > 0 AND 
+                    c.last_review_grade != 1 AND
+                    COALESCE(c.interval_days, 0) >= COALESCE(
+                        (SELECT mature_interval_threshold FROM public.settings WHERE user_id = p_user_id), 
+                        21)) AS mature_count,
+    -- Learn Mode eligibility: srs_level=0, learning_state=null or 'learning'
+    COUNT(*) FILTER (WHERE c.srs_level = 0 AND 
+                    (c.learning_state IS NULL OR c.learning_state = 'learning')) AS learn_eligible_count,
+    -- Review Mode eligibility
+    COUNT(*) FILTER (WHERE 
+                    -- graduated or relearning
+                    ((c.srs_level >= 1) OR (c.srs_level = 0 AND c.learning_state = 'relearning'))
+                    -- and due for review
+                    AND c.next_review_due <= CURRENT_TIMESTAMP) AS review_eligible_count
+  FROM
+    public.cards c
+  WHERE
+    c.user_id = p_user_id
+    AND c.deck_id IN (SELECT id FROM deck_base)
+  GROUP BY
+    c.deck_id
+)
+-- Combine the data
+SELECT
+  d.id,
+  d.name,
+  d.primary_language,
+  d.secondary_language,
+  d.is_bilingual,
+  d.updated_at,
+  COALESCE(s.new_count, 0) AS new_count,
+  COALESCE(s.learning_count, 0) AS learning_count,
+  COALESCE(s.young_count, 0) AS young_count,
+  COALESCE(s.mature_count, 0) AS mature_count,
+  COALESCE(s.learn_eligible_count, 0) AS learn_eligible_count,
+  COALESCE(s.review_eligible_count, 0) AS review_eligible_count
+FROM
+  deck_base d
+LEFT JOIN
+  srs_counts s ON d.id = s.deck_id
+ORDER BY
+  d.name ASC;
+$$;
+
+COMMENT ON FUNCTION public.get_decks_with_complete_srs_counts(uuid)
+IS 'Retrieves all decks for a user with complete SRS information in a single query. Includes standard SRS stage counts and eligible counts for learn/review modes.';
+
+GRANT EXECUTE ON FUNCTION public.get_decks_with_complete_srs_counts(uuid) TO authenticated;
