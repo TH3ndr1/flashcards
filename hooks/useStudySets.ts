@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getUserStudySets } from '@/lib/actions/studySetActions'; // Adjust path if needed
 import type { Database, Tables } from "@/types/database"; // Corrected path to the actual file
+import { appLogger, statusLogger } from '@/lib/logger';
 
 // Assuming DbStudySet is the type for rows in your 'study_sets' table
 type DbStudySet = Tables<'study_sets'>;

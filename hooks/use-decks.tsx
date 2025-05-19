@@ -14,6 +14,7 @@ import type { Database, Tables } from "@/types/database";
 import type { ActionResult } from "@/lib/actions/types";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
+import { appLogger, statusLogger } from '@/lib/logger';
 
 import type { CreateDeckInput as CreateDeckParams, UpdateDeckInput as UpdateDeckParams } from '@/lib/schema/deckSchemas';
 import type { DeckWithCardsAndTags } from '@/lib/actions/deckActions';

@@ -12,6 +12,7 @@ import type { Tables } from "@/types/database";
 import { toast } from 'sonner';
 import { format, isValid, parseISO } from "date-fns";
 import { DateRange } from "react-day-picker";
+import { appLogger, statusLogger } from '@/lib/logger';
 
 type DbTag = Tables<'tags'>;
 type DeckListItem = Pick<Tables<'decks'>, 'id' | 'name'>;

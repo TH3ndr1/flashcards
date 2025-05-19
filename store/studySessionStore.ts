@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { StudyQueryCriteria } from '@/lib/schema/study-query.schema'; // Adjust path if needed
+import { appLogger, statusLogger } from '@/lib/logger';
 
 // Export the types
 export type StudyMode = 'learn' | 'review'; 

@@ -6,6 +6,7 @@ import { useState, useEffect, createContext, useContext, useCallback } from "rea
 import { useRouter } from "next/navigation"
 import { useSupabase } from "@/hooks/use-supabase"
 import type { Session, User, AuthError } from "@supabase/supabase-js"
+import { appLogger, statusLogger } from '@/lib/logger'
 
 /**
  * @typedef AuthContextType

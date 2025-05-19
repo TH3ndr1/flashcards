@@ -32,6 +32,7 @@ import {
 } from 'date-fns';
 import { debounce } from "@/lib/utils";
 import { toast } from 'sonner';
+import { appLogger, statusLogger } from '@/lib/logger';
 // import { useAuth } from '@/hooks/use-auth'; // Assuming auth is managed globally/elsewhere if not used directly here
 
 // Define card type from database Tables

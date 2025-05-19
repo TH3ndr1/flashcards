@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getCardTags } from '@/lib/actions/tagActions';
 import type { Tables } from '@/types/database';
+import { appLogger, statusLogger } from '@/lib/logger';
 
 interface UseCardTagsReturn {
   cardTags: Tables<'tags'>[];

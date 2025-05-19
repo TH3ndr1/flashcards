@@ -6,6 +6,7 @@ import type { Database, Tables, TablesUpdate } from "@/types/database";
 import type { ActionResult } from '@/lib/actions/types';
 import { updateCardProgressSchema, cardUpdateFieldsSchema } from "@/lib/schema/card.schema"; // Remove .ts extension
 import type { z } from 'zod';
+import { appLogger, statusLogger } from '@/lib/logger';
 
 /**
  * Server actions for managing study progress and SRS state.

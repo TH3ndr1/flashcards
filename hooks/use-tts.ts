@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useSettings } from '@/providers/settings-provider';
+import { appLogger, statusLogger } from '@/lib/logger';
 // --- Import the new action ---
 import { generateTtsAction } from '@/lib/actions/ttsActions';
 

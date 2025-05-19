@@ -1,6 +1,7 @@
 // lib/study-utils.ts
 import type { Tables, Json } from "@/types/database";
 import type { Settings } from "@/providers/settings-provider";
+import { appLogger, statusLogger } from '@/lib/logger';
 
 // Define type aliases for better readability using Tables from database types
 type DbCard = Tables<'cards'>;

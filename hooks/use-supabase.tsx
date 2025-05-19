@@ -3,6 +3,7 @@
 import { createBrowserClient } from "@supabase/ssr";
 import { useState, useEffect } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { appLogger, statusLogger } from '@/lib/logger';
 
 // Assume Database type is defined elsewhere or use 'any'
 // import type { Database } from '@/types/supabase';

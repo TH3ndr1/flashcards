@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getDecks } from '@/lib/actions/deckActions'; // Assuming this action exists now
 import type { Database, Tables } from "@/types/database"; // Ensure correct path
+import { appLogger, statusLogger } from '@/lib/logger';
 
 type DbDeck = Tables<'decks'>; // Get the full DbDeck type
 
