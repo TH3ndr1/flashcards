@@ -6,6 +6,7 @@ import { z } from 'zod';
 import type { Database, Tables } from "@/types/database";
 import type { ActionResult } from '@/lib/actions/types';
 import { createCardsBatch, type CreateCardInput } from './cardActions'; // Assume CreateCardInput is defined
+import { appLogger, statusLogger } from '@/lib/logger';
 
 // Zod schema for tag validation
 const tagSchema = z.object({
@@ -23,7 +24,7 @@ async function getSupabaseAndUser() {
   const supabase = createActionClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
-    console.error("[getSupabaseAndUser] Auth error:", authError);
+    appLogger.error("[getSupabaseAndUser] Auth error:", authError);
     return { supabase: null, user: null, error: 'Authentication required.' };
   }
   return { supabase, user, error: null };
@@ -60,14 +61,14 @@ export async function getTags(): Promise<TagActionResponse<Tables<'tags'>[]>> {
       .order('name');
 
     if (fetchError) {
-      console.error('Error fetching tags:', fetchError);
+      appLogger.error('Error fetching tags:', fetchError);
       return { data: null, error: 'Failed to fetch tags.' };
     }
 
     return { data: tags ?? [], error: null };
 
   } catch (error) {
-    console.error('Unexpected error in getTags:', error);
+    appLogger.error('Unexpected error in getTags:', error);
     return { data: null, error: 'An unexpected error occurred.' };
   }
 }
@@ -102,7 +103,7 @@ export async function createTag(name: string): Promise<ActionResult<Tables<'tags
       if (insertError.code === '23505') { // Handle unique constraint violation
         return { data: null, error: 'A tag with this name already exists.' };
       }
-      console.error('Error creating tag:', insertError);
+      appLogger.error('Error creating tag:', insertError);
       return { data: null, error: 'Failed to create tag.' };
     }
 
@@ -117,7 +118,7 @@ export async function createTag(name: string): Promise<ActionResult<Tables<'tags
     // if (error instanceof z.ZodError) {
     //   return { data: null, error: error.errors[0].message };
     // }
-    console.error('Unexpected error in createTag:', error);
+    appLogger.error('Unexpected error in createTag:', error);
     return { data: null, error: 'An unexpected error occurred.' };
   }
 }
@@ -146,7 +147,7 @@ export async function deleteTag(tagId: string): Promise<TagActionResponse<null>>
       .eq('user_id', user.id);
 
     if (deleteError) {
-      console.error('Error deleting tag:', deleteError);
+      appLogger.error('Error deleting tag:', deleteError);
       return { data: null, error: 'Failed to delete tag.' };
     }
 
@@ -157,7 +158,7 @@ export async function deleteTag(tagId: string): Promise<TagActionResponse<null>>
     return { data: null, error: null }; // Success
 
   } catch (error) {
-    console.error('Unexpected error in deleteTag:', error);
+    appLogger.error('Unexpected error in deleteTag:', error);
     return { data: null, error: 'An unexpected error occurred.' };
   }
 }
@@ -189,14 +190,14 @@ export async function addTagToDeck(
     if (insertError) {
       if (insertError.code === '23505') { // unique_violation
         // Already exists, consider it a success (or return a specific message)
-        console.log(`Deck tag association already exists: deck=${deckId}, tag=${tagId}`);
+        appLogger.info(`Deck tag association already exists: deck=${deckId}, tag=${tagId}`);
         return { data: null, error: null };
       }
        if (insertError.code === '23503') { // foreign_key_violation
-         console.error('Add deck tag FK violation:', insertError);
+         appLogger.error('Add deck tag FK violation:', insertError);
          return { data: null, error: 'Deck or Tag not found.' };
        }
-      console.error('Error adding tag to deck:', insertError);
+      appLogger.error('Error adding tag to deck:', insertError);
       return { data: null, error: 'Failed to add tag to deck.' };
     }
 
@@ -207,7 +208,7 @@ export async function addTagToDeck(
     return { data: null, error: null }; // Success
 
   } catch (error) {
-    console.error('Unexpected error in addTagToDeck:', error);
+    appLogger.error('Unexpected error in addTagToDeck:', error);
     return { data: null, error: 'An unexpected error occurred.' };
   }
 }
@@ -238,7 +239,7 @@ export async function removeTagFromDeck(
       .eq('user_id', user.id);
 
     if (deleteError) {
-      console.error('Error removing tag from deck:', deleteError);
+      appLogger.error('Error removing tag from deck:', deleteError);
       return { data: null, error: 'Failed to remove tag from deck.' };
     }
 
@@ -252,7 +253,7 @@ export async function removeTagFromDeck(
     return { data: null, error: null }; // Success
 
   } catch (error) {
-    console.error('Unexpected error in removeTagFromDeck:', error);
+    appLogger.error('Unexpected error in removeTagFromDeck:', error);
     return { data: null, error: 'An unexpected error occurred.' };
   }
 }
@@ -281,7 +282,7 @@ export async function getDeckTags(deckId: string): Promise<ActionResult<Tables<'
       .eq('user_id', user.id);
 
     if (fetchError) {
-      console.error('Error fetching deck tags:', fetchError);
+      appLogger.error('Error fetching deck tags:', fetchError);
       return { data: null, error: 'Failed to fetch deck tags.' };
     }
 
@@ -292,7 +293,7 @@ export async function getDeckTags(deckId: string): Promise<ActionResult<Tables<'
     return { data: tags, error: null };
 
   } catch (error) {
-    console.error('Unexpected error in getDeckTags:', error);
+    appLogger.error('Unexpected error in getDeckTags:', error);
     return { data: null, error: 'An unexpected error occurred.' };
   }
 }
@@ -321,12 +322,12 @@ export async function getCardTags(cardId: string): Promise<ActionResult<Tables<'
       .single();
 
     if (cardError) {
-      console.error(`Error fetching card ${cardId} to get deck_id:`, cardError);
+      appLogger.error(`Error fetching card ${cardId} to get deck_id:`, cardError);
       return { data: null, error: "Failed to fetch card details to retrieve tags." };
     }
 
     if (!card || !card.deck_id) {
-      console.error(`Card ${cardId} not found or has no deck_id.`);
+      appLogger.error(`Card ${cardId} not found or has no deck_id.`);
       return { data: null, error: "Card not found or not associated with a deck." };
     }
 
@@ -335,7 +336,7 @@ export async function getCardTags(cardId: string): Promise<ActionResult<Tables<'
     return getDeckTags(card.deck_id);
 
   } catch (error) {
-    console.error(`Unexpected error in getCardTags for card ${cardId}:`, error);
+    appLogger.error(`Unexpected error in getCardTags for card ${cardId}:`, error);
     return { data: null, error: 'An unexpected error occurred while fetching tags for the card.' };
   }
 }

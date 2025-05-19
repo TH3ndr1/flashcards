@@ -32,7 +32,7 @@ export function useSupabase() {
     // Robust check for environment variables.
     if (!supabaseUrl || supabaseUrl.trim() === '' || !supabaseAnonKey || supabaseAnonKey.trim() === '') {
       // Log error or handle appropriately. Maybe set an error state?
-      console.error(
+      appLogger.error(
         "Supabase URL or Anon Key is missing or empty in useSupabase hook. Cannot create client."
       );
       // Optionally throw or set an error state here if needed.

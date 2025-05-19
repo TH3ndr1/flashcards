@@ -21,6 +21,7 @@ import { addTagToDeck, removeTagFromDeck } from '@/lib/actions/tagActions';
 // Use the DeckWithCardsAndTags type which includes the tags array
 // Assuming useDecks.getDeck returns this structure now
 import type { DeckWithCardsAndTags } from "@/hooks/use-decks"; // Import the combined type
+import { appLogger, statusLogger } from '@/lib/logger';
 
 // Type aliases for better readability
 type DbDeck = Tables<'decks'>;
@@ -76,7 +77,7 @@ export function useEditDeck(deckId: string | undefined) {
 
     // --- Data Fetching Logic ---
     const loadDeckData = useCallback(async (id: string) => {
-        console.log(`[useEditDeck] Loading deck data for ID: ${id}`);
+        appLogger.info(`[useEditDeck] Loading deck data for ID: ${id}`);
         setLoading(true); setError(null);
         isMountedRef.current = false; // Reset load flag
         previousSavedMetadataRef.current = {}; // Reset saved state ref
@@ -89,7 +90,7 @@ export function useEditDeck(deckId: string | undefined) {
                     ...result.data,
                     cards: (result.data.cards || []) as Array<Partial<DbCard>> // Cast to partial for state
                 };
-                console.log("[useEditDeck] Fetched Deck Data for State:", fetchedDeckForState);
+                appLogger.info("[useEditDeck] Fetched Deck Data for State:", fetchedDeckForState);
                 setDeck(fetchedDeckForState); 
                 // Null check before accessing properties
                 if (fetchedDeckForState) { 
@@ -100,20 +101,20 @@ export function useEditDeck(deckId: string | undefined) {
                         is_bilingual: fetchedDeckForState.is_bilingual,
                     };
                     isMountedRef.current = true;
-                    console.log("[useEditDeck] Initial deck loaded. Metadata ref set.", previousSavedMetadataRef.current);
+                    appLogger.info("[useEditDeck] Initial deck loaded. Metadata ref set.", previousSavedMetadataRef.current);
                 } else {
                      isMountedRef.current = false;
-                     console.warn("[useEditDeck] Fetched deck data was unexpectedly null after check.");
+                     appLogger.warn("[useEditDeck] Fetched deck data was unexpectedly null after check.");
                 }
             } else {
                 // Deck not found case
                 setDeck(null); // Ensure deck state is null
                 setError("Deck not found or access denied."); // Set error message
                 isMountedRef.current = false; 
-                console.log("[useEditDeck] Deck not found or access denied, setting state to null.");
+                appLogger.info("[useEditDeck] Deck not found or access denied, setting state to null.");
             }
         } catch (err: any) {
-             console.error("[useEditDeck] Error loading deck:", err);
+             appLogger.error("[useEditDeck] Error loading deck:", err);
               setError(err.message || "Failed to load deck.");
               setDeck(null);
               isMountedRef.current = false;
@@ -131,7 +132,7 @@ export function useEditDeck(deckId: string | undefined) {
         } else if (!deckId) {
             setError("No Deck ID provided."); setLoading(false);
         } else if (useDecksLoading) {
-            console.log("[useEditDeck] Waiting for useDecks hook to finish loading...");
+            appLogger.info("[useEditDeck] Waiting for useDecks hook to finish loading...");
             setLoading(true);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -144,11 +145,11 @@ export function useEditDeck(deckId: string | undefined) {
     const debouncedSaveMetadata = useCallback(
         debounce(async (deckIdToSave: string, payloadToSave: UpdateDeckParams) => {
             if (!isMountedRef.current) {
-                console.warn("[useEditDeck] Debounced save skipped: Initial load not complete.");
+                appLogger.warn("[useEditDeck] Debounced save skipped: Initial load not complete.");
                 return;
             }
 
-            console.log("[useEditDeck] Debounced Save Metadata EXECUTION for ID:", deckIdToSave, "Payload:", payloadToSave);
+            appLogger.info("[useEditDeck] Debounced Save Metadata EXECUTION for ID:", deckIdToSave, "Payload:", payloadToSave);
             setIsSavingMetadata(true);
             try {
                 const result = await updateDeck(deckIdToSave, payloadToSave);
@@ -156,7 +157,7 @@ export function useEditDeck(deckId: string | undefined) {
                 if (result.error) {
                     toast.error("Deck settings auto-save failed", { description: result.error });
                 } else {
-                    console.log("[useEditDeck] Deck settings auto-saved successfully to DB.");
+                    appLogger.info("[useEditDeck] Deck settings auto-saved successfully to DB.");
                     // Update the ref ONLY after successful save
                     if (result.data) {
                          previousSavedMetadataRef.current = {
@@ -165,12 +166,12 @@ export function useEditDeck(deckId: string | undefined) {
                             secondary_language: result.data.secondary_language,
                             is_bilingual: result.data.is_bilingual,
                          };
-                         console.log("[useEditDeck] Updated previousSavedMetadataRef after successful save.");
+                         appLogger.info("[useEditDeck] Updated previousSavedMetadataRef after successful save.");
                     }
                      // *** NO setDeck() call here ***
                 }
             } catch (error: any) {
-                console.error("[useEditDeck] Error during debouncedSaveMetadata execution:", error);
+                appLogger.error("[useEditDeck] Error during debouncedSaveMetadata execution:", error);
                 toast.error("Deck settings auto-save failed", { description: error.message || "Unknown error" });
             } finally {
                 setIsSavingMetadata(false);
@@ -181,7 +182,7 @@ export function useEditDeck(deckId: string | undefined) {
 
     // Handler called by the DeckMetadataEditor component when user input changes
     const handleDeckMetadataChange = useCallback((updates: Partial<DbDeck>) => {
-        console.log('[DEBUG] handleDeckMetadataChange called with updates:', updates);
+        appLogger.info('[DEBUG] handleDeckMetadataChange called with updates:', updates);
         // --- Use DeckEditState type for callback param and return --- 
         setDeck((prevDeckState: DeckEditState): DeckEditState => {
             if (!prevDeckState) return null;
@@ -204,7 +205,7 @@ export function useEditDeck(deckId: string | undefined) {
             if (currentMetadataPayload.is_bilingual !== previousSavedMetadataRef.current.is_bilingual) changed = true;
 
             if (changed) {
-                console.log("[DEBUG] Change detected from initial/last save. Queuing debounced metadata save.");
+                appLogger.info("[DEBUG] Change detected from initial/last save. Queuing debounced metadata save.");
                 const payloadToSave: UpdateDeckParams = {
                     name: currentMetadataPayload.name ?? undefined,
                     primary_language: currentMetadataPayload.primary_language ?? undefined,
@@ -213,7 +214,7 @@ export function useEditDeck(deckId: string | undefined) {
                 };
                 debouncedSaveMetadata(deck.id, payloadToSave);
             } else {
-                console.log("[DEBUG] No change detected from initial/last save. Save trigger skipped.");
+                appLogger.info("[DEBUG] No change detected from initial/last save. Save trigger skipped.");
             }
         }
         // -------------------------------------------
@@ -254,7 +255,7 @@ export function useEditDeck(deckId: string | undefined) {
              const updatedCards: Array<Partial<DbCard>> = [...prev.cards, newCardPlaceholder];
              return { ...prev, cards: updatedCards };
          });
-         console.log("[useEditDeck] Added optimistic card placeholder:", newCardPlaceholder.id);
+         appLogger.info("[useEditDeck] Added optimistic card placeholder:", newCardPlaceholder.id);
     }, [deck]);
 
     const handleCreateCard = useCallback(async (cardData: CreateCardInput): Promise<string | null> => {
@@ -281,7 +282,7 @@ export function useEditDeck(deckId: string | undefined) {
                 );
                 // If placeholder wasn't found (edge case), add the saved card
                 if (!tempId || !updatedCards.some(c => c.id === savedCard.id)) {
-                   console.warn("[useEditDeck] Placeholder not found for optimistic update, adding saved card directly.");
+                   appLogger.warn("[useEditDeck] Placeholder not found for optimistic update, adding saved card directly.");
                    updatedCards.push(savedCard);
                 }
                 return { ...prev, cards: updatedCards };
@@ -347,12 +348,12 @@ export function useEditDeck(deckId: string | undefined) {
             setDeck((prev: DeckEditState): DeckEditState => {
                 if (!prev) {
                     // Should not happen if update was attempted, but handle defensively
-                    console.error("[useEditDeck] Cannot revert card update: Previous state was null.");
+                    appLogger.error("[useEditDeck] Cannot revert card update: Previous state was null.");
                     return null; 
                 }
                 // Capture original cards here, *after* confirming prev is not null
                 const originalCards = prev.cards; 
-                console.log("[useEditDeck] Reverting card update due to error.");
+                appLogger.info("[useEditDeck] Reverting card update due to error.");
                 return { ...prev, cards: originalCards }; 
             });
             // ---------------------------------------------------------------
@@ -361,7 +362,7 @@ export function useEditDeck(deckId: string | undefined) {
 
     // The stable callback passed down to components
     const handleUpdateCard = useCallback(async (cardId: string, cardData: UpdateCardInput) => {
-        console.log(`[useEditDeck] handleUpdateCard called for ID: ${cardId}`); // Log call initiation
+        appLogger.info(`[useEditDeck] handleUpdateCard called for ID: ${cardId}`); // Log call initiation
         // Placeholder card check (remains the same)
         if (cardId.startsWith('new-')) {
              const placeholderCard = deck?.cards.find(c => c.id === cardId);
@@ -434,7 +435,7 @@ export function useEditDeck(deckId: string | undefined) {
             toast.error("Cannot add tag: Deck not loaded.");
             return;
         }
-        console.log(`[useEditDeck] Adding tag ${tagId} to deck ${deck.id}`);
+        appLogger.info(`[useEditDeck] Adding tag ${tagId} to deck ${deck.id}`);
         const toastId = toast.loading("Adding tag...");
         try {
             const result = await addTagToDeck(deck.id, tagId);
@@ -445,7 +446,7 @@ export function useEditDeck(deckId: string | undefined) {
             // Refetch deck data to get the updated tag list
             await loadDeckData(deck.id);
         } catch (error: any) {
-            console.error("[useEditDeck] Error adding tag to deck:", error);
+            appLogger.error("[useEditDeck] Error adding tag to deck:", error);
             toast.error("Failed to add tag", { id: toastId, description: error.message });
         }
     }, [deck, loadDeckData]); // Depend on deck and loadDeckData
@@ -455,7 +456,7 @@ export function useEditDeck(deckId: string | undefined) {
             toast.error("Cannot remove tag: Deck not loaded.");
             return;
         }
-        console.log(`[useEditDeck] Removing tag ${tagId} from deck ${deck.id}`);
+        appLogger.info(`[useEditDeck] Removing tag ${tagId} from deck ${deck.id}`);
         const toastId = toast.loading("Removing tag...");
         try {
             const result = await removeTagFromDeck(deck.id, tagId);
@@ -466,7 +467,7 @@ export function useEditDeck(deckId: string | undefined) {
             // Refetch deck data to get the updated tag list
             await loadDeckData(deck.id);
         } catch (error: any) {
-            console.error("[useEditDeck] Error removing tag from deck:", error);
+            appLogger.error("[useEditDeck] Error removing tag from deck:", error);
             toast.error("Failed to remove tag", { id: toastId, description: error.message });
         }
     }, [deck, loadDeckData]); // Depend on deck and loadDeckData

@@ -20,6 +20,7 @@ import {
     CommandList,
 } from "@/components/ui/command"
 import { cn } from '@/lib/utils'; // Import cn for conditional classes
+import { appLogger } from '@/lib/logger';
 
 // Define the expected props
 interface DeckTagEditorProps {
@@ -65,7 +66,7 @@ export function DeckTagEditor({
             await onAddTag(tagId);
         } catch (error) {
             // Error handled by the hook/action via toast
-            console.error("Error adding tag:", error);
+            appLogger.error("Error adding tag:", error);
         } finally {
             setIsAdding(false);
         }
@@ -77,7 +78,7 @@ export function DeckTagEditor({
         try {
             await onRemoveTag(tagId);
         } catch (error) {
-            console.error("Error removing tag:", error);
+            appLogger.error("Error removing tag:", error);
         } finally {
             setIsRemoving(null);
         }

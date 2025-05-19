@@ -50,7 +50,7 @@ export function useDecks(): UseDecksReturn {
         setDecks(result.data || []); 
       }
     } catch (err) {
-      console.error("Unexpected error fetching decks:", err);
+      appLogger.error("Unexpected error fetching decks:", err);
       setError('An unexpected error occurred while fetching decks.');
       setDecks([]);
     } finally {

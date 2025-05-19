@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { isValid, parseISO } from 'date-fns';
 import type { Tables } from "@/types/database";
 import React from 'react';
+import { appLogger, statusLogger } from '@/lib/logger';
 
 interface StudyModeButtonsProps {
   /** Type of content to study - either a deck or a study set */
@@ -62,7 +63,7 @@ export function StudyModeButtons({
 
   // Log props on mount for debugging
   useEffect(() => {
-    console.log(`[StudyModeButtons] Mounted with props for ${contentId}:`, {
+    appLogger.info(`[StudyModeButtons] Mounted with props for ${contentId}:`, {
       preCalculatedLearnCount,
       preCalculatedReviewCount,
       batchFetchInProgress,
@@ -74,7 +75,7 @@ export function StudyModeButtons({
   useEffect(() => {
     // If we have pre-calculated counts, we're no longer loading
     if (preCalculatedLearnCount !== undefined && preCalculatedReviewCount !== undefined) {
-      console.log(`[StudyModeButtons] Received pre-calculated counts for ${contentId}:`, 
+      appLogger.info(`[StudyModeButtons] Received pre-calculated counts for ${contentId}:`, 
         { learn: preCalculatedLearnCount, review: preCalculatedReviewCount });
       setIsLoading(false);
       
@@ -86,7 +87,7 @@ export function StudyModeButtons({
 
   // Track loading state changes
   useEffect(() => {
-    console.log(`[StudyModeButtons] Loading state for ${contentId} is now:`, isLoading);
+    appLogger.info(`[StudyModeButtons] Loading state for ${contentId} is now:`, isLoading);
   }, [isLoading, contentId]);
 
   useEffect(() => {
@@ -97,7 +98,7 @@ export function StudyModeButtons({
     
     // Skip if parent is doing a batch fetch
     if (batchFetchInProgress) {
-      console.log(`[StudyModeButtons] Skipping fetch for ${contentId} - batch fetch in progress`);
+      appLogger.info(`[StudyModeButtons] Skipping fetch for ${contentId} - batch fetch in progress`);
       return;
     }
     
@@ -116,7 +117,7 @@ export function StudyModeButtons({
       setError(null);
       
       try {
-        console.log(`[StudyModeButtons] Fetching counts for ${studyType} ID: ${contentId}`);
+        appLogger.info(`[StudyModeButtons] Fetching counts for ${studyType} ID: ${contentId}`);
         
         // Step 1: Get all card IDs matching the content (deck or study set)
         if (studyType === 'studySet') {
@@ -124,7 +125,7 @@ export function StudyModeButtons({
           const cardIdsResult = await resolveStudyQuery(studySetQuery);
           
           if (cardIdsResult.error || !cardIdsResult.data) {
-            console.error(`Error fetching study set cards:`, cardIdsResult.error);
+            appLogger.error(`Error fetching study set cards:`, cardIdsResult.error);
             setError(`Failed to check available cards`);
             setLearnCount(0);
             setReviewCount(0);
@@ -146,7 +147,7 @@ export function StudyModeButtons({
           const cardIdsResult = await resolveStudyQuery(deckQuery);
           
           if (cardIdsResult.error || !cardIdsResult.data) {
-            console.error(`Error fetching deck cards:`, cardIdsResult.error);
+            appLogger.error(`Error fetching deck cards:`, cardIdsResult.error);
             setError(`Failed to check available cards`);
             setLearnCount(0);
             setReviewCount(0);
@@ -157,7 +158,7 @@ export function StudyModeButtons({
           processCardIds(cardIds);
         }
       } catch (error) {
-        console.error("Error fetching card counts:", error);
+        appLogger.error("Error fetching card counts:", error);
         setError("Error checking available cards");
         setLearnCount(0);
         setReviewCount(0);
@@ -168,7 +169,7 @@ export function StudyModeButtons({
     
     // Helper function to process card IDs and update counts
     const processCardIds = async (cardIds: string[]) => {
-      console.log(`[StudyModeButtons] Found ${cardIds.length} total cards`);
+      appLogger.info(`[StudyModeButtons] Found ${cardIds.length} total cards`);
       
       if (cardIds.length === 0) {
         setLearnCount(0);
@@ -180,7 +181,7 @@ export function StudyModeButtons({
       const srsStatesResult = await getCardSrsStatesByIds(cardIds);
       
       if (srsStatesResult.error || !srsStatesResult.data) {
-        console.error(`Error fetching card SRS states:`, srsStatesResult.error);
+        appLogger.error(`Error fetching card SRS states:`, srsStatesResult.error);
         setError(`Failed to check card states`);
         setLearnCount(0);
         setReviewCount(0);
@@ -213,7 +214,7 @@ export function StudyModeButtons({
         return isGraduatedOrRelearning && isDue;
       });
       
-      console.log(`[StudyModeButtons] Learn eligible: ${learnEligibleCards.length}, Review eligible: ${reviewEligibleCards.length}`);
+      appLogger.info(`[StudyModeButtons] Learn eligible: ${learnEligibleCards.length}, Review eligible: ${reviewEligibleCards.length}`);
       
       setLearnCount(learnEligibleCards.length);
       setReviewCount(reviewEligibleCards.length);
@@ -274,7 +275,7 @@ export function StudyModeButtons({
       };
     }
     
-    console.log(`[StudyModeButtons] Starting ${mode} mode with input:`, studyInput);
+    appLogger.info(`[StudyModeButtons] Starting ${mode} mode with input:`, studyInput);
       
     // Verify counts for the selected mode
     if (mode === 'learn' && learnCount === 0) {

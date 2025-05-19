@@ -37,14 +37,14 @@ export function useCardTags(cardId: string): UseCardTagsReturn {
   const fetchCardTags = useCallback(async () => {
     // Only fetch if cardId is valid
     if (!cardId) {
-      console.log(`[useCardTags] Skipping fetch for invalid cardId: ${cardId}`);
+      appLogger.info(`[useCardTags] Skipping fetch for invalid cardId: ${cardId}`);
       setCardTags([]);
       setIsLoading(false);
       setError(null);
       return;
     }
 
-    console.log(`[useCardTags] Fetching tags for card: ${cardId}`);
+    appLogger.info(`[useCardTags] Fetching tags for card: ${cardId}`);
     setIsLoading(true);
     setError(null);
     try {
@@ -56,7 +56,7 @@ export function useCardTags(cardId: string): UseCardTagsReturn {
         setCardTags(result.data || []);
       }
     } catch (err) {
-      console.error(`Unexpected error fetching tags for card ${cardId}:`, err);
+      appLogger.error(`Unexpected error fetching tags for card ${cardId}:`, err);
       setError('An unexpected error occurred while fetching card tags.');
       setCardTags([]);
     } finally {
@@ -66,7 +66,7 @@ export function useCardTags(cardId: string): UseCardTagsReturn {
 
   // Fetch on mount or when cardId changes
   useEffect(() => {
-    console.log(`[useCardTags] useEffect triggered for cardId: ${cardId}`);
+    appLogger.info(`[useCardTags] useEffect triggered for cardId: ${cardId}`);
     fetchCardTags();
   }, [fetchCardTags, cardId]);
 

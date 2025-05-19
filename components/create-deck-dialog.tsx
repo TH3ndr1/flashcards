@@ -20,6 +20,7 @@ import { useDecks } from "@/hooks/use-decks"
 import { useRouter } from "next/navigation"
 import { useSettings } from "@/providers/settings-provider"
 import { toast } from "sonner"
+import { appLogger } from "@/lib/logger"
 
 interface CreateDeckDialogProps {
   open: boolean
@@ -61,15 +62,15 @@ export function CreateDeckDialog({ open, onOpenChange }: CreateDeckDialogProps) 
       })
 
       if (createError) {
-        console.error("Error creating deck (from hook):", createError)
+        appLogger.error("Error creating deck (from hook):", createError)
         toast.error("Failed to create deck", {
-          description: "Please try again or check the console for details."
+          description: "Please try again or check the logs for details."
         })
         return
       }
 
       if (!newDeckData || !newDeckData.id) {
-        console.error("Error creating deck: No data or ID returned from hook.")
+        appLogger.error("Error creating deck: No data or ID returned from hook.")
         toast.error("Failed to create deck", {
           description: "Could not retrieve deck information after creation."
         })
@@ -81,7 +82,7 @@ export function CreateDeckDialog({ open, onOpenChange }: CreateDeckDialogProps) 
       onOpenChange(false)
       router.push(`/edit/${newDeckData.id}`)
     } catch (error) {
-      console.error("Error creating deck:", error)
+      appLogger.error("Error creating deck:", error)
       toast.error("Failed to create deck", {
         description: error instanceof Error ? error.message : "An unexpected error occurred."
       })

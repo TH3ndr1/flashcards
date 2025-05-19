@@ -1,6 +1,7 @@
 import { createServerClient as createSSRClient, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { type Database } from '@/types/database'
+import { appLogger, statusLogger } from '@/lib/logger'
 
 /**
  * Creates a Supabase client for use in Server Components.
@@ -23,7 +24,7 @@ export function createServerClient() {
           const cookieStore = await cookies()
           return cookieStore.get(name)?.value
         } catch (error) {
-          console.error(`Error accessing cookie ${name}:`, error)
+          appLogger.error(`Error accessing cookie ${name}:`, error)
           return undefined
         }
       },
@@ -33,7 +34,7 @@ export function createServerClient() {
           cookieStore.set({ name, value, ...options })
         } catch (error) {
           // This happens in read-only contexts like middleware or edge functions
-          console.log(`Cookie ${name} not set - read-only context`)
+          appLogger.info(`Cookie ${name} not set - read-only context`)
         }
       },
       async remove(name: string, options: CookieOptions) {
@@ -42,7 +43,7 @@ export function createServerClient() {
           cookieStore.set({ name, value: '', ...options })
         } catch (error) {
           // This happens in read-only contexts like middleware or edge functions
-          console.log(`Cookie ${name} not removed - read-only context`)
+          appLogger.info(`Cookie ${name} not removed - read-only context`)
         }
       },
     },
@@ -69,7 +70,7 @@ export function createActionClient() {
           const cookieStore = await cookies()
           return cookieStore.get(name)?.value
         } catch (error) {
-          console.error(`Error accessing cookie ${name}:`, error)
+          appLogger.error(`Error accessing cookie ${name}:`, error)
           return undefined
         }
       },
@@ -79,7 +80,7 @@ export function createActionClient() {
           cookieStore.set({ name, value, ...options })
         } catch (error) {
           // This happens in read-only contexts
-          console.log(`Cookie ${name} not set - read-only context`)
+          appLogger.info(`Cookie ${name} not set - read-only context`)
         }
       },
       async remove(name: string, options: CookieOptions) {
@@ -88,7 +89,7 @@ export function createActionClient() {
           cookieStore.set({ name, value: '', ...options })
         } catch (error) {
           // This happens in read-only contexts
-          console.log(`Cookie ${name} not removed - read-only context`)
+          appLogger.info(`Cookie ${name} not removed - read-only context`)
         }
       },
     },
@@ -115,7 +116,7 @@ export function createDynamicRouteClient() {
           const cookieStore = await cookies()
           return cookieStore.get(name)?.value
         } catch (error) {
-          console.error(`Error accessing cookie ${name}:`, error)
+          appLogger.error(`Error accessing cookie ${name}:`, error)
           return undefined
         }
       },
@@ -124,7 +125,7 @@ export function createDynamicRouteClient() {
           const cookieStore = await cookies()
           cookieStore.set({ name, value, ...options })
         } catch (error) {
-          console.log(`Cookie ${name} not set - read-only context`)
+          appLogger.info(`Cookie ${name} not set - read-only context`)
         }
       },
       async remove(name: string, options: CookieOptions) {
@@ -132,7 +133,7 @@ export function createDynamicRouteClient() {
           const cookieStore = await cookies()
           cookieStore.set({ name, value: '', ...options })
         } catch (error) {
-          console.log(`Cookie ${name} not removed - read-only context`)
+          appLogger.info(`Cookie ${name} not removed - read-only context`)
         }
       },
     },

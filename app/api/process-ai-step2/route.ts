@@ -11,6 +11,7 @@ import {
     InitialGenerationResult // Needed for the return type of knowledge regen
 } from '../extract-pdf/flashcardGeneratorService';
 import { GenerationApiError } from '../extract-pdf/types';
+import { appLogger, statusLogger } from '@/lib/logger';
 
 // --- Request Body Types --- 
 interface ClassifyPayload {
@@ -38,15 +39,15 @@ export const config = {
 
 export async function POST(request: NextRequest) {
     const startTime = Date.now();
-    console.log(`[API Route Step2 POST] Request received at ${new Date(startTime).toISOString()}`);
+    appLogger.info(`[API Route Step2 POST] Request received at ${new Date(startTime).toISOString()}`);
 
     // --- Runtime Credential/Config Check --- 
     if (!GCP_PROJECT_ID || !GCP_SERVICE_ACCOUNT_EMAIL || !GCP_PRIVATE_KEY) {
-        console.error('[API Route Step2 POST] CRITICAL: Missing required GCP credentials. Aborting.');
+        appLogger.error('[API Route Step2 POST] CRITICAL: Missing required GCP credentials. Aborting.');
         return NextResponse.json({ success: false, message: 'Server configuration error: Missing necessary credentials.', code: 'MISSING_CREDENTIALS' }, { status: 500 });
     }
     if (!validateConfiguration()) {
-        console.error('[API Route Step2 POST] CRITICAL: Core configuration validation failed. Aborting.');
+        appLogger.error('[API Route Step2 POST] CRITICAL: Core configuration validation failed. Aborting.');
         return NextResponse.json({ success: false, message: 'Server configuration error: Invalid or missing configuration.', code: 'INVALID_CONFIG' }, { status: 500 });
     }
 
@@ -63,7 +64,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ success: false, message: 'Missing required fields: action, filename.', code: 'INVALID_PAYLOAD' }, { status: 400 });
         }
 
-        console.log(`[API Route Step2 POST] Processing action: ${payload.action} for file: ${payload.filename}`);
+        appLogger.info(`[API Route Step2 POST] Processing action: ${payload.action} for file: ${payload.filename}`);
 
         // --- Execute Action --- 
         if (payload.action === 'classify') {
@@ -71,10 +72,10 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ success: false, message: 'Missing or invalid basicFlashcards for classify action.', code: 'INVALID_PAYLOAD' }, { status: 400 });
             }
             
-            console.log(`[API Route Step2 POST] Calling classifyTranslationFlashcards for ${payload.basicFlashcards.length} cards.`);
+            appLogger.info(`[API Route Step2 POST] Calling classifyTranslationFlashcards for ${payload.basicFlashcards.length} cards.`);
             const classifications = await classifyTranslationFlashcards(payload.basicFlashcards, payload.filename);
             const duration = Date.now() - startTime;
-            console.log(`[API Route Step2 POST] Classification finished for ${payload.filename}. Duration: ${duration}ms. Results: ${classifications.length}`);
+            appLogger.info(`[API Route Step2 POST] Classification finished for ${payload.filename}. Duration: ${duration}ms. Results: ${classifications.length}`);
             
             return NextResponse.json({
                 success: true,
@@ -88,10 +89,10 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ success: false, message: 'Missing or invalid originalText for force_knowledge action.', code: 'INVALID_PAYLOAD' }, { status: 400 });
             }
 
-            console.log(`[API Route Step2 POST] Calling regenerateAsKnowledgeFlashcards.`);
+            appLogger.info(`[API Route Step2 POST] Calling regenerateAsKnowledgeFlashcards.`);
             const knowledgeResult = await regenerateAsKnowledgeFlashcards(payload.originalText, payload.filename);
             const duration = Date.now() - startTime;
-            console.log(`[API Route Step2 POST] Knowledge regeneration finished for ${payload.filename}. Duration: ${duration}ms. Cards: ${knowledgeResult.basicFlashcards.length}`);
+            appLogger.info(`[API Route Step2 POST] Knowledge regeneration finished for ${payload.filename}. Duration: ${duration}ms. Cards: ${knowledgeResult.basicFlashcards.length}`);
 
             // Return structure should match client expectation for merging
             return NextResponse.json({
@@ -113,7 +114,7 @@ export async function POST(request: NextRequest) {
     } catch (error: any) {
         const endTime = Date.now();
         const duration = endTime - startTime;
-        console.error(`[API Route Step2 POST] UNHANDLED ERROR after ${duration}ms:`, error);
+        appLogger.error(`[API Route Step2 POST] UNHANDLED ERROR after ${duration}ms:`, error);
         
         let message = 'An unexpected server error occurred during Step 2 processing.';
         let code = 'INTERNAL_SERVER_ERROR';

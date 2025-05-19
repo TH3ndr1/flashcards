@@ -11,6 +11,7 @@ import {
     DEFAULT_PALETTE_CONFIG,
     // DEFAULT_WORD_COLORS // No longer needed here if palettes cover defaults
 } from "@/lib/palettes"; // Adjust path if needed
+import { appLogger, statusLogger } from '@/lib/logger';
 // -----------------------------------------
 
 
@@ -20,7 +21,7 @@ const DEBUG = true;
 // Debug logging function
 const debug = (...args: any[]) => {
   if (DEBUG && process.env.NODE_ENV !== 'production') {
-    console.debug('[Settings Provider Debug]:', ...args); // Use debug instead of warn
+    appLogger.info('[Settings Provider Debug]:', ...args); // Use debug instead of warn
   }
 };
 
@@ -169,7 +170,7 @@ const transformDbSettingsToSettings = (dbSettings: DbSettings | null): Settings 
         debug('transformDbSettingsToSettings: Transformation result:', transformed);
         return transformed;
     } catch (e) {
-        console.error("Error transforming DbSettings:", e);
+        appLogger.error("Error transforming DbSettings:", e);
         debug('transformDbSettingsToSettings: Error during transformation, returning default.');
         return { ...DEFAULT_SETTINGS }; // Return copy on error
     }
@@ -208,7 +209,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (!isMounted) { debug("Component unmounted during settings load"); return; }
 
         if (error) {
-          console.error("Failed to load settings:", error);
+          appLogger.error("Failed to load settings:", error);
           debug('Error loading settings, using defaults', DEFAULT_SETTINGS);
           toast.error("Failed to load settings", { description: error || "Using default settings." });
           setSettings({ ...DEFAULT_SETTINGS });
@@ -218,7 +219,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
           setSettings(finalSettings);
         }
       } catch (unexpectedError) {
-        console.error("Unexpected error during settings load:", unexpectedError);
+        appLogger.error("Unexpected error during settings load:", unexpectedError);
         debug('Unexpected error, using defaults', DEFAULT_SETTINGS);
         toast.error("Error", { description: "An unexpected error occurred while loading settings. Using default values." });
         if (isMounted) setSettings({ ...DEFAULT_SETTINGS });
@@ -257,7 +258,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       const { data, error } = await updateUserSettings({ updates: updates });
 
       if (error) {
-        console.error("Failed to update settings via action:", error);
+        appLogger.error("Failed to update settings via action:", error);
         debug('Settings action update failed, reverting optimistic update', { error });
         toast.error("Error Saving Settings", { description: error || "Could not save settings." });
         setSettings(previousSettings);
@@ -269,7 +270,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         return { data, error: null };
       }
     } catch (unexpectedError) {
-      console.error("Unexpected error during settings action call:", unexpectedError);
+      appLogger.error("Unexpected error during settings action call:", unexpectedError);
       debug('Unexpected settings update error, reverting optimistic update');
       const errorMsg = unexpectedError instanceof Error ? unexpectedError.message : "An unexpected error occurred.";
       toast.error("Error Saving Settings", { description: errorMsg });

@@ -1,5 +1,6 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { appLogger, statusLogger } from '@/lib/logger'
 
 /**
  * Decodes a Supabase cookie value if it's in base64 format
@@ -14,7 +15,7 @@ function decodeSupabaseCookie(cookieValue?: string): string | undefined {
       const base64Value = cookieValue.substring(7);
       return Buffer.from(base64Value, 'base64').toString();
     } catch (error) {
-      console.error('Error decoding base64 cookie:', error);
+      appLogger.error('Error decoding base64 cookie:', error);
       return cookieValue; // Return original as fallback
     }
   }
@@ -38,7 +39,7 @@ export async function middleware(request: NextRequest) {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   
   if (!supabaseUrl || !supabaseAnonKey) {
-    console.error('Missing Supabase environment variables in middleware')
+    appLogger.error('Missing Supabase environment variables in middleware')
     return response
   }
   

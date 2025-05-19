@@ -163,10 +163,10 @@ export function useStudySession({
     const debouncedUpdateProgress = useCallback(
       debounce(async (updateData: { cardToSave: StudyCard, grade: ReviewGrade }) => {
         const { cardToSave, grade } = updateData;
-        console.log(`[debouncedUpdateProgress] Saving card ${cardToSave?.id} with grade ${grade}`);
+        appLogger.info(`[debouncedUpdateProgress] Saving card ${cardToSave?.id} with grade ${grade}`);
 
         if (!cardToSave || !cardToSave.id) {
-            console.error("[debouncedUpdateProgress] Attempted to save invalid card data (missing card or id).");
+            appLogger.error("[debouncedUpdateProgress] Attempted to save invalid card data (missing card or id).");
             toast.error("Failed to save progress for a card due to invalid data.");
             return;
         }
@@ -200,14 +200,14 @@ export function useStudySession({
           });
 
           if (result.error) {
-            console.error(`Error updating card ${cardToSave.id} progress:`, result.error);
+            appLogger.error(`Error updating card ${cardToSave.id} progress:`, result.error);
              toast.error(`Failed to save progress for card: ${cardToSave.id}`);
           } else {
-             console.log(`Successfully saved progress for card ${cardToSave.id}.`);
+             appLogger.info(`Successfully saved progress for card ${cardToSave.id}.`);
              // Optional: toast.success(`Progress saved for ${cardToSave.id}`);
           }
         } catch (error) {
-          console.error(`Exception saving progress for card ${cardToSave?.id}:`, error);
+          appLogger.error(`Exception saving progress for card ${cardToSave?.id}:`, error);
            toast.error(`Exception saving progress for card: ${cardToSave?.id}`);
             }
         }, PROGRESS_UPDATE_DEBOUNCE_MS),
@@ -261,15 +261,15 @@ export function useStudySession({
              const delay = soonestFutureDueTime.getTime() - now.getTime() + 100; // Add a small buffer
 
              dueCheckTimerRef.current = setTimeout(() => {
-                  console.log("[useStudySession] Due check timer fired. Triggering queue re-evaluation.");
+                  appLogger.info("[useStudySession] Due check timer fired. Triggering queue re-evaluation.");
                   // Trigger re-evaluation by updating queue state (shallow copy to force render)
                   // This will cause the currentCard memo (which calls findNextCardIndex) to re-run.
                   setSessionQueue([...sessionQueue]);
              }, Math.max(delay, 100)); // Minimum 100ms delay
-             console.log(`[useStudySession] Scheduled next due check in ${Math.max(delay, 100)}ms.`);
+             appLogger.info(`[useStudySession] Scheduled next due check in ${Math.max(delay, 100)}ms.`);
          } else {
              // No future cards are due in the queue. No timer needed.
-             console.log("[useStudySession] No future cards to schedule check for.");
+             appLogger.info("[useStudySession] No future cards to schedule check for.");
          }
      }, [isComplete, sessionQueue]); // Dependency on sessionQueue to re-schedule when queue changes
 
@@ -283,19 +283,19 @@ export function useStudySession({
           // Wait for initial parameters and settings to be loaded
           // Only initialize if hook is not already loading and dependencies are ready
           if (!isLoading && !isInitialized) {
-               console.log("[useStudySession] Waiting for initialization dependencies (input, mode, settings)...");
+               appLogger.info("[useStudySession] Waiting for initialization dependencies (input, mode, settings)...");
                return; // Exit if not ready
           }
           // If already initialized and dependencies haven't changed, do nothing
            if (!isLoading && sessionQueue.length > 0 && initialSelectionCount > -1 && !isComplete) {
-                console.log("[useStudySession] Session already initialized with existing queue.");
+                appLogger.info("[useStudySession] Session already initialized with existing queue.");
                 // If the hook was unmounted and remounted, the timer might be gone. Re-schedule it.
                  scheduleNextDueCheck(); // Schedule check based on existing queue
                 return;
             }
 
 
-          console.log(`[useStudySession] Starting session initialization for Mode: ${studyMode}`);
+          appLogger.info(`[useStudySession] Starting session initialization for Mode: ${studyMode}`);
           setIsLoading(true);
                 setError(null);
                 setIsComplete(false);
@@ -319,14 +319,14 @@ export function useStudySession({
 
           // Adapt resolveStudyQuery call based on the structure of StudyInput
           if (studyInput && 'studySetId' in studyInput && studyInput.studySetId) {
-              console.log(`[useStudySession] Resolving Study Set: ${studyInput.studySetId}`);
+              appLogger.info(`[useStudySession] Resolving Study Set: ${studyInput.studySetId}`);
               resolveResult = await resolveStudyQuery({ studySetId: studyInput.studySetId });
           } else if (studyInput && 'criteria' in studyInput && studyInput.criteria) {
-               console.log(`[useStudySession] Resolving Study Criteria:`, studyInput.criteria);
+               appLogger.info(`[useStudySession] Resolving Study Criteria:`, studyInput.criteria);
                resolveResult = await resolveStudyQuery({ criteria: studyInput.criteria });
           } else if (studyInput && 'deckId' in studyInput && studyInput.deckId) {
                // For a specific deck, resolve ALL cards in the deck first by ID
-               console.log(`[useStudySession] Resolving Deck ID: ${studyInput.deckId}`);
+               appLogger.info(`[useStudySession] Resolving Deck ID: ${studyInput.deckId}`);
                resolveResult = await resolveStudyQuery({ 
                  criteria: { 
                    deckId: studyInput.deckId as string,
@@ -334,26 +334,26 @@ export function useStudySession({
                  } 
                });
           } else {
-              console.error("[useStudySession] Invalid study input configuration:", studyInput);
+              appLogger.error("[useStudySession] Invalid study input configuration:", studyInput);
               throw new Error('Invalid study input configuration');
           }
 
 
           if (!isMounted) return; // Check mount status after async op
                 if (resolveResult.error || !resolveResult.data) {
-            console.error("[useStudySession] Failed to resolve card IDs:", resolveResult.error);
+            appLogger.error("[useStudySession] Failed to resolve card IDs:", resolveResult.error);
             // If the query failed, set initial count to 0 to indicate nothing was found
             setInitialSelectionCount(0);
             throw new Error(resolveResult.error || 'Failed to resolve study query');
           }
           cardIds = resolveResult.data;
-          console.log(`[useStudySession] Resolved ${cardIds.length} card IDs from query`);
+          appLogger.info(`[useStudySession] Resolved ${cardIds.length} card IDs from query`);
 
           // Set total cards matching criteria (before mode filtering)
           setInitialSelectionCount(cardIds.length);
 
                 if (cardIds.length === 0) {
-            console.log("[useStudySession] No card IDs found matching criteria.");
+            appLogger.info("[useStudySession] No card IDs found matching criteria.");
                     if (isMounted) {
               setIsLoading(false);
                         setIsComplete(true);
@@ -366,13 +366,13 @@ export function useStudySession({
           const cardResult = await getCardsByIds(cardIds);
           if (!isMounted) return; // Check mount status
           if (cardResult.error || !cardResult.data) {
-            console.error("[useStudySession] Failed to fetch cards:", cardResult.error);
+            appLogger.error("[useStudySession] Failed to fetch cards:", cardResult.error);
              // If fetching failed, set initial count to the number of IDs found but couldn't fetch
              // setInitialSelectionCount(cardIds.length); // Keep the count of resolved IDs
             throw new Error(cardResult.error || 'Failed to fetch cards');
           }
           const fetchedCards: StudyCard[] = cardResult.data;
-          console.log(`[useStudySession] Fetched ${fetchedCards.length} cards for session.`);
+          appLogger.info(`[useStudySession] Fetched ${fetchedCards.length} cards for session.`);
 
           // 3. CRITICAL: Filter fetched cards to create the *initial* queue based on Study Mode
           let initialQueueCards: StudyCard[] = [];
@@ -384,7 +384,7 @@ export function useStudySession({
             initialQueueCards = fetchedCards.filter(card =>
                  card.srs_level === 0 && card.learning_state !== 'relearning'
             );
-            console.log(`[useStudySession] Filtered ${initialQueueCards.length} cards for Learn mode queue.`);
+            appLogger.info(`[useStudySession] Filtered ${initialQueueCards.length} cards for Learn mode queue.`);
 
           } else if (studyMode === 'review') {
             // Review mode queue: cards in review state OR relearning state that are currently DUE
@@ -401,13 +401,13 @@ export function useStudySession({
                  return isReviewOrRelearning && isScheduledAndDue;
             });
 
-            console.log(`[useStudySession] Filtered ${initialQueueCards.length} cards for Review mode queue (due).`);
+            appLogger.info(`[useStudySession] Filtered ${initialQueueCards.length} cards for Review mode queue (due).`);
           }
 
 
           // --- Handle empty queue after filtering ---
           if (initialQueueCards.length === 0) {
-            console.log(`[useStudySession] No cards filtered into ${studyMode} queue.`);
+            appLogger.info(`[useStudySession] No cards filtered into ${studyMode} queue.`);
                 if (isMounted) {
               setIsLoading(false);
               setIsComplete(true);
@@ -470,7 +470,7 @@ export function useStudySession({
           }
 
         } catch (err) {
-          console.error('[useStudySession] Error during initialization:', err);
+          appLogger.error('[useStudySession] Error during initialization:', err);
                 if (isMounted) {
             setError(err instanceof Error ? err.message : 'An unknown error occurred during setup.');
             setIsLoading(false);
@@ -651,14 +651,14 @@ export function useStudySession({
       // Only allow answering if a card is currently displayed, not processing, and not complete
       // Use currentQueueItemState (calculated by memo)
       if (!currentQueueItem || isProcessingAnswer || isComplete || !settings) { // Depends on settings here directly
-          console.log("[answerCard] Ignoring answer: processing, complete, no card, or settings missing.");
+          appLogger.info("[answerCard] Ignoring answer: processing, complete, no card, or settings missing.");
             return;
         }
 
       setIsProcessingAnswer(true); // Lock input
       setIsFlipped(true); // Auto-flip back to front/answer side before processing
 
-      console.log(`[answerCard] Answering card ${currentQueueItem.card.id} (Mode: ${studyMode}, State: ${currentQueueItem.card.learning_state}/${currentQueueItem.card.srs_level}) with grade ${grade}`);
+      appLogger.info(`[answerCard] Answering card ${currentQueueItem.card.id} (Mode: ${studyMode}, State: ${currentQueueItem.card.learning_state}/${currentQueueItem.card.srs_level}) with grade ${grade}`);
 
       // Use setTimeout to delay processing until flip animation completes (roughly)
       setTimeout(async () => {
@@ -672,7 +672,7 @@ export function useStudySession({
           // Use currentQueueItemState (calculated by memo)
           const queueItemIndex = nextQueue.findIndex(item => item.card.id === updatedCard.id);
           if (queueItemIndex === -1) {
-               console.error("[answerCard] Cannot find current card in queue copy. Aborting processing.", updatedCard.id);
+               appLogger.error("[answerCard] Cannot find current card in queue copy. Aborting processing.", updatedCard.id);
                setIsProcessingAnswer(false);
                setIsFlipped(false);
                // Schedule next check in case other cards became due (based on potentially unchanged queue state)
@@ -724,7 +724,7 @@ export function useStudySession({
 
           // Case 1: Card is currently in Initial Learning state (srs_level = 0, learning_state = 'learning')
           if (answeredQueueItem.card.srs_level === 0 && answeredQueueItem.card.learning_state === 'learning') {
-               console.log(`[answerCard] Processing Initial Learning state (srs_level=0, learning_state=learning)`);
+               appLogger.info(`[answerCard] Processing Initial Learning state (srs_level=0, learning_state=learning)`);
 
                // Update learning attempt counters on the card object (only increment in initial learning)
                if (grade === 1) updatedCard.failed_attempts_in_learn = (updatedCard.failed_attempts_in_learn || 0) + 1;
@@ -737,7 +737,7 @@ export function useStudySession({
                // --- Branch based on Learning Algorithm Setting ---
                if (currentSettings.enableDedicatedLearnMode) {
                     // --- Custom Learn Mode Logic (Streak) ---
-                     console.log(`[answerCard] Using Dedicated Learn logic`);
+                     appLogger.info(`[answerCard] Using Dedicated Learn logic`);
                     let newStreak = currentInternalState.streak;
 
                     if (grade === 1) newStreak = 0; // Again: Reset streak
@@ -749,7 +749,7 @@ export function useStudySession({
 
                     // Check for Graduation
                     if (newStreak >= currentSettings.masteryThreshold || grade === 4) { // Graduating (threshold or Easy)
-                         console.log(`[answerCard] Card ${updatedCard.id} graduating from Dedicated Learn (Streak: ${newStreak}).`);
+                         appLogger.info(`[answerCard] Card ${updatedCard.id} graduating from Dedicated Learn (Streak: ${newStreak}).`);
                         shouldRemoveFromQueue = true; // Remove from session queue permanently
                          setSessionResults(prev => ({ ...prev, graduatedCount: prev.graduatedCount + 1 })); // Count graduation
 
@@ -775,7 +775,7 @@ export function useStudySession({
 
 
                     } else { // Not Graduated - Re-queue in session
-                         console.log(`[answerCard] Card ${updatedCard.id} continues in Dedicated Learn (Streak: ${newStreak}).`);
+                         appLogger.info(`[answerCard] Card ${updatedCard.id} continues in Dedicated Learn (Streak: ${newStreak}).`);
                         shouldRemoveFromQueue = false; // Stays in queue
                          reAddToQueue = true; // Mark to be re-added
 
@@ -794,14 +794,14 @@ export function useStudySession({
                     }
 
                } else { // settings.enableDedicatedLearnMode === FALSE (Standard SM-2 Learn Steps)
-                    console.log(`[answerCard] Using Standard SM-2 Learn logic`);
+                    appLogger.info(`[answerCard] Using Standard SM-2 Learn logic`);
                     currentInternalState.learningStepIndex = answeredQueueItem.internalState.learningStepIndex ?? 0;
 
                     // Calculate next state using standard learning steps
                     const stepResult = calculateNextStandardLearnStep(currentInternalState.learningStepIndex, grade, currentSettings);
 
                     if (stepResult.nextStepIndex === 'graduated') { // Completed steps or Easy grade
-                         console.log(`[answerCard] Card ${updatedCard.id} graduating from Standard Learn.`);
+                         appLogger.info(`[answerCard] Card ${updatedCard.id} graduating from Standard Learn.`);
                         shouldRemoveFromQueue = true; // Remove from session queue permanently
                          setSessionResults(prev => ({ ...prev, graduatedCount: prev.graduatedCount + 1 })); // Count graduation
 
@@ -825,7 +825,7 @@ export function useStudySession({
 
 
                     } else { // Card continues in standard learning steps
-                         console.log(`[answerCard] Card ${updatedCard.id} continues in Standard Learn step ${stepResult.nextStepIndex}.`);
+                         appLogger.info(`[answerCard] Card ${updatedCard.id} continues in Standard Learn step ${stepResult.nextStepIndex}.`);
                         shouldRemoveFromQueue = false; // Stays in queue
                          reAddToQueue = true; // Mark to be re-added (to be sorted by dueTime)
                          reinsertIndex = nextQueue.length; // Add to end initially, then sort
@@ -850,7 +850,7 @@ export function useStudySession({
 
           // Case 2: Card is currently in Relearning state (srs_level = 0, learning_state = 'relearning')
           else if (answeredQueueItem.card.srs_level === 0 && answeredQueueItem.card.learning_state === 'relearning') {
-               console.log(`[answerCard] Processing Relearning state (srs_level=0, learning_state=relearning)`);
+               appLogger.info(`[answerCard] Processing Relearning state (srs_level=0, learning_state=relearning)`);
 
                currentInternalState.learningStepIndex = answeredQueueItem.internalState.learningStepIndex ?? 0;
 
@@ -858,7 +858,7 @@ export function useStudySession({
                const stepResult = calculateNextRelearningStep(currentInternalState.learningStepIndex, grade, currentSettings);
 
                if (stepResult.nextStepIndex === 'graduatedFromRelearning') { // Completed relearning steps
-                    console.log(`[answerCard] Card ${updatedCard.id} graduating from Relearning.`);
+                    appLogger.info(`[answerCard] Card ${updatedCard.id} graduating from Relearning.`);
                     shouldRemoveFromQueue = true; // Remove from session queue (completed in this session)
                     setSessionResults(prev => ({ ...prev, graduatedCount: prev.graduatedCount + 1 })); // Count graduation from relearning
 
@@ -878,7 +878,7 @@ export function useStudySession({
                     // Failed/hard attempts counters from initial learning are NOT reset by relearning - keep their current value on updatedCard
 
                } else { // Card continues in relearning steps
-                    console.log(`[answerCard] Card ${updatedCard.id} continues in Relearning step ${stepResult.nextStepIndex}.`);
+                    appLogger.info(`[answerCard] Card ${updatedCard.id} continues in Relearning step ${stepResult.nextStepIndex}.`);
                     shouldRemoveFromQueue = false; // Stays in queue
                     reAddToQueue = true; // Mark to be re-added (to be sorted by dueTime)
                     reinsertIndex = nextQueue.length; // Add to end initially, then sort
@@ -903,7 +903,7 @@ export function useStudySession({
 
           // Case 3: Card is currently in Standard Review state (srs_level >= 1, learning_state === null)
           else if (answeredQueueItem.card.srs_level >= 1 && answeredQueueItem.card.learning_state === null) {
-               console.log(`[answerCard] Processing Standard Review state (srs_level=${answeredQueueItem.card.srs_level})`);
+               appLogger.info(`[answerCard] Processing Standard Review state (srs_level=${answeredQueueItem.card.srs_level})`);
 
                // Calculate next state using SM-2 algorithm (handles Review -> Review or Review -> Relearning)
                // Use card's current DB state fields for input to calculateSm2State
@@ -929,13 +929,13 @@ export function useStudySession({
 
                if (sm2Result.learningState === 'relearning') {
                     // Card lapsed from Review to Relearning
-                    console.log(`[answerCard] Card ${updatedCard.id} lapsed to Relearning.`);
+                    appLogger.info(`[answerCard] Card ${updatedCard.id} lapsed to Relearning.`);
                     setSessionResults(prev => ({ ...prev, relapsedCount: prev.relapsedCount + 1 })); // Count relapse
                     shouldRemoveFromQueue = true; // Remove from *this* review session queue (it's due later/tomorrow)
                      // Failed/hard attempt counters from initial learning are NOT reset on lapse - keep their value on updatedCard
 
                } else { // Card successful in Review (Grade >= 2)
-                    console.log(`[answerCard] Card ${updatedCard.id} successful in Review.`);
+                    appLogger.info(`[answerCard] Card ${updatedCard.id} successful in Review.`);
                     shouldRemoveFromQueue = true; // Remove from *this* review session queue
                }
 
@@ -948,15 +948,15 @@ export function useStudySession({
           // --- Manage the queue based on whether the card completed the session ---
           if (shouldRemoveFromQueue) {
                // Card was already spliced out above. nextQueue is correct.
-               console.log(`[answerCard] Card ${updatedCard.id} removed from session queue permanently.`);
+               appLogger.info(`[answerCard] Card ${updatedCard.id} removed from session queue permanently.`);
           } else if (reinsertIndex !== null) {
                // Card needs to be re-added to the queue copy at a specific position
-                console.log(`[answerCard] Card ${updatedCard.id} re-adding to queue at index ${reinsertIndex}.`);
+                appLogger.info(`[answerCard] Card ${updatedCard.id} re-adding to queue at index ${reinsertIndex}.`);
                nextQueue.splice(reinsertIndex!, 0, reinsertCard!); // Re-insert the updated item
           } else {
               // This case should ideally not happen if shouldRemoveFromQueue or reinsertIndex cover all possibilities
               // It means a card was spliced out but not re-added/completed.
-              console.error("[answerCard] Logic error: Card neither removed nor marked for re-queueing. Re-adding to end as fallback.", updatedCard.id);
+              appLogger.error("[answerCard] Logic error: Card neither removed nor marked for re-queueing. Re-adding to end as fallback.", updatedCard.id);
               // Create a new item to push
               nextQueue.push({ card: updatedCard, internalState: currentInternalState }); // Fallback - push the updated item
           }
@@ -975,7 +975,7 @@ export function useStudySession({
           // --- Update UI State (Delayed for animation) ---
           setTimeout(() => {
               const sessionIsComplete = nextQueue.length === 0;
-              console.log(`[answerCard] Delayed state update. Queue length: ${nextQueue.length}, Complete: ${sessionIsComplete}`);
+              appLogger.info(`[answerCard] Delayed state update. Queue length: ${nextQueue.length}, Complete: ${sessionIsComplete}`);
 
               setSessionQueue(nextQueue); // Update session queue state
               setIsComplete(sessionIsComplete); // Update completion status
@@ -983,7 +983,7 @@ export function useStudySession({
               if (!sessionIsComplete) {
                    // Find the next card to show from the *updated and sorted* queue
                    const nextIndex = findNextCardIndex(nextQueue); // findNextCardIndex returns index or queue.length
-                   console.log(`[answerCard] Next card index to display: ${nextIndex}`);
+                   appLogger.info(`[answerCard] Next card index to display: ${nextIndex}`);
 
                    // Set currentCardIndex state. This will trigger the currentQueueItem memo.
                    // If nextIndex is queue.length, currentCard will become null (waiting state)
@@ -993,7 +993,7 @@ export function useStudySession({
              } else {
                    // Session is complete, index doesn't matter
                    setCurrentCardIndex(0);
-                   console.log("[answerCard] Session is now complete.");
+                   appLogger.info("[answerCard] Session is now complete.");
               }
 
               setIsFlipped(false); // Flip back

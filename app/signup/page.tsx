@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { useAuth } from "@/hooks/use-auth"
 import { toast } from "sonner"
 import type { AuthError } from '@supabase/supabase-js'
+import { appLogger, statusLogger } from '@/lib/logger'
 
 /**
  * Sign-up Page component.
@@ -105,7 +106,7 @@ function SignupContent() {
       const { data, error } = await signUp(email, password)
 
       if (error) {
-        console.error("Sign up error:", error)
+        appLogger.error("Sign up error:", error)
         if (error instanceof Error) {
           toast.error(error.message || "An unexpected error occurred during sign up.")
         } else {
@@ -123,7 +124,7 @@ function SignupContent() {
         toast.error("An unexpected issue occurred during sign up. Please try again.")
       }
     } catch (err) {
-      console.error("Signup submit error:", err)
+      appLogger.error("Signup submit error:", err)
       toast.error("Sign Up Failed", {
         description: "An unexpected error occurred. Please try again later."
       })

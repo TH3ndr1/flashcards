@@ -21,6 +21,7 @@ const nextConfig = {
     parallelServerBuildTraces: true,
     parallelServerCompiles: true,
   },
+  serverExternalPackages: ['pino', 'thread-stream'],
 }
 
 mergeConfig(nextConfig, userConfig)

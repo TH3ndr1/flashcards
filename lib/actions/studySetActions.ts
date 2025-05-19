@@ -9,6 +9,7 @@ import type { StudyQueryCriteria } from '@/lib/schema/study-query.schema';
 import { studySetInputSchema, partialStudySetInputSchema } from '@/lib/schema/study-set.schema';
 import type { Database, Tables } from "@/types/database"; // Assuming types_db defines Tables<'study_sets'> 
 import type { ActionResult } from '@/lib/actions/types'; // Import shared type
+import { appLogger, statusLogger } from '@/lib/logger';
 
 // Define DbStudySet based on your types_db or manually if needed
 type DbStudySet = Tables<'study_sets'>;
@@ -32,7 +33,7 @@ async function getSupabaseAndUser() {
   const supabase = createActionClient(); // Use the action client
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
-    console.error("[getSupabaseAndUser - studySetActions] Auth error:", authError);
+    appLogger.error("[getSupabaseAndUser - studySetActions] Auth error:", authError);
     return { supabase: null, user: null, error: authError?.message || 'Authentication required.' }; 
   }
   return { supabase, user, error: null };
@@ -67,12 +68,12 @@ export async function createStudySet(
         return { data: null, error: authError };
     }
 
-    console.log("[createStudySet] User:", user.id, "Input Data:", data);
+    appLogger.info("[createStudySet] User:", user.id, "Input Data:", data);
 
     // Validate input data
     const validation = studySetInputSchema.safeParse(data);
     if (!validation.success) {
-        console.warn("[createStudySet] Validation failed:", validation.error.errors);
+        appLogger.warn("[createStudySet] Validation failed:", validation.error.errors);
         return { data: null, error: validation.error.errors[0].message };
     }
 
@@ -91,18 +92,18 @@ export async function createStudySet(
             .single();
 
         if (insertError) {
-            console.error("[createStudySet] Insert error:", insertError);
+            appLogger.error("[createStudySet] Insert error:", insertError);
             // Handle potential unique name constraint if needed (though not in schema def above)
             // if (insertError.code === '23505') { ... }
             return { data: null, error: 'Failed to create study set.' };
         }
 
-        console.log("[createStudySet] Success, ID:", newStudySet?.id);
+        appLogger.info("[createStudySet] Success, ID:", newStudySet?.id);
         revalidatePath('/study-sets'); // Revalidate page listing study sets
         return { data: newStudySet, error: null };
 
     } catch (err) {
-        console.error("[createStudySet] Unexpected error:", err);
+        appLogger.error("[createStudySet] Unexpected error:", err);
         return { data: null, error: 'An unexpected error occurred.' };
     }
 }
@@ -119,7 +120,7 @@ export async function getUserStudySets(): Promise<ActionResult<DbStudySet[]>> {
         return { data: null, error: authError };
     }
 
-    console.log("[getUserStudySets] User:", user.id);
+    appLogger.info("[getUserStudySets] User:", user.id);
 
     try {
         const { data: studySets, error: fetchError } = await supabase
@@ -129,15 +130,15 @@ export async function getUserStudySets(): Promise<ActionResult<DbStudySet[]>> {
             .order('name', { ascending: true }); // Order by name
 
         if (fetchError) {
-            console.error("[getUserStudySets] Fetch error:", fetchError);
+            appLogger.error("[getUserStudySets] Fetch error:", fetchError);
             return { data: null, error: 'Failed to fetch study sets.' };
         }
 
-        console.log(`[getUserStudySets] Found ${studySets?.length ?? 0} sets.`);
+        appLogger.info(`[getUserStudySets] Found ${studySets?.length ?? 0} sets.`);
         return { data: studySets || [], error: null };
 
     } catch (err) {
-        console.error("[getUserStudySets] Unexpected error:", err);
+        appLogger.error("[getUserStudySets] Unexpected error:", err);
         return { data: null, error: 'An unexpected error occurred.' };
     }
 }
@@ -161,7 +162,7 @@ export async function getStudySet(studySetId: string): Promise<ActionResult<DbSt
         return { data: null, error: 'Invalid Study Set ID provided.' };
     }
 
-    console.log("[getStudySet] User:", user.id, "Set ID:", studySetId);
+    appLogger.info("[getStudySet] User:", user.id, "Set ID:", studySetId);
 
     try {
         const { data: studySet, error: fetchError } = await supabase
@@ -172,21 +173,21 @@ export async function getStudySet(studySetId: string): Promise<ActionResult<DbSt
             .maybeSingle(); // Use maybeSingle to return null if not found
 
         if (fetchError) {
-            console.error("[getStudySet] Fetch error:", fetchError);
+            appLogger.error("[getStudySet] Fetch error:", fetchError);
             return { data: null, error: 'Failed to fetch study set.' };
         }
 
         if (!studySet) {
-            console.log("[getStudySet] Not found or unauthorized for ID:", studySetId);
+            appLogger.info("[getStudySet] Not found or unauthorized for ID:", studySetId);
              // Return null data but not necessarily an error if simply not found
              return { data: null, error: null }; 
         }
 
-        console.log("[getStudySet] Found:", studySet.id);
+        appLogger.info("[getStudySet] Found:", studySet.id);
         return { data: studySet, error: null };
 
     } catch (err) {
-        console.error("[getStudySet] Unexpected error:", err);
+        appLogger.error("[getStudySet] Unexpected error:", err);
         return { data: null, error: 'An unexpected error occurred.' };
     }
 }
@@ -216,7 +217,7 @@ export async function updateStudySet(
     // Validate the partial input data 
     const validation = partialStudySetInputSchema.safeParse(data);
      if (!validation.success) {
-        console.warn("[updateStudySet] Validation failed:", validation.error.errors);
+        appLogger.warn("[updateStudySet] Validation failed:", validation.error.errors);
         return { data: null, error: validation.error.errors[0].message };
     }
     
@@ -227,7 +228,7 @@ export async function updateStudySet(
          return { data: null, error: "No update data provided." };
     }
 
-    console.log("[updateStudySet] User:", user.id, "Set ID:", studySetId, "Update Data:", updateData);
+    appLogger.info("[updateStudySet] User:", user.id, "Set ID:", studySetId, "Update Data:", updateData);
 
     try {
         // Update and fetch the updated row
@@ -245,7 +246,7 @@ export async function updateStudySet(
             .single();
 
         if (updateError) {
-            console.error("[updateStudySet] Update error:", updateError);
+            appLogger.error("[updateStudySet] Update error:", updateError);
             // Handle potential unique name constraint if name is being updated
              // if (updateError.code === '23505') { ... }
             return { data: null, error: 'Failed to update study set.' };
@@ -253,17 +254,17 @@ export async function updateStudySet(
         
         if (!updatedStudySet) {
              // This might happen if the ID didn't exist or RLS failed
-             console.warn("[updateStudySet] Update affected 0 rows for ID:", studySetId);
+             appLogger.warn("[updateStudySet] Update affected 0 rows for ID:", studySetId);
              return { data: null, error: 'Study set not found or update failed.' };
         }
 
-        console.log("[updateStudySet] Success, ID:", updatedStudySet.id);
+        appLogger.info("[updateStudySet] Success, ID:", updatedStudySet.id);
         revalidatePath('/study-sets'); // Revalidate list page
         revalidatePath(`/study-sets/${studySetId}`); // Revalidate specific set page (if exists)
         return { data: updatedStudySet, error: null };
 
     } catch (err) {
-        console.error("[updateStudySet] Unexpected error:", err);
+        appLogger.error("[updateStudySet] Unexpected error:", err);
         return { data: null, error: 'An unexpected error occurred.' };
     }
 }
@@ -286,7 +287,7 @@ export async function deleteStudySet(studySetId: string): Promise<ActionResult<n
         return { data: null, error: 'Invalid Study Set ID provided.' };
     }
 
-    console.log("[deleteStudySet] User:", user.id, "Set ID:", studySetId);
+    appLogger.info("[deleteStudySet] User:", user.id, "Set ID:", studySetId);
 
     try {
         const { error: deleteError, count } = await supabase
@@ -296,22 +297,22 @@ export async function deleteStudySet(studySetId: string): Promise<ActionResult<n
             .eq('user_id', user.id); // Ensure user ownership
 
         if (deleteError) {
-            console.error("[deleteStudySet] Delete error:", deleteError);
+            appLogger.error("[deleteStudySet] Delete error:", deleteError);
             return { data: null, error: 'Failed to delete study set.' };
         }
         
         if (count === 0) {
-             console.warn("[deleteStudySet] Delete affected 0 rows for ID:", studySetId);
+             appLogger.warn("[deleteStudySet] Delete affected 0 rows for ID:", studySetId);
              // Don't necessarily return error if it just wasn't found
              // return { data: null, error: 'Study set not found or not authorized.' };
         }
 
-        console.log("[deleteStudySet] Success for ID:", studySetId);
+        appLogger.info("[deleteStudySet] Success for ID:", studySetId);
         revalidatePath('/study-sets'); // Revalidate list page
         return { data: null, error: null }; // Success
 
     } catch (err) {
-        console.error("[deleteStudySet] Unexpected error:", err);
+        appLogger.error("[deleteStudySet] Unexpected error:", err);
         return { data: null, error: 'An unexpected error occurred.' };
     }
 }

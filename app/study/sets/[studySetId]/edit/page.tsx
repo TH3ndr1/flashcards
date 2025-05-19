@@ -22,6 +22,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { appLogger, statusLogger } from '@/lib/logger';
 
 // Define the DbStudySet type using Tables
 type DbStudySet = Tables<'study_sets'>;
@@ -55,7 +56,7 @@ export default function EditStudySetPage() {
         const fetchSetData = async () => {
             setIsLoading(true);
             setError(null);
-            console.log(`[EditStudySetPage] Fetching data for set ID: ${studySetId}`);
+            appLogger.info(`[EditStudySetPage] Fetching data for set ID: ${studySetId}`);
             try {
                 const result = await getStudySet(studySetId);
                 if (result.error) {
@@ -65,7 +66,7 @@ export default function EditStudySetPage() {
                     // router.replace('/study/sets'); 
                 } else if (result.data) {
                     setInitialData(result.data);
-                    console.log("[EditStudySetPage] Initial data loaded:", result.data);
+                    appLogger.info("[EditStudySetPage] Initial data loaded:", result.data);
                 } else {
                      // Handle case where data is null but no specific error (e.g., not found)
                      setError("Study set not found or you do not have permission to edit it.");
@@ -74,7 +75,7 @@ export default function EditStudySetPage() {
                      // router.replace('/study/sets');
                 }
             } catch (err) {
-                console.error(`[EditStudySetPage] Unexpected error fetching study set:`, err);
+                appLogger.error(`[EditStudySetPage] Unexpected error fetching study set:`, err);
                 const message = err instanceof Error ? err.message : "An unexpected error occurred.";
                 setError(message);
                 toast.error("Error loading study set", { description: message });
@@ -93,7 +94,7 @@ export default function EditStudySetPage() {
             return;
         }
         setIsSaving(true);
-        console.log(`[EditStudySetPage] Updating study set ${studySetId}:`, data);
+        appLogger.info(`[EditStudySetPage] Updating study set ${studySetId}:`, data);
         try {
             const result = await updateStudySet(studySetId, data); // Pass ID and updated data
             if (result.error) {
@@ -106,7 +107,7 @@ export default function EditStudySetPage() {
                  // setInitialData(result.data); // Update local state with saved data
             }
         } catch (err) {
-            console.error(`[EditStudySetPage] Unexpected error updating study set:`, err);
+            appLogger.error(`[EditStudySetPage] Unexpected error updating study set:`, err);
             toast.error("An unexpected error occurred while saving.");
         } finally {
             setIsSaving(false);
@@ -121,7 +122,7 @@ export default function EditStudySetPage() {
         }
         setIsDeleting(true);
         const setName = initialData.name;
-        console.log(`[EditStudySetPage] Deleting study set: ${setName} (${studySetId})`);
+        appLogger.info(`[EditStudySetPage] Deleting study set: ${setName} (${studySetId})`);
         try {
             const result = await deleteStudySet(studySetId);
             if (result.error) {
@@ -131,7 +132,7 @@ export default function EditStudySetPage() {
                 router.push('/study/sets'); // Navigate back to list on success
             }
         } catch (err) {
-            console.error(`[EditStudySetPage] Unexpected error deleting study set:`, err);
+            appLogger.error(`[EditStudySetPage] Unexpected error deleting study set:`, err);
             toast.error("An unexpected error occurred while deleting.");
         } finally {
             setIsDeleting(false); // Ensure state is reset even on error

@@ -14,6 +14,7 @@ import { TableViewTabContent } from "./TableViewTabContent";
 import { DeckDangerZone } from "./DeckDangerZone";
 import { DeckTagEditor } from '@/components/deck-tag-editor';
 import type { Tables } from "@/types/database"; // Keep type import
+import { appLogger, statusLogger } from '@/lib/logger';
 
 type DbCard = Tables<'cards'>;
 
@@ -141,7 +142,7 @@ export default function EditDeckPage() {
                          // Decide how table updates should reflect - refetch or update local state?
                          // Option 1: Assume table handles its own saving and parent just needs to know
                          onCardUpdated={(updatedCard) => {
-                              console.log("Card updated via table:", updatedCard.id);
+                              appLogger.info("Card updated via table:", updatedCard.id);
                               // Option: Update local state directly (if needed)
                               // setDeck(prev => ...)
                               // Option: Or trigger a full refetch

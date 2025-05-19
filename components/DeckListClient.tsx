@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { StudyModeButtons } from "@/components/study/StudyModeButtons";
 import { useDecks } from "@/hooks/use-decks";
+import { appLogger } from '@/lib/logger';
 
 // Type for enhanced deck data that includes learn/review counts
 interface EnhancedDeck {
@@ -80,7 +81,7 @@ export function DeckListClient({ initialData }: DeckListClientProps) {
   // Effect to refetch decks when page becomes visible again
   useEffect(() => {
     if (isVisible && !isUsingInitialData && !fallbackLoading) {
-      console.log("[DeckListClient] Page visible, refetching decks.");
+      appLogger.info("[DeckListClient] Page visible, refetching decks.");
       refetchDecks();
     }
   }, [isVisible, isUsingInitialData, fallbackLoading, refetchDecks]);
@@ -92,7 +93,7 @@ export function DeckListClient({ initialData }: DeckListClientProps) {
 
   // Navigate to the intermediate deck creation choice page
   const handleCreateDeckClick = () => {
-    console.log("[DeckListClient] Navigating to deck creation choice page.");
+    appLogger.info("[DeckListClient] Navigating to deck creation choice page.");
     router.push('/decks/create-choice');
   };
 

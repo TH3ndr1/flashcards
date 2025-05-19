@@ -3,6 +3,7 @@ import { getDecksWithSrsCounts } from "@/lib/actions/deckActions";
 import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
+import { appLogger, statusLogger } from '@/lib/logger';
 
 /**
  * Home page component.
@@ -32,7 +33,7 @@ export default async function Home() {
   
   // Log any fetch errors but still render the page (client will handle empty state)
   if (fetchError) {
-    console.error("Error fetching decks with counts:", fetchError);
+    appLogger.error("Error fetching decks with counts:", fetchError);
   }
   
   return (

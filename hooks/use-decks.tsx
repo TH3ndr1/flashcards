@@ -37,12 +37,12 @@ interface UseDecksReturn {
 
 const logDecks = (...args: any[]) => {
     if (process.env.NODE_ENV !== 'production') {
-        console.log('[Decks Hook]:', ...args);
+        appLogger.info('[Decks Hook]:', ...args);
     }
 };
 const logDecksError = (...args: any[]) => {
     if (process.env.NODE_ENV !== 'production') {
-        console.error('[Decks Hook Error]:', ...args);
+        appLogger.error('[Decks Hook Error]:', ...args);
     }
 };
 

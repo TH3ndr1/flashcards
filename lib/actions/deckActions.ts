@@ -5,6 +5,7 @@ import { createActionClient } from "@/lib/supabase/server";
 import type { Database, Tables, Json, TablesUpdate } from "@/types/database"; // Import TablesUpdate
 import type { ActionResult } from "@/lib/actions/types";
 import { revalidatePath } from 'next/cache';
+import { appLogger, statusLogger } from '@/lib/logger';
 
 export type DeckListItemWithCounts = {
     id: string;
@@ -29,17 +30,17 @@ import type { CreateDeckInput, UpdateDeckInput } from '@/lib/schema/deckSchemas'
 
 
 export async function getDecks(): Promise<ActionResult<DeckListItemWithCounts[]>> {
-    console.log("[deckActions - getDecks] Action started - fetching via RPC get_decks_with_complete_srs_counts");
+    appLogger.info("[deckActions - getDecks] Action started - fetching via RPC get_decks_with_complete_srs_counts");
     try {
         const supabase = createActionClient();
         const { data: { user }, error: authError } = await supabase.auth.getUser();
 
         if (authError || !user) {
-            console.error('[deckActions - getDecks] Auth error or no user:', authError);
+            appLogger.error('[deckActions - getDecks] Auth error or no user:', authError);
             return { data: null, error: authError?.message || 'Not authenticated' };
         }
 
-        console.log(`[deckActions - getDecks] User authenticated: ${user.id}, calling RPC get_decks_with_complete_srs_counts`);
+        appLogger.info(`[deckActions - getDecks] User authenticated: ${user.id}, calling RPC get_decks_with_complete_srs_counts`);
 
         const { data: rpcData, error: rpcError } = await supabase.rpc(
             'get_decks_with_complete_srs_counts',
@@ -47,7 +48,7 @@ export async function getDecks(): Promise<ActionResult<DeckListItemWithCounts[]>
         );
 
         if (rpcError) {
-            console.error('[deckActions - getDecks] Supabase RPC failed:', rpcError);
+            appLogger.error('[deckActions - getDecks] Supabase RPC failed:', rpcError);
             return { data: null, error: rpcError.message || 'Failed to fetch decks via RPC.' };
         }
 
@@ -67,11 +68,11 @@ export async function getDecks(): Promise<ActionResult<DeckListItemWithCounts[]>
             updated_at: deck.updated_at,
         }));
 
-        console.log(`[deckActions - getDecks] Successfully fetched and processed ${processedData.length} decks via RPC.`);
+        appLogger.info(`[deckActions - getDecks] Successfully fetched and processed ${processedData.length} decks via RPC.`);
         return { data: processedData as DeckListItemWithCounts[], error: null };
 
     } catch (err: any) {
-        console.error('[deckActions - getDecks] Caught unexpected error:', err);
+        appLogger.error('[deckActions - getDecks] Caught unexpected error:', err);
         return { data: null, error: err.message || 'An unexpected error occurred while fetching decks.' };
     }
 }
@@ -79,7 +80,7 @@ export async function getDecks(): Promise<ActionResult<DeckListItemWithCounts[]>
 export async function getDeck(
     deckId: string
 ): Promise<ActionResult<DeckWithCardsAndTags | null>> {
-    console.log(`[deckActions - getDeck] Action started for deckId: ${deckId}`);
+    appLogger.info(`[deckActions - getDeck] Action started for deckId: ${deckId}`);
     if (!deckId) {
         return { data: null, error: 'Deck ID is required.' };
     }
@@ -87,10 +88,10 @@ export async function getDeck(
         const supabase = createActionClient();
         const { data: { user }, error: authError } = await supabase.auth.getUser();
         if (authError || !user) {
-            console.error('[deckActions - getDeck] Auth error or no user:', authError);
+            appLogger.error('[deckActions - getDeck] Auth error or no user:', authError);
             return { data: null, error: authError?.message || 'Not authenticated' };
         }
-        console.log(`[deckActions - getDeck] User authenticated: ${user.id}, fetching deck ${deckId}`);
+        appLogger.info(`[deckActions - getDeck] User authenticated: ${user.id}, fetching deck ${deckId}`);
         const { data: deckData, error: dbError } = await supabase
             .from('decks')
             .select(`*, cards (*), tags (*)`)
@@ -98,11 +99,11 @@ export async function getDeck(
             .eq('user_id', user.id)
             .maybeSingle();
         if (dbError) {
-            console.error('[deckActions - getDeck] Database error:', dbError);
+            appLogger.error('[deckActions - getDeck] Database error:', dbError);
             return { data: null, error: dbError.message || 'Failed to fetch deck data.' };
         }
         if (!deckData) {
-            console.log('[deckActions - getDeck] Deck not found or not authorized:', deckId);
+            appLogger.info('[deckActions - getDeck] Deck not found or not authorized:', deckId);
             return { data: null, error: null };
         }
         const deckWithDetails = {
@@ -110,10 +111,10 @@ export async function getDeck(
             cards: (deckData.cards || []) as Tables<'cards'>[],
             tags: (deckData.tags || []) as Tables<'tags'>[]
         };
-        console.log(`[deckActions - getDeck] Successfully fetched deck ${deckId} with ${deckWithDetails.cards.length} cards and ${deckWithDetails.tags.length} tags.`);
+        appLogger.info(`[deckActions - getDeck] Successfully fetched deck ${deckId} with ${deckWithDetails.cards.length} cards and ${deckWithDetails.tags.length} tags.`);
         return { data: deckWithDetails as DeckWithCardsAndTags, error: null };
     } catch (error) {
-        console.error('[deckActions - getDeck] Caught unexpected error:', error);
+        appLogger.error('[deckActions - getDeck] Caught unexpected error:', error);
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
         return { data: null, error: errorMessage };
     }
@@ -122,21 +123,21 @@ export async function getDeck(
 export async function createDeck(
     inputData: CreateDeckInput
 ): Promise<ActionResult<Tables<'decks'>>> {
-    console.log(`[deckActions - createDeck] Action started.`);
+    appLogger.info(`[deckActions - createDeck] Action started.`);
     try {
         const supabase = createActionClient();
         const { data: { user }, error: authError } = await supabase.auth.getUser();
         if (authError || !user) {
-             console.error('[deckActions - createDeck] Auth error:', authError);
+             appLogger.error('[deckActions - createDeck] Auth error:', authError);
              return { data: null, error: authError?.message || 'Not authenticated' };
         }
         const validation = createDeckSchema.safeParse(inputData);
         if (!validation.success) {
-             console.warn("[deckActions - createDeck] Validation failed:", validation.error.format());
+             appLogger.warn("[deckActions - createDeck] Validation failed:", validation.error.format());
              return { data: null, error: validation.error.flatten().fieldErrors.name?.[0] || "Invalid input." };
         }
         const { name, primary_language, secondary_language, is_bilingual } = validation.data;
-        console.log(`[deckActions - createDeck] User: ${user.id}, Creating deck: ${name}`);
+        appLogger.info(`[deckActions - createDeck] User: ${user.id}, Creating deck: ${name}`);
         const { data: newDeck, error: insertError } = await supabase
             .from('decks')
             .insert({
@@ -149,15 +150,15 @@ export async function createDeck(
             .select()
             .single();
         if (insertError) {
-            console.error('[deckActions - createDeck] Insert error:', insertError);
+            appLogger.error('[deckActions - createDeck] Insert error:', insertError);
             return { data: null, error: insertError.message || 'Failed to create deck.' };
         }
-        console.log(`[deckActions - createDeck] Success, ID: ${newDeck?.id}`);
+        appLogger.info(`[deckActions - createDeck] Success, ID: ${newDeck?.id}`);
         revalidatePath('/');
         revalidatePath('/study/select');
         return { data: newDeck, error: null };
     } catch (error) {
-        console.error('[deckActions - createDeck] Caught unexpected error:', error);
+        appLogger.error('[deckActions - createDeck] Caught unexpected error:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error creating deck';
         return { data: null, error: errorMessage };
     }
@@ -167,18 +168,18 @@ export async function updateDeck(
     deckId: string,
     inputData: UpdateDeckInput
 ): Promise<ActionResult<Tables<'decks'>>> {
-     console.log(`[deckActions - updateDeck] Action started for deckId: ${deckId}`);
+     appLogger.info(`[deckActions - updateDeck] Action started for deckId: ${deckId}`);
      if (!deckId) return { data: null, error: 'Deck ID is required.' };
      try {
         const supabase = createActionClient();
         const { data: { user }, error: authError } = await supabase.auth.getUser();
         if (authError || !user) {
-             console.error('[deckActions - updateDeck] Auth error:', authError);
+             appLogger.error('[deckActions - updateDeck] Auth error:', authError);
              return { data: null, error: authError?.message || 'Not authenticated' };
         }
         const validation = updateDeckSchema.safeParse(inputData);
         if (!validation.success) {
-             console.warn("[deckActions - updateDeck] Validation failed:", validation.error.format());
+             appLogger.warn("[deckActions - updateDeck] Validation failed:", validation.error.format());
              return { data: null, error: validation.error.flatten().fieldErrors.name?.[0] || "Invalid input." };
         }
         const updatesFromSchema = validation.data;
@@ -209,7 +210,7 @@ export async function updateDeck(
              return { data: null, error: "No valid fields provided for update." };
         }
 
-        console.log(`[deckActions - updateDeck] User: ${user.id}, Updating deck ${deckId} with:`, dbUpdatePayload);
+        appLogger.info(`[deckActions - updateDeck] User: ${user.id}, Updating deck ${deckId} with:`, dbUpdatePayload);
 
         const { data: updatedDeck, error: updateError } = await supabase
             .from('decks')
@@ -219,20 +220,20 @@ export async function updateDeck(
             .select()
             .single();
         if (updateError) {
-            console.error('[deckActions - updateDeck] Update error:', updateError);
+            appLogger.error('[deckActions - updateDeck] Update error:', updateError);
             return { data: null, error: updateError.message || 'Failed to update deck.' };
         }
         if (!updatedDeck) {
-             console.warn(`[deckActions - updateDeck] Deck ${deckId} not found or not authorized for update.`);
+             appLogger.warn(`[deckActions - updateDeck] Deck ${deckId} not found or not authorized for update.`);
              return { data: null, error: 'Deck not found or update failed.' };
         }
-        console.log(`[deckActions - updateDeck] Success, ID: ${updatedDeck.id}`);
+        appLogger.info(`[deckActions - updateDeck] Success, ID: ${updatedDeck.id}`);
         revalidatePath('/');
         revalidatePath('/study/select');
         revalidatePath(`/edit/${deckId}`);
         return { data: updatedDeck, error: null };
     } catch (error) {
-        console.error('[deckActions - updateDeck] Caught unexpected error:', error);
+        appLogger.error('[deckActions - updateDeck] Caught unexpected error:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error updating deck';
         return { data: null, error: errorMessage };
     }
@@ -241,34 +242,34 @@ export async function updateDeck(
 export async function deleteDeck(
     deckId: string
 ): Promise<ActionResult<null>> {
-     console.log(`[deckActions - deleteDeck] Action started for deckId: ${deckId}`);
+     appLogger.info(`[deckActions - deleteDeck] Action started for deckId: ${deckId}`);
      if (!deckId) return { data: null, error: 'Deck ID is required.' };
       try {
         const supabase = createActionClient();
         const { data: { user }, error: authError } = await supabase.auth.getUser();
         if (authError || !user) {
-             console.error('[deckActions - deleteDeck] Auth error:', authError);
+             appLogger.error('[deckActions - deleteDeck] Auth error:', authError);
              return { data: null, error: authError?.message || 'Not authenticated' };
         }
-        console.log(`[deckActions - deleteDeck] User: ${user.id}, Deleting deck ${deckId}`);
+        appLogger.info(`[deckActions - deleteDeck] User: ${user.id}, Deleting deck ${deckId}`);
         const { error: deleteError, count } = await supabase
             .from('decks')
             .delete()
             .eq('id', deckId)
             .eq('user_id', user.id);
         if (deleteError) {
-            console.error('[deckActions - deleteDeck] Delete error:', deleteError);
+            appLogger.error('[deckActions - deleteDeck] Delete error:', deleteError);
             return { data: null, error: deleteError.message || 'Failed to delete deck.' };
         }
          if (count === 0) {
-             console.warn("[deckActions - deleteDeck] Delete affected 0 rows for ID:", deckId);
+             appLogger.warn("[deckActions - deleteDeck] Delete affected 0 rows for ID:", deckId);
         }
-        console.log(`[deckActions - deleteDeck] Success for ID: ${deckId}`);
+        appLogger.info(`[deckActions - deleteDeck] Success for ID: ${deckId}`);
         revalidatePath('/');
         revalidatePath('/study/select');
         return { data: null, error: null };
     } catch (error) {
-        console.error('[deckActions - deleteDeck] Caught unexpected error:', error);
+        appLogger.error('[deckActions - deleteDeck] Caught unexpected error:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error deleting deck';
         return { data: null, error: errorMessage };
     }
@@ -278,6 +279,6 @@ export async function deleteDeck(
  * @deprecated Prefer using the main `getDecks()` function which now uses the new RPC.
  */
 export async function getDecksWithSrsCounts(): Promise<ActionResult<DeckListItemWithCounts[]>> {
-  console.warn("[deckActions - getDecksWithSrsCounts] This function is deprecated. Use getDecks() instead.");
+  appLogger.warn("[deckActions - getDecksWithSrsCounts] This function is deprecated. Use getDecks() instead.");
   return getDecks();
 }

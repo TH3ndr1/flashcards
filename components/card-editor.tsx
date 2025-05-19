@@ -13,6 +13,7 @@ import type { Tables } from "@/types/database" // Use generated DB types
 import { debounce } from "@/lib/utils"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import { appLogger } from "@/lib/logger"
 
 const POS_OPTIONS: ReadonlyArray<string> = ['Noun', 'Verb', 'Adjective', 'Adverb', 'Pronoun', 'Preposition', 'Interjection', 'Other', 'N/A'];
 const GENDER_OPTIONS = [
@@ -72,7 +73,7 @@ export function CardEditor({ card, onUpdate, onDelete, onCreate }: CardEditorPro
   const debouncedOnUpdate = useCallback(
     debounce((data: PartialCardDataInput) => {
       if (isExistingCard && card?.id) {
-        console.log('[CardEditor] Debounced update triggered for ID:', card.id, 'Data:', data);
+        appLogger.info('[CardEditor] Debounced update triggered for ID:', card.id, 'Data:', data);
         onUpdate(card.id, data);
       }
     }, DEBOUNCE_WAIT_MS),
@@ -117,7 +118,7 @@ export function CardEditor({ card, onUpdate, onDelete, onCreate }: CardEditorPro
 
   const handleCreate = async () => {
       if (!onCreate) {
-          console.error("onCreate prop is missing from CardEditor for a new card.");
+          appLogger.error("onCreate prop is missing from CardEditor for a new card.");
           toast.error("Cannot save new card: Configuration error.");
           return;
       }
@@ -145,7 +146,7 @@ export function CardEditor({ card, onUpdate, onDelete, onCreate }: CardEditorPro
          // or parent could explicitly clear/update this editor instance.
          // For now, assume parent handles the transition from placeholder to real card.
       } catch (error) {
-          console.error("Error calling onCreate prop:", error);
+          appLogger.error("Error calling onCreate prop:", error);
           // Error is typically toasted by parent/action
       } finally {
            setIsSavingNew(false);

@@ -5,6 +5,7 @@ import type { ApiFlashcard } from '../extract-pdf/types';
 import type { Database, Tables, Json } from '@/types/database';
 // --- Import the NEW batch action ---
 import { createCardsBatch, type CreateCardInput } from '@/lib/actions/cardActions'; // Adjust path if needed
+import { appLogger, statusLogger } from '@/lib/logger';
 
 // Define the expected request body structure (remains the same)
 interface CreateDeckRequestBody {
@@ -16,24 +17,24 @@ interface CreateDeckRequestBody {
 }
 
 export async function POST(request: NextRequest) {
-    console.log("[API POST /api/decks] Received request to create deck.");
+    appLogger.info("[API POST /api/decks] Received request to create deck.");
     const supabase = createActionClient(); // Used for deck creation only now
 
     try {
         // 1. Get User Session (No change)
         const { data: { user }, error: authError } = await supabase.auth.getUser();
         if (authError || !user) {
-            console.error("[API POST /api/decks] Authentication error:", authError);
+            appLogger.error("[API POST /api/decks] Authentication error:", authError);
             return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 });
         }
-        console.log(`[API POST /api/decks] User authenticated: ${user.id}`);
+        appLogger.info(`[API POST /api/decks] User authenticated: ${user.id}`);
 
         // 2. Parse Request Body (No change)
         let body: CreateDeckRequestBody;
         try {
              body = await request.json();
         } catch (jsonError: any) {
-             console.error("[API POST /api/decks] Error parsing JSON body:", jsonError);
+             appLogger.error("[API POST /api/decks] Error parsing JSON body:", jsonError);
              return NextResponse.json({ success: false, message: `Invalid JSON format in request body: ${jsonError.message}` }, { status: 400 });
         }
 
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest) {
         if (!Array.isArray(flashcards)) {
              return NextResponse.json({ success: false, message: 'Field "flashcards" must be an array.' }, { status: 400 });
         }
-        console.log(`[API POST /api/decks] Input validation passed. Creating deck "${name}" with ${flashcards.length} potential cards.`);
+        appLogger.info(`[API POST /api/decks] Input validation passed. Creating deck "${name}" with ${flashcards.length} potential cards.`);
 
         // 4. Insert Deck into Supabase (No change)
         const deckToInsert: Database['public']['Tables']['decks']['Insert'] = {
@@ -64,7 +65,7 @@ export async function POST(request: NextRequest) {
             .single();
 
         if (deckError || !deckData) {
-            console.error("[API POST /api/decks] Error inserting deck:", deckError);
+            appLogger.error("[API POST /api/decks] Error inserting deck:", deckError);
              if (deckError?.message.includes('duplicate key value violates unique constraint')) {
                  return NextResponse.json({ success: false, message: 'A deck with this name already exists.' }, { status: 409 });
              }
@@ -72,14 +73,14 @@ export async function POST(request: NextRequest) {
         }
 
         const newDeckId = deckData.id;
-        console.log(`[API POST /api/decks] Deck metadata created successfully with ID: ${newDeckId}`);
+        appLogger.info(`[API POST /api/decks] Deck metadata created successfully with ID: ${newDeckId}`);
 
         let insertedCardsCount = 0;
         let cardCreationError: string | null = null;
 
         // 5. Prepare and Insert Cards using Batch Action
         if (flashcards.length > 0) {
-            console.log(`[API POST /api/decks] Preparing ${flashcards.length} cards for batch action into deck ${newDeckId}...`);
+            appLogger.info(`[API POST /api/decks] Preparing ${flashcards.length} cards for batch action into deck ${newDeckId}...`);
 
             // --- Prepare data for the batch action ---
             // Map ApiFlashcard[] to CreateCardInput[] expected by the action
@@ -98,14 +99,14 @@ export async function POST(request: NextRequest) {
             if (batchResult.error || batchResult.data === null) {
                 // --- Handle error from batch action ---
                 cardCreationError = batchResult.error || 'Unknown error during batch card creation.';
-                console.error(`[API POST /api/decks] Error calling createCardsBatch for deck ${newDeckId}:`, cardCreationError);
+                appLogger.error(`[API POST /api/decks] Error calling createCardsBatch for deck ${newDeckId}:`, cardCreationError);
 
                 // Attempt rollback
                 try {
                      await supabase.from('decks').delete().eq('id', newDeckId);
-                     console.log(`[API POST /api/decks] Rolled back deck creation (ID: ${newDeckId}) due to card batch error.`);
+                     appLogger.info(`[API POST /api/decks] Rolled back deck creation (ID: ${newDeckId}) due to card batch error.`);
                 } catch (rollbackError: any) {
-                    console.error(`[API POST /api/decks] CRITICAL: Failed to rollback deck ${newDeckId} after card batch failure:`, rollbackError);
+                    appLogger.error(`[API POST /api/decks] CRITICAL: Failed to rollback deck ${newDeckId} after card batch failure:`, rollbackError);
                     cardCreationError += ' Rollback also failed.'; // Append rollback failure info
                 }
                 return NextResponse.json({ success: false, message: `Failed to insert cards, deck creation rolled back: ${cardCreationError}` }, { status: 500 });
@@ -113,13 +114,13 @@ export async function POST(request: NextRequest) {
             } else {
                 // --- Success from batch action ---
                 insertedCardsCount = batchResult.data.insertedCount;
-                console.log(`[API POST /api/decks] createCardsBatch action succeeded. Inserted Count: ${insertedCardsCount}`);
+                appLogger.info(`[API POST /api/decks] createCardsBatch action succeeded. Inserted Count: ${insertedCardsCount}`);
                 if (insertedCardsCount < flashcards.length) {
-                     console.warn(`[API POST /api/decks] Note: ${flashcards.length - insertedCardsCount} card(s) were skipped during batch validation within the action.`);
+                     appLogger.warn(`[API POST /api/decks] Note: ${flashcards.length - insertedCardsCount} card(s) were skipped during batch validation within the action.`);
                 }
             }
         } else {
-            console.log(`[API POST /api/decks] No cards provided in request, only created deck metadata for ID: ${newDeckId}.`);
+            appLogger.info(`[API POST /api/decks] No cards provided in request, only created deck metadata for ID: ${newDeckId}.`);
         }
 
 
@@ -144,7 +145,7 @@ export async function POST(request: NextRequest) {
         }, { status: 201 });
 
     } catch (error: any) {
-        console.error("[API POST /api/decks] Unhandled error in POST handler:", error);
+        appLogger.error("[API POST /api/decks] Unhandled error in POST handler:", error);
         // Keep generic error handlers
         if (error instanceof SyntaxError) {
              return NextResponse.json({ success: false, message: 'Invalid JSON in request body' }, { status: 400 });

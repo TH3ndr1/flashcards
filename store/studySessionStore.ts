@@ -20,11 +20,11 @@ export const useStudySessionStore = create<StudySessionState>((set) => ({
   currentInput: null,
   currentMode: null,
   setStudyParameters: (input, mode) => {
-      console.log("[StudySessionStore] Setting parameters:", { input, mode });
+      appLogger.info("[StudySessionStore] Setting parameters:", { input, mode });
       set({ currentInput: input, currentMode: mode });
   },
   clearStudyParameters: () => {
-      console.log("[StudySessionStore] Clearing parameters.");
+      appLogger.info("[StudySessionStore] Clearing parameters.");
       set({ currentInput: null, currentMode: null });
   },
 })); 

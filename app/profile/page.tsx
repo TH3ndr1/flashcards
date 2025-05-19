@@ -9,6 +9,7 @@ import Link from "next/link"
 import { useAuth } from "@/hooks/use-auth"
 import { toast } from "sonner"
 import type { AuthError } from "@supabase/supabase-js"
+import { appLogger, statusLogger } from '@/lib/logger'
 
 export default function ProfilePage() {
   const { user, signOut, loading: authLoading } = useAuth()
@@ -19,7 +20,7 @@ export default function ProfilePage() {
     if (!authLoading) {
       if (!user) {
         const callbackUrl = encodeURIComponent('/profile');
-        console.log("Profile page: User not authenticated, redirecting to login.");
+        appLogger.info("Profile page: User not authenticated, redirecting to login.");
         router.push(`/login?callbackUrl=${callbackUrl}`);
       }
     }
@@ -30,7 +31,7 @@ export default function ProfilePage() {
     const { error } = await signOut()
 
     if (error) {
-      console.error("Error signing out:", error)
+      appLogger.error("Error signing out:", error)
       if (error instanceof Error) {
         toast.error(error.message || "An unexpected error occurred during sign out.")
       } else {

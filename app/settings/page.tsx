@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { FONT_OPTIONS } from "@/lib/fonts";
 import { Separator } from "@/components/ui/separator";
 import { useTheme } from "next-themes"; // Import useTheme
+import { appLogger, statusLogger } from '@/lib/logger';
 // Debounce likely not needed for Selects, removing for simplicity unless proven necessary
 // import { debounce } from "@/lib/utils";
 
@@ -103,7 +104,7 @@ export default function SettingsPage() {
         await updateSettings(updates);
         // toast.success("Settings updated"); // Only toast on explicit saves/resets perhaps
     } catch (error) {
-        console.error("Failed to save settings:", error);
+        appLogger.error("Failed to save settings:", error);
         toast.error("Error saving settings");
     }
    }, [user, updateSettings]); // Keep dependencies

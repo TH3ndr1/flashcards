@@ -66,7 +66,7 @@ interface UseTTSResult {
 
 // --- Helper function to log errors (Keep as is) ---
 function logTTSError(message: string, error?: any) {
-    console.error(`[TTS Hook Error]: ${message}`, error instanceof Error ? error.message : error || '');
+    appLogger.error(`[TTS Hook Error]: ${message}`, error instanceof Error ? error.message : error || '');
     // Optionally send to an error tracking service
 }
 
@@ -123,9 +123,8 @@ export function useTTS({ onAudioStart, onAudioEnd }: UseTTSProps): UseTTSResult 
             return;
         }
         
-        // Use console.log instead of console.error to avoid Next.js error handling
-        console.log(`[TTS Debug] Original language: "${language}"`);
-        console.log(`[TTS Debug] Settings:`, settings);
+        appLogger.info(`[TTS Debug] Original language: "${language}"`);
+        appLogger.info(`[TTS Debug] Settings:`, settings);
         
         // Stop any currently playing audio before starting new request
         stop();
@@ -139,15 +138,15 @@ export function useTTS({ onAudioStart, onAudioEnd }: UseTTSProps): UseTTSResult 
             
             // DIRECTLY PORT THE WORKING VERSION
             // This is the exact language mapping logic from the working client implementation
-            console.log(`[TTS Debug] Base language: "${baseLanguage}"`);
+            appLogger.info(`[TTS Debug] Base language: "${baseLanguage}"`);
             
             // Create a copy of the EXACT implementation from the working version
             const mappedLanguage = settings?.languageDialects?.[baseLanguage as keyof typeof settings.languageDialects] || 
                                   LANGUAGE_CODES[langToUse] || 
                                   "en-GB";
                                   
-            console.log(`[TTS Debug] Mapped language: "${mappedLanguage}"`);
-            console.log(`[TTS Debug] Final mapping: ${language} → ${mappedLanguage}`);
+            appLogger.info(`[TTS Debug] Mapped language: "${mappedLanguage}"`);
+            appLogger.info(`[TTS Debug] Final mapping: ${language} → ${mappedLanguage}`);
             
             setCurrentLanguage(mappedLanguage);
 

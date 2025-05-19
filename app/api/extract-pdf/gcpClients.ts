@@ -5,6 +5,7 @@
 import { VertexAI } from '@google-cloud/vertexai';
 import { ImageAnnotatorClient } from '@google-cloud/vision';
 import { DocumentProcessorServiceClient } from '@google-cloud/documentai';
+import { appLogger, statusLogger } from '@/lib/logger';
 
 import * as config from './config';
 
@@ -12,7 +13,7 @@ import * as config from './config';
 if (!config.validateConfiguration()) {
     // Log a critical error, but avoid throwing here to prevent breaking module resolution
     // during potential build phases. The API route handler will perform the runtime check.
-    console.error("[GCP Clients] CRITICAL: Cannot initialize clients due to missing configuration.");
+    appLogger.error("[GCP Clients] CRITICAL: Cannot initialize clients due to missing configuration.");
 }
 
 // Document AI client
@@ -45,7 +46,7 @@ export const vertexAI = (config.GCP_PROJECT_ID && config.GCP_SERVICE_ACCOUNT_EMA
 
 // Log client initialization status
 if (!docAIClient || !visionClient || !vertexAI) {
-    console.warn("[GCP Clients] One or more GCP clients could not be initialized due to missing configuration. API functionality will be limited.");
+    appLogger.warn("[GCP Clients] One or more GCP clients could not be initialized due to missing configuration. API functionality will be limited.");
 } else {
-    console.log("[GCP Clients] Document AI, Vision AI, and Vertex AI clients initialized.");
+    appLogger.info("[GCP Clients] Document AI, Vision AI, and Vertex AI clients initialized.");
 }

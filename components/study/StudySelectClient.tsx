@@ -7,6 +7,7 @@ import { useStudySessionStore } from '@/store/studySessionStore';
 import type { StudyInput, StudyMode } from '@/store/studySessionStore';
 import { toast } from 'sonner';
 import type { Tables } from '@/types/database';
+import { appLogger, statusLogger } from '@/lib/logger';
 
 // Define types using Tables helper
 type Deck = Tables<'decks'> & {
@@ -42,8 +43,8 @@ export function StudySelectClient({
       // Navigate to the study session page
       router.push('/study/session');
     } catch (error) {
-      console.error('Error starting study session:', error);
-      toast.error('Failed to start study session');
+      appLogger.error('Error starting study session:', error);
+      toast.error('Failed to start study session.');
     }
   };
 

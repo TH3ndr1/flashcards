@@ -14,6 +14,7 @@ import { swapCardFields } from '@/lib/utils';
 import type { InitialGenerationResult, GeminiFlashcardClassification } from '@/app/api/extract-pdf/flashcardGeneratorService';
 // --- Import SupportedFileType --- 
 import type { SupportedFileType } from '@/app/api/extract-pdf/fileUtils'; 
+import { appLogger, statusLogger } from '@/lib/logger';
 
 // Use consistent type alias within this file
 type FinalFlashcardData = ApiFlashcard; // Represents the final card with classification
@@ -115,7 +116,7 @@ export function useAiGenerate() {
 
     // --- ADDED BACK: handleFilesSelected ---
     const handleFilesSelected = useCallback((selectedFiles: File[]) => {
-        console.log(`[useAiGenerate] handleFilesSelected: ${selectedFiles.length} files`);
+        appLogger.info(`[useAiGenerate] handleFilesSelected: ${selectedFiles.length} files`);
         setFiles(Array.isArray(selectedFiles) ? [...selectedFiles] : []);
         // Reset relevant state when new files are selected
         resetGenerationState();
@@ -125,17 +126,17 @@ export function useAiGenerate() {
     // --- UPDATED: handleApiResponse for Step 1 ---
     const handleStep1ApiResponse = (data: any, totalFilesSubmitted: number) => {
         // --- ADD LOG to see the received code ---
-        console.log(`[useAiGenerate] handleStep1ApiResponse received data.code: ${data?.code}`);
+        appLogger.info(`[useAiGenerate] handleStep1ApiResponse received data.code: ${data?.code}`);
         // ---------------------------------------
         
         // --- Explicitly handle PAGE_LIMIT_EXCEEDED error from API --- 
         if (data?.success === false && data?.code === 'PAGE_LIMIT_EXCEEDED') {
-            console.warn(`[useAiGenerate] Handling PAGE_LIMIT_EXCEEDED error: ${data.message}`);
+            appLogger.warn(`[useAiGenerate] Handling PAGE_LIMIT_EXCEEDED error: ${data.message}`);
             setError(data.message); // Set the specific error message for display
             const skippedInfo = data.skippedFiles && data.skippedFiles[0] ? `- ${data.skippedFiles[0].filename}: Skipped (${data.skippedFiles[0].reason})` : "File skipped due to page limit.";
             setProcessingSummary(skippedInfo);
             toast.error("Processing Failed", { description: data.message });
-            console.log("[useAiGenerate] Page limit error handled, returning from handleStep1ApiResponse.");
+            appLogger.info("[useAiGenerate] Page limit error handled, returning from handleStep1ApiResponse.");
             return; // Stop further processing in this handler
         }
         // --- ELSE: Check for other errors or invalid structure ---
@@ -209,10 +210,10 @@ export function useAiGenerate() {
         // --- Handle Mode Confirmation ---
         setNeedsModeConfirmationSource(firstTranslationSource);
         if (firstTranslationSource) {
-            console.log(`[useAiGenerate] Mode confirmation needed for source: ${firstTranslationSource}`);
+            appLogger.info(`[useAiGenerate] Mode confirmation needed for source: ${firstTranslationSource}`);
             toast.info("Mode Confirmation Needed", { description: "Please confirm or change the detected mode for one or more files." });
         } else {
-             console.log("[useAiGenerate] No mode confirmation needed.");
+             appLogger.info("[useAiGenerate] No mode confirmation needed.");
         }
         // -------------------------------
 
@@ -259,7 +260,7 @@ export function useAiGenerate() {
         // Set loading true IMMEDIATELY
         setIsLoading(true);
         
-        console.log("[useAiGenerate] handleSubmit triggered for Step 1");
+        appLogger.info("[useAiGenerate] handleSubmit triggered for Step 1");
         const currentFiles = files;
         if (!currentFiles || currentFiles.length === 0) {
             setError('Please select file(s)');
@@ -300,7 +301,9 @@ export function useAiGenerate() {
                     isAnyFileLarge = true;
                 }
             }
-            console.log(`[useAiGenerate] Validation passed. isAnyFileLarge: ${isAnyFileLarge}, totalSizeMB: ${totalSizeMB.toFixed(2)}`);
+            if (isAnyFileLarge) {
+                appLogger.info(`[useAiGenerate] Validation passed. isAnyFileLarge: ${isAnyFileLarge}, totalSizeMB: ${totalSizeMB.toFixed(2)}`);
+            }
 
 
             // --- Determine Upload Strategy & Prepare API Payload ---
@@ -327,7 +330,7 @@ export function useAiGenerate() {
                         toast.success(`Uploaded: ${file.name}`, { id: `upload-${file.name}-${index}` });
                         return { filename: file.name, filePath: uploadData.path };
                     } catch (err: any) {
-                        console.error(`Upload Error ${file.name}:`, err);
+                        appLogger.error(`Upload Error ${file.name}:`, err);
                         toast.error(`Failed to upload: ${file.name}`, { id: `upload-${file.name}-${index}`, description: err.message });
                         return null;
                     }
@@ -342,7 +345,7 @@ export function useAiGenerate() {
                 // Prepare JSON payload with file paths
                 apiPayload = JSON.stringify({ files: successfulUploads }); 
                 fetchOptions.headers = { 'Content-Type': 'application/json' };
-                console.log("[useAiGenerate] Using Storage Upload Flow. Payload:", apiPayload);
+                appLogger.info("[useAiGenerate] Using Storage Upload Flow. Payload:", apiPayload);
 
             } else {
                 // Direct Upload Flow (Unchanged)
@@ -350,7 +353,7 @@ export function useAiGenerate() {
                 currentFiles.forEach(file => formData.append('file', file));
                 apiPayload = formData;
                 // No specific Content-Type header needed for FormData; browser sets it
-                console.log("[useAiGenerate] Using Direct Upload Flow.");
+                appLogger.info("[useAiGenerate] Using Direct Upload Flow.");
             }
             // Assign body AFTER the if/else
             fetchOptions.body = apiPayload; 
@@ -359,7 +362,7 @@ export function useAiGenerate() {
             // --- API Call to Step 1 endpoint --- 
             const filesToProcess = currentFiles.map(f => f.name);
             startProgressIndicator(loadingToastId, filesToProcess); // Update toast for processing phase
-            console.log("[useAiGenerate] Calling POST /api/extract-pdf (Step 1)");
+            appLogger.info("[useAiGenerate] Calling POST /api/extract-pdf (Step 1)");
             const response = await fetch('/api/extract-pdf', fetchOptions);
             // ---------------------------------
 
@@ -375,8 +378,8 @@ export function useAiGenerate() {
             // ------------------------------------
 
         } catch (err: any) {
-            console.log("[useAiGenerate] Caught error in handleSubmit try block.");
-            console.error('[useAiGenerate] Error during file processing (Step 1):', err);
+            appLogger.info("[useAiGenerate] Caught error in handleSubmit try block.");
+            appLogger.error('[useAiGenerate] Error during file processing (Step 1):', err);
             clearTimeout(safetyTimeout); toast.dismiss(loadingToastId);
             // --- Only set generic error if a specific one wasn't already set (Corrected Syntax) --- 
             if (!error) {
@@ -387,7 +390,7 @@ export function useAiGenerate() {
             // Remove this - we want to keep the error state to display it
             // resetGenerationState(); \n        } finally {\n            setIsLoading(false); // Step 1 loading finished\n            if (progressTimerRef.current) clearInterval(progressTimerRef.current);\n        }
         } finally {
-            console.log("[useAiGenerate] Entering handleSubmit finally block.");
+            appLogger.info("[useAiGenerate] Entering handleSubmit finally block.");
             setIsLoading(false); // Step 1 loading finished
             if (progressTimerRef.current) clearInterval(progressTimerRef.current);
         }
@@ -415,7 +418,7 @@ export function useAiGenerate() {
                 basicFlashcards: basicCards.map(({ question, answer }) => ({ question, answer })) // Send only Q/A
             };
 
-            console.log(`[useAiGenerate] Calling POST /api/process-ai-step2 (Action: classify) for ${sourceFilename}`);
+            appLogger.info(`[useAiGenerate] Calling POST /api/process-ai-step2 (Action: classify) for ${sourceFilename}`);
             const response = await fetch('/api/process-ai-step2', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -451,7 +454,7 @@ export function useAiGenerate() {
             setNeedsModeConfirmationSource(null); // Clear confirmation flag
 
         } catch (error: any) {
-            console.error('[useAiGenerate] Error during classification (Step 2):', error);
+            appLogger.error('[useAiGenerate] Error during classification (Step 2):', error);
             toast.error(`Classification Failed for ${sourceFilename}`, { 
                 id: toastId, 
                 description: error.message || 'An unknown error occurred.'
@@ -488,7 +491,7 @@ export function useAiGenerate() {
                 originalText: serverExtractedText // Send the correct text
             };
 
-            console.log(`[useAiGenerate] Calling POST /api/process-ai-step2 (Action: force_knowledge) for ${sourceFilename}`);
+            appLogger.info(`[useAiGenerate] Calling POST /api/process-ai-step2 (Action: force_knowledge) for ${sourceFilename}`);
             const response = await fetch('/api/process-ai-step2', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -542,7 +545,7 @@ export function useAiGenerate() {
             setNeedsModeConfirmationSource(null); // Clear confirmation flag
 
         } catch (error: any) {
-            console.error('[useAiGenerate] Error during knowledge regeneration (Step 2):', error);
+            appLogger.error('[useAiGenerate] Error during knowledge regeneration (Step 2):', error);
             toast.error(`Regeneration Failed for ${sourceFilename}`, { 
                 id: toastId, 
                 description: error.message || 'An unknown error occurred.'
@@ -599,7 +602,7 @@ export function useAiGenerate() {
             toast.success(result.message || `Deck "${deckName.trim()}" saved!`, { id: toastId, action: { label: "View Deck", onClick: () => router.push(`/edit/${result.deckId}`) } }); 
 
         } catch (error: any) {
-            console.error("[useAiGenerate] Error saving deck:", error);
+            appLogger.error("[useAiGenerate] Error saving deck:", error);
             toast.error("Failed to save deck", { id: toastId, description: error.message || "An unknown error occurred." });
             setSavedDeckId(null); 
         } finally {
@@ -646,7 +649,7 @@ export function useAiGenerate() {
 
     // handleSwapSourceCards (updated)
     const handleSwapSourceCards = useCallback((sourceToSwap: string) => {
-        console.log(`[useAiGenerate] Swapping Q/A for source: ${sourceToSwap}`);
+        appLogger.info(`[useAiGenerate] Swapping Q/A for source: ${sourceToSwap}`);
         
         setFinalFlashcards(currentFlashcards => 
             currentFlashcards.map(card => {

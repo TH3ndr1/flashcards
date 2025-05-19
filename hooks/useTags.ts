@@ -47,7 +47,7 @@ export function useTags(): UseTagsReturn {
         setAllTags(result.data || []);
       }
     } catch (err) {
-      console.error("Unexpected error fetching all tags:", err);
+      appLogger.error("Unexpected error fetching all tags:", err);
       setError('An unexpected error occurred while fetching tags.');
       setAllTags([]);
     } finally {

@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { useAuth } from "@/hooks/use-auth"
 import { toast } from "sonner"
 import type { AuthError } from '@supabase/supabase-js'
+import { appLogger, statusLogger } from '@/lib/logger'
 
 /**
  * Login Page component.
@@ -77,11 +78,11 @@ function LoginContent() {
       const callbackUrl = searchParams.get('callbackUrl');
       // Check if callbackUrl exists and is a non-empty string
       if (callbackUrl && typeof callbackUrl === 'string' && callbackUrl.trim() !== '') {
-        console.log(`Login successful, redirecting to callbackUrl: ${callbackUrl}`);
+        appLogger.info(`Login successful, redirecting to callbackUrl: ${callbackUrl}`);
         // Decode the URL in case it contains encoded characters
         router.push(decodeURIComponent(callbackUrl)); 
       } else {
-        console.log("Login successful, redirecting to default '/'");
+        appLogger.info("Login successful, redirecting to default '/'");
         router.push("/"); // Default redirect to homepage
       }
     }
@@ -103,7 +104,7 @@ function LoginContent() {
       const { error } = await signIn(email, password)
 
       if (error) {
-        console.error("Sign in error:", error)
+        appLogger.error("Sign in error:", error)
         if (error && typeof error === 'object' && 'message' in error) {
           toast.error(String(error.message) || "Invalid login credentials.")
         } else {
@@ -115,7 +116,7 @@ function LoginContent() {
         // router.push("/") 
       }
     } catch (error) {
-      console.error("Login submit error:", error)
+      appLogger.error("Login submit error:", error)
       toast.error("Login Failed", {
         description: "An unexpected error occurred. Please try again later."
       })

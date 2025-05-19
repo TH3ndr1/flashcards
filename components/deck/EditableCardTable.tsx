@@ -28,6 +28,7 @@ import {
 import { toast } from 'sonner';
 import { updateCard as updateCardAction, deleteCard as deleteCardAction } from '@/lib/actions/cardActions'; // Renamed to avoid conflict
 import type { Tables } from '@/types/database';
+import { appLogger, statusLogger } from '@/lib/logger';
 
 // Use Tables<'cards'> for card data
 type DbCard = Tables<'cards'>;
@@ -67,7 +68,7 @@ function EditableCardRow({ card, onDelete, onCardUpdatedInParent }: EditableCard
         // Check if value actually changed from the card prop to prevent unnecessary saves
         if ((field === 'question' && card.question === trimmedValue) ||
             (field === 'answer' && card.answer === trimmedValue)) {
-            // console.log(`[EditableCardRow] No actual change detected for ${field} on card ${card.id}. Skipping save.`);
+            // appLogger.info(`[EditableCardRow] No actual change detected for ${field} on card ${card.id}. Skipping save.`);
             return;
         }
 

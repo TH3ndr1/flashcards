@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect } from "react"
+import { appLogger, statusLogger } from '@/lib/logger'
 
 export default function LayoutScript() {
   useEffect(() => {
@@ -15,7 +16,7 @@ export default function LayoutScript() {
         window.location.hostname === "127.0.0.1"
 
       if (isPreviewEnvironment) {
-        console.log("Service Worker registration skipped in preview/development environment")
+        appLogger.info("Service Worker registration skipped in preview/development environment")
         return
       }
 
@@ -24,10 +25,10 @@ export default function LayoutScript() {
         navigator.serviceWorker
           .register("/sw.js")
           .then((registration) => {
-            console.log("Service Worker registered with scope:", registration.scope)
+            appLogger.info("Service Worker registered with scope:", registration.scope)
           })
           .catch((error) => {
-            console.error("Service Worker registration failed:", error)
+            appLogger.error("Service Worker registration failed:", error)
             // Continue app execution even if service worker fails
           })
       })

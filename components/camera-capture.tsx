@@ -4,6 +4,7 @@ import { useState, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Camera, Trash2, CheckCircle } from 'lucide-react';
+import { appLogger } from '@/lib/logger';
 
 interface CameraCaptureProps {
   onCapture: (images: File[]) => void;
@@ -33,7 +34,7 @@ export function CameraCapture({ onCapture, maxImages = 5 }: CameraCaptureProps) 
         videoRef.current.onloadedmetadata = () => {
           if (videoRef.current) {
             videoRef.current.play().catch(err => {
-              console.error('Error playing video:', err);
+              appLogger.error('Error playing video:', err);
               alert('Unable to start camera. Please check permissions or try uploading images instead.');
             });
           }
@@ -41,7 +42,7 @@ export function CameraCapture({ onCapture, maxImages = 5 }: CameraCaptureProps) 
         setIsCapturing(true);
       }
     } catch (err) {
-      console.error('Error accessing camera:', err);
+      appLogger.error('Error accessing camera:', err);
       alert('Unable to access camera. Please check permissions or try uploading images instead.');
     }
   }, []);
@@ -143,7 +144,7 @@ export function CameraCapture({ onCapture, maxImages = 5 }: CameraCaptureProps) 
               autoPlay
               playsInline
               muted
-              onPlay={() => console.log('Camera video started playing')}
+              onPlay={() => appLogger.info('Camera video started playing')}
               className="w-full h-auto aspect-video object-cover"
             />
             <div className="absolute bottom-4 left-0 right-0 flex justify-center">

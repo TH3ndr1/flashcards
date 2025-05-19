@@ -13,6 +13,7 @@ import type { Database, Tables } from "@/types/database";
 import type { StudyInput, StudyMode } from "@/store/studySessionStore";
 import { toast } from 'sonner';
 import { Loader2 as IconLoader } from 'lucide-react';
+import { appLogger } from '@/lib/logger';
 
 type DbDeck = Pick<Tables<'decks'>, 'id' | 'name'>;
 type DbStudySet = Pick<Tables<'study_sets'>, 'id' | 'name'>;
@@ -98,12 +99,12 @@ export function StudySetSelector({
           : await resolveStudyQuery(currentInput); // For studySetId
 
         if (learnResult.error) {
-          console.error("Error fetching learn count:", learnResult.error);
+          appLogger.error("Error fetching learn count:", learnResult.error);
           setCountError("Failed to check available cards");
         }
         
         if (reviewResult.error) {
-          console.error("Error fetching review count:", reviewResult.error);
+          appLogger.error("Error fetching review count:", reviewResult.error);
           setCountError("Failed to check available cards");
         }
 
@@ -117,7 +118,7 @@ export function StudySetSelector({
         setReviewCount(reviewCardIds.length);
         
       } catch (error) {
-        console.error("Error fetching card counts:", error);
+        appLogger.error("Error fetching card counts:", error);
         setCountError("Error checking available cards");
         setLearnCount(0);
         setReviewCount(0);

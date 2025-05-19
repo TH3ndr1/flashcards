@@ -41,19 +41,19 @@ export function useStudySets(): UseStudySetsReturn {
   const fetchStudySets = useCallback(async () => {
     setIsLoading(true);
     setError(null);
-    console.log("[useStudySets] Fetching study sets...");
+    appLogger.info("[useStudySets] Fetching study sets...");
     try {
       const result = await getUserStudySets();
       if (result.error) {
-        console.error("[useStudySets] Error fetching study sets:", result.error);
+        appLogger.error("[useStudySets] Error fetching study sets:", result.error);
         setError(result.error);
         setStudySets([]); // Clear sets on error
       } else {
-        console.log(`[useStudySets] Successfully fetched ${result.data?.length ?? 0} sets.`);
+        appLogger.info(`[useStudySets] Successfully fetched ${result.data?.length ?? 0} sets.`);
         setStudySets(result.data || []); // Ensure data is an array
       }
     } catch (err) {
-      console.error("[useStudySets] Unexpected error during fetch:", err);
+      appLogger.error("[useStudySets] Unexpected error during fetch:", err);
       setError('An unexpected error occurred while fetching study sets.');
       setStudySets([]);
     } finally {

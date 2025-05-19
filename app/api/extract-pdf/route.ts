@@ -13,6 +13,7 @@ import { extractText } from './textExtractorService';
 import { generateInitialFlashcards, InitialGenerationResult } from './flashcardGeneratorService'; 
 // --- ApiFlashcard is no longer the direct output here --- 
 import { /* ApiFlashcard, */ SkippedFile, PageLimitExceededError, ExtractionApiError, GenerationApiError } from './types'; 
+import { appLogger, statusLogger } from '@/lib/logger';
 
 // --- Runtime Configuration (Vercel specific) ---
 export const config = {
@@ -62,17 +63,17 @@ export async function OPTIONS(request: NextRequest) {
 // POST Handler
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
-  console.log(`[API Route POST] Request received at ${new Date(startTime).toISOString()}`);
+  appLogger.info(`[API Route POST] Request received at ${new Date(startTime).toISOString()}`);
 
   // Runtime Credential/Config Check (No changes needed)
   if (!GCP_PROJECT_ID || !GCP_SERVICE_ACCOUNT_EMAIL || !GCP_PRIVATE_KEY) {
-      console.error('[API Route POST] CRITICAL: Missing required GCP credentials. Aborting.');
+      appLogger.error('[API Route POST] CRITICAL: Missing required GCP credentials. Aborting.');
       return NextResponse.json({
           success: false, message: 'Server configuration error: Missing necessary credentials.', code: 'MISSING_CREDENTIALS'
       }, { status: 500 });
   }
    if (!validateConfiguration()) {
-       console.error('[API Route POST] CRITICAL: Core configuration validation failed. Aborting.');
+       appLogger.error('[API Route POST] CRITICAL: Core configuration validation failed. Aborting.');
        return NextResponse.json({
            success: false, message: 'Server configuration error: Invalid or missing configuration.', code: 'INVALID_CONFIG'
       }, { status: 500 });
@@ -106,24 +107,24 @@ export async function POST(request: NextRequest) {
       if (!fileReferences || !Array.isArray(fileReferences) || fileReferences.length === 0) {
             return NextResponse.json({ success: false, message: 'Invalid or empty file list provided in JSON request', code: 'INVALID_INPUT' }, { status: 400 });
         }
-        console.log(`[API Route POST] Processing ${fileReferences.length} files from storage paths via JSON payload.`);
+        appLogger.info(`[API Route POST] Processing ${fileReferences.length} files from storage paths via JSON payload.`);
         fileSources = fileReferences.map(ref => ({
             filename: ref.filename,
             getBuffer: async () => {
-                console.log(`[API Route POST] Fetching buffer for ${ref.filename} from storage path ${ref.filePath}`);
+                appLogger.info(`[API Route POST] Fetching buffer for ${ref.filename} from storage path ${ref.filePath}`);
                 const buffer = await getFileFromStorage(ref.filePath);
                 if (!buffer || buffer.byteLength === 0) throw new Error(`File not found or empty in storage at path: ${ref.filePath}`);
                 return buffer;
             }
         }));
     } else if (contentType.includes('multipart/form-data')) {
-        console.log('[API Route POST] Handling multipart/form-data request.');
+        appLogger.info('[API Route POST] Handling multipart/form-data request.');
         const formData = await request.formData();
         const files = formData.getAll('file') as File[];
         if (!files || files.length === 0) {
             return NextResponse.json({ success: false, message: 'No files provided in form-data', code: 'NO_FILES' }, { status: 400 });
         }
-        console.log(`[API Route POST] Received ${files.length} file(s) from FormData.`);
+        appLogger.info(`[API Route POST] Received ${files.length} file(s) from FormData.`);
         fileSources = files.map((file, i) => ({
             filename: file.name || `Unnamed File ${i+1}`,
             getBuffer: async () => {
@@ -133,14 +134,14 @@ export async function POST(request: NextRequest) {
             fileTypeHint: file.type
         }));
     } else {
-        console.warn(`[API Route POST] Received request with unsupported content type: ${contentType}`);
+        appLogger.warn(`[API Route POST] Received request with unsupported content type: ${contentType}`);
         return NextResponse.json({ success: false, message: `Unsupported content type: ${contentType}. Please use application/json or multipart/form-data.`, code: 'UNSUPPORTED_CONTENT_TYPE'}, { status: 415 });
     }
 
     // 2. Process Each File Source Sequentially
     for (const source of fileSources) {
         const fileStartTime = Date.now();
-        console.log(`[API Route POST] Processing file: ${source.filename}`);
+        appLogger.info(`[API Route POST] Processing file: ${source.filename}`);
         let fileBuffer: ArrayBuffer | null = null;
         let fileType: SupportedFileType | null = null;
 
@@ -149,9 +150,12 @@ export async function POST(request: NextRequest) {
             fileType = getSupportedFileType(source.filename);
             if (!fileType) throw new Error('Unsupported file type');
             fileBuffer = await source.getBuffer();
-            console.log(`[API Route POST] Attempting text extraction for ${source.filename} (Type: ${fileType})`);
+            appLogger.info(`[API Route POST] Attempting text extraction for ${source.filename} (Type: ${fileType})`);
             const extractionResult = await extractText(fileBuffer, source.filename, fileType);
-            // --- Log the raw extracted text immediately ---\n            console.log(`[API Route POST] Raw server-extracted text for ${source.filename} (first 500 chars):\n`, extractionResult.text.substring(0, 500));\n            // -------------------------------------------\n            console.log(`[API Route POST] Text extraction successful for ${source.filename}. Characters: ${extractionResult.info.metadata.characters}, Pages: ${extractionResult.info.pages}`);
+            // --- Log the raw extracted text immediately ---
+            appLogger.info(`[API Route POST] Raw server-extracted text for ${source.filename} (first 500 chars):\n`, extractionResult.text.substring(0, 500));
+            // -------------------------------------------
+            appLogger.info(`[API Route POST] Text extraction successful for ${source.filename}. Characters: ${extractionResult.info.metadata.characters}, Pages: ${extractionResult.info.pages}`);
             totalPagesProcessed += extractionResult.info.pages;
             combinedTextPreview += `--- Content from ${source.filename} ---\n${extractionResult.text.slice(0, 200)}...\n\n`;
 
@@ -161,7 +165,7 @@ export async function POST(request: NextRequest) {
             // --- Step e: Initial Flashcard Generation --- 
             let initialResult: InitialGenerationResult | null = null; // Variable to hold result for this file
             if (extractionResult.text && extractionResult.text.trim().length > 0) {
-                console.log(`[API Route POST] Attempting initial flashcard generation for ${source.filename}`);
+                appLogger.info(`[API Route POST] Attempting initial flashcard generation for ${source.filename}`);
 
                 // --- Call the INITIAL generation service --- 
                 initialResult = await generateInitialFlashcards(extractionResult.text, source.filename);
@@ -171,9 +175,9 @@ export async function POST(request: NextRequest) {
                 // initialResult.source = source.filename;
                 
                 allInitialResults.push(initialResult);
-                console.log(`[API Route POST] Initial generation complete for ${source.filename}. Mode: ${initialResult.mode}, Cards: ${initialResult.basicFlashcards.length}`);
+                appLogger.info(`[API Route POST] Initial generation complete for ${source.filename}. Mode: ${initialResult.mode}, Cards: ${initialResult.basicFlashcards.length}`);
             } else {
-                 console.log(`[API Route POST] Skipping flashcard generation for ${source.filename} due to empty extracted text.`);
+                 appLogger.info(`[API Route POST] Skipping flashcard generation for ${source.filename} due to empty extracted text.`);
             }
             allResultsInfo.push({
                 filename: source.filename,
@@ -182,10 +186,10 @@ export async function POST(request: NextRequest) {
                 characters: extractionResult.info.metadata.characters,
                 initialFlashcardsGenerated: initialResult?.basicFlashcards.length || 0, // Count from initial result
             });
-            console.log(`[API Route POST] Successfully processed ${source.filename}. Time: ${Date.now() - fileStartTime}ms`);
+            appLogger.info(`[API Route POST] Successfully processed ${source.filename}. Time: ${Date.now() - fileStartTime}ms`);
 
         } catch (error: any) {
-            console.error(`[API Route POST] Error processing file ${source.filename}: ${error.message}`);
+            appLogger.error(`[API Route POST] Error processing file ${source.filename}: ${error.message}`);
             let reason = error.message || 'Unknown processing error';
             let pages: number | undefined = undefined;
             let errorCode: string | undefined = undefined;
@@ -220,7 +224,7 @@ export async function POST(request: NextRequest) {
     const processedCount = allResultsInfo.length;
     const skippedCount = skippedFiles.length;
     const totalInitialCards = allInitialResults.reduce((sum, res) => sum + res.basicFlashcards.length, 0);
-    console.log(`[API Route POST] Initial processing finished. Duration: ${duration}ms. Processed: ${processedCount}, Skipped: ${skippedCount}, Total Initial Flashcards: ${totalInitialCards}`);
+    appLogger.info(`[API Route POST] Initial processing finished. Duration: ${duration}ms. Processed: ${processedCount}, Skipped: ${skippedCount}, Total Initial Flashcards: ${totalInitialCards}`);
 
     if (processedCount === 0) {
         let message = 'No files could be processed successfully.';
@@ -233,7 +237,7 @@ export async function POST(request: NextRequest) {
             message = skippedFiles[0].reason; 
             // Set the specific code for the client to handle
             code = skippedFiles[0].code; // Use the code from the skipped file object
-            console.log(`[API Route POST] Setting error code to ${code} for page limit exceeded error`);
+            appLogger.info(`[API Route POST] Setting error code to ${code} for page limit exceeded error`);
         } else if (skippedCount > 0) {
             message = `Processed 0 files successfully. ${skippedCount} file(s) were skipped. See 'skippedFiles' for details.`;
             // Ensure code remains PROCESSING_FAILED if it wasn't a page limit error
@@ -242,8 +246,8 @@ export async function POST(request: NextRequest) {
         // --------------------------------------------------------------------
 
         // --- Log the final code and message being sent ---
-        console.log(`[API Route POST] Returning error response. Code: ${code}, Message: ${message}`);
-        console.log(`[API Route POST] skippedFiles: ${JSON.stringify(skippedFiles)}`);
+        appLogger.info(`[API Route POST] Returning error response. Code: ${code}, Message: ${message}`);
+        appLogger.info(`[API Route POST] skippedFiles: ${JSON.stringify(skippedFiles)}`);
         // --------------------------------------------------
 
         return NextResponse.json({
@@ -277,7 +281,7 @@ export async function POST(request: NextRequest) {
     // Global Error Handler (No changes needed)
     const endTime = Date.now();
     const duration = endTime - startTime;
-    console.error(`[API Route POST] UNHANDLED ERROR after ${duration}ms:`, error);
+    appLogger.error(`[API Route POST] UNHANDLED ERROR after ${duration}ms:`, error);
     let message = 'An unexpected server error occurred.';
     let code = 'INTERNAL_SERVER_ERROR';
     if (error instanceof SyntaxError && error.message.includes('JSON')) {

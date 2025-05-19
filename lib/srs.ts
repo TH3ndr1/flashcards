@@ -60,7 +60,7 @@ export function calculateSm2State(
 ): Sm2UpdatePayload {
   // This function should *only* be called for cards with current.srsLevel >= 1
   if (current.srsLevel < 1) {
-       console.error("[calculateSm2State] Called with card not in Review state (srsLevel < 1). This function is for Review -> Review or Review -> Relearning transitions only.", current);
+       appLogger.error("[calculateSm2State] Called with card not in Review state (srsLevel < 1). This function is for Review -> Review or Review -> Relearning transitions only.", current);
        // Return a default or throw, depending on desired error handling.
        // Returning current state as a fallback (might not be desired):
        return {
@@ -93,7 +93,7 @@ export function calculateSm2State(
 
   // --- Handle Lapse (Grade 1 from Review) ---
   if (grade === 1) {
-      console.log("[calculateSm2State] Grade 1 (Again) in Review. Lapsing to Relearning.");
+      appLogger.info("[calculateSm2State] Grade 1 (Again) in Review. Lapsing to Relearning.");
       const relearningIntervalMinutes = settings.relearningStepsMinutes[0]; // First relearning step
       const nextReviewDue = addMinutes(new Date(), relearningIntervalMinutes);
 
@@ -115,7 +115,7 @@ export function calculateSm2State(
   }
 
   // --- Handle Success (Grade 2, 3, or 4 from Review) ---
-  console.log(`[calculateSm2State] Grade ${grade} (Hard/Good/Easy) in Review. Successful recall.`);
+  appLogger.info(`[calculateSm2State] Grade ${grade} (Hard/Good/Easy) in Review. Successful recall.`);
   newSrsLevel = current.srsLevel + 1; // Increment level for successful review
 
   // Calculate next interval based on Anki's SM-2 interpretation for review phase (level >= 1 -> next level >= 2)
@@ -192,7 +192,7 @@ export function calculateNextStandardLearnStep(
     let intervalMinutes: number | null = null; // The interval for the *next* step
 
     if (!steps || steps.length === 0) {
-        console.error("Standard learning steps not defined or empty in settings. Graduating immediately.");
+        appLogger.error("Standard learning steps not defined or empty in settings. Graduating immediately.");
         return { nextStepIndex: 'graduated', nextDueTime: new Date(), intervalMinutes: null };
     }
 
@@ -244,7 +244,7 @@ export function calculateNextRelearningStep(
     let intervalMinutes: number | null = null; // The interval for the *next* step
 
      if (!steps || steps.length === 0) {
-        console.error("Relearning steps not defined or empty in settings. Defaulting to immediate re-entry to review.");
+        appLogger.error("Relearning steps not defined or empty in settings. Defaulting to immediate re-entry to review.");
         return { nextStepIndex: 'graduatedFromRelearning', nextDueTime: new Date(), intervalMinutes: null };
     }
 

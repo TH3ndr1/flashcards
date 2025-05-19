@@ -1,6 +1,7 @@
 // lib/localStorageUtils.ts
 
 import type { Tables } from "@/types/database";
+import { appLogger, statusLogger } from '@/lib/logger';
 
 // Define the card type from database, ensuring it aligns with Tables<'cards'>
 type DbCard = Tables<'cards'>;
@@ -16,7 +17,7 @@ const STORAGE_KEY = "studyCards-decks";
 export function getDecksFromLocalStorage(): DbDeckLocalStorage[] {
   try {
     if (typeof window === 'undefined' || !window.localStorage) {
-        console.warn("localStorage is not available. Cannot get decks.");
+        appLogger.info("localStorage is not available. Cannot get decks.");
         return [];
     }
     const savedDecks = localStorage.getItem(STORAGE_KEY);
@@ -38,7 +39,7 @@ export function getDecksFromLocalStorage(): DbDeckLocalStorage[] {
       }
     }
   } catch (error) {
-    console.error("Error accessing localStorage in getDecksFromLocalStorage:", error);
+    appLogger.error("Error accessing localStorage in getDecksFromLocalStorage:", error);
   }
   return [];
 }
@@ -46,13 +47,13 @@ export function getDecksFromLocalStorage(): DbDeckLocalStorage[] {
 export function saveDecksToLocalStorage(decks: DbDeckLocalStorage[]): void {
   try {
     if (typeof window === 'undefined' || !window.localStorage) {
-        console.warn("localStorage is not available. Cannot save decks.");
+        appLogger.info("localStorage is not available. Cannot save decks.");
         return;
     }
     // When saving, ensure dates are ISO strings if they were Date objects in memory
     // However, DbDeckLocalStorage already expects last_reviewed_at as string | null
     localStorage.setItem(STORAGE_KEY, JSON.stringify(decks));
   } catch (error) {
-    console.error("Error saving to localStorage in saveDecksToLocalStorage:", error);
+    appLogger.error("Error saving to localStorage in saveDecksToLocalStorage:", error);
   }
 }

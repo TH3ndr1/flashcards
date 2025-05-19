@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
+import { appLogger, statusLogger } from '@/lib/logger'
 
 /**
  * Handles the GET request for the authentication callback.
@@ -23,11 +24,11 @@ export async function GET(request: Request) {
       if (!error && data.session) {
         // Email confirmed, session created successfully.
         // Redirect to the main application page or a specified 'next' page.
-        console.log('Auth callback successful, redirecting to /');
+        appLogger.info('Auth callback successful, redirecting to /');
         return NextResponse.redirect(`${origin}/`) // Redirect to home page
       } else {
         // Handle errors during code exchange
-        console.error('Auth callback error during code exchange:', error?.message);
+        appLogger.error('Auth callback error during code exchange:', error?.message);
 
         // Check for common errors indicating the link was already used, expired, or invalid
         const isInvalidGrantError = error?.message?.toLowerCase().includes('invalid grant') || 
@@ -44,12 +45,12 @@ export async function GET(request: Request) {
       }
     } catch (e) {
       // Catch unexpected errors during the process
-      console.error('Auth callback unexpected error:', e);
+      appLogger.error('Auth callback unexpected error:', e);
       return NextResponse.redirect(`${origin}/login?error=confirmation_failed`);
     }
   }
 
   // If no code is present in the URL, redirect to login with an error
-  console.warn('Auth callback called without a code.');
+  appLogger.warn('Auth callback called without a code.');
   return NextResponse.redirect(`${origin}/login?error=missing_confirmation_code`);
 } 

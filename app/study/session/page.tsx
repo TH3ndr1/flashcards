@@ -15,6 +15,7 @@ import { toast } from 'sonner'; // Added toast import
 import { useSettings } from '@/providers/settings-provider'; // Import useSettings
 import { useTTS } from "@/hooks/use-tts"; // Import useTTS here
 import type { Tables } from '@/types/database'; // Import Tables type
+import { appLogger, statusLogger } from '@/lib/logger';
 
 // Add proper type for the card including joined deck data
 type StudyCard = Tables<'cards'> & {
@@ -70,7 +71,7 @@ export default function StudySessionPage() {
     // Add short delay to allow store state to potentially propagate on fast refreshes
     const checkTimer = setTimeout(() => {
         if (!currentInput || !currentMode) {
-          console.warn("Study parameters not set, redirecting.");
+          appLogger.warn("Study parameters not set, redirecting.");
           toast.warning("No study session active.", { description: "Redirecting to selection..."});
           router.replace('/study/select'); // Redirect to selection page
         }
@@ -117,9 +118,9 @@ export default function StudySessionPage() {
           : (studyCard.decks?.primary_language ?? 'en-US');
       
       if (textToSpeak && langToUse) {
-          console.log(`[TTS Trigger] ${speechLogContext}: Speaking lang ${langToUse}. Text: "${textToSpeak.substring(0, 30)}..."`);
+          appLogger.info(`[TTS Trigger] ${speechLogContext}: Speaking lang ${langToUse}. Text: "${textToSpeak.substring(0, 30)}..."`);
           speak(textToSpeak, langToUse).catch(error => {
-              console.error("Failed to speak text:", error);
+              appLogger.error("Failed to speak text:", error);
               if (!window.ttsErrorShown) {
                   toast.error("Text-to-speech error", { 
                       description: "TTS functionality is unavailable. Check your settings.",
@@ -135,7 +136,7 @@ export default function StudySessionPage() {
           // still update the ref to prevent retrying for this empty state.
           prevSpokenStateRef.current = { cardId: actualCardId, isFlipped: actualIsFlipped };
           if (!textToSpeak) {
-            console.log(`[TTS Trigger] ${speechLogContext}: Determined no text to speak (empty question/answer).`);
+            appLogger.info(`[TTS Trigger] ${speechLogContext}: Determined no text to speak (empty question/answer).`);
           }
       }
        

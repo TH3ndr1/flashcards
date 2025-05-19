@@ -2,6 +2,7 @@
 
 import { createActionClient } from '@/lib/supabase/server';
 import { v4 as uuidv4 } from 'uuid';
+import { appLogger, statusLogger } from '@/lib/logger';
 
 const UPLOAD_BUCKET = 'ai-uploads';
 const EXPIRY_SECONDS = 3600; // 1 hour
@@ -29,7 +30,7 @@ export async function uploadFileToStorage(formData: FormData) {
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   
   if (authError || !user) {
-    console.error('Authentication error in uploadFileToStorage', authError);
+    appLogger.error('Authentication error in uploadFileToStorage', authError);
     throw new Error('You must be logged in to upload files');
   }
   
@@ -43,7 +44,7 @@ export async function uploadFileToStorage(formData: FormData) {
   // Path format: userId/uniqueId-filename
   const path = `${user.id}/${storageFileName}`;
   
-  console.log(`[StorageAction] Preparing upload. User ID: ${user.id}, Path: ${path}, Bucket: ${UPLOAD_BUCKET}, Type: ${fileType}`);
+  appLogger.info(`[StorageAction] Preparing upload. User ID: ${user.id}, Path: ${path}, Bucket: ${UPLOAD_BUCKET}, Type: ${fileType}`);
   
   // Upload the file buffer
   const { data, error } = await supabase.storage
@@ -54,12 +55,12 @@ export async function uploadFileToStorage(formData: FormData) {
     });
   
   if (error) {
-    console.error('[StorageAction] Supabase Storage upload error:', error);
-    console.error('Error uploading file to Supabase Storage', error);
+    appLogger.error('[StorageAction] Supabase Storage upload error:', error);
+    appLogger.error('Error uploading file to Supabase Storage', error);
     throw new Error(`Failed to upload file: ${error.message}`);
   }
   
-  console.log(`[StorageAction] Upload successful for path: ${path}`);
+  appLogger.info(`[StorageAction] Upload successful for path: ${path}`);
   
   // Get a URL for the file (temporary, signed URL)
   const { data: signedUrlData, error: signedUrlError } = await supabase.storage
@@ -67,12 +68,12 @@ export async function uploadFileToStorage(formData: FormData) {
     .createSignedUrl(path, EXPIRY_SECONDS);
   
   if (signedUrlError) {
-    console.error('[StorageAction] Error creating signed URL:', signedUrlError);
-    console.error('Error creating signed URL', signedUrlError);
+    appLogger.error('[StorageAction] Error creating signed URL:', signedUrlError);
+    appLogger.error('Error creating signed URL', signedUrlError);
     throw new Error(`Failed to create file URL: ${signedUrlError.message}`);
   }
   
-  console.log(`[StorageAction] Signed URL created for path: ${path}`);
+  appLogger.info(`[StorageAction] Signed URL created for path: ${path}`);
   
   return {
     path,
@@ -92,7 +93,7 @@ export async function getFileFromStorage(path: string) {
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   
   if (authError || !user) {
-    console.error('Authentication error in getFileFromStorage', authError);
+    appLogger.error('Authentication error in getFileFromStorage', authError);
     throw new Error('You must be logged in to access files');
   }
   
@@ -107,7 +108,7 @@ export async function getFileFromStorage(path: string) {
     .download(path);
   
   if (error) {
-    console.error('Error downloading file from Supabase Storage', error);
+    appLogger.error('Error downloading file from Supabase Storage', error);
     throw new Error(`Failed to download file: ${error.message}`);
   }
   
@@ -125,7 +126,7 @@ export async function deleteFileFromStorage(path: string) {
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   
   if (authError || !user) {
-    console.error('Authentication error in deleteFileFromStorage', authError);
+    appLogger.error('Authentication error in deleteFileFromStorage', authError);
     throw new Error('You must be logged in to delete files');
   }
   
@@ -140,7 +141,7 @@ export async function deleteFileFromStorage(path: string) {
     .remove([path]);
   
   if (error) {
-    console.error('Error deleting file from Supabase Storage', error);
+    appLogger.error('Error deleting file from Supabase Storage', error);
     throw new Error(`Failed to delete file: ${error.message}`);
   }
   

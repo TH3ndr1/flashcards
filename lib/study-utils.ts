@@ -88,7 +88,7 @@ export const determineNextCardState = (
 
   if ((answeredCard.correct_count ?? 0) >= masteryThreshold) {
     cardJustMastered = true;
-    console.log(`study-utils: Card ${answeredCard.id} mastered and will be removed.`);
+    appLogger.info(`study-utils: Card ${answeredCard.id} mastered and will be removed.`);
     nextStudyCards = currentStudyCards.filter(card => card.id !== answeredCard.id);
     nextIndex = Math.min(currentCardIndex, nextStudyCards.length - 1);
     if (nextIndex < 0) nextIndex = 0;
@@ -107,7 +107,7 @@ export const determineNextCardState = (
  * Creates the necessary state components for resetting a deck's progress.
  */
 export const createResetDeckState = (deck: DbDeckWithCards, settings: Settings | null): { resetDeck: DbDeckWithCards; initialStudyCards: DbCard[] } => {
-  console.log("study-utils: Preparing reset state for deck:", deck.name);
+  appLogger.info("study-utils: Preparing reset state for deck:", deck.name);
 
   const resetCards = deck.cards.map((card: DbCard) => ({
     ...card,

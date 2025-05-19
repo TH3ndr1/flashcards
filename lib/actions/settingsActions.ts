@@ -9,6 +9,7 @@ import type { Database, Tables, Json } from "@/types/database";
 import type { ActionResult } from '@/lib/actions/types';
 // Import the Settings type used by the frontend/provider
 import type { Settings, FontOption } from "@/providers/settings-provider";
+import { appLogger, statusLogger } from '@/lib/logger';
 
 type DbSettings = Tables<'settings'>;
 
@@ -58,13 +59,13 @@ export async function updateUserSettings({
 }: {
   updates: Partial<Settings>; // Expect camelCase from provider
 }): Promise<ActionResult<DbSettings | null>> {
-    console.log(`[updateUserSettings] Action started.`);
+    appLogger.info(`[updateUserSettings] Action started.`);
     try {
         const supabase = createActionClient();
         const { data: { user }, error: authError } = await supabase.auth.getUser();
 
         if (authError || !user) {
-             console.error('[updateUserSettings] Auth error:', authError);
+             appLogger.error('[updateUserSettings] Auth error:', authError);
              return { data: null, error: authError?.message || 'Not authenticated' };
         }
 
@@ -101,7 +102,7 @@ export async function updateUserSettings({
         // ------------------------------------
 
         if (Object.keys(dbPayload).length === 0) {
-             console.log("[updateUserSettings] No valid fields provided for update after mapping.");
+             appLogger.info("[updateUserSettings] No valid fields provided for update after mapping.");
              const { data: currentSettings } = await getUserSettings();
              return { data: currentSettings, error: null };
         }
@@ -109,7 +110,7 @@ export async function updateUserSettings({
         // Add updated_at timestamp
         dbPayload.updated_at = new Date().toISOString();
 
-        console.log(`[updateUserSettings] User: ${user.id}, Upserting payload:`, dbPayload);
+        appLogger.info(`[updateUserSettings] User: ${user.id}, Upserting payload:`, dbPayload);
 
         // Perform Upsert (unchanged logic)
         const { data: updatedSettings, error: upsertError } = await supabase
@@ -119,20 +120,20 @@ export async function updateUserSettings({
             .single();
 
         if (upsertError) {
-            console.error('[updateUserSettings] Upsert error:', upsertError);
+            appLogger.error('[updateUserSettings] Upsert error:', upsertError);
             return { data: null, error: upsertError.message || 'Failed to update settings.' };
         }
 
         if (!updatedSettings) {
-             console.error('[updateUserSettings] No data returned after upsert.');
+             appLogger.error('[updateUserSettings] No data returned after upsert.');
              return { data: null, error: 'Failed to confirm settings update.' };
         }
 
-        console.log(`[updateUserSettings] Success for user: ${user.id}`);
+        appLogger.info(`[updateUserSettings] Success for user: ${user.id}`);
         return { data: updatedSettings, error: null }; // Return raw DB data
 
     } catch (error: any) {
-        console.error('[updateUserSettings] Caught unexpected error:', error);
+        appLogger.error('[updateUserSettings] Caught unexpected error:', error);
         return { data: null, error: error.message || 'Unknown error updating settings' };
     }
 }

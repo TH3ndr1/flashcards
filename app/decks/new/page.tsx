@@ -13,6 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { ArrowLeft, Loader2 as IconLoader } from "lucide-react"; // For loading state
+import { appLogger, statusLogger } from '@/lib/logger';
 
 /**
  * Page component for manually creating a new deck's metadata.
@@ -33,12 +34,12 @@ export default function NewDeckPage() {
     // Set default languages based on user settings when component mounts
     useEffect(() => {
         if (settings?.appLanguage) {
-            console.log("[NewDeckPage] Setting default language from settings:", settings.appLanguage);
+            appLogger.info("[NewDeckPage] Setting default language from settings:", settings.appLanguage);
             setPrimaryLanguage(settings.appLanguage);
             setSecondaryLanguage(settings.appLanguage); // Default secondary to same as primary
         } else {
             // Fallback if settings not loaded or no language set
-             console.log("[NewDeckPage] No default language in settings, using 'en'.");
+             appLogger.info("[NewDeckPage] No default language in settings, using 'en'.");
              setPrimaryLanguage("en");
              setSecondaryLanguage("en");
         }
@@ -80,7 +81,7 @@ export default function NewDeckPage() {
             flashcards: [] // Send empty array for manual creation
         };
 
-        console.log("[NewDeckPage] Sending payload to POST /api/decks:", payload);
+        appLogger.info("[NewDeckPage] Sending payload to POST /api/decks:", payload);
 
         try {
             const response = await fetch('/api/decks', {
@@ -100,7 +101,7 @@ export default function NewDeckPage() {
 
             // Success!
             toast.success(`Deck "${payload.name}" created! Redirecting...`, { id: toastId });
-            console.log("[NewDeckPage] Deck created successfully, API response:", result);
+            appLogger.info("[NewDeckPage] Deck created successfully, API response:", result);
 
             // Redirect to the edit page for the new deck
             if (result.deckId) {
@@ -111,7 +112,7 @@ export default function NewDeckPage() {
             }
 
         } catch (error: any) {
-            console.error("[NewDeckPage] Error creating deck:", error);
+            appLogger.error("[NewDeckPage] Error creating deck:", error);
             toast.error("Failed to create deck", {
                 id: toastId,
                 description: error.message || "An unexpected error occurred.",

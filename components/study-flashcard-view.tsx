@@ -30,6 +30,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { appLogger } from '@/lib/logger';
 
 type ReviewGrade = 1 | 2 | 3 | 4;
 
@@ -58,14 +59,14 @@ function getWordStyles(
     }
 
     // --- NEW: Check if coloring should be skipped based on native language setting ---
-    console.debug('[getWordStyles] Checking native language:', {
+    appLogger.debug('[getWordStyles] Checking native language:', {
         colorOnlyNonNative: settings.colorOnlyNonNative,
         appLanguage: settings.appLanguage,
         textLanguageCode: textLanguageCode,
         shouldSkip: settings.colorOnlyNonNative && settings.appLanguage === textLanguageCode
     });
     if (settings.colorOnlyNonNative && settings.appLanguage === textLanguageCode) {
-        console.debug(`[getWordStyles] Skipping color for native language (${textLanguageCode}) word.`);
+        appLogger.debug(`[getWordStyles] Skipping color for native language (${textLanguageCode}) word.`);
         return defaultStyle; // Skip styling if it's the native language and setting is ON
     }
     // ---------------------------------------------------------------------------------
@@ -156,7 +157,7 @@ export function StudyFlashcardView({
     if (!settings?.ttsEnabled || !text || isSpeaking) return;
     setIsSpeaking(true);
     try { await speak(text, defaultLang); }
-    catch (error) { console.error("TTS Error:", error); }
+    catch (error) { appLogger.error("TTS Error:", error); }
     finally { setIsSpeaking(false); }
   };
 

@@ -8,6 +8,7 @@ import type { StudyQueryCriteria } from '@/lib/schema/study-query.schema';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button'; // For potential cancel button
 import Link from 'next/link'; // For linking back
+import { appLogger, statusLogger } from '@/lib/logger';
 
 export default function NewStudySetPage() {
   const router = useRouter();
@@ -19,7 +20,7 @@ export default function NewStudySetPage() {
     criteria: StudyQueryCriteria;
   }) => {
     setIsSaving(true);
-    console.log("[NewStudySetPage] Saving new study set:", data);
+    appLogger.info("[NewStudySetPage] Saving new study set:", data);
     try {
       const result = await createStudySet(data);
       if (result.error) {
@@ -32,7 +33,7 @@ export default function NewStudySetPage() {
         // revalidatePath('/study/sets'); 
       }
     } catch (err) {
-      console.error("[NewStudySetPage] Unexpected error saving study set:", err);
+      appLogger.error("[NewStudySetPage] Unexpected error saving study set:", err);
       toast.error("An unexpected error occurred while saving.");
     } finally {
       setIsSaving(false);

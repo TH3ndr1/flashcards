@@ -2,13 +2,14 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import type { Tables } from "@/types/database";
+import { appLogger, statusLogger } from '@/lib/logger';
 type DbCard = Tables<'cards'>;
 
 export const dynamic = 'force-dynamic'
 
 // Expects card IDs in the request body
 export async function POST(request: Request) {
-  console.log(`[API /api/cards] POST request received`);
+  appLogger.info(`[API /api/cards] POST request received`);
 
   let cardIds: string[] = [];
   try {
@@ -17,9 +18,9 @@ export async function POST(request: Request) {
         throw new Error("cardIds array is required in the request body.");
     }
     cardIds = body.cardIds;
-    console.log(`[API /api/cards] Requesting details for ${cardIds.length} cards.`);
+    appLogger.info(`[API /api/cards] Requesting details for ${cardIds.length} cards.`);
   } catch (e) {
-    console.error("[API /api/cards] Invalid request body:", e);
+    appLogger.error("[API /api/cards] Invalid request body:", e);
     return NextResponse.json({ error: 'Invalid request body. Expecting { "cardIds": [...] }' }, { status: 400 })
   }
 
@@ -28,22 +29,22 @@ export async function POST(request: Request) {
 
   const { data: { session }, error: sessionError } = await supabase.auth.getSession();
   if (sessionError || !session) {
-    console.error('[API /api/cards] Auth error or no session', sessionError);
+    appLogger.error('[API /api/cards] Auth error or no session', sessionError);
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
-    console.log(`[API /api/cards] Fetching cards for user: ${session.user.id}`);
+    appLogger.info(`[API /api/cards] Fetching cards for user: ${session.user.id}`);
     const { data: dbCards, error: fetchError } = await supabase
       .from('cards')
       .select(`*`) // Select all needed card fields
       .in('id', cardIds)
       // RLS policy should handle user access via deck relationship
       
-    console.log("[API /api/cards] Supabase fetch result:", { count: dbCards?.length, fetchError });
+    appLogger.info("[API /api/cards] Supabase fetch result:", { count: dbCards?.length, fetchError });
 
     if (fetchError) {
-      console.error("[API /api/cards] Supabase fetch error:", fetchError);
+      appLogger.error("[API /api/cards] Supabase fetch error:", fetchError);
       throw fetchError;
     }
 
@@ -58,7 +59,7 @@ export async function POST(request: Request) {
 
   } catch (error) {
      const errorMessage = error instanceof Error ? error.message : String(error);
-     console.error('[API /api/cards] Caught error:', errorMessage, error);
+     appLogger.error('[API /api/cards] Caught error:', errorMessage, error);
      return NextResponse.json({ error: 'Failed to fetch card details', details: errorMessage }, { status: 500 })
   }
 } 

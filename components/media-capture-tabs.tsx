@@ -2,6 +2,7 @@
 
 import React, { useCallback } from 'react';
 import { FileUpload } from '@/components/file-upload';
+import { appLogger } from '@/lib/logger';
 
 interface MediaCaptureTabsProps {
   onFilesSelected: (files: File[]) => void;
@@ -20,7 +21,7 @@ export function MediaCaptureTabs({
 }: MediaCaptureTabsProps) {
   // Use a memoized callback to avoid re-renders
   const handleFileUpload = useCallback((files: File[]) => {
-    console.log(`MediaCaptureTabs received ${files ? files.length : 0} files from FileUpload`);
+    appLogger.info(`MediaCaptureTabs received ${files ? files.length : 0} files from FileUpload`);
     // Only propagate the update if we have valid inputs
     if (files && Array.isArray(files)) {
       onFilesSelected(files);

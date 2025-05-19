@@ -7,6 +7,7 @@ import { getStudySet } from '@/lib/actions/studySetActions'; // Import action to
 import { ZodError } from 'zod';
 import type { Database, Json } from "@/types/database"; // Import Json type if not global
 import type { ActionResult } from '@/lib/actions/types'; // Import shared type
+import { appLogger, statusLogger } from '@/lib/logger';
 
 /**
  * Server actions for resolving study queries and fetching card IDs.
@@ -42,7 +43,7 @@ export async function resolveStudyQuery(
   // 1. Authentication
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
-    console.error('Auth error in resolveStudyQuery:', authError);
+    appLogger.error('Auth error in resolveStudyQuery:', authError);
     return { data: null, error: 'Authentication required.' };
   }
 
@@ -52,16 +53,16 @@ export async function resolveStudyQuery(
   // 2. Determine and Validate Criteria
   try {
     if ('studySetId' in input && input.studySetId) {
-        console.log("[resolveStudyQuery] Resolving via studySetId:", input.studySetId);
+        appLogger.info("[resolveStudyQuery] Resolving via studySetId:", input.studySetId);
         // Fetch the study set
         const studySetResult = await getStudySet(input.studySetId);
 
         if (studySetResult.error) {
-            console.error(`[resolveStudyQuery] Error fetching study set ${input.studySetId}:`, studySetResult.error);
+            appLogger.error(`[resolveStudyQuery] Error fetching study set ${input.studySetId}:`, studySetResult.error);
             return { data: null, error: studySetResult.error };
         }
         if (!studySetResult.data) {
-            console.warn(`[resolveStudyQuery] Study set ${input.studySetId} not found or not authorized.`);
+            appLogger.warn(`[resolveStudyQuery] Study set ${input.studySetId} not found or not authorized.`);
             return { data: null, error: 'Study set not found.' };
         }
 
@@ -70,9 +71,9 @@ export async function resolveStudyQuery(
         try {
           const parsedCriteria = StudyQueryCriteriaSchema.safeParse(studySetResult.data.query_criteria);
           if (!parsedCriteria.success) {
-            console.error(`[resolveStudyQuery] Invalid criteria found in study set ${input.studySetId}:`, parsedCriteria.error.errors);
+            appLogger.error(`[resolveStudyQuery] Invalid criteria found in study set ${input.studySetId}:`, parsedCriteria.error.errors);
             // Instead of failing, use a safe default criteria
-            console.log("[resolveStudyQuery] Using safe default criteria for malformed study set");
+            appLogger.info("[resolveStudyQuery] Using safe default criteria for malformed study set");
             criteriaToUse = {
               allCards: true,
               tagLogic: 'ANY',
@@ -81,7 +82,7 @@ export async function resolveStudyQuery(
             criteriaToUse = parsedCriteria.data;
           }
         } catch (err) {
-          console.error(`[resolveStudyQuery] Error parsing study set criteria:`, err);
+          appLogger.error(`[resolveStudyQuery] Error parsing study set criteria:`, err);
           // Fallback to safe default criteria
           criteriaToUse = {
             allCards: true,
@@ -90,17 +91,17 @@ export async function resolveStudyQuery(
         }
         
     } else if ('criteria' in input && input.criteria) {
-        console.log("[resolveStudyQuery] Resolving via provided criteria:", input.criteria);
+        appLogger.info("[resolveStudyQuery] Resolving via provided criteria:", input.criteria);
         // Validate the provided criteria
         const parsedCriteria = StudyQueryCriteriaSchema.safeParse(input.criteria);
          if (!parsedCriteria.success) {
-             console.error('[resolveStudyQuery] Invalid criteria provided:', parsedCriteria.error.errors);
+             appLogger.error('[resolveStudyQuery] Invalid criteria provided:', parsedCriteria.error.errors);
              validationError = `Invalid query criteria: ${parsedCriteria.error.errors.map(e => e.message).join(', ')}`;
          } else {
             criteriaToUse = parsedCriteria.data;
          }
     } else {
-         console.error('[resolveStudyQuery] Invalid input: Neither criteria nor studySetId provided.');
+         appLogger.error('[resolveStudyQuery] Invalid input: Neither criteria nor studySetId provided.');
          validationError = 'Invalid input: Must provide either criteria or studySetId.';
     }
 
@@ -111,12 +112,12 @@ export async function resolveStudyQuery(
     
     // Ensure criteria were successfully determined
     if (!criteriaToUse) {
-         console.error('[resolveStudyQuery] Criteria could not be determined from input.');
+         appLogger.error('[resolveStudyQuery] Criteria could not be determined from input.');
          return { data: null, error: 'Failed to determine study criteria.' };
     }
 
     // 3. RPC Call to the Database Function
-    console.log("[resolveStudyQuery] Calling RPC with criteria:", criteriaToUse);
+    appLogger.info("[resolveStudyQuery] Calling RPC with criteria:", criteriaToUse);
     const { data, error: rpcError } = await supabase.rpc(
       'resolve_study_query', 
       {
@@ -130,12 +131,12 @@ export async function resolveStudyQuery(
     );
 
     if (rpcError) {
-      console.error('Supabase RPC error in resolveStudyQuery:', rpcError);
+      appLogger.error('Supabase RPC error in resolveStudyQuery:', rpcError);
       return { data: null, error: 'Failed to retrieve study cards. Please try again.' };
     }
 
     // Log the raw data received from RPC for inspection
-    console.log("[resolveStudyQuery] Raw RPC data:", JSON.stringify(data, null, 2));
+    appLogger.info("[resolveStudyQuery] Raw RPC data:", JSON.stringify(data, null, 2));
 
     // 4. Process and Return Data
     // The RPC function directly returns an array of UUID strings.
@@ -143,14 +144,14 @@ export async function resolveStudyQuery(
     const cardIds: string[] = data ? data : []; 
     
     // Log the mapped card IDs for inspection
-    console.log("[resolveStudyQuery] Final cardIds array:", JSON.stringify(cardIds, null, 2)); // Renamed log
+    appLogger.info("[resolveStudyQuery] Final cardIds array:", JSON.stringify(cardIds, null, 2)); // Renamed log
 
-    console.log(`[resolveStudyQuery] Resolved ${cardIds.length} card IDs.`);
+    appLogger.info(`[resolveStudyQuery] Resolved ${cardIds.length} card IDs.`);
     return { data: cardIds, error: null };
 
   } catch (error) {
     // Catch unexpected errors during the process
-    console.error('Unexpected error in resolveStudyQuery:', error);
+    appLogger.error('Unexpected error in resolveStudyQuery:', error);
     return { data: null, error: 'An unexpected error occurred.' };
   }
 } 

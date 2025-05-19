@@ -89,7 +89,7 @@ const parseDateCriteriaForForm = (
             return { ...defaultValue, operator: op };
         }
     } catch (e) {
-        console.error("Error parsing date criteria for form:", e);
+        appLogger.error("Error parsing date criteria for form:", e);
     }
     return defaultValue;
 };
@@ -255,14 +255,14 @@ export function useStudySetForm({ initialData, onSave, isSaving = false }: UseSt
     const parsedFinalCriteria = StudyQueryCriteriaSchema.safeParse(criteriaToBuild);
 
     if (!parsedFinalCriteria.success) {
-        console.error("Validation of final criteria failed:", parsedFinalCriteria.error.format());
+        appLogger.error("Validation of final criteria failed:", parsedFinalCriteria.error.format());
         const errorMessages = parsedFinalCriteria.error.errors.map(err => `${err.path.join('.') || 'criteria'}: ${err.message}`).join('; ');
         toast.error("Error constructing query.", { description: errorMessages || "Some filter values are invalid." });
         return;
     }
 
-    console.log("Final Form Data (Raw for debug):", formData);
-    console.log("Generated Criteria for Save:", parsedFinalCriteria.data);
+    appLogger.info("Final Form Data (Raw for debug):", formData);
+    appLogger.info("Generated Criteria for Save:", parsedFinalCriteria.data);
 
     await onSave({
       name: formData.name,
@@ -270,7 +270,7 @@ export function useStudySetForm({ initialData, onSave, isSaving = false }: UseSt
       criteria: parsedFinalCriteria.data
     }).catch(err => {
       toast.error("Save failed.");
-      console.error("onSave callback error:", err);
+      appLogger.error("onSave callback error:", err);
     });
   }), [form, onSave, mapDateFilterToCriteria]);
 

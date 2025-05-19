@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { Loader2 as IconLoader, GraduationCap, Play } from 'lucide-react';
 import type { Database, Tables } from "@/types/database";
 import type { StudyQueryCriteria } from "@/lib/schema/study-query.schema";
+import { appLogger, statusLogger } from '@/lib/logger';
 
 // Type definitions
 type DbDeck = Pick<Tables<'decks'>, 'id' | 'name'>;
@@ -103,7 +104,7 @@ export function StudySetSelector({
       }
       
       if (cardIdsResult.error || !cardIdsResult.data) {
-        console.error("Error fetching card IDs:", cardIdsResult.error);
+        appLogger.error("Error fetching card IDs:", cardIdsResult.error);
         setCountError("Failed to check available cards");
         setLearnCount(0);
         setReviewCount(0);
@@ -112,7 +113,7 @@ export function StudySetSelector({
       }
       
       const cardIds = cardIdsResult.data;
-      console.log(`[StudySetSelector] Found ${cardIds.length} total cards matching criteria`);
+      appLogger.info(`[StudySetSelector] Found ${cardIds.length} total cards matching criteria`);
       
       if (cardIds.length === 0) {
         setLearnCount(0);
@@ -125,7 +126,7 @@ export function StudySetSelector({
       const srsStatesResult = await getCardSrsStatesByIds(cardIds);
       
       if (srsStatesResult.error || !srsStatesResult.data) {
-        console.error("Error fetching card SRS states:", srsStatesResult.error);
+        appLogger.error("Error fetching card SRS states:", srsStatesResult.error);
         setCountError("Failed to check card states");
         setLearnCount(0);
         setReviewCount(0);
@@ -159,14 +160,14 @@ export function StudySetSelector({
         return isGraduatedOrRelearning && isDue;
       });
       
-      console.log(`[StudySetSelector] Learn-eligible: ${learnEligibleCards.length}, Review-eligible: ${reviewEligibleCards.length}`);
+      appLogger.info(`[StudySetSelector] Learn-eligible: ${learnEligibleCards.length}, Review-eligible: ${reviewEligibleCards.length}`);
       
       // Update state
       setLearnCount(learnEligibleCards.length);
       setReviewCount(reviewEligibleCards.length);
       
     } catch (error) {
-      console.error("Error in fetchCardCounts:", error);
+      appLogger.error("Error in fetchCardCounts:", error);
       setCountError("Error checking available cards");
       setLearnCount(0);
       setReviewCount(0);

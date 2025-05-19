@@ -3,6 +3,7 @@
 
 import { TextToSpeechClient } from '@google-cloud/text-to-speech';
 import { google } from '@google-cloud/text-to-speech/build/protos/protos';
+import { appLogger } from '@/lib/logger';
 
 // Consider initializing the client outside the function for potential reuse
 // if appropriate for your serverless environment's lifecycle.
@@ -43,18 +44,18 @@ export async function generateTtsAction(
                               !!process.env.GCP_PRIVATE_KEY;
 
     if (!hasCredentialsFile && !hasIndividualCreds) {
-         console.error("TTS Action Error: Google Cloud credentials are not set properly in environment variables.");
+         appLogger.error("TTS Action Error: Google Cloud credentials are not set properly in environment variables.");
          return { audioContent: null, error: "Server configuration error: Missing TTS credentials." };
     }
 
     if (!text || !languageCode) {
-        console.warn("TTS Action Warning: Missing text or languageCode.");
+        appLogger.warn("TTS Action Warning: Missing text or languageCode.");
         return { audioContent: null, error: "Missing required parameters for TTS generation." };
     }
 
     // Add detailed logging about language code
-    console.log(`[TTS Action] EXACT language code received: "${languageCode}" (type: ${typeof languageCode})`);
-    console.log(`[TTS Action] Is language code a valid BCP-47 code with dialect? ${languageCode.includes('-') ? 'Yes' : 'No'}`);
+    appLogger.info(`[TTS Action] EXACT language code received: "${languageCode}" (type: ${typeof languageCode})`);
+    appLogger.info(`[TTS Action] Is language code a valid BCP-47 code with dialect? ${languageCode.includes('-') ? 'Yes' : 'No'}`);
     
     // Add server-side language mapping for safety
     let mappedCode = languageCode;
@@ -73,11 +74,11 @@ export async function generateTtsAction(
         
         if (mapping[baseCode]) {
             mappedCode = mapping[baseCode];
-            console.log(`[TTS Action] Applied server-side mapping: ${languageCode} → ${mappedCode}`);
+            appLogger.info(`[TTS Action] Applied server-side mapping: ${languageCode} → ${mappedCode}`);
         }
     }
     
-    console.log(`[generateTtsAction] Generating TTS for text: "${text.substring(0, 50)}...", lang: ${mappedCode}, gender: ${ssmlGender}, voice: ${voiceName ?? 'default'}`);
+    appLogger.info(`[generateTtsAction] Generating TTS for text: "${text.substring(0, 50)}...", lang: ${mappedCode}, gender: ${ssmlGender}, voice: ${voiceName ?? 'default'}`);
 
     // Initialize client here for serverless compatibility
     // If using long-running server, initialize outside the function.
@@ -105,20 +106,19 @@ export async function generateTtsAction(
 
         if (response.audioContent instanceof Uint8Array) {
             const audioBase64 = Buffer.from(response.audioContent).toString('base64');
-            console.log(`[generateTtsAction] Successfully generated TTS audio for lang: ${mappedCode}`);
+            appLogger.info(`[generateTtsAction] Successfully generated TTS audio for lang: ${mappedCode}`);
             return { audioContent: audioBase64, error: null };
         } else {
-             console.error("[generateTtsAction] TTS response did not contain valid audio content.", response);
+            appLogger.error("[generateTtsAction] TTS response did not contain valid audio content.", response);
             return { audioContent: null, error: "TTS generation failed: Invalid audio content received." };
         }
     } catch (error: any) {
-        console.error('[generateTtsAction] Google TTS API Error:', error);
+        appLogger.error('[generateTtsAction] Google TTS API Error:', error);
         // Attempt to provide a more specific error message if available
         const errorMessage = error.details || error.message || 'Unknown API error';
         return { audioContent: null, error: `TTS generation failed: ${errorMessage}` };
     }
 }
-
 /**
  * Generates TTS audio for the given text.
  * 

@@ -21,6 +21,7 @@ import {
     ApiFlashcard, // Assuming ApiFlashcard type needs update elsewhere
     GenerationApiError
 } from './types'; // Ensure types.ts is updated if necessary
+import { appLogger, statusLogger } from '@/lib/logger';
 
 // --- Internal Types (remain largely the same, but used differently) ---
 
@@ -139,8 +140,8 @@ function parseJsonResponse(jsonString: string, filename: string, stepName: strin
     try {
         return JSON.parse(jsonString);
     } catch (parseError: any) {
-        console.error(`[Generator Service] Error parsing JSON string in ${stepName} for ${filename}:`, parseError.message);
-        console.error(`[Generator Service] Received text content (${stepName}):`, jsonString);
+        appLogger.error(`[Generator Service] Error parsing JSON string in ${stepName} for ${filename}:`, parseError.message);
+        appLogger.error(`[Generator Service] Received text content (${stepName}):`, jsonString);
         throw new GenerationApiError(`Failed to parse ${stepName} JSON response for ${filename}: ${parseError.message}`);
     }
 }
@@ -156,7 +157,7 @@ async function callVertexAI<T>(
         throw new GenerationApiError("Vertex AI client is not initialized.");
     }
 
-    console.log(`[Generator Service] ${stepName}: Sending prompt for ${filename} to ${VERTEX_MODEL_NAME}. Prompt length: ${prompt.length}`);
+    appLogger.info(`[Generator Service] ${stepName}: Sending prompt for ${filename} to ${VERTEX_MODEL_NAME}. Prompt length: ${prompt.length}`);
 
     const model = vertexAI.getGenerativeModel({
         model: VERTEX_MODEL_NAME,
@@ -174,21 +175,21 @@ async function callVertexAI<T>(
     if (!response || !response.candidates || response.candidates.length === 0 || !response.candidates[0].content || !response.candidates[0].content.parts || response.candidates[0].content.parts.length === 0) {
         const finishReason = response?.candidates?.[0]?.finishReason;
         const safetyRatings = response?.candidates?.[0]?.safetyRatings;
-        console.error(`[Generator Service] ${stepName}: Invalid response structure or safety block for ${filename}. Reason: ${finishReason}`, safetyRatings);
+        appLogger.error(`[Generator Service] ${stepName}: Invalid response structure or safety block for ${filename}. Reason: ${finishReason}`, safetyRatings);
         throw new GenerationApiError(`${stepName}: Invalid or empty response structure from AI for ${filename}. Finish Reason: ${finishReason}`);
     }
 
     const responsePart = response.candidates[0].content.parts[0];
 
     if (typeof responsePart === 'object' && responsePart !== null && 'text' in responsePart && typeof responsePart.text === 'string') {
-        console.log(`[Generator Service] ${stepName}: Found 'text' property for ${filename}. Parsing.`);
+        appLogger.info(`[Generator Service] ${stepName}: Found 'text' property for ${filename}. Parsing.`);
         return parseJsonResponse(responsePart.text, filename, stepName);
     } else {
-         console.warn(`[Generator Service] ${stepName}: Response part for ${filename} might be a direct JSON object (lacks 'text' property). Assuming direct object.`);
+         appLogger.warn(`[Generator Service] ${stepName}: Response part for ${filename} might be a direct JSON object (lacks 'text' property). Assuming direct object.`);
          if (typeof responsePart === 'object' && responsePart !== null) {
              return responsePart as T; // Assume it matches the expected structure T
          } else {
-             console.error(`[Generator Service] ${stepName}: Unexpected response part format for ${filename}. Expected object, got: ${typeof responsePart}. Content:`, String(responsePart));
+             appLogger.error(`[Generator Service] ${stepName}: Unexpected response part format for ${filename}. Expected object, got: ${typeof responsePart}. Content:`, String(responsePart));
              throw new GenerationApiError(`${stepName}: Unexpected response format from AI for ${filename}.`);
          }
      }
@@ -210,12 +211,12 @@ export async function generateInitialFlashcards(
         throw new GenerationApiError("Vertex AI client is not initialized. Check configuration.");
     }
     if (!text || text.trim().length < 10) {
-        console.warn(`[Generator Service - Step 1] Input text for ${filename} is too short or empty. Skipping generation.`);
+        appLogger.warn(`[Generator Service - Step 1] Input text for ${filename} is too short or empty. Skipping generation.`);
         // Return a default structure indicating failure or empty state
         return { mode: 'knowledge', detectedQuestionLanguage: 'N/A', detectedAnswerLanguage: 'N/A', basicFlashcards: [] };
     }
 
-    console.log(`[Generator Service - Step 1] Starting initial generation for: ${filename}`);
+    appLogger.info(`[Generator Service - Step 1] Starting initial generation for: ${filename}`);
 
     const truncatedText = text.length > MAX_TEXT_CHARS_FOR_GEMINI
         ? text.slice(0, MAX_TEXT_CHARS_FOR_GEMINI) + `\n\n...(text truncated at ${MAX_TEXT_CHARS_FOR_GEMINI} characters for brevity)`
@@ -280,7 +281,7 @@ ${truncatedText}
             !step1Result.detectedAnswerLanguage || typeof step1Result.detectedAnswerLanguage !== 'string' ||
             !Array.isArray(step1Result.flashcards))
         {
-            console.error(`[Generator Service - Step 1] JSON for ${filename} does NOT match required base schema fields/types. Received:`, JSON.stringify(step1Result, null, 2));
+            appLogger.error(`[Generator Service - Step 1] JSON for ${filename} does NOT match required base schema fields/types. Received:`, JSON.stringify(step1Result, null, 2));
             throw new GenerationApiError(`Step 1 AI response JSON base structure mismatch for ${filename}. Received: ${JSON.stringify(step1Result)}`);
         }
 
@@ -289,12 +290,12 @@ ${truncatedText}
                  typeof card.question !== 'string' ||
                  typeof card.answer !== 'string')
              {
-                 console.error(`[Generator Service - Step 1] Invalid flashcard structure within the array for ${filename}. Received card:`, JSON.stringify(card, null, 2));
+                 appLogger.error(`[Generator Service - Step 1] Invalid flashcard structure within the array for ${filename}. Received card:`, JSON.stringify(card, null, 2));
                  throw new GenerationApiError(`Step 1 AI response flashcard structure mismatch for ${filename}.`);
              }
          }
 
-        console.log(`[Generator Service - Step 1] successful for ${filename}. Mode: ${step1Result.mode}, QLang: ${step1Result.detectedQuestionLanguage}, ALang: ${step1Result.detectedAnswerLanguage}, Cards: ${step1Result.flashcards.length}`);
+        appLogger.info(`[Generator Service - Step 1] successful for ${filename}. Mode: ${step1Result.mode}, QLang: ${step1Result.detectedQuestionLanguage}, ALang: ${step1Result.detectedAnswerLanguage}, Cards: ${step1Result.flashcards.length}`);
 
         // Return the structured result
         return {
@@ -305,8 +306,8 @@ ${truncatedText}
         };
 
     } catch (error: any) {
-        console.error(`[Generator Service - Step 1] Error during initial generation for ${filename}:`, error.message);
-        if (error.stack) console.error(error.stack);
+        appLogger.error(`[Generator Service - Step 1] Error during initial generation for ${filename}:`, error.message);
+        if (error.stack) appLogger.error(error.stack);
         if (error instanceof GenerationApiError) throw error;
         throw new GenerationApiError(`Unexpected error during Step 1 generation for ${filename}: ${error.message}`);
     }
@@ -323,11 +324,11 @@ export async function classifyTranslationFlashcards(
     filename: string
 ): Promise<GeminiFlashcardClassification[]> { 
     if (basicFlashcards.length === 0) {
-        console.log(`[Generator Service - Step 2 Classify] No flashcards provided for classification for ${filename}.`);
+        appLogger.info(`[Generator Service - Step 2 Classify] No flashcards provided for classification for ${filename}.`);
         return [];
     }
 
-    console.log(`[Generator Service - Step 2 Classify] Starting classification for ${basicFlashcards.length} cards from ${filename}.`);
+    appLogger.info(`[Generator Service - Step 2 Classify] Starting classification for ${basicFlashcards.length} cards from ${filename}.`);
 
     // Prepare input for Phase 2 prompt (same as before)
     const inputJsonForPhase2 = JSON.stringify(basicFlashcards, null, 2);
@@ -374,17 +375,17 @@ ${inputJsonForPhase2}
         const step2Result = await callVertexAI<Step2OutputType>(promptPhase2, generationConfigClassification, filename, 'Step 2 - Classification');
 
         // --- Log Raw Result --- 
-        console.log(`[Generator Service - Step 2 Classify] Raw Result for ${filename}:`, JSON.stringify(step2Result, null, 2));
+        appLogger.info(`[Generator Service - Step 2 Classify] Raw Result for ${filename}:`, JSON.stringify(step2Result, null, 2));
 
         // --- Validate Classification Response --- 
         if (!step2Result || typeof step2Result !== 'object' || !Array.isArray(step2Result.classifiedFlashcards)) {
-            console.error(`[Generator Service - Step 2 Classify] JSON for ${filename} does NOT match required schema. Expected { classifiedFlashcards: [...] }. Received:`, JSON.stringify(step2Result, null, 2));
+            appLogger.error(`[Generator Service - Step 2 Classify] JSON for ${filename} does NOT match required schema. Expected { classifiedFlashcards: [...] }. Received:`, JSON.stringify(step2Result, null, 2));
             throw new GenerationApiError(`Step 2 Classification AI response JSON structure mismatch for ${filename}.`);
         }
 
         // Log warning on count mismatch, but still return the data we got
         if (step2Result.classifiedFlashcards.length !== basicFlashcards.length) {
-            console.warn(`[Generator Service - Step 2 Classify] Classification count mismatch for ${filename}. Expected ${basicFlashcards.length}, Received ${step2Result.classifiedFlashcards.length}. Proceeding with available data.`);
+            appLogger.warn(`[Generator Service - Step 2 Classify] Classification count mismatch for ${filename}. Expected ${basicFlashcards.length}, Received ${step2Result.classifiedFlashcards.length}. Proceeding with available data.`);
         }
 
         // Validate individual classification objects (optional but good practice)
@@ -395,18 +396,18 @@ ${inputJsonForPhase2}
                  typeof classification.answerPartOfSpeech !== 'string' ||
                  typeof classification.answerGender !== 'string')
              {
-                 console.error(`[Generator Service - Step 2 Classify] Invalid classification structure for ${filename}. Received:`, JSON.stringify(classification, null, 2));
+                 appLogger.error(`[Generator Service - Step 2 Classify] Invalid classification structure for ${filename}. Received:`, JSON.stringify(classification, null, 2));
                  // Decide whether to throw or just skip/default this specific item
                  throw new GenerationApiError(`Step 2 Classification AI response contains invalid classification object structure for ${filename}.`);
              }
          }
 
-        console.log(`[Generator Service - Step 2 Classify] successful for ${filename}. Classified ${step2Result.classifiedFlashcards.length} cards.`);
+        appLogger.info(`[Generator Service - Step 2 Classify] successful for ${filename}. Classified ${step2Result.classifiedFlashcards.length} cards.`);
         return step2Result.classifiedFlashcards;
 
     } catch (error: any) {
-        console.error(`[Generator Service - Step 2 Classify] Error during classification for ${filename}. Returning empty array. Error:`, error.message);
-        if (error.stack) console.error(error.stack);
+        appLogger.error(`[Generator Service - Step 2 Classify] Error during classification for ${filename}. Returning empty array. Error:`, error.message);
+        if (error.stack) appLogger.error(error.stack);
         // Return empty array on error, let downstream handle merging defaults
         return [];
     }
@@ -426,11 +427,11 @@ export async function regenerateAsKnowledgeFlashcards(
         throw new GenerationApiError("Vertex AI client is not initialized. Check configuration.");
     }
     if (!text || text.trim().length < 10) {
-        console.warn(`[Generator Service - Step 2 Knowledge Regen] Input text for ${filename} is too short or empty. Skipping generation.`);
+        appLogger.warn(`[Generator Service - Step 2 Knowledge Regen] Input text for ${filename} is too short or empty. Skipping generation.`);
         return { detectedQuestionLanguage: 'N/A', detectedAnswerLanguage: 'N/A', basicFlashcards: [] };
     }
 
-    console.log(`[Generator Service - Step 2 Knowledge Regen] Starting knowledge regeneration for: ${filename}`);
+    appLogger.info(`[Generator Service - Step 2 Knowledge Regen] Starting knowledge regeneration for: ${filename}`);
 
     const truncatedText = text.length > MAX_TEXT_CHARS_FOR_GEMINI
         ? text.slice(0, MAX_TEXT_CHARS_FOR_GEMINI) + `\n\n...(text truncated at ${MAX_TEXT_CHARS_FOR_GEMINI} characters for brevity)`
@@ -446,20 +447,20 @@ export async function regenerateAsKnowledgeFlashcards(
 
     try {
         // --- Reduce logging verbosity for Step 2 prompt ---\
-        // console.log(`[Generator Service - Step 2 Knowledge Regen] Full prompt for ${filename}:`);\
-        // console.log("--- PROMPT START ---");\
-        // console.log(promptKnowledge); // <-- Don't log the full prompt
-        console.log(`[Generator Service - Step 2 Knowledge Regen] Preparing prompt for ${filename}. Text length being included: ${truncatedText.length}`);
+        // appLogger.info(`[Generator Service - Step 2 Knowledge Regen] Full prompt for ${filename}:`);\
+        // appLogger.info("--- PROMPT START ---");\
+        // appLogger.info(promptKnowledge); // <-- Don't log the full prompt
+        appLogger.info(`[Generator Service - Step 2 Knowledge Regen] Preparing prompt for ${filename}. Text length being included: ${truncatedText.length}`);
         // ----------------------------------------------------\n\n        // Pass the correct prompt variable to callVertexAI\n        const knowledgeResult = await callVertexAI<KnowledgeRegenOutputType>(promptKnowledge, generationConfigBasic, filename, 'Step 2 - Knowledge Regen');\n\n        // --- Validate Knowledge Regen Response ---
-        console.log("--- PROMPT END ---");
-        console.log(`[Generator Service - Step 2 Knowledge Regen] Preparing prompt for ${filename}. Text length being included: ${truncatedText.length}`);
+        appLogger.info("--- PROMPT END ---");
+        appLogger.info(`[Generator Service - Step 2 Knowledge Regen] Preparing prompt for ${filename}. Text length being included: ${truncatedText.length}`);
         // ----------------------------------------------------\n\n        // Pass the correct prompt variable to callVertexAI\n        const knowledgeResult = await callVertexAI<KnowledgeRegenOutputType>(promptKnowledge, generationConfigBasic, filename, 'Step 2 - Knowledge Regen');\n\n        // --- Validate Knowledge Regen Response ---
 
         // Add log to inspect the full prompt being sent (Corrected Syntax)
-        console.log(`[Generator Service - Step 2 Knowledge Regen] Full prompt for ${filename}:`);
-        console.log("--- PROMPT START ---");
-        console.log(promptKnowledge);
-        console.log("--- PROMPT END ---");
+        appLogger.info(`[Generator Service - Step 2 Knowledge Regen] Full prompt for ${filename}:`);
+        appLogger.info("--- PROMPT START ---");
+        appLogger.info(promptKnowledge);
+        appLogger.info("--- PROMPT END ---");
         // Pass the correct prompt variable to callVertexAI
         const knowledgeResult = await callVertexAI<KnowledgeRegenOutputType>(promptKnowledge, generationConfigBasic, filename, 'Step 2 - Knowledge Regen');
 
@@ -471,7 +472,7 @@ export async function regenerateAsKnowledgeFlashcards(
             knowledgeResult.detectedQuestionLanguage !== knowledgeResult.detectedAnswerLanguage || // Languages MUST match
             !Array.isArray(knowledgeResult.flashcards))
         {
-            console.error(`[Generator Service - Step 2 Knowledge Regen] JSON for ${filename} does NOT match required knowledge schema. Received:`, JSON.stringify(knowledgeResult, null, 2));
+            appLogger.error(`[Generator Service - Step 2 Knowledge Regen] JSON for ${filename} does NOT match required knowledge schema. Received:`, JSON.stringify(knowledgeResult, null, 2));
             throw new GenerationApiError(`Step 2 Knowledge Regen AI response JSON structure/content mismatch for ${filename}. Received: ${JSON.stringify(knowledgeResult)}`);
         }
 
@@ -481,12 +482,12 @@ export async function regenerateAsKnowledgeFlashcards(
                  typeof card.question !== 'string' ||
                  typeof card.answer !== 'string')
              {
-                 console.error(`[Generator Service - Step 2 Knowledge Regen] Invalid flashcard structure for ${filename}. Received card:`, JSON.stringify(card, null, 2));
+                 appLogger.error(`[Generator Service - Step 2 Knowledge Regen] Invalid flashcard structure for ${filename}. Received card:`, JSON.stringify(card, null, 2));
                  throw new GenerationApiError(`Step 2 Knowledge Regen AI response flashcard structure mismatch for ${filename}.`);
              }
          }
 
-        console.log(`[Generator Service - Step 2 Knowledge Regen] successful for ${filename}. QLang: ${knowledgeResult.detectedQuestionLanguage}, Cards: ${knowledgeResult.flashcards.length}`);
+        appLogger.info(`[Generator Service - Step 2 Knowledge Regen] successful for ${filename}. QLang: ${knowledgeResult.detectedQuestionLanguage}, Cards: ${knowledgeResult.flashcards.length}`);
 
         // Return the relevant parts
         return {
@@ -496,8 +497,8 @@ export async function regenerateAsKnowledgeFlashcards(
         };
 
     } catch (error: any) {
-        console.error(`[Generator Service - Step 2 Knowledge Regen] Error during knowledge regeneration for ${filename}:`, error.message);
-        if (error.stack) console.error(error.stack);
+        appLogger.error(`[Generator Service - Step 2 Knowledge Regen] Error during knowledge regeneration for ${filename}:`, error.message);
+        if (error.stack) appLogger.error(error.stack);
         if (error instanceof GenerationApiError) throw error;
         throw new GenerationApiError(`Unexpected error during Step 2 Knowledge Regen for ${filename}: ${error.message}`);
     }

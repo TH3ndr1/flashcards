@@ -9,6 +9,7 @@ import { docAIClient, visionClient } from './gcpClients';
 import { PAGE_LIMIT, DOCAI_OCR_PAGE_LIMIT, DOCAI_PROCESSOR_ID, GCP_PROJECT_ID, DOCAI_LOCATION } from './config'; // Assume DOCAI_OCR_PAGE_LIMIT=15 is added
 import { SupportedFileType, getMimeTypeFromFilename } from './fileUtils';
 import { ExtractionResult, PageLimitExceededError, ExtractionApiError } from './types';
+import { appLogger, statusLogger } from '@/lib/logger';
 
 /**
  * Performs a pre-check on a PDF buffer to count pages.
@@ -18,14 +19,14 @@ import { ExtractionResult, PageLimitExceededError, ExtractionApiError } from './
  * @returns The page count if within the limit.
  */
 async function checkPdfPageCount(fileBuffer: ArrayBuffer, filename: string): Promise<number> {
-    console.log(`[Text Extractor] Performing pdf-lib page count check for: ${filename}`);
+    appLogger.info(`[Text Extractor] Performing pdf-lib page count check for: ${filename}`);
     try {
         const pdfDoc = await PDFDocument.load(fileBuffer, { ignoreEncryption: true });
         const pageCount = pdfDoc.getPageCount();
 
         // --- Throw only if > absolute PAGE_LIMIT (e.g., 30) ---
         if (pageCount > PAGE_LIMIT) {
-            console.warn(`[Text Extractor] PDF "${filename}" has ${pageCount} pages, exceeding the absolute ${PAGE_LIMIT}-page limit.`);
+            appLogger.warn(`[Text Extractor] PDF "${filename}" has ${pageCount} pages, exceeding the absolute ${PAGE_LIMIT}-page limit.`);
             throw new PageLimitExceededError(
                 `Exceeds absolute ${PAGE_LIMIT}-page limit (${pageCount} pages)`, // Updated message
                 filename,
@@ -34,13 +35,13 @@ async function checkPdfPageCount(fileBuffer: ArrayBuffer, filename: string): Pro
             );
         }
 
-        console.log(`[Text Extractor] pdf-lib check complete for ${filename}: ${pageCount} pages (within absolute limit).`);
+        appLogger.info(`[Text Extractor] pdf-lib check complete for ${filename}: ${pageCount} pages (within absolute limit).`);
         return pageCount;
     } catch (error: any) {
         if (error instanceof PageLimitExceededError) {
             throw error; // Re-throw specific error
         }
-        console.error(`[Text Extractor] pdf-lib processing error for ${filename}:`, error.message);
+        appLogger.error(`[Text Extractor] pdf-lib processing error for ${filename}:`, error.message);
         if (error.message.includes('Invalid PDF structure') || error.message.includes('not a PDF')) {
             throw new ExtractionApiError(`Invalid or corrupted PDF file (${filename}).`);
         }
@@ -54,18 +55,18 @@ async function extractTextFromImageVisionAI(fileBuffer: ArrayBuffer, filename: s
         throw new ExtractionApiError("Vision AI client is not initialized. Check configuration.");
     }
     const buffer = Buffer.from(fileBuffer);
-    console.log(`[Text Extractor] Starting Vision AI extraction for IMAGE: ${filename}...`);
+    appLogger.info(`[Text Extractor] Starting Vision AI extraction for IMAGE: ${filename}...`);
     try {
         const [result] = await visionClient.documentTextDetection({
             image: { content: buffer.toString('base64') }
         });
         const extractedText = result.fullTextAnnotation?.text || '';
         if (!extractedText && result.error?.message) {
-             console.warn(`[Text Extractor] Vision AI returned error for IMAGE ${filename}: ${result.error.message}`);
+             appLogger.warn(`[Text Extractor] Vision AI returned error for IMAGE ${filename}: ${result.error.message}`);
              throw new ExtractionApiError(`Vision AI error: ${result.error.message}`);
         }
          if (!extractedText) {
-            console.warn(`[Text Extractor] Vision AI returned no text detections for IMAGE ${filename}`);
+            appLogger.warn(`[Text Extractor] Vision AI returned no text detections for IMAGE ${filename}`);
             return {
                  text: "",
                  info: { pages: 0, metadata: { source: 'Vision AI', characters: 0, note: 'No text detected.' } }
@@ -88,10 +89,10 @@ async function extractTextFromImageVisionAI(fileBuffer: ArrayBuffer, filename: s
             }
         }
 
-        console.log(`[Text Extractor] Vision AI detected language codes for ${filename}:`, Array.from(detectedLanguageCodes));
+        appLogger.info(`[Text Extractor] Vision AI detected language codes for ${filename}:`, Array.from(detectedLanguageCodes));
         const characterCount = extractedText.length;
         const pageCount = result.fullTextAnnotation?.pages?.length || 1;
-        console.log(`[Text Extractor] Vision AI extraction complete for IMAGE ${filename}, extracted ${characterCount} characters from ${pageCount} page(s).`);
+        appLogger.info(`[Text Extractor] Vision AI extraction complete for IMAGE ${filename}, extracted ${characterCount} characters from ${pageCount} page(s).`);
 
         return {
             text: extractedText,
@@ -105,7 +106,7 @@ async function extractTextFromImageVisionAI(fileBuffer: ArrayBuffer, filename: s
             }
         };
     } catch (error: any) {
-        console.error(`[Text Extractor] Vision AI extraction error for IMAGE ${filename}:`, error.message);
+        appLogger.error(`[Text Extractor] Vision AI extraction error for IMAGE ${filename}:`, error.message);
         throw new ExtractionApiError(`Vision AI failed for ${filename}: ${error.message}`);
     }
 }
@@ -121,12 +122,12 @@ async function extractTextFromPdfDocAI(fileBuffer: ArrayBuffer, filename: string
      }
      // --- Use the imported constant --- 
      if (typeof DOCAI_OCR_PAGE_LIMIT === 'undefined') { // Check if it was actually imported
-        console.warn('[Text Extractor] DOCAI_OCR_PAGE_LIMIT not defined in config, defaulting to 15.');
+        appLogger.warn('[Text Extractor] DOCAI_OCR_PAGE_LIMIT not defined in config, defaulting to 15.');
      }
      const ocrLimit = DOCAI_OCR_PAGE_LIMIT ?? 15; // Use imported constant or default
      // --------------------------------------
 
-    console.log(`[Text Extractor] Starting Document AI extraction for PDF: ${filename} (${initialPageCount} pages)`);
+    appLogger.info(`[Text Extractor] Starting Document AI extraction for PDF: ${filename} (${initialPageCount} pages)`);
     const processorName = `projects/${GCP_PROJECT_ID}/locations/${DOCAI_LOCATION}/processors/${DOCAI_PROCESSOR_ID}`;
     const buffer = Buffer.from(fileBuffer);
 
@@ -138,9 +139,9 @@ async function extractTextFromPdfDocAI(fileBuffer: ArrayBuffer, filename: string
         processOptions = {
              ocrConfig: { enableNativePdfParsing: true }
         };
-        console.log(`[Text Extractor] Using Imageless mode for ${filename} (${initialPageCount} pages > ${ocrLimit})`);
+        appLogger.info(`[Text Extractor] Using Imageless mode for ${filename} (${initialPageCount} pages > ${ocrLimit})`);
     } else {
-        console.log(`[Text Extractor] Using Standard OCR mode for ${filename} (${initialPageCount} pages <= ${ocrLimit})`);
+        appLogger.info(`[Text Extractor] Using Standard OCR mode for ${filename} (${initialPageCount} pages <= ${ocrLimit})`);
         // No specific options needed for standard, or explicitly set:
         // processOptions = { ocrConfig: { enableNativePdfParsing: false } }; 
     }
@@ -156,15 +157,15 @@ async function extractTextFromPdfDocAI(fileBuffer: ArrayBuffer, filename: string
     };
 
     try {
-        console.log(`[Text Extractor] Sending Document AI request (${mode} mode) to processor: ${processorName}`);
+        appLogger.info(`[Text Extractor] Sending Document AI request (${mode} mode) to processor: ${processorName}`);
         const [result] = await docAIClient.processDocument(request);
-        console.log(`[Text Extractor] Document AI request completed successfully (${mode} mode)`);
+        appLogger.info(`[Text Extractor] Document AI request completed successfully (${mode} mode)`);
 
         const { document } = result;
 
         if (!document || !document.text) {
             // Handle cases where no text is returned (remains the same)
-            console.warn(`[Text Extractor] Document AI returned no text for PDF ${filename} (${mode} mode). Response status: ${result.document?.error?.message || 'N/A'}`);
+            appLogger.warn(`[Text Extractor] Document AI returned no text for PDF ${filename} (${mode} mode). Response status: ${result.document?.error?.message || 'N/A'}`);
              return {
                  text: "",
                  info: { pages: initialPageCount, metadata: { source: `Document AI (${mode})`, characters: 0, note: 'No text detected.' } }
@@ -183,11 +184,11 @@ async function extractTextFromPdfDocAI(fileBuffer: ArrayBuffer, filename: string
             }
         }
 
-        console.log(`[Text Extractor] Document AI detected language codes for ${filename}:`, Array.from(detectedLanguageCodes));
+        appLogger.info(`[Text Extractor] Document AI detected language codes for ${filename}:`, Array.from(detectedLanguageCodes));
         const extractedText = document.text;
         const characterCount = extractedText.length;
         const pageCount = document.pages?.length || initialPageCount;
-        console.log(`[Text Extractor] Document AI extraction complete for PDF ${filename} (${mode} mode), extracted ${characterCount} characters from ${pageCount} pages.`);
+        appLogger.info(`[Text Extractor] Document AI extraction complete for PDF ${filename} (${mode} mode), extracted ${characterCount} characters from ${pageCount} pages.`);
 
         return {
             text: extractedText,
@@ -202,7 +203,7 @@ async function extractTextFromPdfDocAI(fileBuffer: ArrayBuffer, filename: string
         };
     } catch (error: any) {
         // Error handling (remains largely the same)
-        console.error(`[Text Extractor] Document AI extraction error (${mode} mode) for PDF ${filename}:`, JSON.stringify(error, null, 2));
+        appLogger.error(`[Text Extractor] Document AI extraction error (${mode} mode) for PDF ${filename}:`, JSON.stringify(error, null, 2));
 
          // --- ADD Specific Check for Google API Page Limit Error ---
          // Google API uses code 3 (INVALID_ARGUMENT) for various issues,
@@ -211,7 +212,7 @@ async function extractTextFromPdfDocAI(fileBuffer: ArrayBuffer, filename: string
              // Attempt to extract the actual page count from the error details if possible
              const match = error.details?.match(/got (\d+)/);
              const reportedPageCount = match ? parseInt(match[1], 10) : initialPageCount;
-             console.warn(`[Text Extractor] Detected Document AI page limit error for ${filename}. Reported pages: ${reportedPageCount}, Limit: 15 (for standard OCR)`);
+             appLogger.warn(`[Text Extractor] Detected Document AI page limit error for ${filename}. Reported pages: ${reportedPageCount}, Limit: 15 (for standard OCR)`);
              // Throw OUR custom error type, using the configured OCR limit
              throw new PageLimitExceededError(
                  `Exceeds Document AI OCR page limit (${ocrLimit} pages)`,
@@ -258,7 +259,7 @@ export async function extractText(
     } else if (fileType === 'image') {
         return await extractTextFromImageVisionAI(fileBuffer, filename);
     } else {
-        console.error(`[Text Extractor] Called with unsupported file type for filename: ${filename}`);
+        appLogger.error(`[Text Extractor] Called with unsupported file type for filename: ${filename}`);
         throw new ExtractionApiError(`Unsupported file type provided to extraction service for ${filename}.`);
     }
 }

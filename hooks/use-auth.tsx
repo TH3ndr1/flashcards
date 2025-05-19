@@ -34,12 +34,12 @@ const DEBUG_AUTH = process.env.NODE_ENV !== 'production'
 
 const logAuth = (...args: any[]) => {
   if (DEBUG_AUTH) {
-    console.log('[Auth Debug]:', ...args);
+    appLogger.info('[Auth Debug]:', ...args);
   }
 };
 const logAuthError = (...args: any[]) => {
   if (DEBUG_AUTH) {
-    console.error('[Auth Error]:', ...args);
+    appLogger.error('[Auth Error]:', ...args);
   }
 };
 

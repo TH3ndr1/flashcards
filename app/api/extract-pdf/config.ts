@@ -4,10 +4,12 @@
  * Reads environment variables and defines constants.
  */
 
+import { appLogger, statusLogger } from '@/lib/logger';
+
 function getEnvVariable(key: string, optional: boolean = false): string | undefined {
     const value = process.env[key];
     if (!value && !optional) {
-        console.error(`[Config] Missing required environment variable: ${key}`);
+        appLogger.error(`[Config] Missing required environment variable: ${key}`);
         // In a real app, you might throw an error here or have a stricter startup check
         // For now, we log the error and allow the app to potentially fail later if the value is used.
     }
@@ -54,17 +56,17 @@ export function validateConfiguration(): boolean {
     const missingVars = requiredVars.filter(v => !v);
 
     if (missingVars.length > 0) {
-        console.error(`[Config Validation] FAILED: Missing required configuration. Check environment variables.`);
+        appLogger.error(`[Config Validation] FAILED: Missing required configuration. Check environment variables.`);
         // Logging which specific vars are missing was done by getEnvVariable
         return false;
     }
 
-    console.log(`[Config Validation] SUCCESS: All required configurations seem to be present.`);
+    appLogger.info(`[Config Validation] SUCCESS: All required configurations seem to be present.`);
     return true;
 }
 
 // Log configuration on module load for debugging purposes
-console.log(`[Config Loaded] API Configuration:
+appLogger.info(`[Config Loaded] API Configuration:
   - GCP Project ID: ${GCP_PROJECT_ID ? 'Configured' : 'MISSING!'}
   - GCP Service Account: ${GCP_SERVICE_ACCOUNT_EMAIL ? 'Configured' : 'MISSING!'}
   - GCP Private Key: ${GCP_PRIVATE_KEY ? 'Configured' : 'MISSING!'}

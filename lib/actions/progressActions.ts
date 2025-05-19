@@ -35,13 +35,13 @@ export async function updateCardProgress(
     const validationResult = updateCardProgressSchema.safeParse(input);
 
     if (!validationResult.success) {
-        console.error('[updateCardProgress] Invalid input:', validationResult.error.flatten());
+        appLogger.error('[updateCardProgress] Invalid input:', validationResult.error.flatten());
         return { data: null, error: "Invalid input: " + validationResult.error.flatten().fieldErrors };
     }
 
     const { cardId, grade, updatedFields } = validationResult.data;
 
-    console.log(`[updateCardProgress] Action started for cardId: ${cardId}`, { grade, updatedFields });
+    appLogger.info(`[updateCardProgress] Action started for cardId: ${cardId}`, { grade, updatedFields });
     
     try {
         const supabase = createActionClient(); // No need to await createActionClient
@@ -49,7 +49,7 @@ export async function updateCardProgress(
         const { data: { user }, error: authError } = await supabase.auth.getUser();
 
         if (authError || !user) {
-            console.error('[updateCardProgress] Auth error or no user:', authError);
+            appLogger.error('[updateCardProgress] Auth error or no user:', authError);
             return { data: null, error: authError?.message || 'Not authenticated' };
         }
         
@@ -62,10 +62,10 @@ export async function updateCardProgress(
             user_id: user.id // Ensure user_id is set for RLS, though update might handle it
         };
         
-        console.log("[updateCardProgress] DB update payload prepared:", dbUpdatePayload);
+        appLogger.info("[updateCardProgress] DB update payload prepared:", dbUpdatePayload);
 
         // Perform the update
-        console.log(`[updateCardProgress] Updating card ${cardId}`);
+        appLogger.info(`[updateCardProgress] Updating card ${cardId}`);
         const { data: updatedCardData, error: updateError } = await supabase
             .from('cards')
             .update(dbUpdatePayload)
@@ -74,28 +74,28 @@ export async function updateCardProgress(
             .select('*')
             .single();
             
-        console.log("[updateCardProgress] Supabase update result:", { updateError });
+        appLogger.info("[updateCardProgress] Supabase update result:", { updateError });
 
         if (updateError) {
-            console.error("[updateCardProgress] Error during Supabase update:", updateError);
+            appLogger.error("[updateCardProgress] Error during Supabase update:", updateError);
              // Consider mapping specific DB error codes (like 23503 FK violation) to user-friendly messages
             return { data: null, error: updateError.message || "Failed to update card progress." };
         }
         
         if (!updatedCardData) {
-             console.error("[updateCardProgress] No data returned after update.");
+             appLogger.error("[updateCardProgress] No data returned after update.");
              return { data: null, error: "Failed to confirm card update." };
         }
 
-        console.log("[updateCardProgress] Successfully updated card:", cardId);
+        appLogger.info("[updateCardProgress] Successfully updated card:", cardId);
         return { data: updatedCardData, error: null }; // Return success with updated card
 
     } catch (error: unknown) {
-        console.error("[updateCardProgress] Caught unexpected error:", error); // Log the full error object
+        appLogger.error("[updateCardProgress] Caught unexpected error:", error); // Log the full error object
         const errorMsg = error instanceof Error ? error.message : "An unknown error occurred.";
         // Log specific details if available (e.g., PostgreSQL error code)
         if (error && typeof error === 'object' && 'code' in error) {
-           console.error("[updateCardProgress] DB Error Code:", error.code);
+           appLogger.error("[updateCardProgress] DB Error Code:", error.code);
         }
         return { data: null, error: `Failed to update card progress: ${errorMsg}` };
     }
@@ -114,10 +114,10 @@ export async function resetCardProgress({
 }: {
   cardId: string;
 }): Promise<ActionResult<Tables<'cards'>>> { // Return ActionResult
-    console.log(`[resetCardProgress] Action started for cardId: ${cardId}`);
+    appLogger.info(`[resetCardProgress] Action started for cardId: ${cardId}`);
     
     if (!cardId || typeof cardId !== 'string' || !cardId.match(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/)) {
-        console.error("[resetCardProgress] Invalid Card ID provided.");
+        appLogger.error("[resetCardProgress] Invalid Card ID provided.");
         return { data: null, error: "Invalid Card ID provided." };
     }
 
@@ -127,7 +127,7 @@ export async function resetCardProgress({
         const { data: { user }, error: authError } = await supabase.auth.getUser();
 
         if (authError || !user) {
-            console.error('[resetCardProgress] Auth error or no user:', authError);
+            appLogger.error('[resetCardProgress] Auth error or no user:', authError);
             return { data: null, error: authError?.message || 'Not authenticated' };
         }
         
@@ -150,10 +150,10 @@ export async function resetCardProgress({
             user_id: user.id
         };
         
-        console.log("[resetCardProgress] DB reset payload prepared:", resetPayload);
+        appLogger.info("[resetCardProgress] DB reset payload prepared:", resetPayload);
 
         // Perform the reset
-        console.log(`[resetCardProgress] Resetting card ${cardId}`);
+        appLogger.info(`[resetCardProgress] Resetting card ${cardId}`);
         const { data: resetResult, error: resetError } = await supabase
             .from('cards')
             .update(resetPayload)
@@ -162,23 +162,23 @@ export async function resetCardProgress({
             .select('*')
             .single();
             
-        console.log("[resetCardProgress] Supabase reset result:", { resetError });
+        appLogger.info("[resetCardProgress] Supabase reset result:", { resetError });
 
         if (resetError) {
-            console.error("[resetCardProgress] Error during Supabase reset:", resetError);
+            appLogger.error("[resetCardProgress] Error during Supabase reset:", resetError);
             return { data: null, error: resetError.message || "Failed to reset card progress." };
         }
 
         if (!resetResult) {
-            console.error("[resetCardProgress] No data returned after reset.");
+            appLogger.error("[resetCardProgress] No data returned after reset.");
             return { data: null, error: "Failed to confirm card reset." };
         }
 
-        console.log("[resetCardProgress] Successfully reset card:", cardId);
+        appLogger.info("[resetCardProgress] Successfully reset card:", cardId);
         return { data: resetResult, error: null }; // Return success with reset card
 
     } catch (error: unknown) {
-        console.error("[resetCardProgress] Caught unexpected error:", error); // Log the full error object
+        appLogger.error("[resetCardProgress] Caught unexpected error:", error); // Log the full error object
         const errorMsg = error instanceof Error ? error.message : "An unknown error occurred.";
         return { data: null, error: `Failed to reset card progress: ${errorMsg}` };
     }

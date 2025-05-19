@@ -23,6 +23,7 @@ import { StudyModeButtons } from "@/components/study/StudyModeButtons"
 import { getCardSrsStatesByIds } from '@/lib/actions/cardActions';
 import { resolveStudyQuery } from '@/lib/actions/studyQueryActions';
 import { isValid, parseISO } from 'date-fns';
+import { appLogger } from '@/lib/logger';
 
 export function DeckList() {
   const { decks, loading, refetchDecks } = useDecks() // Added refetchDecks
@@ -50,7 +51,7 @@ export function DeckList() {
    useEffect(() => {
      if (isVisible && !loading) {
         // Optional: Add a check to avoid refetching too frequently if needed
-        console.log("[DeckList] Page visible, refetching decks.");
+        appLogger.info("[DeckList] Page visible, refetching decks.");
         refetchDecks();
      }
      // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -63,7 +64,7 @@ export function DeckList() {
 
   // Navigate to the intermediate deck creation choice page
   const handleCreateDeckClick = () => {
-    console.log("[DeckList] Navigating to deck creation choice page.");
+    appLogger.info("[DeckList] Navigating to deck creation choice page.");
     router.push('/decks/create-choice'); // Navigate to the choice page
   }
 
@@ -85,7 +86,7 @@ export function DeckList() {
     setIsLoadingCounts(true);
     
     try {
-      console.log('[DeckList] Batch fetching card counts for all decks');
+      appLogger.info('[DeckList] Batch fetching card counts for all decks');
       
       // For each deck, get card IDs
       const deckCardsPromises = decks.map(deck => 
@@ -111,7 +112,7 @@ export function DeckList() {
       });
       
       if (allCardIds.length === 0) {
-        console.log('[DeckList] No cards found in any deck');
+        appLogger.info('[DeckList] No cards found in any deck');
         setDeckCardCounts({});
         setIsLoadingCounts(false);
         return;
@@ -121,7 +122,7 @@ export function DeckList() {
       const srsStatesResult = await getCardSrsStatesByIds([...new Set(allCardIds)]);
       
       if (srsStatesResult.error || !srsStatesResult.data) {
-        console.error('Error fetching SRS states:', srsStatesResult.error);
+        appLogger.error('Error fetching SRS states:', srsStatesResult.error);
         setIsLoadingCounts(false);
         return;
       }
@@ -171,24 +172,24 @@ export function DeckList() {
         newCounts[deckId] = { learn: learnCount, review: reviewCount };
       });
       
-      console.log('[DeckList] Calculated counts for all decks:', newCounts);
+      appLogger.info('[DeckList] Calculated counts for all decks:', newCounts);
       
       // Log an example of a single deck's counts for better debugging
       if (Object.keys(newCounts).length > 0) {
         const firstDeckId = Object.keys(newCounts)[0];
-        console.log(`[DeckList] Example count for deck ${firstDeckId}:`, newCounts[firstDeckId]);
+        appLogger.info(`[DeckList] Example count for deck ${firstDeckId}:`, newCounts[firstDeckId]);
       }
       
       // Log state before update
-      console.log('[DeckList] Current state before update:', deckCardCounts);
+      appLogger.info('[DeckList] Current state before update:', deckCardCounts);
       
       // Update state
       setDeckCardCounts(newCounts);
       
       // This won't show the updated state due to React's state batching, but logging here for sequence
-      console.log('[DeckList] Updated deckCardCounts state');
+      appLogger.info('[DeckList] Updated deckCardCounts state');
     } catch (error) {
-      console.error('Error in batch card count calculation:', error);
+      appLogger.error('Error in batch card count calculation:', error);
     } finally {
       setIsLoadingCounts(false);
     }
@@ -201,7 +202,7 @@ export function DeckList() {
   
   // Track loading state changes
   useEffect(() => {
-    console.log('[DeckList] isLoadingCounts changed to:', isLoadingCounts);
+    appLogger.info('[DeckList] isLoadingCounts changed to:', isLoadingCounts);
   }, [isLoadingCounts]);
 
   // Render loading state

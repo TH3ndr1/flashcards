@@ -1,6 +1,7 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import type { Tables } from "@/types/database";
+import { appLogger, statusLogger } from '@/lib/logger';
 
 /**
  * General utility functions for the application.
@@ -136,6 +137,6 @@ export function swapCardFields<T extends SwappableCardFields>(card: T): T {
   swappedCard.answerLanguage = tempQLang;
   // --------------------------------
 
-  console.log('[swapCardFields] Swapped card data (incl. languages):', { original: card, swapped: swappedCard });
+  appLogger.info('[swapCardFields] Swapped card data (incl. languages):', { original: card, swapped: swappedCard });
   return swappedCard;
 }

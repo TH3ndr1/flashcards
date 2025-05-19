@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Upload, File as FileIcon, X, PlusCircle } from 'lucide-react';
 import React from 'react';
+import { appLogger } from '@/lib/logger';
 
 // Function to create a new File with a unique name
 const createUniqueFile = (file: File): File => {
@@ -43,7 +44,7 @@ export const FileUpload = (
 
   // Create a memoized version of the file update function to prevent unnecessary rerenders
   const updateParentFiles = useCallback(() => {
-    console.log(`FileUpload: Updating parent with ${selectedFiles.length} files`);
+    appLogger.info(`FileUpload: Updating parent with ${selectedFiles.length} files`);
     onFilesSelected([...selectedFiles]);
   }, [selectedFiles, onFilesSelected]);
 
@@ -135,9 +136,9 @@ export const FileUpload = (
       
       // Always rename iOS photos and any duplicate filenames
       if (isIosPhoto || isDuplicate) {
-        console.log(`Renaming file with duplicate name: ${file.name}`);
+        appLogger.info(`Renaming file with duplicate name: ${file.name}`);
         file = createUniqueFile(file);
-        console.log(`New unique name: ${file.name}`);
+        appLogger.info(`New unique name: ${file.name}`);
       }
       
       newFiles.push(file);
@@ -145,7 +146,7 @@ export const FileUpload = (
     
     // Only update state if we have files to add and no errors
     if (newFiles.length > 0) {
-      console.log(`Adding ${newFiles.length} new files to state`);
+      appLogger.info(`Adding ${newFiles.length} new files to state`);
       // Update the state with the new files and notify parent
       setSelectedFiles(prev => {
         const updatedFiles = [...prev, ...newFiles];
@@ -170,13 +171,13 @@ export const FileUpload = (
   };
 
   const removeFile = (index: number) => {
-    console.log(`Removing file at index ${index}`);
+    appLogger.info(`Removing file at index ${index}`);
     
     setSelectedFiles(prev => {
       const newFiles = [...prev];
-      console.log(`Current files: ${newFiles.length}, removing index ${index}`);
+      appLogger.info(`Current files: ${newFiles.length}, removing index ${index}`);
       newFiles.splice(index, 1);
-      console.log(`New files count: ${newFiles.length}`);
+      appLogger.info(`New files count: ${newFiles.length}`);
       
       // Notify parent of the updated files
       setTimeout(() => onFilesSelected(newFiles), 0);
@@ -189,7 +190,7 @@ export const FileUpload = (
   };
 
   const clearFiles = () => {
-    console.log('Clearing all files');
+    appLogger.info('Clearing all files');
     
     // Reset the selected files state
     setSelectedFiles([]);
@@ -206,7 +207,7 @@ export const FileUpload = (
     setError(null);
     
     // Log for debugging
-    console.log('All files cleared');
+    appLogger.info('All files cleared');
   };
 
   return (

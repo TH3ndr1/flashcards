@@ -5,6 +5,7 @@ import type { Database, Tables } from "@/types/database";
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import type { ActionResult } from '@/lib/actions/types';
+import { appLogger, statusLogger } from '@/lib/logger';
 
 // isCalledFromDynamicRoute function remains unchanged (if still needed elsewhere)
 
@@ -12,10 +13,10 @@ import type { ActionResult } from '@/lib/actions/types';
 export async function getCardsByIds(
     cardIds: string[]
 ): Promise<ActionResult<Tables<'cards'>[]>> {
-    console.log(`[getCardsByIds] Action started for ${cardIds.length} cards`);
+    appLogger.info(`[getCardsByIds] Action started for ${cardIds.length} cards`);
 
     if (!cardIds || cardIds.length === 0) {
-        console.log("[getCardsByIds] No card IDs provided.");
+        appLogger.info("[getCardsByIds] No card IDs provided.");
         return { data: [], error: null };
     }
 
@@ -24,18 +25,18 @@ export async function getCardsByIds(
         const { data: { user }, error: authError } = await supabase.auth.getUser();
 
         if (authError || !user) {
-            console.error('[getCardsByIds] Auth error or no user:', authError);
+            appLogger.error('[getCardsByIds] Auth error or no user:', authError);
             return { data: [], error: authError?.message || 'Not authenticated' };
         }
 
-        console.log(`[getCardsByIds] User authenticated: ${user.id}, fetching ${cardIds.length} cards`);
+        appLogger.info(`[getCardsByIds] User authenticated: ${user.id}, fetching ${cardIds.length} cards`);
 
         const validCardIds = cardIds.filter(id => /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(id));
         if (validCardIds.length !== cardIds.length) {
-             console.warn("[getCardsByIds] Some invalid UUIDs were filtered out.");
+             appLogger.warn("[getCardsByIds] Some invalid UUIDs were filtered out.");
         }
         if (validCardIds.length === 0) {
-             console.log("[getCardsByIds] No valid card IDs remaining after filtering.");
+             appLogger.info("[getCardsByIds] No valid card IDs remaining after filtering.");
             return { data: [], error: null };
         }
 
@@ -54,20 +55,20 @@ export async function getCardsByIds(
             .eq('user_id', user.id);
 
         if (dbError) {
-            console.error('[getCardsByIds] Database error:', dbError);
+            appLogger.error('[getCardsByIds] Database error:', dbError);
             return { data: [], error: dbError.message || 'Database query failed' };
         }
 
         if (!dbCards || dbCards.length === 0) {
-            console.log('[getCardsByIds] No cards found or user does not have access');
+            appLogger.info('[getCardsByIds] No cards found or user does not have access');
             return { data: [], error: null };
         }
 
-        console.log(`[getCardsByIds] Successfully fetched ${dbCards.length} cards`);
+        appLogger.info(`[getCardsByIds] Successfully fetched ${dbCards.length} cards`);
         return { data: dbCards as Tables<'cards'>[], error: null };
 
     } catch (error) {
-        console.error('[getCardsByIds] Caught unexpected error:', error);
+        appLogger.error('[getCardsByIds] Caught unexpected error:', error);
         return { data: [], error: error instanceof Error ? error.message : 'Unknown error fetching cards by IDs' };
     }
 }
@@ -78,17 +79,17 @@ export async function getCardById(
     cardId: string,
     isDynamicRoute = false
 ): Promise<ActionResult<Tables<'cards'>>> {
-    console.log(`[getCardById] Fetching card: ${cardId}`);
+    appLogger.info(`[getCardById] Fetching card: ${cardId}`);
     const supabase = await createActionClient();
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
-        console.error('[getCardById] Auth error or no user:', authError);
+        appLogger.error('[getCardById] Auth error or no user:', authError);
         return { data: null, error: authError?.message || 'Not authenticated' };
     }
 
-    console.log("Fetching single card:", cardId, "for user:", user.id);
+    appLogger.info("Fetching single card:", cardId, "for user:", user.id);
 
     try {
          // Select clause already updated previously
@@ -105,19 +106,19 @@ export async function getCardById(
              .maybeSingle<Tables<'cards'>>();
 
         if (error) {
-            console.error('[getCardById] Database error:', error);
+            appLogger.error('[getCardById] Database error:', error);
             return { data: null, error: error.message || 'Database query failed' };
         }
 
         if (!dbCard) {
-            console.log("getCardById: Card not found:", cardId);
+            appLogger.info("getCardById: Card not found:", cardId);
             return { data: null, error: null }; // Not an error, just not found
         }
 
         return { data: dbCard, error: null };
 
     } catch (error) {
-         console.error('[getCardById] Caught unexpected error:', error);
+         appLogger.error('[getCardById] Caught unexpected error:', error);
         return { data: null, error: error instanceof Error ? error.message : 'Unknown error fetching card' };
     }
 }
@@ -157,7 +158,7 @@ export async function createCard(
     deckId: string,
     inputData: CreateCardInput // Expects object with optional classifications
 ): Promise<ActionResult<Tables<'cards'>>> {
-    console.log(`[createCard - Single] Action started for deckId: ${deckId}`);
+    appLogger.info(`[createCard - Single] Action started for deckId: ${deckId}`);
     if (!deckId) return { data: null, error: 'Deck ID is required.' };
 
     try {
@@ -165,13 +166,13 @@ export async function createCard(
         const { data: { user }, error: authError } = await supabase.auth.getUser();
 
         if (authError || !user) {
-             console.error('[createCard - Single] Auth error:', authError);
+             appLogger.error('[createCard - Single] Auth error:', authError);
              return { data: null, error: authError?.message || 'Not authenticated' };
         }
 
         const validation = createCardSchema.safeParse(inputData);
         if (!validation.success) {
-             console.warn("[createCard - Single] Validation failed:", validation.error.errors);
+             appLogger.warn("[createCard - Single] Validation failed:", validation.error.errors);
              return { data: null, error: validation.error.errors[0].message };
         }
         // Extract all fields from validated data
@@ -192,11 +193,11 @@ export async function createCard(
             .eq('user_id', user.id);
 
         if (deckCheckError || deckCount === 0) {
-             console.error('[createCard - Single] Deck ownership check failed:', deckCheckError);
+             appLogger.error('[createCard - Single] Deck ownership check failed:', deckCheckError);
              return { data: null, error: 'Target deck not found or access denied.' };
         }
 
-        console.log(`[createCard - Single] User: ${user.id}, Creating card in deck ${deckId}`);
+        appLogger.info(`[createCard - Single] User: ${user.id}, Creating card in deck ${deckId}`);
 
         // Insert Payload (Uses validated data)
         const insertPayload: Database['public']['Tables']['cards']['Insert'] = {
@@ -237,21 +238,21 @@ export async function createCard(
             .single();
 
         if (insertError) {
-            console.error('[createCard - Single] Insert error:', insertError);
+            appLogger.error('[createCard - Single] Insert error:', insertError);
             return { data: null, error: insertError.message || 'Failed to create card.' };
         }
 
         if (!newCard) {
-             console.error('[createCard - Single] Insert succeeded but no data returned.');
+             appLogger.error('[createCard - Single] Insert succeeded but no data returned.');
              return { data: null, error: 'Failed to retrieve created card data.' };
         }
 
-        console.log(`[createCard - Single] Success, New Card ID: ${newCard.id}`);
+        appLogger.info(`[createCard - Single] Success, New Card ID: ${newCard.id}`);
         revalidatePath(`/edit/${deckId}`);
         return { data: newCard as Tables<'cards'>, error: null };
 
     } catch (error) {
-        console.error('[createCard - Single] Caught unexpected error:', error);
+        appLogger.error('[createCard - Single] Caught unexpected error:', error);
         return { data: null, error: error instanceof Error ? error.message : 'Unknown error creating card' };
     }
 }
@@ -268,7 +269,7 @@ export async function updateCard(
     cardId: string,
     inputData: UpdateCardInput // Uses updated schema type
 ): Promise<ActionResult<Tables<'cards'>>> {
-    console.log(`[updateCard] Action started for cardId: ${cardId}`);
+    appLogger.info(`[updateCard] Action started for cardId: ${cardId}`);
     if (!cardId) return { data: null, error: 'Card ID is required.' };
 
     try {
@@ -276,13 +277,13 @@ export async function updateCard(
         const { data: { user }, error: authError } = await supabase.auth.getUser();
 
         if (authError || !user) {
-             console.error('[updateCard] Auth error:', authError);
+             appLogger.error('[updateCard] Auth error:', authError);
              return { data: null, error: authError?.message || 'Not authenticated' };
         }
 
         const validation = updateCardSchema.safeParse(inputData);
         if (!validation.success) {
-             console.warn("[updateCard] Validation failed:", validation.error.errors);
+             appLogger.warn("[updateCard] Validation failed:", validation.error.errors);
              return { data: null, error: validation.error.errors[0].message };
         }
         const updatePayload = validation.data; // Contains validated optional fields
@@ -291,7 +292,7 @@ export async function updateCard(
              return { data: null, error: "No fields provided for update." };
         }
 
-        console.log(`[updateCard] User: ${user.id}, Updating card ${cardId} with:`, updatePayload);
+        appLogger.info(`[updateCard] User: ${user.id}, Updating card ${cardId} with:`, updatePayload);
 
         // Update logic remains largely the same, Supabase handles optional fields
         const { data: updatedCard, error: updateError } = await supabase
@@ -314,21 +315,21 @@ export async function updateCard(
             .single();
 
         if (updateError) {
-            console.error('[updateCard] Update error:', updateError);
+            appLogger.error('[updateCard] Update error:', updateError);
             return { data: null, error: updateError.message || 'Failed to update card.' };
         }
 
         if (!updatedCard) {
-             console.warn(`[updateCard] Card ${cardId} not found or not authorized for update.`);
+             appLogger.warn(`[updateCard] Card ${cardId} not found or not authorized for update.`);
              return { data: null, error: 'Card not found or update failed.' };
         }
 
-        console.log(`[updateCard] Success, ID: ${updatedCard.id}`);
+        appLogger.info(`[updateCard] Success, ID: ${updatedCard.id}`);
         // Revalidation logic remains the same
         return { data: updatedCard as Tables<'cards'>, error: null };
 
     } catch (error) {
-        console.error('[updateCard] Caught unexpected error:', error);
+        appLogger.error('[updateCard] Caught unexpected error:', error);
         return { data: null, error: error instanceof Error ? error.message : 'Unknown error updating card' };
     }
 }
@@ -339,10 +340,10 @@ export async function createCardsBatch(
     deckId: string,
     cardsData: CreateCardInput[] // Expects array of objects matching the schema
 ): Promise<ActionResult<{ insertedCount: number }>> {
-    console.log(`[createCardsBatch] Action started for deckId: ${deckId}, batch size: ${cardsData?.length}`);
+    appLogger.info(`[createCardsBatch] Action started for deckId: ${deckId}, batch size: ${cardsData?.length}`);
     if (!deckId) return { data: null, error: 'Deck ID is required.' };
     if (!cardsData || cardsData.length === 0) {
-        console.log('[createCardsBatch] No card data provided.');
+        appLogger.info('[createCardsBatch] No card data provided.');
         return { data: { insertedCount: 0 }, error: null }; // Not an error, just nothing to insert
     }
 
@@ -351,7 +352,7 @@ export async function createCardsBatch(
         const { data: { user }, error: authError } = await supabase.auth.getUser();
 
         if (authError || !user) {
-             console.error('[createCardsBatch] Auth error:', authError);
+             appLogger.error('[createCardsBatch] Auth error:', authError);
              return { data: null, error: authError?.message || 'Not authenticated' };
         }
 
@@ -363,17 +364,17 @@ export async function createCardsBatch(
             .eq('user_id', user.id);
 
         if (deckCheckError || deckCount === 0) {
-             console.error('[createCardsBatch] Deck ownership check failed:', deckCheckError);
+             appLogger.error('[createCardsBatch] Deck ownership check failed:', deckCheckError);
              return { data: null, error: 'Target deck not found or access denied.' };
         }
 
-        console.log(`[createCardsBatch] User: ${user.id}, Preparing ${cardsData.length} cards for batch insert into deck ${deckId}`);
+        appLogger.info(`[createCardsBatch] User: ${user.id}, Preparing ${cardsData.length} cards for batch insert into deck ${deckId}`);
 
         // Map and Filter in one go using reduce
         const cardsToInsert = cardsData.reduce<Database['public']['Tables']['cards']['Insert'][]>((acc, inputCard) => {
             const validation = createCardSchema.safeParse(inputCard);
             if (!validation.success) {
-                console.warn("[createCardsBatch] Skipping invalid card data:", validation.error.errors, inputCard);
+                appLogger.warn("[createCardsBatch] Skipping invalid card data:", validation.error.errors, inputCard);
                 return acc;
             }
 
@@ -412,28 +413,28 @@ export async function createCardsBatch(
 
 
         if (cardsToInsert.length === 0) {
-            console.warn(`[createCardsBatch] No valid cards remaining after validation for deck ${deckId}.`);
+            appLogger.warn(`[createCardsBatch] No valid cards remaining after validation for deck ${deckId}.`);
             return { data: { insertedCount: 0 }, error: null };
         }
 
-        console.log(`[createCardsBatch] Inserting ${cardsToInsert.length} valid cards...`);
+        appLogger.info(`[createCardsBatch] Inserting ${cardsToInsert.length} valid cards...`);
 
         const { error: insertError } = await supabase
             .from('cards')
             .insert(cardsToInsert);
 
         if (insertError) {
-            console.error('[createCardsBatch] Batch insert error:', insertError);
+            appLogger.error('[createCardsBatch] Batch insert error:', insertError);
             return { data: null, error: insertError.message || 'Failed to create cards in batch.' };
         }
 
         const insertedCount = cardsToInsert.length;
-        console.log(`[createCardsBatch] Success, Inserted Count: ${insertedCount}`);
+        appLogger.info(`[createCardsBatch] Success, Inserted Count: ${insertedCount}`);
         revalidatePath(`/edit/${deckId}`);
         return { data: { insertedCount }, error: null };
 
     } catch (error) {
-        console.error('[createCardsBatch] Caught unexpected error:', error);
+        appLogger.error('[createCardsBatch] Caught unexpected error:', error);
         return { data: null, error: error instanceof Error ? error.message : 'Unknown error creating cards in batch' };
     }
 }
@@ -442,12 +443,12 @@ export async function createCardsBatch(
 // getCardsByDeckId function remains unchanged (already updated select)
 export async function getCardsByDeckId(deckId: string): Promise<ActionResult<Tables<'cards'>[]>> {
     // Implementation already updated...
-    console.log(`[getCardsByDeckId] Fetching cards for deck: ${deckId}`);
+    appLogger.info(`[getCardsByDeckId] Fetching cards for deck: ${deckId}`);
     const supabase = createActionClient();
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
-        console.error('[getCardsByDeckId] Auth error:', authError);
+        appLogger.error('[getCardsByDeckId] Auth error:', authError);
         return { data: null, error: authError?.message || 'Not authenticated' };
     }
 
@@ -464,7 +465,7 @@ export async function getCardsByDeckId(deckId: string): Promise<ActionResult<Tab
         .eq('user_id', user.id);
 
     if (error) {
-        console.error(`[getCardsByDeckId] Error fetching cards for deck ${deckId}:`, error);
+        appLogger.error(`[getCardsByDeckId] Error fetching cards for deck ${deckId}:`, error);
         return { data: null, error: error.message || 'Failed to fetch cards' };
     }
 
@@ -475,7 +476,7 @@ export async function getCardsByDeckId(deckId: string): Promise<ActionResult<Tab
 // deleteCard function remains unchanged
 export async function deleteCard(cardId: string): Promise<ActionResult<null>> {
     // Implementation remains the same...
-    console.log(`[deleteCard] Action started for cardId: ${cardId}`);
+    appLogger.info(`[deleteCard] Action started for cardId: ${cardId}`);
     if (!cardId) return { data: null, error: 'Card ID is required.' };
 
     try {
@@ -483,7 +484,7 @@ export async function deleteCard(cardId: string): Promise<ActionResult<null>> {
         const { data: { user }, error: authError } = await supabase.auth.getUser();
 
         if (authError || !user) {
-            console.error('[deleteCard] Auth error:', authError);
+            appLogger.error('[deleteCard] Auth error:', authError);
             return { data: null, error: authError?.message || 'Not authenticated' };
         }
 
@@ -494,14 +495,14 @@ export async function deleteCard(cardId: string): Promise<ActionResult<null>> {
             .eq('user_id', user.id);
 
         if (deleteError) {
-            console.error('[deleteCard] Delete error:', deleteError);
+            appLogger.error('[deleteCard] Delete error:', deleteError);
             return { data: null, error: deleteError.message || 'Failed to delete card.' };
         }
 
         return { data: null, error: null };
 
     } catch (error) {
-        console.error('[deleteCard] Caught unexpected error:', error);
+        appLogger.error('[deleteCard] Caught unexpected error:', error);
         return { data: null, error: error instanceof Error ? error.message : 'Unknown error deleting card' };
     }
 }
@@ -523,7 +524,7 @@ export async function getCardSrsStatesByIds(cardIds: string[]): Promise<ActionRe
     // Check authentication
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
-      console.error('Error in authentication:', authError);
+      appLogger.error('Error in authentication:', authError);
       return { error: 'Not authenticated', data: null };
     }
 
@@ -546,13 +547,13 @@ export async function getCardSrsStatesByIds(cardIds: string[]): Promise<ActionRe
       .eq('user_id', user.id);
 
     if (error) {
-      console.error('Error fetching card SRS states:', error);
+      appLogger.error('Error fetching card SRS states:', error);
       return { error: error.message, data: null };
     }
 
     return { data, error: null };
   } catch (error) {
-    console.error('Error in getCardSrsStatesByIds:', error);
+    appLogger.error('Error in getCardSrsStatesByIds:', error);
     return {
       error: error instanceof Error ? error.message : 'Unknown error getting card SRS states',
       data: null
