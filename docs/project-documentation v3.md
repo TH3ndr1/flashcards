@@ -38,6 +38,7 @@
         *   [5.6.4 State Management](#564-state-management)
         *   [5.6.5 Data Flow](#565-data-flow)
         *   [5.6.6 Performance Considerations](#566-performance-considerations)
+        *   [5.6.7 Logging Strategy](#567-logging-strategy)
     *   [5.7 Authentication Flow](#57-authentication-flow)
     *   [5.8 Codebase Structure and File Interactions](#58-codebase-structure-and-file-interactions)
         *   [5.8.1 File Structure Overview](#581-file-structure-overview)
@@ -254,6 +255,7 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
 *   AI Services: Google Cloud Document AI, Vision AI, Vertex AI (`@google-cloud/...` packages)
 *   PDF Processing: `pdf-lib`
 *   File Storage: Supabase Storage (for AI Gen uploads > 4MB)
+*   Logging: `loglevel` (for general application logging), `pino` (for dedicated file-based status logging)
 *   Utilities: `date-fns`, `lucide-react`, `sonner` (toasts), `lodash/isEqual` (optional)
 *   Development Tools: TypeScript, ESLint, Prettier, Context7 MCP
 
@@ -687,6 +689,32 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
 4. **Bundle Size:** Monitor bundle size, minimize heavy client-side dependencies.
 5. **Database:** Ensure proper indexing (especially for `resolve_study_query` filters and RLS lookups). Optimize queries.
 6. **Client-side Queue Management:** Optimize array operations (splice, sorting, find) in `useStudySession` for large session queues if performance issues arise.
+
+#### 5.6.7 Logging Strategy
+
+The application employs a hybrid logging strategy to ensure stability, provide useful debugging information across different environments, and allow for dedicated status tracking. All direct `console.log`, `console.error`, `console.warn` calls (outside of the logger setup itself) are to be replaced by the provided loggers.
+
+*   **`appLogger` (`loglevel`-based):**
+    *   **Library:** `loglevel`
+    *   **Purpose:** General-purpose application-wide logging for events, debug information, warnings, and errors.
+    *   **Configuration (`lib/logger.ts`):**
+        *   **Client-side Development:** Uses `loglevel`'s default behavior, which maps directly to the browser's native `console.info()`, `console.warn()`, `console.error()`, and `console.debug()` methods. This preserves the browser's built-in log level filtering capabilities. Log level is set to 'debug'.
+        *   **Server-side Development:** `loglevel`'s method factory is customized to output structured JSON to `stdout` (via `console.log`). Each log entry includes `level` (e.g., "INFO", "WARN"), `channel: 'app'`, `time` (timestamp), `msg` (the primary log message), and `err` (for Error objects, including message, stack, name) or `details` (for other accompanying data). Log level is set to 'debug'.
+        *   **Server-side Production:** Similar to server-side development, outputs structured JSON to `stdout`. Log level is set to 'info'.
+        *   **Client-side Production:** Uses `loglevel`'s default behavior (mapping to `console.*`). Log level is set to 'info'.
+
+*   **`statusLogger` (`pino`-based):**
+    *   **Library:** `pino`
+    *   **Purpose:** Dedicated logging for specific system status updates, important milestones, or operational events that benefit from being recorded in a separate, persistent file.
+    *   **Configuration (`lib/logger.ts`):**
+        *   Uses `pino` with the `pino/file` transport.
+        *   Outputs structured JSON to `./logs/status.log`. The `mkdir: true` option ensures the `logs` directory is created if it doesn't exist.
+        *   Log entries include `level`, `channel: 'status'`, `time`, `pid`, `hostname`, `name: 'status'`, and any custom fields passed to the logger.
+    *   **Server-Side Stability:** Requires `pino` and `thread-stream` (a pino dependency) to be listed in `serverExternalPackages` within `next.config.mjs`. This configuration instructs Next.js not to bundle these packages for the server, allowing them to be loaded via CommonJS from `node_modules` at runtime, which resolves worker thread conflicts.
+
+*   **Intended Use:**
+    *   `appLogger` should be the default choice for most logging needs within components, hooks, server actions, and API routes.
+    *   `statusLogger` should be used sparingly for key events that need to be tracked in a dedicated log file, such as service initializations, critical background task completions, or significant state changes in persistent services.
 
 ### 5.7 Authentication Flow
 The application utilizes Supabase Auth integrated with Next.js using the `@supabase/ssr` package. This ensures seamless authentication handling across Server Components, Client Components, API/Route Handlers, and Server Actions.

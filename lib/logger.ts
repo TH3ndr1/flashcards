@@ -3,6 +3,7 @@ import log from 'loglevel'; // Import loglevel
 
 const isProduction = process.env.NODE_ENV === 'production';
 const isBrowser = typeof window !== 'undefined';
+const isOnVercel = !!process.env.VERCEL; // Check for Vercel environment
 
 // --- appLogger setup with loglevel --- 
 const appChannel = 'app';
@@ -90,7 +91,18 @@ if (!isBrowser && !isProduction) {
 
 export const appLogger = log.getLogger(appChannel);
 
-// Dedicated status logger - Pino with file transport
+// --- statusLogger setup with pino --- 
+let statusLoggerTransport: pino.TransportSingleOptions | undefined = {
+  target: 'pino/file',
+  options: { destination: './logs/status.log', mkdir: true },
+};
+
+if (isOnVercel && isProduction) {
+  // On Vercel production, disable file logging for statusLogger, fallback to stdout
+  console.log('[Logger Setup] statusLogger (Vercel prod) falling back to stdout, file logging disabled.');
+  statusLoggerTransport = undefined; 
+}
+
 export const statusLogger = pino({
   level: 'info',
   name: 'status',
@@ -99,10 +111,7 @@ export const statusLogger = pino({
       return { level: label, channel: 'status' };
     },
   },
-  transport: {
-    target: 'pino/file',
-    options: { destination: './logs/status.log', mkdir: true },
-  },
+  transport: statusLoggerTransport,
 });
 
 // --- Test statusLogger --- 
