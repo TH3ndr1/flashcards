@@ -19,135 +19,71 @@
 [0m  [2m53:50[22m  [33mwarning[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/app/api/cards/route.ts[24m[0m
-[0m   [2m5:6[22m  [33mwarning[39m  'DbCard' is defined but never used. Allowed unused vars must match /^_/u                 [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m  [2m11:3[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m20:5[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m36:5[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m43:5[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
+[0m  [2m5:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m6:6[22m   [33mwarning[39m  'DbCard' is defined but never used. Allowed unused vars must match /^_/u        [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/app/api/decks/[deckId]/name/route.ts[24m[0m
-[0m  [2m12:3[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m30:5[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m38:5[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m53:5[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
+[0m  [2m4:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/app/api/decks/route.ts[24m[0m
-[0m    [2m5:33[22m  [33mwarning[39m  'Json' is defined but never used. Allowed unused vars must match /^_/u                   [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m19:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m   [2m29:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m   [2m35:29[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                 [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m   [2m49:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m   [2m75:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m   [2m82:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m106:22[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m107:41[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                 [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m  [2m116:17[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m122:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m146:21[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                 [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m    [2m5:33[22m  [33mwarning[39m  'Json' is defined but never used. Allowed unused vars must match /^_/u          [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m    [2m8:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m   [2m36:29[22m  [33mwarning[39m  Unexpected any. Specify a different type                                        [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m108:41[22m  [33mwarning[39m  Unexpected any. Specify a different type                                        [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m147:21[22m  [33mwarning[39m  Unexpected any. Specify a different type                                        [2m@typescript-eslint/no-explicit-any[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/app/api/extract-pdf/config.ts[24m[0m
-[0m  [2m62:5[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m67:1[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
+[0m  [2m7:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/app/api/extract-pdf/flashcardGeneratorService.ts[24m[0m
 [0m   [2m10:5[22m   [33mwarning[39m  'VertexAI' is defined but never used. Allowed unused vars must match /^_/u                      [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m   [2m21:5[22m   [33mwarning[39m  'ApiFlashcard' is defined but never used. Allowed unused vars must match /^_/u                  [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m49:11[22m  [33mwarning[39m  'GeminiStructuredOutputPhase2' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m  [2m138:85[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                        [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m  [2m141:26[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                        [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m  [2m159:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info         [2mno-console[22m[0m
-[0m  [2m184:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info         [2mno-console[22m[0m
-[0m  [2m218:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info         [2mno-console[22m[0m
-[0m  [2m297:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info         [2mno-console[22m[0m
-[0m  [2m307:21[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                        [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m  [2m326:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info         [2mno-console[22m[0m
-[0m  [2m330:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info         [2mno-console[22m[0m
-[0m  [2m377:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info         [2mno-console[22m[0m
-[0m  [2m404:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info         [2mno-console[22m[0m
-[0m  [2m407:21[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                        [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m  [2m433:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info         [2mno-console[22m[0m
-[0m  [2m452:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info         [2mno-console[22m[0m
-[0m  [2m454:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info         [2mno-console[22m[0m
-[0m  [2m455:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info         [2mno-console[22m[0m
-[0m  [2m459:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info         [2mno-console[22m[0m
-[0m  [2m460:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info         [2mno-console[22m[0m
-[0m  [2m461:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info         [2mno-console[22m[0m
-[0m  [2m462:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info         [2mno-console[22m[0m
-[0m  [2m489:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info         [2mno-console[22m[0m
-[0m  [2m498:21[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                        [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m   [2m24:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u                  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m   [2m50:11[22m  [33mwarning[39m  'GeminiStructuredOutputPhase2' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m139:85[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                        [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m142:26[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                        [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m308:21[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                        [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m408:21[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                        [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m499:21[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                        [2m@typescript-eslint/no-explicit-any[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/app/api/extract-pdf/gcpClients.ts[24m[0m
-[0m  [2m50:5[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
+[0m  [2m8:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/app/api/extract-pdf/route.ts[24m[0m
-[0m    [2m9:93[22m  [33mwarning[39m  'PAGE_LIMIT' is defined but never used. Allowed unused vars must match /^_/u             [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m32:27[22m  [33mwarning[39m  'request' is defined but never used. Allowed unused args must match /^_/u                [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m65:3[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m109:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m113:17[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m120:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m126:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m143:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m152:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m164:17[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m174:17[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m176:18[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m185:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m187:25[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                 [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m  [2m223:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m236:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m245:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m246:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m276:19[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                 [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m    [2m9:93[22m  [33mwarning[39m  'PAGE_LIMIT' is defined but never used. Allowed unused vars must match /^_/u    [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m   [2m16:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m   [2m33:27[22m  [33mwarning[39m  'request' is defined but never used. Allowed unused args must match /^_/u       [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m191:25[22m  [33mwarning[39m  Unexpected any. Specify a different type                                        [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m280:19[22m  [33mwarning[39m  Unexpected any. Specify a different type                                        [2m@typescript-eslint/no-explicit-any[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/app/api/extract-pdf/textExtractorService.ts[24m[0m
 [0m   [2m10:29[22m  [33mwarning[39m  'getMimeTypeFromFilename' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m21:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m   [2m37:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m   [2m39:21[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                   [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m   [2m57:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m   [2m91:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m   [2m94:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m  [2m107:21[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                   [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m  [2m129:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m  [2m141:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m  [2m143:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m  [2m159:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m  [2m161:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m  [2m186:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m  [2m190:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m  [2m203:21[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                   [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m   [2m12:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u             [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m   [2m40:21[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                   [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m108:21[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                   [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m204:21[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                   [2m@typescript-eslint/no-explicit-any[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/app/api/process-ai-step2/route.ts[24m[0m
 [0m   [2m11:5[22m   [33mwarning[39m  'InitialGenerationResult' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m41:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m   [2m58:18[22m  [33mwarning[39m  'e' is defined but never used                                                              [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m66:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m   [2m74:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m   [2m77:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m   [2m91:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m   [2m94:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m  [2m113:21[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                   [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m   [2m14:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u             [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m   [2m59:18[22m  [33mwarning[39m  'e' is defined but never used                                                              [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m114:21[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                   [2m@typescript-eslint/no-explicit-any[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/app/api/tts/route.ts[24m[0m
-[0m  [2m44:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m77:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m83:21[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                 [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m   [2m4:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m84:21[22m  [33mwarning[39m  Unexpected any. Specify a different type                                        [2m@typescript-eslint/no-explicit-any[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/app/auth/callback/route.ts[24m[0m
-[0m  [2m26:9[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
+[0m  [2m3:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/app/decks/create-choice/page.tsx[24m[0m
 [0m  [2m6:16[22m  [33mwarning[39m  'CardContent' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m  [2m7:21[22m  [33mwarning[39m  'FilePlus' is defined but never used. Allowed unused vars must match /^_/u     [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/app/decks/new/page.tsx[24m[0m
-[0m    [2m5:31[22m  [33mwarning[39m  'useCallback' is defined but never used. Allowed unused vars must match /^_/u            [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m36:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m   [2m41:14[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m   [2m83:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m103:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m113:25[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                 [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m    [2m5:31[22m  [33mwarning[39m  'useCallback' is defined but never used. Allowed unused vars must match /^_/u   [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m   [2m16:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m114:25[22m  [33mwarning[39m  Unexpected any. Specify a different type                                        [2m@typescript-eslint/no-explicit-any[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/app/edit/[deckId]/CardViewTabContent.tsx[24m[0m
 [0m  [2m12:7[22m  [33mwarning[39m  'POS_OPTIONS' is assigned a value but never used. Allowed unused vars must match /^_/u     [2m@typescript-eslint/no-unused-vars[22m[0m
@@ -159,53 +95,37 @@
 [0m  [2m9:23[22m  [33mwarning[39m  'Json' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/app/edit/[deckId]/page.tsx[24m[0m
-[0m  [2m144:31[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
+[0m  [2m17:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/app/edit/[deckId]/useEditDeck.ts[24m[0m
 [0m   [2m11:23[22m  [33mwarning[39m  'Json' is defined but never used. Allowed unused vars must match /^_/u                                      [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m28:6[22m   [33mwarning[39m  'DbTag' is defined but never used. Allowed unused vars must match /^_/u                                     [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m79:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                     [2mno-console[22m[0m
-[0m   [2m92:17[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                     [2mno-console[22m[0m
-[0m  [2m103:21[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                     [2mno-console[22m[0m
-[0m  [2m113:17[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                     [2mno-console[22m[0m
-[0m  [2m115:23[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m  [2m134:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                     [2mno-console[22m[0m
-[0m  [2m144:35[22m  [33mwarning[39m  React Hook useCallback received a function whose dependencies are unknown. Pass an inline function instead  [2mreact-hooks/exhaustive-deps[22m[0m
-[0m  [2m151:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                     [2mno-console[22m[0m
-[0m  [2m159:21[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                     [2mno-console[22m[0m
-[0m  [2m168:26[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                     [2mno-console[22m[0m
-[0m  [2m172:29[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m  [2m184:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                     [2mno-console[22m[0m
-[0m  [2m207:17[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                     [2mno-console[22m[0m
-[0m  [2m216:17[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                     [2mno-console[22m[0m
-[0m  [2m257:10[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                     [2mno-console[22m[0m
-[0m  [2m294:25[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m  [2m313:13[22m  [33mwarning[39m  'originalCards' is assigned a value but never used. Allowed unused vars must match /^_/u                    [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m  [2m343:25[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m  [2m355:17[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                     [2mno-console[22m[0m
-[0m  [2m364:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                     [2mno-console[22m[0m
-[0m  [2m403:25[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m  [2m425:25[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m  [2m437:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                     [2mno-console[22m[0m
-[0m  [2m447:25[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m  [2m458:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                     [2mno-console[22m[0m
-[0m  [2m468:25[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m   [2m24:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u                              [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m   [2m29:6[22m   [33mwarning[39m  'DbTag' is defined but never used. Allowed unused vars must match /^_/u                                     [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m116:23[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m145:35[22m  [33mwarning[39m  React Hook useCallback received a function whose dependencies are unknown. Pass an inline function instead  [2mreact-hooks/exhaustive-deps[22m[0m
+[0m  [2m173:29[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m295:25[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m314:13[22m  [33mwarning[39m  'originalCards' is assigned a value but never used. Allowed unused vars must match /^_/u                    [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m344:25[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m404:25[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m426:25[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m448:25[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m469:25[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/app/layout-script.tsx[24m[0m
-[0m  [2m18:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m27:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
+[0m  [2m4:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/app/layout.tsx[24m[0m
 [0m  [2m1:10[22m  [33mwarning[39m  'Atkinson_Hyperlegible' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/app/login/page.tsx[24m[0m
-[0m  [2m14:15[22m  [33mwarning[39m  'AuthError' is defined but never used. Allowed unused vars must match /^_/u              [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m  [2m80:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m84:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
+[0m  [2m14:15[22m  [33mwarning[39m  'AuthError' is defined but never used. Allowed unused vars must match /^_/u     [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m15:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/app/page.tsx[24m[0m
-[0m  [2m21:9[22m   [33mwarning[39m  'cookieStore' is assigned a value but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m  [2m23:37[22m  [33mwarning[39m  'authError' is assigned a value but never used. Allowed unused vars must match /^_/u    [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m   [2m6:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u          [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m22:9[22m   [33mwarning[39m  'cookieStore' is assigned a value but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m24:37[22m  [33mwarning[39m  'authError' is assigned a value but never used. Allowed unused vars must match /^_/u    [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/app/prepare/ai-generate/AiGenerateResultsCard.tsx[24m[0m
 [0m   [2m8:44[22m  [33mwarning[39m  'Tag' is defined but never used. Allowed unused vars must match /^_/u            [2m@typescript-eslint/no-unused-vars[22m[0m
@@ -213,64 +133,48 @@
 [0m  [2m45:5[22m   [33mwarning[39m  'deckName' is defined but never used. Allowed unused args must match /^_/u       [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/app/prepare/ai-generate/useAiGenerate.ts[24m[0m
-[0m   [2m53:12[22m  [33mwarning[39m  'initialModeBySource' is assigned a value but never used. Allowed unused vars must match /^_/u              [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m62:12[22m  [33mwarning[39m  'detectedLanguageNames' is assigned a value but never used. Allowed unused vars must match /^_/u            [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m  [2m118:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                     [2mno-console[22m[0m
-[0m  [2m126:43[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m  [2m126:48[22m  [33mwarning[39m  'totalFilesSubmitted' is defined but never used. Allowed unused args must match /^_/u                       [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m  [2m128:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                     [2mno-console[22m[0m
-[0m  [2m138:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                     [2mno-console[22m[0m
-[0m  [2m212:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                     [2mno-console[22m[0m
-[0m  [2m215:14[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                     [2mno-console[22m[0m
-[0m  [2m262:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                     [2mno-console[22m[0m
-[0m  [2m303:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                     [2mno-console[22m[0m
-[0m  [2m329:35[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m  [2m345:17[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                     [2mno-console[22m[0m
-[0m  [2m353:17[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                     [2mno-console[22m[0m
-[0m  [2m362:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                     [2mno-console[22m[0m
-[0m  [2m370:20[22m  [33mwarning[39m  'jsonError' is defined but never used                                                                       [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m  [2m377:23[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m  [2m378:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                     [2mno-console[22m[0m
-[0m  [2m390:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                     [2mno-console[22m[0m
-[0m  [2m394:8[22m   [33mwarning[39m  React Hook useCallback has a missing dependency: 'error'. Either include it or remove the dependency array  [2mreact-hooks/exhaustive-deps[22m[0m
-[0m  [2m418:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                     [2mno-console[22m[0m
-[0m  [2m453:25[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m  [2m491:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                     [2mno-console[22m[0m
-[0m  [2m544:25[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m  [2m601:25[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m  [2m649:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                     [2mno-console[22m[0m
+[0m   [2m17:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u                              [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m   [2m54:12[22m  [33mwarning[39m  'initialModeBySource' is assigned a value but never used. Allowed unused vars must match /^_/u              [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m   [2m63:12[22m  [33mwarning[39m  'detectedLanguageNames' is assigned a value but never used. Allowed unused vars must match /^_/u            [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m127:43[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m127:48[22m  [33mwarning[39m  'totalFilesSubmitted' is defined but never used. Allowed unused args must match /^_/u                       [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m332:35[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m373:20[22m  [33mwarning[39m  'jsonError' is defined but never used                                                                       [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m380:23[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m397:8[22m   [33mwarning[39m  React Hook useCallback has a missing dependency: 'error'. Either include it or remove the dependency array  [2mreact-hooks/exhaustive-deps[22m[0m
+[0m  [2m456:25[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m547:25[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m604:25[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/app/profile/page.tsx[24m[0m
-[0m  [2m22:9[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
+[0m  [2m12:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/app/settings/page.tsx[24m[0m
 [0m    [2m4:51[22m   [33mwarning[39m  'useRef' is defined but never used. Allowed unused vars must match /^_/u                [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m   [2m16:26[22m   [33mwarning[39m  'PaletteType' is defined but never used. Allowed unused vars must match /^_/u           [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m28:7[22m    [33mwarning[39m  'POS_OPTIONS' is assigned a value but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m  [2m229:111[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m   [2m24:21[22m   [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u          [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m   [2m29:7[22m    [33mwarning[39m  'POS_OPTIONS' is assigned a value but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m230:111[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                [2m@typescript-eslint/no-explicit-any[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/app/signup/page.tsx[24m[0m
-[0m   [2m13:15[22m  [33mwarning[39m  'AuthError' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m  [2m112:33[22m  [33mwarning[39m  Unexpected any. Specify a different type                                     [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m   [2m13:15[22m  [33mwarning[39m  'AuthError' is defined but never used. Allowed unused vars must match /^_/u     [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m   [2m14:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m113:33[22m  [33mwarning[39m  Unexpected any. Specify a different type                                        [2m@typescript-eslint/no-explicit-any[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/app/study/select/page.tsx[24m[0m
 [0m   [2m1:10[22m  [33mwarning[39m  'cookies' is defined but never used. Allowed unused vars must match /^_/u             [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m  [2m21:37[22m  [33mwarning[39m  'authError' is assigned a value but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/app/study/session/page.tsx[24m[0m
-[0m    [2m4:38[22m  [33mwarning[39m  'useMemo' is defined but never used. Allowed unused vars must match /^_/u                [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m28:6[22m   [33mwarning[39m  'ReviewGrade' is defined but never used. Allowed unused vars must match /^_/u            [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m  [2m120:11[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m138:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
+[0m   [2m4:38[22m  [33mwarning[39m  'useMemo' is defined but never used. Allowed unused vars must match /^_/u       [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m18:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m29:6[22m   [33mwarning[39m  'ReviewGrade' is defined but never used. Allowed unused vars must match /^_/u   [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/app/study/sets/[studySetId]/edit/page.tsx[24m[0m
-[0m   [2m58:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m   [2m68:21[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m   [2m96:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m124:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
+[0m  [2m25:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/app/study/sets/new/page.tsx[24m[0m
-[0m  [2m22:5[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
+[0m  [2m11:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/app/study/sets/page.tsx[24m[0m
 [0m   [2m3:10[22m  [33mwarning[39m  'cookies' is defined but never used. Allowed unused vars must match /^_/u             [2m@typescript-eslint/no-unused-vars[22m[0m
@@ -281,62 +185,44 @@
 [0m  [2m29:30[22m  [33mwarning[39m  'fetchError' is assigned a value but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/components/DeckListClient.tsx[24m[0m
-[0m   [2m8:10[22m  [33mwarning[39m  'useStudySessionStore' is defined but never used. Allowed unused vars must match /^_/u   [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m  [2m17:10[22m  [33mwarning[39m  'cn' is defined but never used. Allowed unused vars must match /^_/u                     [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m  [2m83:7[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m95:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
+[0m   [2m8:10[22m  [33mwarning[39m  'useStudySessionStore' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m17:10[22m  [33mwarning[39m  'cn' is defined but never used. Allowed unused vars must match /^_/u                    [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/components/StudySetSelector.tsx[24m[0m
 [0m    [2m9:10[22m  [33mwarning[39m  'useStudySets' is defined but never used. Allowed unused vars must match /^_/u                                         [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m   [2m11:15[22m  [33mwarning[39m  'StudyQueryCriteria' is defined but never used. Allowed unused vars must match /^_/u                                   [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m   [2m12:15[22m  [33mwarning[39m  'Database' is defined but never used. Allowed unused vars must match /^_/u                                             [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m  [2m130:6[22m   [33mwarning[39m  React Hook useEffect has a missing dependency: 'getCurrentCriteria'. Either include it or remove the dependency array  [2mreact-hooks/exhaustive-deps[22m[0m
+[0m  [2m131:6[22m   [33mwarning[39m  React Hook useEffect has a missing dependency: 'getCurrentCriteria'. Either include it or remove the dependency array  [2mreact-hooks/exhaustive-deps[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/components/camera-capture.tsx[24m[0m
-[0m  [2m146:29[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                                                                                  [2mno-console[22m[0m
-[0m  [2m166:21[22m  [33mwarning[39m  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  [2m@next/next/no-img-element[22m[0m
+[0m  [2m180:21[22m  [33mwarning[39m  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  [2m@next/next/no-img-element[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/components/card-editor.tsx[24m[0m
-[0m  [2m72:29[22m  [33mwarning[39m  React Hook useCallback received a function whose dependencies are unknown. Pass an inline function instead  [2mreact-hooks/exhaustive-deps[22m[0m
-[0m  [2m75:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                     [2mno-console[22m[0m
+[0m  [2m73:29[22m  [33mwarning[39m  React Hook useCallback received a function whose dependencies are unknown. Pass an inline function instead  [2mreact-hooks/exhaustive-deps[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/components/deck-list.tsx[24m[0m
 [0m   [2m10:10[22m  [33mwarning[39m  'useStudySessionStore' is defined but never used. Allowed unused vars must match /^_/u                               [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m   [2m11:8[22m   [33mwarning[39m  'Link' is defined but never used. Allowed unused vars must match /^_/u                                               [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m   [2m20:10[22m  [33mwarning[39m  'cn' is defined but never used. Allowed unused vars must match /^_/u                                                 [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m53:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                              [2mno-console[22m[0m
-[0m   [2m66:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                              [2mno-console[22m[0m
-[0m   [2m88:7[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                              [2mno-console[22m[0m
-[0m  [2m114:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                              [2mno-console[22m[0m
-[0m  [2m174:7[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                              [2mno-console[22m[0m
-[0m  [2m179:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                              [2mno-console[22m[0m
-[0m  [2m183:7[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                              [2mno-console[22m[0m
-[0m  [2m189:7[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                              [2mno-console[22m[0m
-[0m  [2m195:6[22m   [33mwarning[39m  React Hook useCallback has a missing dependency: 'deckCardCounts'. Either include it or remove the dependency array  [2mreact-hooks/exhaustive-deps[22m[0m
-[0m  [2m204:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                              [2mno-console[22m[0m
+[0m  [2m196:6[22m   [33mwarning[39m  React Hook useCallback has a missing dependency: 'deckCardCounts'. Either include it or remove the dependency array  [2mreact-hooks/exhaustive-deps[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/components/deck-tag-editor.tsx[24m[0m
 [0m   [2m8:38[22m  [33mwarning[39m  'Check' is defined but never used. Allowed unused vars must match /^_/u   [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m  [2m22:10[22m  [33mwarning[39m  'cn' is defined but never used. Allowed unused vars must match /^_/u      [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m  [2m39:5[22m   [33mwarning[39m  'deckId' is defined but never used. Allowed unused args must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m40:5[22m   [33mwarning[39m  'deckId' is defined but never used. Allowed unused args must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/components/deck/DeckProgressBar.tsx[24m[0m
 [0m    [2m8:3[22m   [33mwarning[39m  'TooltipProvider' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m   [2m21:10[22m  [33mwarning[39m  'useElementWidth' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m  [2m103:17[22m  [33mwarning[39m  'label' is assigned a value but never used. Allowed unused vars must match /^_/u   [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
+[0m[4m/Users/tom/dev/flashcards/components/deck/EditableCardTable.tsx[24m[0m
+[0m  [2m31:10[22m  [33mwarning[39m  'appLogger' is defined but never used. Allowed unused vars must match /^_/u     [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m31:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m[0m
 [0m[4m/Users/tom/dev/flashcards/components/file-upload.tsx[24m[0m
-[0m   [2m45:9[22m  [33mwarning[39m  'updateParentFiles' is assigned a value but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m46:5[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info       [2mno-console[22m[0m
-[0m   [2m61:9[22m  [33mwarning[39m  'validateFiles' is assigned a value but never used. Allowed unused vars must match /^_/u      [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m  [2m138:9[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info       [2mno-console[22m[0m
-[0m  [2m140:9[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info       [2mno-console[22m[0m
-[0m  [2m148:7[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info       [2mno-console[22m[0m
-[0m  [2m173:5[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info       [2mno-console[22m[0m
-[0m  [2m177:7[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info       [2mno-console[22m[0m
-[0m  [2m179:7[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info       [2mno-console[22m[0m
-[0m  [2m192:5[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info       [2mno-console[22m[0m
-[0m  [2m209:5[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info       [2mno-console[22m[0m
+[0m  [2m46:9[22m  [33mwarning[39m  'updateParentFiles' is assigned a value but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m62:9[22m  [33mwarning[39m  'validateFiles' is assigned a value but never used. Allowed unused vars must match /^_/u      [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/components/layout/Header.tsx[24m[0m
 [0m  [2m5:26[22m  [33mwarning[39m  'Volume2' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
@@ -346,8 +232,7 @@
 [0m  [2m29:3[22m  [33mwarning[39m  'LogOut' is defined but never used. Allowed unused vars must match /^_/u      [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/components/media-capture-tabs.tsx[24m[0m
-[0m  [2m19:3[22m  [33mwarning[39m  'maxImages' is assigned a value but never used. Allowed unused args must match /^_/u     [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m  [2m23:5[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
+[0m  [2m20:3[22m  [33mwarning[39m  'maxImages' is assigned a value but never used. Allowed unused args must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/components/study-completion-screen.tsx[24m[0m
 [0m   [2m8:10[22m  [33mwarning[39m  'StudyProgress' is defined but never used. Allowed unused vars must match /^_/u                [2m@typescript-eslint/no-unused-vars[22m[0m
@@ -369,9 +254,7 @@
 [0m   [2m17:24[22m  [33mwarning[39m  'ColorPair' is defined but never used. Allowed unused vars must match /^_/u                                                                                                                [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m   [2m24:41[22m  [33mwarning[39m  'ChevronsDown' is defined but never used. Allowed unused vars must match /^_/u                                                                                                             [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m   [2m24:55[22m  [33mwarning[39m  'ChevronsUp' is defined but never used. Allowed unused vars must match /^_/u                                                                                                               [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m61:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                    [2mno-console[22m[0m
-[0m   [2m68:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                    [2mno-console[22m[0m
-[0m  [2m155:9[22m   [33mwarning[39m  The 'handleSpeak' function makes the dependencies of useEffect Hook (at line 185) change on every render. To fix this, wrap the definition of 'handleSpeak' in its own useCallback() Hook  [2mreact-hooks/exhaustive-deps[22m[0m
+[0m  [2m156:9[22m   [33mwarning[39m  The 'handleSpeak' function makes the dependencies of useEffect Hook (at line 186) change on every render. To fix this, wrap the definition of 'handleSpeak' in its own useCallback() Hook  [2mreact-hooks/exhaustive-deps[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/components/study-session.tsx[24m[0m
 [0m  [2m24:3[22m  [33mwarning[39m  'cards' is defined but never used. Allowed unused args must match /^_/u       [2m@typescript-eslint/no-unused-vars[22m[0m
@@ -380,17 +263,13 @@
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/components/study/StudyModeButtons.tsx[24m[0m
 [0m   [2m12:15[22m  [33mwarning[39m  'Tables' is defined but never used. Allowed unused vars must match /^_/u                                                                                                                                                                                                             [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m58:10[22m  [33mwarning[39m  'error' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                                                                                                                                     [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m65:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                                                                              [2mno-console[22m[0m
-[0m   [2m71:6[22m   [33mwarning[39m  React Hook useEffect has missing dependencies: 'batchFetchInProgress', 'contentId', 'isLoading', 'preCalculatedLearnCount', and 'preCalculatedReviewCount'. Either include them or remove the dependency array                                                                       [2mreact-hooks/exhaustive-deps[22m[0m
-[0m   [2m77:7[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                                                                              [2mno-console[22m[0m
-[0m   [2m89:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                                                                              [2mno-console[22m[0m
-[0m  [2m100:7[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                                                                              [2mno-console[22m[0m
-[0m  [2m119:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                                                                              [2mno-console[22m[0m
-[0m  [2m171:7[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                                                                              [2mno-console[22m[0m
-[0m  [2m216:7[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                                                                              [2mno-console[22m[0m
-[0m  [2m223:6[22m   [33mwarning[39m  React Hook useEffect has unnecessary dependencies: 'getCardSrsStatesByIds' and 'resolveStudyQuery'. Either exclude them or remove the dependency array. Outer scope values like 'resolveStudyQuery' aren't valid dependencies because mutating them doesn't re-render the component  [2mreact-hooks/exhaustive-deps[22m[0m
-[0m  [2m277:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                                                                              [2mno-console[22m[0m
+[0m   [2m14:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u                                                                                                                                                                                                       [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m   [2m59:10[22m  [33mwarning[39m  'error' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                                                                                                                                     [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m   [2m72:6[22m   [33mwarning[39m  React Hook useEffect has missing dependencies: 'batchFetchInProgress', 'contentId', 'isLoading', 'preCalculatedLearnCount', and 'preCalculatedReviewCount'. Either include them or remove the dependency array                                                                       [2mreact-hooks/exhaustive-deps[22m[0m
+[0m  [2m224:6[22m   [33mwarning[39m  React Hook useEffect has unnecessary dependencies: 'getCardSrsStatesByIds' and 'resolveStudyQuery'. Either exclude them or remove the dependency array. Outer scope values like 'resolveStudyQuery' aren't valid dependencies because mutating them doesn't re-render the component  [2mreact-hooks/exhaustive-deps[22m[0m
+[0m[0m
+[0m[4m/Users/tom/dev/flashcards/components/study/StudySelectClient.tsx[24m[0m
+[0m  [2m10:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/components/study/StudySetBuilder.tsx[24m[0m
 [0m   [2m4:17[22m  [33mwarning[39m  'useMemo' is defined but never used. Allowed unused vars must match /^_/u                [2m@typescript-eslint/no-unused-vars[22m[0m
@@ -413,11 +292,10 @@
 [0m[4m/Users/tom/dev/flashcards/components/study/StudySetSelector.tsx[24m[0m
 [0m   [2m10:10[22m  [33mwarning[39m  'useStudySessionStore' is defined but never used. Allowed unused vars must match /^_/u                                    [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m   [2m15:15[22m  [33mwarning[39m  'Database' is defined but never used. Allowed unused vars must match /^_/u                                                [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m21:6[22m   [33mwarning[39m  'SrsCardState' is defined but never used. Allowed unused vars must match /^_/u                                            [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m41:9[22m   [33mwarning[39m  'router' is assigned a value but never used. Allowed unused vars must match /^_/u                                         [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m  [2m115:7[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                   [2mno-console[22m[0m
-[0m  [2m162:7[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                   [2mno-console[22m[0m
-[0m  [2m176:6[22m   [33mwarning[39m  React Hook useCallback has an unnecessary dependency: 'selectedDeckId'. Either exclude it or remove the dependency array  [2mreact-hooks/exhaustive-deps[22m[0m
+[0m   [2m17:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u                                            [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m   [2m22:6[22m   [33mwarning[39m  'SrsCardState' is defined but never used. Allowed unused vars must match /^_/u                                            [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m   [2m42:9[22m   [33mwarning[39m  'router' is assigned a value but never used. Allowed unused vars must match /^_/u                                         [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m177:6[22m   [33mwarning[39m  React Hook useCallback has an unnecessary dependency: 'selectedDeckId'. Either exclude it or remove the dependency array  [2mreact-hooks/exhaustive-deps[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/components/tags/TagManager.tsx[24m[0m
 [0m   [2m8:10[22m  [33mwarning[39m  'Badge' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
@@ -431,38 +309,34 @@
 [0m  [2m58:26[22m  [33mwarning[39m  'props' is defined but never used. Allowed unused args must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/hooks/use-auth.tsx[24m[0m
-[0m   [2m25:64[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m   [2m34:27[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m   [2m36:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                     [2mno-console[22m[0m
-[0m   [2m39:32[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m  [2m132:6[22m   [33mwarning[39m  React Hook useEffect has a missing dependency: 'loading'. Either include it or remove the dependency array  [2mreact-hooks/exhaustive-deps[22m[0m
-[0m  [2m169:62[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m    [2m9:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u                              [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m   [2m26:64[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m   [2m35:27[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m   [2m40:32[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m133:6[22m   [33mwarning[39m  React Hook useEffect has a missing dependency: 'loading'. Either include it or remove the dependency array  [2mreact-hooks/exhaustive-deps[22m[0m
+[0m  [2m170:62[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/hooks/use-decks.tsx[24m[0m
-[0m  [2m13:15[22m  [33mwarning[39m  'Database' is defined but never used. Allowed unused vars must match /^_/u               [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m  [2m37:28[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                 [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m  [2m39:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m42:33[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                 [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m13:15[22m  [33mwarning[39m  'Database' is defined but never used. Allowed unused vars must match /^_/u      [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m17:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m38:28[22m  [33mwarning[39m  Unexpected any. Specify a different type                                        [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m43:33[22m  [33mwarning[39m  Unexpected any. Specify a different type                                        [2m@typescript-eslint/no-explicit-any[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/hooks/use-supabase.tsx[24m[0m
-[0m  [2m9:17[22m  [33mwarning[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m   [2m6:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m10:17[22m  [33mwarning[39m  Unexpected any. Specify a different type                                        [2m@typescript-eslint/no-explicit-any[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/hooks/use-tts.ts[24m[0m
-[0m   [2m67:47[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                 [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m  [2m126:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m127:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m141:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m148:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m149:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m172:25[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                 [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m    [2m5:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m   [2m68:47[22m  [33mwarning[39m  Unexpected any. Specify a different type                                        [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m172:25[22m  [33mwarning[39m  Unexpected any. Specify a different type                                        [2m@typescript-eslint/no-explicit-any[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/hooks/useCardTags.ts[24m[0m
-[0m  [2m39:7[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m46:5[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m68:5[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
+[0m  [2m6:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/hooks/useDecks.ts[24m[0m
-[0m  [2m5:15[22m  [33mwarning[39m  'Database' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m5:15[22m  [33mwarning[39m  'Database' is defined but never used. Allowed unused vars must match /^_/u      [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m6:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/hooks/useStudySession.ts[24m[0m
 [0m   [2m20:15[22m  [33mwarning[39m  'Database' is defined but never used. Allowed unused vars must match /^_/u                                                                                                                                                     [2m@typescript-eslint/no-unused-vars[22m[0m
@@ -473,257 +347,138 @@
 [0m   [2m29:3[22m   [33mwarning[39m  'addDays' is defined but never used. Allowed unused vars must match /^_/u                                                                                                                                                      [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m   [2m30:3[22m   [33mwarning[39m  'addMinutes' is defined but never used. Allowed unused vars must match /^_/u                                                                                                                                                   [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m   [2m31:3[22m   [33mwarning[39m  'startOfDay' is defined but never used. Allowed unused vars must match /^_/u                                                                                                                                                   [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m47:6[22m   [33mwarning[39m  'CardSrsState' is defined but never used. Allowed unused vars must match /^_/u                                                                                                                                                 [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m  [2m141:12[22m  [33mwarning[39m  'currentCardStatusText' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                                                               [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m  [2m162:37[22m  [33mwarning[39m  React Hook useCallback received a function whose dependencies are unknown. Pass an inline function instead                                                                                                                     [2mreact-hooks/exhaustive-deps[22m[0m
-[0m  [2m165:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
-[0m  [2m205:14[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
-[0m  [2m263:19[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
-[0m  [2m268:14[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
-[0m  [2m271:14[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
-[0m  [2m285:16[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
-[0m  [2m290:17[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
-[0m  [2m297:11[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
-[0m  [2m321:15[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
-[0m  [2m324:16[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
-[0m  [2m328:16[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
-[0m  [2m349:11[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
-[0m  [2m355:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
-[0m  [2m374:11[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
-[0m  [2m386:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
-[0m  [2m403:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
-[0m  [2m409:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
-[0m  [2m496:8[22m   [33mwarning[39m  React Hook useEffect has missing dependencies: 'findNextCardIndex', 'initialSelectionCount', 'isComplete', 'isLoading', 'scheduleNextDueCheck', and 'sessionQueue.length'. Either include them or remove the dependency array  [2mreact-hooks/exhaustive-deps[22m[0m
-[0m  [2m564:11[22m  [33mwarning[39m  'currentCardStatusDisplay' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                                                            [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m  [2m653:11[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
-[0m  [2m660:7[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
-[0m  [2m726:16[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
-[0m  [2m739:22[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
-[0m  [2m751:26[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
-[0m  [2m777:26[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
-[0m  [2m796:21[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
-[0m  [2m803:26[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
-[0m  [2m827:26[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
-[0m  [2m852:16[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
-[0m  [2m860:21[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
-[0m  [2m880:21[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
-[0m  [2m882:21[22m  [33mwarning[39m  'reAddToQueue' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                                                                        [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m  [2m905:16[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
-[0m  [2m931:21[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
-[0m  [2m937:21[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
-[0m  [2m950:16[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
-[0m  [2m953:17[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
-[0m  [2m977:15[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
-[0m  [2m985:20[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
-[0m  [2m995:20[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                                                                                                                                        [2mno-console[22m[0m
+[0m   [2m35:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u                                                                                                                                                 [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m   [2m48:6[22m   [33mwarning[39m  'CardSrsState' is defined but never used. Allowed unused vars must match /^_/u                                                                                                                                                 [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m142:12[22m  [33mwarning[39m  'currentCardStatusText' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                                                               [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m163:37[22m  [33mwarning[39m  React Hook useCallback received a function whose dependencies are unknown. Pass an inline function instead                                                                                                                     [2mreact-hooks/exhaustive-deps[22m[0m
+[0m  [2m497:8[22m   [33mwarning[39m  React Hook useEffect has missing dependencies: 'findNextCardIndex', 'initialSelectionCount', 'isComplete', 'isLoading', 'scheduleNextDueCheck', and 'sessionQueue.length'. Either include them or remove the dependency array  [2mreact-hooks/exhaustive-deps[22m[0m
+[0m  [2m565:11[22m  [33mwarning[39m  'currentCardStatusDisplay' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                                                            [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m883:21[22m  [33mwarning[39m  'reAddToQueue' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                                                                        [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/hooks/useStudySetForm.ts[24m[0m
-[0m  [2m209:28[22m  [33mwarning[39m  React Hook useCallback received a function whose dependencies are unknown. Pass an inline function instead  [2mreact-hooks/exhaustive-deps[22m[0m
-[0m  [2m210:45[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m  [2m263:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                     [2mno-console[22m[0m
-[0m  [2m264:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info                     [2mno-console[22m[0m
+[0m   [2m15:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u                              [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m210:28[22m  [33mwarning[39m  React Hook useCallback received a function whose dependencies are unknown. Pass an inline function instead  [2mreact-hooks/exhaustive-deps[22m[0m
+[0m  [2m211:45[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/hooks/useStudySets.ts[24m[0m
-[0m   [2m5:15[22m  [33mwarning[39m  'Database' is defined but never used. Allowed unused vars must match /^_/u               [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m  [2m43:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m51:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
+[0m  [2m5:15[22m  [33mwarning[39m  'Database' is defined but never used. Allowed unused vars must match /^_/u      [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m6:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m[0m
+[0m[4m/Users/tom/dev/flashcards/hooks/useTags.ts[24m[0m
+[0m  [2m6:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/lib/actions/cardActions.ts[24m[0m
-[0m   [2m15:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m   [2m18:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m   [2m31:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m   [2m38:14[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m   [2m62:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m   [2m66:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m   [2m79:5[22m   [33mwarning[39m  'isDynamicRoute' is assigned a value but never used. Allowed unused args must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m81:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m   [2m91:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m  [2m113:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m  [2m160:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m  [2m199:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m  [2m249:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m  [2m271:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m  [2m294:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m  [2m326:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m  [2m342:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m  [2m345:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m  [2m370:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m  [2m419:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m  [2m431:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m  [2m445:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
-[0m  [2m478:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info    [2mno-console[22m[0m
+[0m   [2m8:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u             [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m80:5[22m   [33mwarning[39m  'isDynamicRoute' is assigned a value but never used. Allowed unused args must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/lib/actions/deckActions.ts[24m[0m
-[0m    [2m5:15[22m  [33mwarning[39m  'Database' is defined but never used. Allowed unused vars must match /^_/u               [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m    [2m5:33[22m  [33mwarning[39m  'Json' is defined but never used. Allowed unused vars must match /^_/u                   [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m32:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m   [2m42:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m   [2m70:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m   [2m73:19[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                 [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m   [2m82:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m   [2m93:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m105:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m113:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m125:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m139:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m155:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m170:6[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m212:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m229:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m244:6[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m253:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m266:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
+[0m   [2m5:15[22m  [33mwarning[39m  'Database' is defined but never used. Allowed unused vars must match /^_/u      [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m   [2m5:33[22m  [33mwarning[39m  'Json' is defined but never used. Allowed unused vars must match /^_/u          [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m   [2m8:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m74:19[22m  [33mwarning[39m  Unexpected any. Specify a different type                                        [2m@typescript-eslint/no-explicit-any[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/lib/actions/progressActions.ts[24m[0m
-[0m    [2m3:30[22m  [33mwarning[39m  'createDynamicRouteClient' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m    [2m5:15[22m  [33mwarning[39m  'Database' is defined but never used. Allowed unused vars must match /^_/u                  [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m    [2m7:36[22m  [33mwarning[39m  'cardUpdateFieldsSchema' is defined but never used. Allowed unused vars must match /^_/u    [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m43:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info     [2mno-console[22m[0m
-[0m   [2m64:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info     [2mno-console[22m[0m
-[0m   [2m67:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info     [2mno-console[22m[0m
-[0m   [2m76:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info     [2mno-console[22m[0m
-[0m   [2m89:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info     [2mno-console[22m[0m
-[0m  [2m116:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info     [2mno-console[22m[0m
-[0m  [2m152:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info     [2mno-console[22m[0m
-[0m  [2m155:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info     [2mno-console[22m[0m
-[0m  [2m164:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info     [2mno-console[22m[0m
-[0m  [2m176:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info     [2mno-console[22m[0m
+[0m  [2m3:30[22m  [33mwarning[39m  'createDynamicRouteClient' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m5:15[22m  [33mwarning[39m  'Database' is defined but never used. Allowed unused vars must match /^_/u                  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m7:36[22m  [33mwarning[39m  'cardUpdateFieldsSchema' is defined but never used. Allowed unused vars must match /^_/u    [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m9:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u              [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/lib/actions/settingsActions.ts[24m[0m
 [0m    [2m8:15[22m  [33mwarning[39m  'Database' is defined but never used. Allowed unused vars must match /^_/u                       [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m   [2m11:25[22m  [33mwarning[39m  'FontOption' is defined but never used. Allowed unused vars must match /^_/u                     [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m16:7[22m   [33mwarning[39m  'updateSettingsSchema' is assigned a value but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m48:21[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                         [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m   [2m61:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info          [2mno-console[22m[0m
-[0m  [2m104:14[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info          [2mno-console[22m[0m
-[0m  [2m112:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info          [2mno-console[22m[0m
-[0m  [2m131:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info          [2mno-console[22m[0m
-[0m  [2m134:21[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                         [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m   [2m12:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u                   [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m   [2m17:7[22m   [33mwarning[39m  'updateSettingsSchema' is assigned a value but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m   [2m49:21[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                         [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m135:21[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                         [2m@typescript-eslint/no-explicit-any[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/lib/actions/storageActions.ts[24m[0m
-[0m  [2m46:3[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m49:11[22m  [33mwarning[39m  'data' is assigned a value but never used. Allowed unused vars must match /^_/u          [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m  [2m62:3[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m75:3[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
+[0m   [2m5:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u   [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m50:11[22m  [33mwarning[39m  'data' is assigned a value but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/lib/actions/studyQueryActions.ts[24m[0m
-[0m    [2m4:10[22m  [33mwarning[39m  'cookies' is defined but never used. Allowed unused vars must match /^_/u                [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m    [2m5:66[22m  [33mwarning[39m  'ResolvedCardId' is defined but never used. Allowed unused vars must match /^_/u         [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m    [2m7:10[22m  [33mwarning[39m  'ZodError' is defined but never used. Allowed unused vars must match /^_/u               [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m    [2m8:15[22m  [33mwarning[39m  'Database' is defined but never used. Allowed unused vars must match /^_/u               [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m55:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m   [2m75:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m   [2m93:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m119:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m138:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m146:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m148:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
+[0m   [2m4:10[22m  [33mwarning[39m  'cookies' is defined but never used. Allowed unused vars must match /^_/u         [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m   [2m5:66[22m  [33mwarning[39m  'ResolvedCardId' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m   [2m7:10[22m  [33mwarning[39m  'ZodError' is defined but never used. Allowed unused vars must match /^_/u        [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m   [2m8:15[22m  [33mwarning[39m  'Database' is defined but never used. Allowed unused vars must match /^_/u        [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m10:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u    [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/lib/actions/studySetActions.ts[24m[0m
-[0m    [2m6:10[22m  [33mwarning[39m  'studyQueryCriteriaSchema' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m10:15[22m  [33mwarning[39m  'Database' is defined but never used. Allowed unused vars must match /^_/u                  [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m70:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info     [2mno-console[22m[0m
-[0m   [2m88:45[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m  [2m100:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info     [2mno-console[22m[0m
-[0m  [2m122:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info     [2mno-console[22m[0m
-[0m  [2m136:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info     [2mno-console[22m[0m
-[0m  [2m164:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info     [2mno-console[22m[0m
-[0m  [2m180:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info     [2mno-console[22m[0m
-[0m  [2m185:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info     [2mno-console[22m[0m
-[0m  [2m230:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info     [2mno-console[22m[0m
-[0m  [2m260:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info     [2mno-console[22m[0m
-[0m  [2m289:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info     [2mno-console[22m[0m
-[0m  [2m309:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info     [2mno-console[22m[0m
+[0m   [2m6:10[22m  [33mwarning[39m  'studyQueryCriteriaSchema' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m10:15[22m  [33mwarning[39m  'Database' is defined but never used. Allowed unused vars must match /^_/u                  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m12:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u              [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m89:45[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                    [2m@typescript-eslint/no-explicit-any[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/lib/actions/tagActions.ts[24m[0m
-[0m    [2m6:15[22m  [33mwarning[39m  'Database' is defined but never used. Allowed unused vars must match /^_/u               [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m    [2m8:10[22m  [33mwarning[39m  'createCardsBatch' is defined but never used. Allowed unused vars must match /^_/u       [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m    [2m8:33[22m  [33mwarning[39m  'CreateCardInput' is defined but never used. Allowed unused vars must match /^_/u        [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m16:33[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                 [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m  [2m192:9[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
+[0m   [2m6:15[22m  [33mwarning[39m  'Database' is defined but never used. Allowed unused vars must match /^_/u          [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m   [2m8:10[22m  [33mwarning[39m  'createCardsBatch' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m   [2m8:33[22m  [33mwarning[39m  'CreateCardInput' is defined but never used. Allowed unused vars must match /^_/u   [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m   [2m9:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u      [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m17:33[22m  [33mwarning[39m  Unexpected any. Specify a different type                                            [2m@typescript-eslint/no-explicit-any[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/lib/actions/ttsActions.ts[24m[0m
-[0m   [2m56:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m   [2m57:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m   [2m76:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m   [2m80:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m108:13[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m114:21[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                 [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m115:21[22m  [33mwarning[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/lib/localStorageUtils.ts[24m[0m
-[0m  [2m24:59[22m  [33mwarning[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m  [2m31:60[22m  [33mwarning[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m   [2m4:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m25:59[22m  [33mwarning[39m  Unexpected any. Specify a different type                                        [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m32:60[22m  [33mwarning[39m  Unexpected any. Specify a different type                                        [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m[0m
+[0m[4m/Users/tom/dev/flashcards/lib/logger.ts[24m[0m
+[0m  [2m17:11[22m  [33mwarning[39m  'rawMethod' is assigned a value but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m18:22[22m  [33mwarning[39m  Unexpected any. Specify a different type                                              [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m20:39[22m  [33mwarning[39m  Unexpected any. Specify a different type                                              [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m73:13[22m  [33mwarning[39m  'rawMethod' is assigned a value but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m74:24[22m  [33mwarning[39m  Unexpected any. Specify a different type                                              [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m75:41[22m  [33mwarning[39m  Unexpected any. Specify a different type                                              [2m@typescript-eslint/no-explicit-any[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/lib/srs.ts[24m[0m
-[0m    [2m2:43[22m  [33mwarning[39m  'isAfter' is defined but never used. Allowed unused vars must match /^_/u                [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m95:7[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m117:3[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
+[0m  [2m2:43[22m  [33mwarning[39m  'isAfter' is defined but never used. Allowed unused vars must match /^_/u       [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m4:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/lib/study-utils.ts[24m[0m
-[0m    [2m2:23[22m  [33mwarning[39m  'Json' is defined but never used. Allowed unused vars must match /^_/u                   [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m90:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m109:3[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
+[0m  [2m2:23[22m  [33mwarning[39m  'Json' is defined but never used. Allowed unused vars must match /^_/u          [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m4:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/lib/supabase/server.ts[24m[0m
-[0m   [2m34:18[22m  [33mwarning[39m  'error' is defined but never used                                                        [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m36:11[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m   [2m43:18[22m  [33mwarning[39m  'error' is defined but never used                                                        [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m45:11[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m   [2m80:18[22m  [33mwarning[39m  'error' is defined but never used                                                        [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m82:11[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m   [2m89:18[22m  [33mwarning[39m  'error' is defined but never used                                                        [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m91:11[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m126:18[22m  [33mwarning[39m  'error' is defined but never used                                                        [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m  [2m127:11[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m134:18[22m  [33mwarning[39m  'error' is defined but never used                                                        [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m  [2m135:11[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
+[0m    [2m4:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m   [2m35:18[22m  [33mwarning[39m  'error' is defined but never used                                               [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m   [2m44:18[22m  [33mwarning[39m  'error' is defined but never used                                               [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m   [2m81:18[22m  [33mwarning[39m  'error' is defined but never used                                               [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m   [2m90:18[22m  [33mwarning[39m  'error' is defined but never used                                               [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m127:18[22m  [33mwarning[39m  'error' is defined but never used                                               [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m135:18[22m  [33mwarning[39m  'error' is defined but never used                                               [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/lib/utils.ts[24m[0m
-[0m    [2m3:15[22m  [33mwarning[39m  'Tables' is defined but never used. Allowed unused vars must match /^_/u                 [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m42:46[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                 [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m   [2m42:56[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                 [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m   [2m62:63[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                 [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m   [2m62:85[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                 [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m   [2m63:32[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                 [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m   [2m79:63[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                 [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m   [2m79:85[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                 [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m   [2m80:32[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                 [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m  [2m102:18[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                 [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m  [2m139:3[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
+[0m    [2m3:15[22m  [33mwarning[39m  'Tables' is defined but never used. Allowed unused vars must match /^_/u        [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m    [2m4:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m   [2m43:46[22m  [33mwarning[39m  Unexpected any. Specify a different type                                        [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m   [2m43:56[22m  [33mwarning[39m  Unexpected any. Specify a different type                                        [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m   [2m63:63[22m  [33mwarning[39m  Unexpected any. Specify a different type                                        [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m   [2m63:85[22m  [33mwarning[39m  Unexpected any. Specify a different type                                        [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m   [2m64:32[22m  [33mwarning[39m  Unexpected any. Specify a different type                                        [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m   [2m80:63[22m  [33mwarning[39m  Unexpected any. Specify a different type                                        [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m   [2m80:85[22m  [33mwarning[39m  Unexpected any. Specify a different type                                        [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m   [2m81:32[22m  [33mwarning[39m  Unexpected any. Specify a different type                                        [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m103:18[22m  [33mwarning[39m  Unexpected any. Specify a different type                                        [2m@typescript-eslint/no-explicit-any[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/middleware.ts[24m[0m
-[0m  [2m7:10[22m  [33mwarning[39m  'decodeSupabaseCookie' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m3:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u          [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m8:10[22m  [33mwarning[39m  'decodeSupabaseCookie' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/providers/settings-provider.tsx[24m[0m
-[0m   [2m7:15[22m  [33mwarning[39m  'Database' is defined but never used. Allowed unused vars must match /^_/u               [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m   [2m7:33[22m  [33mwarning[39m  'Json' is defined but never used. Allowed unused vars must match /^_/u                   [2m@typescript-eslint/no-unused-vars[22m[0m
-[0m  [2m21:25[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                 [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m  [2m23:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
+[0m   [2m7:15[22m  [33mwarning[39m  'Database' is defined but never used. Allowed unused vars must match /^_/u      [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m   [2m7:33[22m  [33mwarning[39m  'Json' is defined but never used. Allowed unused vars must match /^_/u          [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m14:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m  [2m22:25[22m  [33mwarning[39m  Unexpected any. Specify a different type                                        [2m@typescript-eslint/no-explicit-any[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/store/studySessionStore.ts[24m[0m
-[0m  [2m22:7[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m26:7[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
+[0m  [2m3:21[22m  [33mwarning[39m  'statusLogger' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/test-gcp-apis.ts[24m[0m
-[0m   [2m39:3[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m   [2m44:3[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m   [2m48:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m   [2m52:7[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m   [2m53:7[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m   [2m63:66[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                 [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m   [2m64:72[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                 [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m   [2m71:3[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m   [2m81:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m   [2m85:5[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m   [2m96:14[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m   [2m97:14[22m  [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m116:66[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                 [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m  [2m117:72[22m  [33mwarning[39m  Unexpected any. Specify a different type                                                 [2m@typescript-eslint/no-explicit-any[22m[0m
-[0m  [2m124:3[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m125:3[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m126:3[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m127:3[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
-[0m  [2m133:6[22m   [33mwarning[39m  Unexpected console statement. Only these console methods are allowed: warn, error, info  [2mno-console[22m[0m
+[0m   [2m64:68[22m  [33mwarning[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m   [2m65:74[22m  [33mwarning[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m117:68[22m  [33mwarning[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
+[0m  [2m118:74[22m  [33mwarning[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
 [0m[0m
 [0m[4m/Users/tom/dev/flashcards/types/pdf-parse.d.ts[24m[0m
 [0m   [2m5:26[22m  [33mwarning[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
@@ -731,5 +486,5 @@
 [0m  [2m12:29[22m  [33mwarning[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
 [0m  [2m13:20[22m  [33mwarning[39m  Unexpected any. Specify a different type  [2m@typescript-eslint/no-explicit-any[22m[0m
 [0m[0m
-[0m[33m[1m✖ 564 problems (0 errors, 564 warnings)[22m[39m[0m
+[0m[33m[1m✖ 311 problems (0 errors, 311 warnings)[22m[39m[0m
 [0m[33m[1m[22m[39m[0m

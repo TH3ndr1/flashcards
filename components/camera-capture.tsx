@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Camera, Trash2, CheckCircle } from 'lucide-react';
@@ -122,6 +122,19 @@ export function CameraCapture({ onCapture, maxImages = 5 }: CameraCaptureProps) 
     setCapturedImages([]);
   }, [capturedImages, onCapture]);
 
+  // Memoize object URLs for captured images
+  const objectUrls = useMemo(() =>
+    capturedImages.map(image => URL.createObjectURL(image)),
+    [capturedImages]
+  );
+
+  // Cleanup object URLs on unmount or when images change
+  useEffect(() => {
+    return () => {
+      objectUrls.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, [objectUrls]);
+
   return (
     <div className="flex flex-col gap-4">
       {/* Hidden elements */}
@@ -165,8 +178,10 @@ export function CameraCapture({ onCapture, maxImages = 5 }: CameraCaptureProps) 
                 {capturedImages.map((image, index) => (
                   <div key={index} className="relative aspect-video">
                     <img
-                      src={URL.createObjectURL(image)}
+                      src={objectUrls[index]}
                       alt={`Captured ${index + 1}`}
+                      width={1920}
+                      height={1080}
                       className="w-full h-full object-cover rounded-md"
                     />
                     <Button
