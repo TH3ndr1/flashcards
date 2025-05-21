@@ -1,82 +1,70 @@
+// components/study/StudySelectClient.tsx
 "use client";
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { Edit, Terminal } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { useState } from 'react'; // Keep for error state
+import { useRouter } from 'next/navigation';
+import { StudySetSelector } from './StudySetSelector'; // Using relative path assuming it's in same dir
+import { useStudySessionStore } from '@/store/studySessionStore';
+import type { StudySessionInput, SessionType } from '@/types/study';
+import { toast } from 'sonner';
 import type { Tables } from '@/types/database';
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { StudyModeButtons } from '@/components/study/StudyModeButtons';
+import { appLogger } from '@/lib/logger';
 
-// Type for the study set data
-type StudySet = Tables<'study_sets'>;
+// Type for Deck with SRS counts, assuming this is what initialDecks will be
+type DeckWithEligibleCounts = Pick<Tables<'decks'>, 'id' | 'name'> & {
+  // These counts might come from a different source or calculation if not directly on deck type
+  learn_eligible_count?: number;
+  review_eligible_count?: number;
+  // Add other counts if DeckSetSelector uses them for display or logic
+  new_count?: number;
+  learning_count?: number;
+  young_count?: number;
+  mature_count?: number;
+};
 
-interface StudySetListClientProps {
-  initialData?: StudySet[];
+type StudySet = Pick<Tables<'study_sets'>, 'id' | 'name'>; // Simplified for this component
+
+interface StudySelectClientProps {
+  initialDecks: DeckWithEligibleCounts[];
+  initialStudySets: StudySet[];
+  hasErrors: boolean; // If server-side fetching had errors
 }
 
-export function StudySetListClient({ initialData = [] }: StudySetListClientProps) {
-  const [studySets] = useState<StudySet[]>(initialData);
-  const isLoading = false; // No loading state needed with server-side data
-  const error = null; // No error state needed with server-side data
+export function StudySelectClient({
+  initialDecks,
+  initialStudySets,
+  hasErrors
+}: StudySelectClientProps) {
+  const router = useRouter();
+  const { setStudyParameters, clearStudyParameters } = useStudySessionStore();
+  // Error state is primarily for server-side fetch errors passed via props
+  const [error] = useState<string | null>(hasErrors ? 'There was an issue loading initial selection data.' : null);
 
-  // Render empty state if no study sets
-  if (studySets.length === 0) {
-    return (
-      <p className="text-center text-muted-foreground mt-10">You haven't created any smart playlists yet.</p>
-    );
-  }
+  const handleStartStudying = async (input: StudySessionInput, sessionType: SessionType) => {
+    try {
+      appLogger.info(`[StudySelectClient] Setting params for ${sessionType} session:`, {input, sessionType});
+      clearStudyParameters();
+      setStudyParameters(input, sessionType); // Store uses SessionType now
+      router.push('/study/session');
+    } catch (err) {
+      appLogger.error('[StudySelectClient] Error starting study session:', err);
+      toast.error('Failed to start study session. Please try again.');
+    }
+  };
 
-  // Render the study sets grid
   return (
-    <TooltipProvider>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {studySets.map((set) => (
-          <Card key={set.id} className="hover:shadow-md transition-shadow flex flex-col bg-gradient-to-b from-slate-100/40 dark:from-slate-800/40 to-transparent">
-            <CardHeader className="pt-4 pb-2 space-y-1 px-4">
-              <div className="flex justify-between items-center">
-                <CardTitle className="truncate" title={set.name}>{set.name}</CardTitle>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-7 w-7 flex-shrink-0 text-muted-foreground" 
-                      aria-label={`Edit ${set.name}`}
-                      asChild
-                    >
-                      <Link href={`/study/sets/${set.id}/edit`}> 
-                        <Edit className="h-4 w-4" />
-                      </Link>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Edit Playlist</p>
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-              <CardDescription>
-                {set.description || `Updated ${formatDistanceToNow(new Date(set.updated_at), { addSuffix: true })}`}
-              </CardDescription>
-            </CardHeader>
-            <CardFooter className="flex justify-end items-center mt-auto pt-4">
-              <StudyModeButtons
-                studyType="studySet"
-                contentId={set.id}
-                size="sm"
-              />
-            </CardFooter>
-          </Card>
-        ))}
-      </div>
-    </TooltipProvider>
+    <>
+      {error && (
+        <div className="mt-6 mb-6 p-4 border border-destructive/50 rounded-lg bg-destructive/10 text-destructive text-sm">
+          {error}
+        </div>
+      )}
+      <StudySetSelector
+        decks={initialDecks} // Pass simplified deck type
+        studySets={initialStudySets}
+        isLoadingStudySets={false} // Assuming data is pre-fetched by server component
+        onStartStudying={handleStartStudying}
+      />
+    </>
   );
-} 
+}

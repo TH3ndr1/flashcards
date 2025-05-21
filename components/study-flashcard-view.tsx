@@ -34,7 +34,7 @@ import { appLogger } from '@/lib/logger';
 
 type ReviewGrade = 1 | 2 | 3 | 4;
 
-interface StudyFlashcardViewProps {
+export interface StudyFlashcardViewProps {
   card: DbCard | null;
   isFlipped: boolean;
   isTransitioning: boolean;

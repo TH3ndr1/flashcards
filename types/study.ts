@@ -1,29 +1,9 @@
-import { z } from "zod";
+// types/study.ts
+
 import type { Tables } from '@/types/database';
-import type { Settings } from '@/providers/settings-provider'; // For ReviewGrade, and potentially other settings
-
-
-// Define Zod schema for study query criteria
-export const studyQueryCriteriaSchema = z.object({
-    deckId: z.string().uuid().optional(),
-    studySetId: z.string().uuid().optional(),
-    tagIds: z.array(z.string().uuid()).optional(),
-    limit: z.number().int().min(1).max(100).optional().default(50),
-    includeNew: z.boolean().optional().default(true),
-    includeReview: z.boolean().optional().default(true),
-    includeLearning: z.boolean().optional().default(true)
-});
-
-// Export the TypeScript type derived from the schema
-export type StudyQueryCriteria = z.infer<typeof studyQueryCriteriaSchema>;
-
-// Add new interface for tracking SRS changes
-export interface SrsProgression {
-    newToLearning: number;
-    learningToReview: number;
-    stayedInLearning: number;
-    droppedToLearning: number;
-} 
+// Import the authoritative StudyQueryCriteria type from its Zod schema definition
+import type { StudyQueryCriteria } from '@/lib/schema/study-query.schema';
+// Note: ReviewGrade should be imported from '@/lib/srs' where used, not redefined here.
 
 // Type for the card data as fetched from the database, including potential deck relations
 // This should align with what getCardsByIds action returns.
@@ -83,50 +63,44 @@ export interface SessionResults {
   correctCount: number; // Grade >= 3 (Good or Easy)
   hardCount: number;    // Grade 2
   incorrectCount: number; // Grade 1 (Again)
-  // easedCount is implicitly part of correctCount with grade 4
-  graduatedFromLearnCount: number;    // Cards graduating from initial learning (srs_level 0 -> 1)
-  graduatedFromRelearnCount: number; // Cards graduating from relearning (relearning -> review)
-  lapsedToRelearnCount: number;    // Cards lapsing from review to relearning
+  graduatedFromLearnCount: number;
+  graduatedFromRelearnCount: number;
+  lapsedToRelearnCount: number;
 }
 
 /**
  * Describes the outcome of answering a card, providing necessary data
  * for updating the card's DB state and the session queue.
+ * This type is used by card-state-handlers.ts
  */
-export interface CardAnswerResult {
-  /** The card object with its SRS fields updated, ready for persistence. */
-  updatedCardDbState: Partial<Tables<'cards'>>; // Only the fields that need to be saved to DB
-  /** The updated internal state for this card in the session. */
-  updatedInternalState: InternalCardState;
-  /** Instruction for how the queue manager should handle this card. */
-  queueAction: 'remove' | 're-queue-sooner' | 're-queue-later' | 'keep-for-timed-step';
-  /** Specific index for re-queueing (e.g., after N cards for 'dedicated-learn' hard/again). Optional. */
-  reinsertAtIndex?: number;
-  /** Indicates if a session result metric should be incremented (e.g., graduated, lapsed). */
-  sessionResultIncrement?: keyof Pick<SessionResults, 'graduatedFromLearnCount' | 'graduatedFromRelearnCount' | 'lapsedToRelearnCount'>;
-}
+export type CardStateUpdateOutcome = {
+    dbUpdatePayload: Partial<Tables<'cards'>>;
+    nextInternalState: InternalCardState;
+    queueInstruction: 'remove' | 're-queue-soon' | 're-queue-later' | 'set-timed-step'; // Aligned with handler logic
+    reinsertAfterNJobs?: number; // For 'dedicated-learn' requeue gap
+    sessionResultCategory?: 'graduatedLearn' | 'graduatedRelearn' | 'lapsed';
+};
+
 
 /**
- * Input parameters to initialize a study session, typically stored in Zustand.
- * This is based on the existing `StudyInput` from `studySessionStore.ts`.
+ * Input parameters to initialize a study session, typically stored in Zustand
+ * or passed as props to the useStudySession hook.
  */
 export type StudySessionInput =
-  | { criteria: StudyQueryCriteria; studySetId?: never; deckId?: never } // Used by /study/select for custom queries
-  | { criteria?: never; studySetId: string; deckId?: never }              // Used by /study/select for saved Study Sets
-  | { criteria?: never; studySetId?: never; deckId: string };             // Used by Deck List "Practice" button
+  | { criteria: StudyQueryCriteria; studySetId?: undefined; deckId?: undefined } // Uses the Zod-derived StudyQueryCriteria
+  | { criteria?: undefined; studySetId: string; deckId?: undefined }
+  | { criteria?: undefined; studySetId?: undefined; deckId: string };
 
 /**
  * Study mode, typically stored in Zustand along with StudySessionInput.
- * This is based on the existing `StudyMode` from `studySessionStore.ts`.
+ * This determines the high-level intent (learn new things vs. review existing).
+ * The `SessionType` (used internally by the hook) might be derived from this
+ * for more specific queue handling (e.g., a 'unified' SessionType).
  */
 export type StudySessionMode = 'learn' | 'review';
 
 
-// Helper type for the return of state handlers, before processing by queue manager
-export type CardStateUpdateOutcome = {
-    dbUpdatePayload: Partial<Tables<'cards'>>;
-    nextInternalState: InternalCardState;
-    queueInstruction: 'remove' | 're-queue-soon' | 're-queue-later' | 'set-timed-step';
-    reinsertAfterNJobs?: number; // For 'dedicated-learn' requeue gap
-    sessionResultCategory?: 'graduatedLearn' | 'graduatedRelearn' | 'lapsed';
-};
+// REMOVED: SrsProgression - Not directly used by the core session types, can be app-specific if needed elsewhere.
+// REMOVED: studyQueryCriteriaSchema and StudyQueryCriteria - These are authoritatively defined in lib/schema/study-query.schema.ts
+// REMOVED: Redefinition of CardAnswerResult - It was identical to CardStateUpdateOutcome. Consolidating to CardStateUpdateOutcome.
+// REMOVED: ReviewGrade - Should be imported from lib/srs.ts by consuming files.

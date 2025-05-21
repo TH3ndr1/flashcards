@@ -1,36 +1,27 @@
+// components/study/StudyModeButtons.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 import { resolveStudyQuery } from '@/lib/actions/studyQueryActions';
 import { getCardSrsStatesByIds } from '@/lib/actions/cardActions';
-import { useStudySessionStore, type StudyInput, type StudyMode } from '@/store/studySessionStore';
+import { useStudySessionStore } from '@/store/studySessionStore';
+import type { StudySessionInput, SessionType } from '@/types/study';
 import { Loader2 as IconLoader, GraduationCap, Play } from 'lucide-react';
 import { toast } from 'sonner';
 import { isValid, parseISO } from 'date-fns';
-import type { Tables } from "@/types/database";
-import React from 'react';
-import { appLogger, statusLogger } from '@/lib/logger';
+import type { StudyQueryCriteria } from '@/lib/schema/study-query.schema'; // Import for criteria construction
 
 interface StudyModeButtonsProps {
-  /** Type of content to study - either a deck or a study set */
   studyType: 'deck' | 'studySet';
-  /** ID of the deck or study set */
   contentId: string;
-  /** Optional CSS class to apply to the button container */
   className?: string;
-  /** Optional size variant for the buttons */
   size?: 'default' | 'sm' | 'lg';
-  /** Optional label for the Learn button (default: "Learn") */
   learnLabel?: string;
-  /** Optional label for the Review button (default: "Review") */
   reviewLabel?: string;
-  /** Pre-calculated learn count (if provided, skips fetching) */
   preCalculatedLearnCount?: number;
-  /** Pre-calculated review count (if provided, skips fetching) */
   preCalculatedReviewCount?: number;
-  /** Whether a parent component is performing a batch fetch operation */
   batchFetchInProgress?: boolean;
 }
 
@@ -48,260 +39,138 @@ export function StudyModeButtons({
   const router = useRouter();
   const setStudyParameters = useStudySessionStore((state) => state.setStudyParameters);
   const clearStudyParameters = useStudySessionStore((state) => state.clearStudyParameters);
-  
-  // If we have counts, we're not loading; if batch fetch is in progress but no counts yet, we're loading
+
   const [isLoading, setIsLoading] = useState(
-    preCalculatedLearnCount === undefined && 
+    preCalculatedLearnCount === undefined &&
     (batchFetchInProgress || preCalculatedReviewCount === undefined)
   );
   const [learnCount, setLearnCount] = useState(preCalculatedLearnCount ?? 0);
   const [reviewCount, setReviewCount] = useState(preCalculatedReviewCount ?? 0);
   const [error, setError] = useState<string | null>(null);
-  
-  // Add a ref to track if we've already fetched for this contentId
-  const fetchedRef = React.useRef<{[key: string]: boolean}>({});
+  const fetchedRef = useRef<{[key: string]: boolean}>({});
 
-  // Log props on mount for debugging
   useEffect(() => {
-    appLogger.info(`[StudyModeButtons] Mounted with props for ${contentId}:`, {
-      preCalculatedLearnCount,
-      preCalculatedReviewCount,
-      batchFetchInProgress,
-      initialIsLoading: isLoading
-    });
-  }, []);
+    console.log(`[StudyModeButtons] Mounted for ${contentId}: preLearn=${preCalculatedLearnCount}, preRev=${preCalculatedReviewCount}, batchInProg=${batchFetchInProgress}`);
+  }, [contentId, preCalculatedLearnCount, preCalculatedReviewCount, batchFetchInProgress]);
 
-  // Effect to update loading state when preCalculated counts change
   useEffect(() => {
-    // If we have pre-calculated counts, we're no longer loading
     if (preCalculatedLearnCount !== undefined && preCalculatedReviewCount !== undefined) {
-      appLogger.info(`[StudyModeButtons] Received pre-calculated counts for ${contentId}:`, 
-        { learn: preCalculatedLearnCount, review: preCalculatedReviewCount });
       setIsLoading(false);
-      
-      // Also update the count state values to match the pre-calculated values
       setLearnCount(preCalculatedLearnCount);
       setReviewCount(preCalculatedReviewCount);
     }
-  }, [preCalculatedLearnCount, preCalculatedReviewCount, contentId, setIsLoading, setLearnCount, setReviewCount]);
+  }, [preCalculatedLearnCount, preCalculatedReviewCount]);
 
-  // Track loading state changes
   useEffect(() => {
-    appLogger.info(`[StudyModeButtons] Loading state for ${contentId} is now:`, isLoading);
+    console.log(`[StudyModeButtons] Loading state for ${contentId} is now:`, isLoading);
   }, [isLoading, contentId]);
 
   useEffect(() => {
-    // Skip fetching if we have pre-calculated counts
-    if (preCalculatedLearnCount !== undefined && preCalculatedReviewCount !== undefined) {
-      return;
-    }
-    
-    // Skip if parent is doing a batch fetch
+    if (preCalculatedLearnCount !== undefined && preCalculatedReviewCount !== undefined) return;
     if (batchFetchInProgress) {
-      appLogger.info(`[StudyModeButtons] Skipping fetch for ${contentId} - batch fetch in progress`);
+      console.log(`[StudyModeButtons] Skipping fetch for ${contentId} - batch fetch in progress by parent`);
       return;
     }
-    
-    // Skip if we've already fetched for this content ID
     if (fetchedRef.current[contentId]) {
+      console.log(`[StudyModeButtons] Skipping fetch for ${contentId} - already fetched`);
       return;
     }
-    
+
     const fetchCardCounts = async () => {
       if (!contentId) return;
-      
-      // Mark that we're fetching for this content ID
       fetchedRef.current[contentId] = true;
-      
       setIsLoading(true);
       setError(null);
-      
       try {
-        appLogger.info(`[StudyModeButtons] Fetching counts for ${studyType} ID: ${contentId}`);
-        
-        // Step 1: Get all card IDs matching the content (deck or study set)
+        console.log(`[StudyModeButtons] Fetching counts for ${studyType} ID: ${contentId}`);
+
+        // Explicitly construct the payload for resolveStudyQuery
+        let queryPayloadForAction: Parameters<typeof resolveStudyQuery>[0];
         if (studyType === 'studySet') {
-          const studySetQuery = { studySetId: contentId };
-          const cardIdsResult = await resolveStudyQuery(studySetQuery);
-          
-          if (cardIdsResult.error || !cardIdsResult.data) {
-            appLogger.error(`Error fetching study set cards:`, cardIdsResult.error);
-            setError(`Failed to check available cards`);
-            setLearnCount(0);
-            setReviewCount(0);
-            return;
-          }
-          
-          const cardIds = cardIdsResult.data;
-          processCardIds(cardIds);
-        } else {
-          // For decks, use proper typing for tagLogic
-          const deckQuery = { 
-            criteria: { 
-              deckId: contentId, 
-              tagLogic: 'ANY' as const, // Use const assertion to fix type
-              includeDifficult: false 
-            } 
-          };
-          
-          const cardIdsResult = await resolveStudyQuery(deckQuery);
-          
-          if (cardIdsResult.error || !cardIdsResult.data) {
-            appLogger.error(`Error fetching deck cards:`, cardIdsResult.error);
-            setError(`Failed to check available cards`);
-            setLearnCount(0);
-            setReviewCount(0);
-            return;
-          }
-          
-          const cardIds = cardIdsResult.data;
-          processCardIds(cardIds);
+            queryPayloadForAction = { studySetId: contentId };
+        } else { // deck
+            const criteriaForDeck: StudyQueryCriteria = {
+                deckId: contentId,
+                tagLogic: 'ANY', // Default, other filters can be added if needed by StudyModeButtons
+            };
+            queryPayloadForAction = { criteria: criteriaForDeck };
         }
-      } catch (error) {
-        appLogger.error("Error fetching card counts:", error);
-        setError("Error checking available cards");
-        setLearnCount(0);
-        setReviewCount(0);
+
+        const cardIdsResult = await resolveStudyQuery(queryPayloadForAction); // Use the correctly shaped payload
+        // ... (rest of the logic for srsStatesResult and setting counts remains the same)
+        if (cardIdsResult.error || !cardIdsResult.data) {
+            throw new Error(cardIdsResult.error || `Failed to fetch card IDs for ${studyType} ${contentId}`);
+        }
+        const cardIds = cardIdsResult.data;
+        if (cardIds.length === 0) {
+            setLearnCount(0); setReviewCount(0); setIsLoading(false); return;
+        }
+        const srsStatesResult = await getCardSrsStatesByIds(cardIds);
+        if (srsStatesResult.error || !srsStatesResult.data) {
+            throw new Error(srsStatesResult.error || `Failed to fetch SRS states for ${studyType} ${contentId}`);
+        }
+        const cardStates = srsStatesResult.data;
+        const now = new Date();
+        const learnEligibleCards = cardStates.filter(card =>
+            card.srs_level === 0 && (card.learning_state === null || card.learning_state === 'learning')
+        );
+        const reviewEligibleCards = cardStates.filter(card => {
+            const isGraduatedOrRelearning = (card.srs_level != null && card.srs_level >= 1) || (card.srs_level === 0 && card.learning_state === 'relearning');
+            const isDue = card.next_review_due && isValid(parseISO(card.next_review_due)) && parseISO(card.next_review_due) <= now;
+            return isGraduatedOrRelearning && isDue;
+        });
+        setLearnCount(learnEligibleCards.length);
+        setReviewCount(reviewEligibleCards.length);
+
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Error checking available cards";
+        console.error(`[StudyModeButtons] Error fetching counts for ${contentId}:`, message);
+        setError(message);
+        setLearnCount(0); setReviewCount(0);
       } finally {
         setIsLoading(false);
       }
     };
-    
-    // Helper function to process card IDs and update counts
-    const processCardIds = async (cardIds: string[]) => {
-      appLogger.info(`[StudyModeButtons] Found ${cardIds.length} total cards`);
-      
-      if (cardIds.length === 0) {
-        setLearnCount(0);
-        setReviewCount(0);
-        return;
-      }
-      
-      // Step 2: Efficiently fetch only the SRS state fields for all cards in one request
-      const srsStatesResult = await getCardSrsStatesByIds(cardIds);
-      
-      if (srsStatesResult.error || !srsStatesResult.data) {
-        appLogger.error(`Error fetching card SRS states:`, srsStatesResult.error);
-        setError(`Failed to check card states`);
-        setLearnCount(0);
-        setReviewCount(0);
-        return;
-      }
-      
-      // Step 3: Filter and count locally based on SRS state
-      const cardStates = srsStatesResult.data;
-      const now = new Date();
-      
-      // Learn Mode: srs_level=0, learning_state=null or 'learning' (not 'relearning')
-      const learnEligibleCards = cardStates.filter(card => 
-        card.srs_level !== null && card.srs_level !== undefined && card.srs_level === 0 && 
-        (card.learning_state === null || card.learning_state === 'learning')
-      );
-      
-      // Review Mode: (srs_level>=1) OR (srs_level=0 and learning_state='relearning') AND is due
-      const reviewEligibleCards = cardStates.filter(card => {
-        // First check if card is graduated or in relearning
-        const isGraduatedOrRelearning = 
-          (card.srs_level !== null && card.srs_level !== undefined && card.srs_level >= 1) || 
-          (card.srs_level === 0 && card.learning_state === 'relearning');
-        
-        // Then check if it's due
-        const isDue = 
-          card.next_review_due && 
-          isValid(parseISO(card.next_review_due)) && 
-          parseISO(card.next_review_due) <= now;
-        
-        return isGraduatedOrRelearning && isDue;
-      });
-      
-      appLogger.info(`[StudyModeButtons] Learn eligible: ${learnEligibleCards.length}, Review eligible: ${reviewEligibleCards.length}`);
-      
-      setLearnCount(learnEligibleCards.length);
-      setReviewCount(reviewEligibleCards.length);
-    };
-    
     fetchCardCounts();
-  }, [
-    contentId, 
-    studyType, 
-    preCalculatedLearnCount, 
-    preCalculatedReviewCount, 
-    batchFetchInProgress,
-    resolveStudyQuery,
-    getCardSrsStatesByIds,
-    setIsLoading,
-    setError,
-    setLearnCount,
-    setReviewCount
-  ]);
-  
-  const handleStartStudying = (mode: StudyMode) => {
-    // Create the appropriate StudyInput based on type and mode
-    let studyInput: StudyInput;
-    
+  }, [contentId, studyType, preCalculatedLearnCount, preCalculatedReviewCount, batchFetchInProgress]);
+
+  const handleStartStudying = (sessionTypeToStart: SessionType) => {
+    let studyInputForStore: StudySessionInput;
+
     if (studyType === 'studySet') {
-      // For study sets, we pass studySetId and appropriate criteria for filtering
-      studyInput = {
-        studySetId: contentId,
-        criteria: mode === 'learn' ? 
-          {
-            includeLearning: true,
-            srsLevel: { operator: 'equals', value: 0 },
-            tagLogic: 'ANY' as const,
-          } : 
-          {
-            nextReviewDue: { operator: 'isDue' },
-            srsLevel: { operator: 'greaterThan', value: 0 },
-            tagLogic: 'ANY' as const,
-          }
-      };
-    } else {
-      // For decks, use the existing approach
-      studyInput = {
-        criteria: { 
-          deckId: contentId, 
-          tagLogic: 'ANY' as const, 
-          // Include special criteria for Learn mode
-          ...(mode === 'learn' ? {
-            srsLevel: { operator: 'equals', value: 0 },
-            includeLearning: true
-          } : {}),
-          // Include special criteria for Review mode
-          ...(mode === 'review' ? {
-            nextReviewDue: { operator: 'isDue' },
-            srsLevel: { operator: 'greaterThan', value: 0 }
-          } : {})
-        } 
-      };
+      studyInputForStore = { studySetId: contentId };
+    } else { // deck
+      // For a deck, StudySessionInput expects a deckId directly
+      studyInputForStore = { deckId: contentId };
     }
-    
-    appLogger.info(`[StudyModeButtons] Starting ${mode} mode with input:`, studyInput);
-      
-    // Verify counts for the selected mode
-    if (mode === 'learn' && learnCount === 0) {
-      toast.error("No cards available for learning in this selection.");
+
+    console.log(`[StudyModeButtons] Starting '${sessionTypeToStart}' session with input:`, studyInputForStore);
+
+    if (sessionTypeToStart === 'learn-only' && learnCount === 0) {
+      toast.info("No new cards available to learn in this selection.");
       return;
     }
-    
-    if (mode === 'review' && reviewCount === 0) {
-      toast.error("No cards due for review in this selection.");
+    if (sessionTypeToStart === 'review-only' && reviewCount === 0) {
+      toast.info("No cards currently due for review in this selection.");
       return;
     }
-    
-    // Clear previous params BEFORE setting new ones
+
     clearStudyParameters();
-    
-    // Set parameters and navigate
-    setStudyParameters(studyInput, mode);
+    setStudyParameters(studyInputForStore, sessionTypeToStart);
     router.push('/study/session');
   };
 
+  // ... (rest of the JSX remains the same) ...
   return (
     <div className={`flex gap-2 ${className}`}>
       {isLoading ? (
-        <div className="flex items-center text-muted-foreground text-sm">
-          <IconLoader className="w-3 h-3 mr-2 animate-spin" />
+        <div className="flex items-center text-muted-foreground text-sm h-9">
+          <IconLoader className="w-4 h-4 mr-2 animate-spin" />
           Loading...
+        </div>
+      ) : error ? (
+        <div className="flex items-center text-destructive text-sm h-9" title={error}>
+            Error
         </div>
       ) : (
         <>
@@ -309,18 +178,19 @@ export function StudyModeButtons({
             variant="secondary"
             size={size}
             className="bg-rose-500 hover:bg-rose-600 text-white"
-            onClick={() => handleStartStudying('learn')}
+            onClick={() => handleStartStudying('learn-only')}
             disabled={learnCount === 0}
+            title={learnCount === 0 ? "No cards to learn" : `${learnLabel} ${learnCount} card(s)`}
           >
             <GraduationCap className="h-4 w-4 mr-1" /> {learnLabel} {learnCount > 0 && `(${learnCount})`}
           </Button>
-          
           <Button
             variant="secondary"
             size={size}
             className="bg-blue-500 hover:bg-blue-600 text-white"
-            onClick={() => handleStartStudying('review')}
+            onClick={() => handleStartStudying('review-only')}
             disabled={reviewCount === 0}
+            title={reviewCount === 0 ? "No cards to review" : `${reviewLabel} ${reviewCount} card(s)`}
           >
             <Play className="h-4 w-4 mr-1" /> {reviewLabel} {reviewCount > 0 && `(${reviewCount})`}
           </Button>
@@ -328,4 +198,4 @@ export function StudyModeButtons({
       )}
     </div>
   );
-} 
+}
