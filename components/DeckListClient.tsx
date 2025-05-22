@@ -34,6 +34,7 @@ interface EnhancedDeck {
   mature_count: number;
   learn_eligible_count: number;
   review_eligible_count: number;
+  relearning_count: number;
 }
 
 interface DeckListClientProps {
@@ -165,6 +166,7 @@ export function DeckListClient({ initialData = [] }: DeckListClientProps) {
                         <DeckProgressBar
                           newCount={deck.new_count ?? 0}
                           learningCount={deck.learning_count ?? 0}
+                          relearningCount={deck.relearning_count ?? 0}
                           youngCount={deck.young_count ?? 0}
                           matureCount={deck.mature_count ?? 0}
                         />

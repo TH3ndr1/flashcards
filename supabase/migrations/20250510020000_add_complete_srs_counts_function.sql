@@ -1,3 +1,5 @@
+DROP FUNCTION IF EXISTS public.get_decks_with_complete_srs_counts(uuid);
+
 -- Add database function to fetch decks with complete SRS counts in one query
 
 CREATE OR REPLACE FUNCTION public.get_decks_with_complete_srs_counts(
@@ -14,6 +16,7 @@ RETURNS TABLE (
   learning_count bigint,
   young_count bigint,
   mature_count bigint,
+  relearning_count bigint, -- Added for relearning cards
   learn_eligible_count bigint, -- New Learn button count
   review_eligible_count bigint -- New Review button count
 )
@@ -40,15 +43,17 @@ srs_counts AS (
   SELECT
     c.deck_id,
     COUNT(*) FILTER (WHERE c.last_reviewed_at IS NULL) AS new_count,
-    COUNT(*) FILTER (WHERE c.last_reviewed_at IS NOT NULL AND 
-                    (COALESCE(c.interval_days, 0) = 0 OR c.last_review_grade = 1)) AS learning_count,
+    COUNT(*) FILTER (WHERE c.learning_state = 'learning') AS learning_count,
+    COUNT(*) FILTER (WHERE c.learning_state = 'relearning') AS relearning_count,
     COUNT(*) FILTER (WHERE c.last_reviewed_at IS NOT NULL AND
+                    c.learning_state IS DISTINCT FROM 'learning' AND c.learning_state IS DISTINCT FROM 'relearning' AND
                     COALESCE(c.interval_days, 0) > 0 AND 
                     c.last_review_grade != 1 AND
                     COALESCE(c.interval_days, 0) < COALESCE(
                         (SELECT mature_interval_threshold FROM public.settings WHERE user_id = p_user_id), 
                         21)) AS young_count,
     COUNT(*) FILTER (WHERE c.last_reviewed_at IS NOT NULL AND
+                    c.learning_state IS DISTINCT FROM 'learning' AND c.learning_state IS DISTINCT FROM 'relearning' AND
                     COALESCE(c.interval_days, 0) > 0 AND 
                     c.last_review_grade != 1 AND
                     COALESCE(c.interval_days, 0) >= COALESCE(
@@ -83,6 +88,7 @@ SELECT
   COALESCE(s.learning_count, 0) AS learning_count,
   COALESCE(s.young_count, 0) AS young_count,
   COALESCE(s.mature_count, 0) AS mature_count,
+  COALESCE(s.relearning_count, 0) AS relearning_count,
   COALESCE(s.learn_eligible_count, 0) AS learn_eligible_count,
   COALESCE(s.review_eligible_count, 0) AS review_eligible_count
 FROM

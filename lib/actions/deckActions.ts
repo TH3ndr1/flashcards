@@ -16,6 +16,7 @@ export type DeckListItemWithCounts = {
     updated_at: string;
     new_count: number;
     learning_count: number;
+    relearning_count: number;
     young_count: number;
     mature_count: number;
     learn_eligible_count: number;
@@ -56,6 +57,7 @@ export async function getDecks(): Promise<ActionResult<DeckListItemWithCounts[]>
             ...deck,
             new_count: Number(deck.new_count ?? 0),
             learning_count: Number(deck.learning_count ?? 0),
+            relearning_count: Number(deck.relearning_count ?? 0),
             young_count: Number(deck.young_count ?? 0),
             mature_count: Number(deck.mature_count ?? 0),
             learn_eligible_count: Number(deck.learn_eligible_count ?? 0),
