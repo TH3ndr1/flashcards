@@ -50,7 +50,7 @@ export function StudySetSelector({
       const criteriaForAll: StudyQueryCriteria = { allCards: true, tagLogic: 'ANY' };
       return { criteria: criteriaForAll };
     } else if (selectionSource === 'deck' && selectedDeckId) {
-      const criteriaForDeck: StudyQueryCriteria = { deckId: selectedDeckId, tagLogic: 'ANY' };
+      const criteriaForDeck: StudyQueryCriteria = { deckIds: [selectedDeckId], tagLogic: 'ANY' };
       return { criteria: criteriaForDeck };
     } else if (selectionSource === 'studySet' && selectedStudySetId) {
       return { studySetId: selectedStudySetId };
