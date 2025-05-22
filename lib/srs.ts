@@ -94,12 +94,21 @@ export function calculateSm2State(
   // --- Handle Lapse (Grade 1 from Review) ---
   if (grade === 1) {
       appLogger.info("[calculateSm2State] Grade 1 (Again) in Review. Lapsing to Relearning.");
-      const relearningIntervalMinutes = settings.relearningStepsMinutes[0]; // First relearning step
-      const nextReviewDue = addMinutes(new Date(), relearningIntervalMinutes);
+      
+      let firstRelearningStepMinutes: number;
+      if (settings.relearningStepsMinutes && settings.relearningStepsMinutes.length > 0 && typeof settings.relearningStepsMinutes[0] === 'number' && settings.relearningStepsMinutes[0] > 0) {
+          firstRelearningStepMinutes = settings.relearningStepsMinutes[0];
+      } else {
+          // Fallback to a sensible hardcoded default if settings are invalid or empty
+          firstRelearningStepMinutes = 10; // Default to 10 minutes as a final safeguard
+          appLogger.warn(`[calculateSm2State] Invalid, empty, or non-positive relearningStepsMinutes[0] in settings. Falling back to hardcoded default: ${firstRelearningStepMinutes} min. Settings array:`, settings.relearningStepsMinutes);
+      }
+
+      const nextReviewDue = addMinutes(new Date(), firstRelearningStepMinutes);
 
       newSrsLevel = 0; // Reset level on lapse
       // EF penalty already applied above as part of standard EF calculation
-      newIntervalDays = relearningIntervalMinutes / (60 * 24); // Store interval as fractional days
+      newIntervalDays = firstRelearningStepMinutes / (60 * 24); // Store interval as fractional days
       newLearningState = 'relearning'; // Card is now in relearning state
       newLearningStepIndex = 0; // Start at step 0 of relearning
 
@@ -191,14 +200,17 @@ export function calculateNextStandardLearnStep(
     let nextStepIndex: number | 'graduated';
     let intervalMinutes: number | null = null; // The interval for the *next* step
 
-    if (!steps || steps.length === 0) {
-        appLogger.error("Standard learning steps not defined or empty in settings. Graduating immediately.");
+    if (!steps || steps.length === 0 || typeof steps[0] !== 'number') { // GUARD CLAUSE with type check
+        appLogger.error(`Standard learning steps not defined, empty, or invalid in settings. Graduating immediately. Steps:`, steps);
+        // Fallback to a very short step to avoid issues, effectively graduating or re-evaluating quickly.
+        // Or use a default like settings.defaultFirstLearningStepMinutes if available.
+        // For now, graduating is a safe fallback if steps are misconfigured.
         return { nextStepIndex: 'graduated', nextDueTime: new Date(), intervalMinutes: null };
     }
 
     if (grade === 1) { // Again: Go back to first step
         nextStepIndex = 0;
-        intervalMinutes = steps[0];
+        intervalMinutes = steps[0]; // Safe due to guard clause
     } else if (grade === 4) { // Easy: Skip all steps and graduate
         nextStepIndex = 'graduated';
         intervalMinutes = null; // Graduation interval handled by createGraduationPayload
@@ -243,8 +255,8 @@ export function calculateNextRelearningStep(
     let nextStepIndex: number | 'graduatedFromRelearning';
     let intervalMinutes: number | null = null; // The interval for the *next* step
 
-     if (!steps || steps.length === 0) {
-        appLogger.error("Relearning steps not defined or empty in settings. Defaulting to immediate re-entry to review.");
+     if (!steps || steps.length === 0 || typeof steps[0] !== 'number') { // GUARD CLAUSE with type check
+        appLogger.error(`Relearning steps not defined, empty, or invalid in settings. Defaulting to immediate re-entry to review. Steps:`, steps);
         return { nextStepIndex: 'graduatedFromRelearning', nextDueTime: new Date(), intervalMinutes: null };
     }
 
