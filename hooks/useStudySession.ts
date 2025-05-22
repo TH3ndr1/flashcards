@@ -361,16 +361,22 @@ export function useStudySession({
                 const { card: answeredDbCard, internalState: answeredInternalState } = currentQueueItem;
                 let outcome: CardStateUpdateOutcome;
 
-                if (answeredDbCard.srs_level === 0 && (answeredDbCard.learning_state === 'learning' || answeredDbCard.learning_state === null)) {
+                if (answeredDbCard.srs_level === 0 && (answeredDbCard.learning_state === 'learning' || answeredDbCard.learning_state === null /* treat new as learning for handler */)) {
                     outcome = handleInitialLearningAnswer(answeredDbCard, answeredInternalState, grade, currentSettings);
                 } else if (answeredDbCard.srs_level === 0 && answeredDbCard.learning_state === 'relearning') {
                     outcome = handleRelearningAnswer(answeredDbCard, answeredInternalState, grade, currentSettings);
-                } else if (answeredDbCard.srs_level !== null && answeredDbCard.srs_level >= 1 && answeredDbCard.learning_state === null) {
+                } else { // Reviewing (srs_level >= 1)
                     outcome = handleReviewAnswer(answeredDbCard, answeredInternalState, grade, currentSettings);
-                } else {
-                    appLogger.error("[useStudySession] answerCard: Unhandled card state:", answeredDbCard);
-                    return;
                 }
+
+                // Log the outcome right after it's determined and BEFORE passing to queue manager
+                appLogger.debug(`[useStudySession] answerCard: Outcome from state handler for card ${answeredDbCard.id}, grade ${grade}:`, {
+                    queueInstruction: outcome.queueInstruction,
+                    nextDueTime: outcome.nextInternalState.dueTime,
+                    learningState: outcome.dbUpdatePayload.learning_state,
+                    learningStepIndex: outcome.dbUpdatePayload.learning_step_index,
+                    reinsertAfterNJobs: outcome.reinsertAfterNJobs
+                });
 
                 setSessionResults(prev => {
                     const newResults = { ...prev, totalAnswered: prev.totalAnswered + 1 };

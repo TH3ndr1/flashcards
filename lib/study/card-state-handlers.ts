@@ -201,9 +201,9 @@ export function handleReviewAnswer(
         srsLevel: card.srs_level,
         easinessFactor: card.easiness_factor ?? settings.defaultEasinessFactor,
         intervalDays: card.interval_days ?? 0,
-        learningState: null, // In review, these are null
-        learningStepIndex: null, // In review, these are null
-        nextReviewDue: card.next_review_due ? parseISO(card.next_review_due) : null // CORRECTED IMPORT
+        learningState: null,
+        learningStepIndex: null,
+        nextReviewDue: card.next_review_due ? parseISO(card.next_review_due) : null
     };
 
     const sm2Result = calculateSm2State(sm2Input, grade, settings);
@@ -218,10 +218,9 @@ export function handleReviewAnswer(
     if (sm2Result.learningState === 'relearning') {
         console.log(`[CardStateHandler] Card ${card.id} lapsed to Relearning.`);
         sessionResultCategory = 'lapsed';
-        nextInternalState.learningStepIndex = 0;
+        nextInternalState.learningStepIndex = sm2Result.learningStepIndex;
         nextInternalState.dueTime = sm2Result.nextReviewDue || new Date();
-        // If relearning steps are very short and should happen in the same session:
-        // queueInstruction = 'set-timed-step'; // This would keep it in the queue
+        queueInstruction = 'set-timed-step';
     } else {
         console.log(`[CardStateHandler] Card ${card.id} successful in Review. Next due: ${dbUpdatePayload.next_review_due}`);
     }
