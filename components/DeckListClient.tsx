@@ -112,6 +112,7 @@ export function DeckListClient({ initialData = [] }: DeckListClientProps) {
             decks.map((deck) => {
               const totalCardsForDisplay = (deck.new_count ?? 0) +
                                  (deck.learning_count ?? 0) +
+                                 (deck.relearning_count ?? 0) +
                                  (deck.young_count ?? 0) +
                                  (deck.mature_count ?? 0);
 
