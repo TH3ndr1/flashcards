@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "test": "jest --verbose",
-    "lint": "next lint"
+    "lint": "next lint",
+    "export:codebase": "bash scripts/export_codebase.sh"
   },
   "dependencies": {
     "@google-cloud/documentai": "^9.1.0",

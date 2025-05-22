@@ -5,68 +5,62 @@ import { useCallback, useMemo } from 'react';
 import { useForm, UseFormReturn } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { StudyQueryCriteriaSchema, StudyQueryCriteria } from '@/lib/schema/study-query.schema'; // Using the corrected schema
+import { StudyQueryCriteriaSchema, StudyQueryCriteria } from '@/lib/schema/study-query.schema';
 import { useTags } from '@/hooks/useTags';
 import { useDecks } from '@/hooks/useDecks';
 import type { Tables } from "@/types/database";
 import { toast } from 'sonner';
 import { format, isValid, parseISO } from "date-fns";
 import { DateRange } from "react-day-picker";
-import { appLogger, statusLogger } from '@/lib/logger';
 
 type DbTag = Tables<'tags'>;
 type DeckListItem = Pick<Tables<'decks'>, 'id' | 'name'>;
 
-// Operator constants (remain the same)
 const DateDaysOperators = ['newerThanDays', 'olderThanDays'] as const;
 const DateSpecificOperators = ['onDate', 'betweenDates'] as const;
 const NullableDateOperators = ['never'] as const;
 const DueDateOperators = ['isDue'] as const;
-const SrsLevelOperators = ['equals', 'lessThan', 'greaterThan'] as const;
+const SrsStageEnum = z.enum(['new', 'learning', 'relearning', 'young', 'mature']);
+export type SrsStage = z.infer<typeof SrsStageEnum>;
 
 type CreatedUpdatedDateOp = typeof DateDaysOperators[number] | typeof DateSpecificOperators[number];
 type LastReviewedDateOp = CreatedUpdatedDateOp | typeof NullableDateOperators[number];
 type NextReviewDateOp = CreatedUpdatedDateOp | typeof NullableDateOperators[number] | typeof DueDateOperators[number];
-type SrsLevelOp = typeof SrsLevelOperators[number];
 
-// Form Schema (remains the same as your last version)
+// Zod Schema for the FORM data (Updated: removed includeLearning)
 const studySetFormSchema = z.object({
   name: z.string().trim().min(1, 'Study set name is required').max(100, 'Name too long'),
   description: z.string().trim().max(500, 'Description too long').optional().nullable(),
-  selectedDeckId: z.string().uuid().or(z.literal('none')).optional().nullable(),
+  selectedDeckIds: z.array(z.string().uuid()).optional().default([]),
   includeTags: z.array(z.string().uuid()).optional().default([]),
   tagLogic: z.enum(['ANY', 'ALL']).optional().default('ANY'),
   excludeTags: z.array(z.string().uuid()).optional().default([]),
+  containsLanguage: z.string().length(2).or(z.literal('')).optional().nullable(),
   createdDateOperator: z.string().nullable().optional(),
-  createdDateValueDays: z.string().nullable().optional(),
+  createdDateValueDays: z.string().regex(/^\d*$/, "Must be a number").nullable().optional(),
   createdDateValueDate: z.date().nullable().optional(),
   createdDateValueRange: z.custom<DateRange>((val): val is DateRange => typeof val === 'object' && val !== null && (val.from !== undefined || val.to !== undefined), "Invalid date range").nullable().optional(),
   updatedDateOperator: z.string().nullable().optional(),
-  updatedDateValueDays: z.string().nullable().optional(),
+  updatedDateValueDays: z.string().regex(/^\d*$/, "Must be a number").nullable().optional(),
   updatedDateValueDate: z.date().nullable().optional(),
   updatedDateValueRange: z.custom<DateRange>((val): val is DateRange => typeof val === 'object' && val !== null && (val.from !== undefined || val.to !== undefined), "Invalid date range").nullable().optional(),
   lastReviewedOperator: z.string().nullable().optional(),
-  lastReviewedValueDays: z.string().nullable().optional(),
+  lastReviewedValueDays: z.string().regex(/^\d*$/, "Must be a number").nullable().optional(),
   lastReviewedValueDate: z.date().nullable().optional(),
   lastReviewedValueRange: z.custom<DateRange>((val): val is DateRange => typeof val === 'object' && val !== null && (val.from !== undefined || val.to !== undefined), "Invalid date range").nullable().optional(),
   nextReviewDueOperator: z.string().nullable().optional(),
-  nextReviewDueValueDays: z.string().nullable().optional(),
+  nextReviewDueValueDays: z.string().regex(/^\d*$/, "Must be a number").nullable().optional(),
   nextReviewDueValueDate: z.date().nullable().optional(),
   nextReviewDueValueRange: z.custom<DateRange>((val): val is DateRange => typeof val === 'object' && val !== null && (val.from !== undefined || val.to !== undefined), "Invalid date range").nullable().optional(),
-  srsLevelOperator: z.string().nullable().optional(),
-  srsLevelValue: z.number().int().gte(0).nullable().optional(),
-  includeLearning: z.boolean().optional().nullable(),
+  selectedSrsStages: z.array(SrsStageEnum).optional().default([]),
+  // includeLearning removed from here
 }).strict();
 
 export type StudySetBuilderFormData = z.infer<typeof studySetFormSchema>;
 
-// Type for the return of mapDateFilterToCriteria - this will be a general object,
-// specific validation happens with Zod at the end.
 type GenericDateFilterObject = { operator: string; value?: string | [string, string] };
 
-
-// parseDateCriteriaForForm (remains same as your last version)
-const parseDateCriteriaForForm = (
+const parseDateCriteriaForForm = ( /* ... same as previous correct version ... */
     criteriaValue?: StudyQueryCriteria[keyof Pick<StudyQueryCriteria, 'createdDate' | 'updatedDate' | 'lastReviewed' | 'nextReviewDue'>]
 ): { operator: string | null; days: string | null; date: Date | null; range: DateRange | null } => {
     const defaultValue = { operator: null, days: null, date: null, range: null };
@@ -88,25 +82,18 @@ const parseDateCriteriaForForm = (
         } else if (op === 'never' || op === 'isDue') {
             return { ...defaultValue, operator: op };
         }
-    } catch (e) {
-        appLogger.error("Error parsing date criteria for form:", e);
-    }
+    } catch (e) { console.error("Error parsing date criteria for form:", e); }
     return defaultValue;
 };
 
-const parseSrsLevelCriteriaForForm = (criteriaValue?: StudyQueryCriteria['srsLevel'] ): { operator: string | null; value: number | null } => {
-    if (criteriaValue?.operator && typeof criteriaValue.value === 'number') {
-        return { operator: criteriaValue.operator, value: criteriaValue.value };
-    }
-    return { operator: null, value: null };
-};
 
-interface UseStudySetFormProps { /* ... */
+interface UseStudySetFormProps {
     initialData?: { id?: string; name: string; description?: string | null; criteria: StudyQueryCriteria };
     onSave: (data: { name: string; description: string | null; criteria: StudyQueryCriteria }) => Promise<void>;
     isSaving?: boolean;
 }
-export interface UseStudySetFormReturn { /* ... */
+
+export interface UseStudySetFormReturn {
     form: UseFormReturn<StudySetBuilderFormData>;
     isLoading: boolean;
     tagsError: string | null;
@@ -119,19 +106,20 @@ export interface UseStudySetFormReturn { /* ... */
         updatedDateOperator: string | null | undefined;
         lastReviewedOperator: string | null | undefined;
         nextReviewDueOperator: string | null | undefined;
-        srsLevelOperator: string | null | undefined;
     };
     watchedFilterValues: {
-        includeLearning: boolean | null | undefined;
+        // includeLearning removed
         includeTags: string[] | undefined;
         excludeTags: string[] | undefined;
+        selectedDeckIds: string[] | undefined;
+        selectedSrsStages: SrsStage[] | undefined;
     };
     allowedOperators: {
         createdUpdatedOps: readonly CreatedUpdatedDateOp[];
         lastReviewedOps: readonly LastReviewedDateOp[];
         nextReviewDueOps: readonly NextReviewDateOp[];
-        srsLevelOps: readonly SrsLevelOp[];
     };
+    srsStageOptions: readonly SrsStage[];
 }
 
 export function useStudySetForm({ initialData, onSave, isSaving = false }: UseStudySetFormProps): UseStudySetFormReturn {
@@ -142,18 +130,18 @@ export function useStudySetForm({ initialData, onSave, isSaving = false }: UseSt
   const initialUpdated = useMemo(() => parseDateCriteriaForForm(initialData?.criteria?.updatedDate), [initialData]);
   const initialLastReviewed = useMemo(() => parseDateCriteriaForForm(initialData?.criteria?.lastReviewed), [initialData]);
   const initialNextReviewDue = useMemo(() => parseDateCriteriaForForm(initialData?.criteria?.nextReviewDue), [initialData]);
-  const initialSrsLevel = useMemo(() => parseSrsLevelCriteriaForForm(initialData?.criteria?.srsLevel), [initialData]);
-  const initialIncludeLearning = useMemo(() => initialData?.criteria?.includeLearning ?? false, [initialData]);
+  // initialIncludeLearning removed
 
-  const form = useForm<StudySetBuilderFormData>({ /* ... */
+  const form = useForm<StudySetBuilderFormData>({
     resolver: zodResolver(studySetFormSchema),
     defaultValues: {
       name: initialData?.name || '',
       description: initialData?.description ?? null,
-      selectedDeckId: initialData?.criteria?.deckId ?? 'none',
+      selectedDeckIds: initialData?.criteria?.deckIds || [],
       includeTags: initialData?.criteria?.includeTags || [],
       tagLogic: initialData?.criteria?.tagLogic || 'ANY',
       excludeTags: initialData?.criteria?.excludeTags || [],
+      containsLanguage: initialData?.criteria?.containsLanguage || null,
       createdDateOperator: initialCreated.operator,
       createdDateValueDays: initialCreated.days,
       createdDateValueDate: initialCreated.date,
@@ -170,28 +158,27 @@ export function useStudySetForm({ initialData, onSave, isSaving = false }: UseSt
       nextReviewDueValueDays: initialNextReviewDue.days,
       nextReviewDueValueDate: initialNextReviewDue.date,
       nextReviewDueValueRange: initialNextReviewDue.range,
-      srsLevelOperator: initialSrsLevel.operator,
-      srsLevelValue: initialSrsLevel.value,
-      includeLearning: initialIncludeLearning,
+      selectedSrsStages: initialData?.criteria?.srsStages || [],
+      // includeLearning removed
     },
     mode: 'onChange',
   });
 
-  const watchedOperatorsArray = form.watch(['createdDateOperator', 'updatedDateOperator', 'lastReviewedOperator', 'nextReviewDueOperator', 'srsLevelOperator']);
-  const watchedFilterValuesArray = form.watch(['includeLearning', 'includeTags', 'excludeTags']);
-  const [createdDateOperator, updatedDateOperator, lastReviewedOperator, nextReviewDueOperator, srsLevelOperator] = watchedOperatorsArray;
-  const [includeLearning, includeTags, excludeTags] = watchedFilterValuesArray;
+  const watchedOperatorsArray = form.watch(['createdDateOperator', 'updatedDateOperator', 'lastReviewedOperator', 'nextReviewDueOperator']);
+  // includeLearning removed from watchedFilterValuesArray
+  const watchedFilterValuesArray = form.watch(['includeTags', 'excludeTags', 'selectedDeckIds', 'selectedSrsStages']);
+  const [createdDateOperator, updatedDateOperator, lastReviewedOperator, nextReviewDueOperator] = watchedOperatorsArray;
+  // includeLearning removed
+  const [includeTags, excludeTags, selectedDeckIds, selectedSrsStages] = watchedFilterValuesArray;
 
-  // Corrected mapDateFilterToCriteria
-  const mapDateFilterToCriteria = useCallback((
+  const mapDateFilterToCriteria = useCallback(( /* ... same as previous correct version ... */
     operator?: string | null,
     days?: string | null,
     date?: Date | null,
     range?: DateRange | null
-  ): GenericDateFilterObject | undefined => { // Return a more generic object type
+  ): GenericDateFilterObject | undefined => {
     if (!operator || operator === 'any') return undefined;
-
-    if ((operator === 'newerThanDays' || operator === 'olderThanDays') && days && /^\d+$/.test(days)) {
+    if ((operator === 'newerThanDays' || operator === 'olderThanDays') && days && /^\d+$/.test(days) && parseInt(days, 10) > 0) {
       return { operator, value: days };
     }
     if (operator === 'onDate' && date && isValid(date)) {
@@ -200,83 +187,68 @@ export function useStudySetForm({ initialData, onSave, isSaving = false }: UseSt
     if (operator === 'betweenDates' && range && range.from && range.to && isValid(range.from) && isValid(range.to)) {
       return { operator, value: [format(range.from, 'yyyy-MM-dd'), format(range.to, 'yyyy-MM-dd')] };
     }
-    // For operators without a value, return only the operator
     if (operator === 'never' || operator === 'isDue') {
-      return { operator }; // No 'value' property
+      return { operator };
     }
     return undefined;
   }, []);
 
   const handleFormSubmit = useCallback(form.handleSubmit(async (formData: StudySetBuilderFormData) => {
-    const criteriaToBuild: { [key: string]: any } = {}; // Build as a general object first
+    const criteriaToBuild: { [key: string]: any } = {};
 
-    if (formData.selectedDeckId && formData.selectedDeckId !== 'none') {
-      criteriaToBuild.deckId = formData.selectedDeckId;
+    if (formData.selectedDeckIds && formData.selectedDeckIds.length > 0) {
+      criteriaToBuild.deckIds = formData.selectedDeckIds;
     }
     if (formData.includeTags && formData.includeTags.length > 0) {
       criteriaToBuild.includeTags = formData.includeTags;
       criteriaToBuild.tagLogic = formData.tagLogic ?? 'ANY';
     }
-    // No else needed for tagLogic if includeTags is empty, as tagLogic is optional in Zod schema if includeTags is absent
-
     if (formData.excludeTags && formData.excludeTags.length > 0) {
       criteriaToBuild.excludeTags = formData.excludeTags;
+    }
+    if (formData.containsLanguage && formData.containsLanguage.length === 2) {
+        criteriaToBuild.containsLanguage = formData.containsLanguage;
     }
 
     const createdDateFilter = mapDateFilterToCriteria(formData.createdDateOperator, formData.createdDateValueDays, formData.createdDateValueDate, formData.createdDateValueRange);
     if (createdDateFilter) criteriaToBuild.createdDate = createdDateFilter;
-
     const updatedDateFilter = mapDateFilterToCriteria(formData.updatedDateOperator, formData.updatedDateValueDays, formData.updatedDateValueDate, formData.updatedDateValueRange);
     if (updatedDateFilter) criteriaToBuild.updatedDate = updatedDateFilter;
-
     const lastReviewedFilter = mapDateFilterToCriteria(formData.lastReviewedOperator, formData.lastReviewedValueDays, formData.lastReviewedValueDate, formData.lastReviewedValueRange);
     if (lastReviewedFilter) criteriaToBuild.lastReviewed = lastReviewedFilter;
-
     const nextReviewDueFilter = mapDateFilterToCriteria(formData.nextReviewDueOperator, formData.nextReviewDueValueDays, formData.nextReviewDueValueDate, formData.nextReviewDueValueRange);
     if (nextReviewDueFilter) criteriaToBuild.nextReviewDue = nextReviewDueFilter;
 
-    if (formData.srsLevelOperator && formData.srsLevelOperator !== 'any' &&
-        formData.srsLevelValue !== null && formData.srsLevelValue !== undefined && formData.srsLevelValue >= 0) {
-      const validSrsOps: SrsLevelOp[] = ['equals', 'lessThan', 'greaterThan'];
-      if (validSrsOps.includes(formData.srsLevelOperator as SrsLevelOp)) {
-        criteriaToBuild.srsLevel = { operator: formData.srsLevelOperator as SrsLevelOp, value: formData.srsLevelValue };
-      }
+    if (formData.selectedSrsStages && formData.selectedSrsStages.length > 0) {
+        criteriaToBuild.srsStages = formData.selectedSrsStages;
     }
 
-    if (formData.includeLearning === true) {
-      criteriaToBuild.includeLearning = true;
-    } else if (formData.includeLearning === false) { // Explicitly handle false
-      criteriaToBuild.includeLearning = false;
-    }
-    // If formData.includeLearning is null/undefined, it's omitted from criteriaToBuild
+    // includeLearning mapping removed
+    // The includeLearning flag can still be part of StudyQueryCriteria for other uses,
+    // but it's not set via this specific form anymore.
 
-
-    // console.log("Criteria before final parse:", JSON.stringify(criteriaToBuild, null, 2));
     const parsedFinalCriteria = StudyQueryCriteriaSchema.safeParse(criteriaToBuild);
-
     if (!parsedFinalCriteria.success) {
-        appLogger.error("Validation of final criteria failed:", parsedFinalCriteria.error.format());
+        console.error("Validation of final criteria failed:", parsedFinalCriteria.error.format());
         const errorMessages = parsedFinalCriteria.error.errors.map(err => `${err.path.join('.') || 'criteria'}: ${err.message}`).join('; ');
         toast.error("Error constructing query.", { description: errorMessages || "Some filter values are invalid." });
         return;
     }
 
-    appLogger.info("Final Form Data (Raw for debug):", formData);
-    appLogger.info("Generated Criteria for Save:", parsedFinalCriteria.data);
-
+    console.log("Generated Criteria for Save:", parsedFinalCriteria.data);
     await onSave({
       name: formData.name,
       description: formData.description ?? null,
       criteria: parsedFinalCriteria.data
     }).catch(err => {
       toast.error("Save failed.");
-      appLogger.error("onSave callback error:", err);
+      console.error("onSave callback error:", err);
     });
   }), [form, onSave, mapDateFilterToCriteria]);
 
   const isLoadingOverall = isLoadingTags || isLoadingDecks || isSaving;
 
-  return { /* ... same as before ... */
+  return {
     form,
     isLoading: isLoadingOverall,
     tagsError,
@@ -284,13 +256,13 @@ export function useStudySetForm({ initialData, onSave, isSaving = false }: UseSt
     allTags: allTags || [],
     decks: (decks || []) as DeckListItem[],
     onSubmit: handleFormSubmit,
-    watchedOperators: { createdDateOperator, updatedDateOperator, lastReviewedOperator, nextReviewDueOperator, srsLevelOperator },
-    watchedFilterValues: { includeLearning, includeTags, excludeTags },
+    watchedOperators: { createdDateOperator, updatedDateOperator, lastReviewedOperator, nextReviewDueOperator },
+    watchedFilterValues: { /* includeLearning removed */ includeTags, excludeTags, selectedDeckIds, selectedSrsStages },
     allowedOperators: {
         createdUpdatedOps: [...DateDaysOperators, ...DateSpecificOperators],
         lastReviewedOps: [...DateDaysOperators, ...DateSpecificOperators, ...NullableDateOperators],
         nextReviewDueOps: [...DateDaysOperators, ...DateSpecificOperators, ...NullableDateOperators, ...DueDateOperators],
-        srsLevelOps: [...SrsLevelOperators],
-    }
+    },
+    srsStageOptions: [...SrsStageEnum.options]
   };
 }

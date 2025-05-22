@@ -13,6 +13,7 @@ import { useAuth } from "@/hooks/use-auth"
 import { toast } from "sonner"
 import type { AuthError } from '@supabase/supabase-js'
 import { appLogger, statusLogger } from '@/lib/logger'
+import { Loader2 as IconLoader } from 'lucide-react'
 
 /**
  * Login Page component.
@@ -128,7 +129,7 @@ function LoginContent() {
   if (authLoading || user) {
     return (
         <div className="flex items-center justify-center min-h-screen bg-background">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          <IconLoader className="h-12 w-12 animate-spin text-primary" />
         </div>
       )
   }

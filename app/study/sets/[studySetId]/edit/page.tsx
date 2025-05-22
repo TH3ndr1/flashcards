@@ -143,8 +143,9 @@ export default function EditStudySetPage() {
 
     if (isLoading) {
         return (
-            <div className="flex justify-center items-center h-screen">
-                <IconLoader className="h-8 w-8 animate-spin mr-2" /> Loading study set...
+            <div className="flex flex-col justify-center items-center h-screen">
+                <IconLoader className="h-12 w-12 animate-spin text-primary" />
+                <p className="mt-2 text-muted-foreground">Loading study set...</p>
             </div>
         );
     }

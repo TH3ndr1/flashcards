@@ -1,76 +1,77 @@
 // components/study/StudySetBuilder.tsx
 'use client';
 
-import React, { useMemo, useCallback } from 'react'; // Removed useState
-// Import the hook and its return type
-import { useStudySetForm, UseStudySetFormReturn, StudySetBuilderFormData } from '@/hooks/useStudySetForm'; // Import form data type
-// Import UI components
-import { Button } from '@/components/ui/button';
+import React, { useCallback } from 'react';
+import {
+    useStudySetForm,
+    type StudySetBuilderFormData, // Ensure this is exported from the hook
+    type SrsStage // Ensure this is exported from the hook
+} from '@/hooks/useStudySetForm'; // Corrected: UseStudySetFormReturn not needed directly here
+import {
+    Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage
+} from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from '@/components/ui/button';
+import { Select as UISelect, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
-import { Command, CommandInput, CommandList, CommandItem, CommandGroup, CommandEmpty } from '@/components/ui/command';
+import {
+    Command, CommandInput, CommandList, CommandItem, CommandGroup, CommandEmpty
+} from '@/components/ui/command';
 import { Calendar } from "@/components/ui/calendar";
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-// Keep type imports needed for props and rendering helpers
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+import {
+    CalendarIcon, Check, ChevronsUpDown, Loader2 as IconLoader, Languages, GripVertical, Tag, Filter
+} from "lucide-react";
+import { format, isValid } from "date-fns";
+import type { DateRange } from "react-day-picker";
 import type { StudyQueryCriteria } from '@/lib/schema/study-query.schema';
-import type { Database, Tables } from "@/types/database";
+import type { Tables } from "@/types/database";
+
 type DbTag = Tables<'tags'>;
 
-import { cn } from "@/lib/utils";
-import { CalendarIcon, Check, ChevronsUpDown, Loader2 as IconLoader, Plus as IconPlus, X as IconX } from "lucide-react";
-import { format, isValid } from "date-fns";
-import { Badge } from '@/components/ui/badge';
-import { DateRange } from "react-day-picker";
-
-
-// --- Type Guard for DateRange ---
-function isDateRange(value: unknown): value is DateRange {
-  return typeof value === 'object' && value !== null && ('from' in value || 'to' in value);
-}
-
-
-// --- Component Props ---
 interface StudySetBuilderProps {
   initialData?: { id?: string; name: string; description?: string | null; criteria: StudyQueryCriteria; };
   onSave: (data: { name: string; description: string | null; criteria: StudyQueryCriteria }) => Promise<void>;
   isSaving?: boolean;
 }
 
-// --- Component Implementation ---
+const ANY_LANGUAGE_PLACEHOLDER_VALUE = "__ANY_LANGUAGE__";
+
+const languageOptions = [
+    { value: ANY_LANGUAGE_PLACEHOLDER_VALUE, label: "-- Any Language --" },
+    { value: "en", label: "English" }, { value: "fr", label: "French" },
+    { value: "es", label: "Spanish" }, { value: "de", label: "German" },
+    { value: "it", label: "Italian" }, { value: "nl", label: "Dutch" },
+];
+
 export function StudySetBuilder({ initialData, onSave, isSaving = false }: StudySetBuilderProps) {
-  // Use the hook to get form state, data, and handlers
   const {
     form,
     isLoading,
-    tagsError,
-    decksError,
-    allTags,
-    decks,
+    allTags, // Used in renderMultiSelectPopover
+    decks,   // Used in renderMultiSelectPopover
     onSubmit,
     watchedOperators,
     watchedFilterValues,
     allowedOperators,
+    srsStageOptions
   } = useStudySetForm({ initialData, onSave, isSaving });
 
-  // Destructure watched values for easier use in JSX
-  const { srsLevelOperator } = watchedOperators;
+  const { control, watch, setValue, resetField } = form;
   const { includeTags } = watchedFilterValues;
 
-  // --- FIX: Move Render Helper Functions INSIDE the component ---
-  // Wrap in useCallback to stabilize references if needed, include deps
-
   const renderDateValueInputs = useCallback((
-      opField: keyof typeof watchedOperators,
-      daysField: keyof StudySetBuilderFormData,
-      dateField: keyof StudySetBuilderFormData,
-      rangeField: keyof StudySetBuilderFormData
+      opFieldKey: keyof Pick<StudySetBuilderFormData, "createdDateOperator" | "updatedDateOperator" | "lastReviewedOperator" | "nextReviewDueOperator">,
+      daysFieldKey: keyof Pick<StudySetBuilderFormData, "createdDateValueDays" | "updatedDateValueDays" | "lastReviewedValueDays" | "nextReviewDueValueDays">,
+      dateFieldKey: keyof Pick<StudySetBuilderFormData, "createdDateValueDate" | "updatedDateValueDate" | "lastReviewedValueDate" | "nextReviewDueValueDate">,
+      rangeFieldKey: keyof Pick<StudySetBuilderFormData, "createdDateValueRange" | "updatedDateValueRange" | "lastReviewedValueRange" | "nextReviewDueValueRange">
   ) => {
-      // Access form and watched values from the component's scope
-      const operator = form.watch(opField);
+      const operator = watch(opFieldKey);
       const showDays = operator === 'newerThanDays' || operator === 'olderThanDays';
       const showDate = operator === 'onDate';
       const showRange = operator === 'betweenDates';
@@ -78,192 +79,214 @@ export function StudySetBuilder({ initialData, onSave, isSaving = false }: Study
 
       return (
           <div className={`flex-grow grid grid-cols-1 sm:grid-cols-2 gap-2 ${showAnyValueInput ? 'mt-2 sm:mt-0' : 'hidden'}`}>
-              {/* Days Input - Ensure value is string for Input, handle number conversion in onChange */}
-              <FormField control={form.control} name={daysField} render={({ field }) => (<FormItem className={showDays ? '' : 'hidden'}><FormLabel className="sr-only">Days</FormLabel><FormControl><Input type="number" placeholder="Days" {...field} value={typeof field.value === 'number' ? String(field.value) : ''} onChange={e => field.onChange(e.target.value === '' ? null : parseInt(e.target.value, 10))} disabled={isLoading || !showDays} min="1" /></FormControl><FormMessage /></FormItem>)} />
-              {/* Date Input - Add type checks */}
-              <FormField control={form.control} name={dateField} render={({ field }) => (<FormItem className={`flex flex-col ${showDate ? '' : 'hidden'}`}><FormLabel className="sr-only">Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")} disabled={isLoading || !showDate}><CalendarIcon className="mr-2 h-4 w-4" />{field.value instanceof Date && isValid(field.value) ? format(field.value, "PPP") : <span>Pick a date</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value instanceof Date ? field.value : undefined} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>)} />
-              {/* Date Range Input - Add type guards */}
-              <FormField control={form.control} name={rangeField} render={({ field }) => {
-                const currentRange = isDateRange(field.value) ? field.value : undefined;
-                const fromValid = currentRange?.from instanceof Date && isValid(currentRange.from);
-                const toValid = currentRange?.to instanceof Date && isValid(currentRange.to);
+              <FormField control={control} name={daysFieldKey} render={({ field }) => (
+                  <FormItem className={showDays ? '' : 'hidden'}>
+                      <FormLabel className="sr-only">Days</FormLabel>
+                      <FormControl><Input type="text" pattern="\d*" placeholder="Days" {...field} value={field.value ?? ''} disabled={isLoading || !showDays} /></FormControl>
+                      <FormMessage />
+                  </FormItem>
+              )} />
+              <FormField control={control} name={dateFieldKey} render={({ field }) => (
+                  <FormItem className={`flex flex-col ${showDate ? '' : 'hidden'}`}>
+                      <FormLabel className="sr-only">Date</FormLabel>
+                      <Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")} disabled={isLoading || !showDate}><CalendarIcon className="mr-2 h-4 w-4" />{field.value && isValid(field.value) ? format(field.value, "PPP") : <span>Pick a date</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value ?? undefined} onSelect={field.onChange} initialFocus /></PopoverContent></Popover>
+                      <FormMessage />
+                  </FormItem>
+              )} />
+              <FormField control={control} name={rangeFieldKey} render={({ field }) => {
+                const currentRange = field.value ?? undefined;
                 return (
                   <FormItem className={`flex flex-col ${showRange ? '' : 'hidden'}`}>
                     <FormLabel className="sr-only">Date Range</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button id={rangeField as string} variant={"outline"} className={cn("w-full justify-start text-left font-normal", !currentRange?.from && !currentRange?.to && "text-muted-foreground")} disabled={isLoading || !showRange}>
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {fromValid && toValid ? (
-                              <>{format(currentRange.from!, "LLL dd, y")} - {format(currentRange.to!, "LLL dd, y")}</>
-                            ) : fromValid ? (
-                              `From ${format(currentRange.from!, "LLL dd, y")}`
-                            ) : toValid ? (
-                              `To ${format(currentRange.to!, "LLL dd, y")}`
-                            ) : (
-                              <span>Pick a date range</span>
-                            )}
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          initialFocus
-                          mode="range"
-                          defaultMonth={currentRange?.from instanceof Date ? currentRange.from : undefined}
-                          selected={currentRange}
-                          onSelect={field.onChange}
-                          numberOfMonths={2}
-                        />
-                      </PopoverContent>
-                    </Popover>
+                    <Popover><PopoverTrigger asChild><FormControl><Button id={rangeFieldKey} variant={"outline"} className={cn("w-full justify-start text-left font-normal", !currentRange?.from && !currentRange?.to && "text-muted-foreground")} disabled={isLoading || !showRange}><CalendarIcon className="mr-2 h-4 w-4" />{(currentRange?.from && isValid(currentRange.from)) && (currentRange?.to && isValid(currentRange.to)) ? (<>{format(currentRange.from, "LLL dd, y")} - {format(currentRange.to, "LLL dd, y")}</>) : (currentRange?.from && isValid(currentRange.from)) ? (`From ${format(currentRange.from, "LLL dd, y")}`) : (currentRange?.to && isValid(currentRange.to)) ? (`To ${format(currentRange.to, "LLL dd, y")}`) : (<span>Pick a date range</span>)}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar initialFocus mode="range" defaultMonth={currentRange?.from} selected={currentRange} onSelect={field.onChange} numberOfMonths={2} /></PopoverContent></Popover>
                     <FormMessage />
                   </FormItem>
                 );
               }} />
           </div>
       );
-   // Dependencies now include form and isLoading from the hook's scope
-  }, [form, isLoading]);
+  }, [control, isLoading, watch]);
 
-
-  const renderTagMultiSelect = useCallback((
-      fieldName: "includeTags" | "excludeTags",
-      label: string,
-      description: string
-  ) => {
-      // Internal helper - ok inside useCallback
-      const getTagObjects = (ids: string[] = [], all: DbTag[] = []): DbTag[] => {
-          if (!Array.isArray(all)) return [];
-          const idMap = new Map(all.map(tag => [tag.id, tag]));
-          return ids.map(id => idMap.get(id)).filter((tag): tag is DbTag => tag !== undefined);
-      };
-
-      return (
-           <FormField
-                control={form.control} // Access form from component scope
-                name={fieldName}
-                render={({ field }) => {
-                    // Use allTags from component scope (provided by hook)
-                    const selectedTagObjects = getTagObjects(field.value, allTags);
-                    const availableOptions = Array.isArray(allTags)
-                        ? allTags.filter(tag => !(Array.isArray(field.value) && field.value.includes(tag.id))).sort((a, b) => a.name.localeCompare(b.name))
-                        : [];
-
-                    const handleSelect = (tagId: string) => form.setValue(fieldName, [...(Array.isArray(field.value) ? field.value : []), tagId], { shouldValidate: true, shouldDirty: true });
-                    const handleRemove = (tagId: string) => form.setValue(fieldName, (Array.isArray(field.value) ? field.value : []).filter((id) => id !== tagId), { shouldValidate: true, shouldDirty: true });
-
-                    return (
-                        <FormItem>
-                            <FormLabel className="text-base">{label}</FormLabel>
-                            <div className="flex flex-wrap gap-1 mb-2 min-h-[24px]">
-                                {selectedTagObjects.map((tag) => ( <Badge key={`${fieldName}-${tag.id}`} variant="secondary" className="flex items-center gap-1">{tag.name}<Button variant="ghost" size="icon" onClick={() => handleRemove(tag.id)} disabled={isLoading} aria-label={`Remove tag ${tag.name}`} className="h-4 w-4 p-0 ml-1 rounded-full hover:bg-muted-foreground/20"><IconX className="h-3 w-3" /></Button></Badge> ))}
-                            </div>
-                            <Popover>
-                                <PopoverTrigger asChild><Button variant="outline" role="combobox" className="w-[200px] justify-start font-normal" disabled={isLoading}> {isLoading ? 'Loading...' : `+ Add Tag`} </Button></PopoverTrigger>
-                                <PopoverContent className="w-[200px] p-0" align="start"><Command filter={(value, search) => { const tag = allTags?.find(t => t.id === value); return tag?.name.toLowerCase().includes(search.toLowerCase()) ? 1 : 0; }}><CommandInput placeholder="Search tags..." /><CommandList><CommandEmpty>No tags found.</CommandEmpty><CommandGroup>{availableOptions.map((tag) => (<CommandItem key={tag.id} value={tag.id} onSelect={() => handleSelect(tag.id)}>{tag.name}</CommandItem>))}</CommandGroup></CommandList></Command></PopoverContent>
-                            </Popover>
-                            <FormDescription>{description}</FormDescription>
-                            <FormMessage />
-                        </FormItem>
-                    );
-                }}
-            />
-      );
-  // Dependencies now include form, isLoading, and allTags from the hook's scope
-  }, [form, isLoading, allTags]);
-
-
-  // Handle loading/error states from hook
-  if (tagsError || decksError) { return <p className="text-destructive">Error loading required data: {tagsError || decksError}</p>; }
-  // Optional: Loading indicator
-  // if (isLoading && !initialData) { return <p>Loading builder options...</p>; }
-
+  const renderMultiSelectPopover = useCallback((
+      field: keyof Pick<StudySetBuilderFormData, "selectedDeckIds" | "selectedSrsStages" | "includeTags" | "excludeTags">,
+      options: { value: string; label: string }[],
+      selectedValuesProp: string[] | SrsStage[] | undefined,
+      placeholder: string,
+      groupLabel: string
+    ) => {
+        const selectedValues = Array.isArray(selectedValuesProp) ? selectedValuesProp.map(String) : [];
+        return (
+            <Popover>
+                <PopoverTrigger asChild>
+                    <Button variant="outline" role="combobox" className="w-full justify-between font-normal min-h-[40px] h-auto py-2">
+                        <span className="flex flex-wrap gap-1">
+                            {selectedValues.length > 0
+                                ? selectedValues.map(val => {
+                                    const option = options.find(opt => opt.value === val);
+                                    return option ? <Badge key={val} variant="secondary" className="text-xs px-1.5 py-0.5">{option.label}</Badge> : null;
+                                  }).filter(Boolean)
+                                : <span className="text-muted-foreground">{placeholder}</span>
+                            }
+                        </span>
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                    <Command>
+                        <CommandInput placeholder={`Search ${groupLabel.toLowerCase()}...`} />
+                        <CommandList>
+                            <CommandEmpty>No {groupLabel.toLowerCase()} found.</CommandEmpty>
+                            <CommandGroup>
+                                {options.map((option) => (
+                                    <CommandItem
+                                        key={option.value}
+                                        value={option.label} // Search/display by label
+                                        onSelect={() => {    // Act on value (ID)
+                                            const currentSelected = selectedValues || [];
+                                            const newSelected = currentSelected.includes(option.value)
+                                                ? currentSelected.filter(v => v !== option.value)
+                                                : [...currentSelected, option.value];
+                                            setValue(field, newSelected as any, { shouldValidate: true, shouldDirty: true });
+                                        }}
+                                    >
+                                        <Check className={cn("mr-2 h-4 w-4", selectedValues.includes(option.value) ? "opacity-100" : "opacity-0")} />
+                                        {option.label}
+                                    </CommandItem>
+                                ))}
+                            </CommandGroup>
+                        </CommandList>
+                    </Command>
+                </PopoverContent>
+            </Popover>
+        );
+    // Corrected dependencies for renderMultiSelectPopover
+    }, [setValue, allTags, decks]); // It uses allTags and decks indirectly if options are derived from them
 
   return (
-    // Use the form object returned by the hook
     <Form {...form}>
-      {/* Pass the onSubmit handler returned by the hook */}
       <form onSubmit={onSubmit} className="space-y-8">
-            {/* Name, Description Fields */}
-            <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>Study Set Name</FormLabel><FormControl><Input placeholder="e.g., Hard Verbs Chapter 1" {...field} disabled={isLoading} /></FormControl><FormMessage /></FormItem>)} />
-            <FormField control={form.control} name="description" render={({ field }) => (<FormItem><FormLabel>Description (Optional)</FormLabel><FormControl><Textarea placeholder="Describe what this set includes..." {...field} value={field.value ?? ''} onChange={field.onChange} disabled={isLoading} /></FormControl><FormMessage /></FormItem>)} />
+        <FormField control={control} name="name" render={({ field }) => (<FormItem><FormLabel>Smart Playlist Name</FormLabel><FormControl><Input placeholder="e.g., Hard French Verbs" {...field} disabled={isLoading} /></FormControl><FormMessage /></FormItem>)} />
+        <FormField control={control} name="description" render={({ field }) => (<FormItem><FormLabel>Description (Optional)</FormLabel><FormControl><Textarea placeholder="e.g., All irregular -er verbs from Chapter 3, due this week" {...field} value={field.value ?? ''} onChange={field.onChange} disabled={isLoading} /></FormControl><FormMessage /></FormItem>)} />
 
-            <hr/>
-            <h3 className="text-lg font-medium border-b pb-2">Filter Criteria</h3>
+        <hr/>
+        <Card className="dark:border-slate-700">
+            <CardHeader className="pb-4">
+                <CardTitle className="text-lg font-semibold flex items-center"><Filter className="mr-2 h-5 w-5 text-primary"/> Filter Criteria</CardTitle>
+                <FormDescription>Define rules to dynamically include cards in this playlist.</FormDescription>
+            </CardHeader>
+            <CardContent className="space-y-6 pt-0">
+                <FormField control={control} name="selectedDeckIds" render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Decks</FormLabel>
+                        {renderMultiSelectPopover("selectedDeckIds", decks.map(d => ({ value: d.id, label: d.name })), field.value, "Any Deck", "Decks")}
+                        <FormDescription>Include cards from these specific decks. Leave empty for all decks.</FormDescription>
+                        <FormMessage />
+                    </FormItem>
+                )} />
 
-            {/* Deck Selector */}
-            <FormField control={form.control} name="selectedDeckId" render={({ field }) => (<FormItem><FormLabel>Include Cards From Deck (Optional)</FormLabel><Select onValueChange={(value) => field.onChange(value === 'none' ? null : value)} value={field.value ?? 'none'} disabled={isLoading}><FormControl><SelectTrigger><SelectValue placeholder="-- Any Deck --" /></SelectTrigger></FormControl><SelectContent><SelectItem value="none">-- Any Deck --</SelectItem>{(Array.isArray(decks) ? decks : []).map(deck => (<SelectItem key={deck.id} value={deck.id}>{deck.name}</SelectItem>))}</SelectContent></Select><FormDescription>If selected, only cards from this deck will be included.</FormDescription><FormMessage /></FormItem>)} />
+                <div className="space-y-4">
+                    <FormField control={control} name="includeTags" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Include Deck Tags</FormLabel>
+                            {renderMultiSelectPopover("includeTags", allTags.map(t => ({ value: t.id, label: t.name })), field.value, "Any Tag", "Tags")}
+                            <FormMessage />
+                        </FormItem>
+                    )} />
+                    <FormField control={control} name="tagLogic" render={({ field }) => (
+                        <FormItem className={(field.value && includeTags && includeTags.length > 1) ? 'mt-2 pl-2' : 'hidden'}>
+                            <FormLabel>Tag Logic</FormLabel>
+                            <UISelect onValueChange={field.onChange} value={field.value ?? 'ANY'} disabled={isLoading || !(includeTags && includeTags.length > 1)}>
+                                <FormControl><SelectTrigger className="w-full sm:w-[220px]"><SelectValue /></SelectTrigger></FormControl>
+                                <SelectContent><SelectItem value="ANY">Match ANY selected tag</SelectItem><SelectItem value="ALL">Match ALL selected tags</SelectItem></SelectContent>
+                            </UISelect>
+                            <FormMessage />
+                        </FormItem>
+                    )}/>
+                    <FormField control={control} name="excludeTags" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Exclude Deck Tags</FormLabel>
+                            {renderMultiSelectPopover("excludeTags", allTags.map(t => ({ value: t.id, label: t.name })), field.value, "None", "Tags")}
+                            <FormDescription>Cards with any of these deck tags will be excluded.</FormDescription>
+                            <FormMessage />
+                        </FormItem>
+                    )} />
+                </div>
 
-            {/* Tag Filters using MultiSelect */}
-             <div className="space-y-6 p-4 border rounded-md">
-                 {/* Call helper */}
-                 {renderTagMultiSelect("includeTags", "Include Tags (Optional)", "Select tags to include in the study set.")}
+                <FormField control={control} name="containsLanguage" render={({ field }) => (
+                    <FormItem>
+                        <FormLabel className="flex items-center"><Languages className="mr-2 h-5 w-5 text-muted-foreground" /> Card Language</FormLabel>
+                        <UISelect
+                            onValueChange={(value) => field.onChange(value === ANY_LANGUAGE_PLACEHOLDER_VALUE ? null : value)}
+                            value={field.value ?? ANY_LANGUAGE_PLACEHOLDER_VALUE}
+                            disabled={isLoading}
+                        >
+                            <FormControl><SelectTrigger><SelectValue placeholder="-- Any Language --" /></SelectTrigger></FormControl>
+                            <SelectContent>
+                                {languageOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+                            </SelectContent>
+                        </UISelect>
+                        <FormDescription>Show cards where either side matches this language (based on deck settings).</FormDescription>
+                        <FormMessage />
+                    </FormItem>
+                )} />
 
-                 <FormField control={form.control} name="tagLogic" render={({ field }) => ( <FormItem className={includeTags?.length ? 'mt-2' : 'hidden'}> <FormLabel>Tag Logic</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isLoading}><FormControl><SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="ANY">Match ANY</SelectItem><SelectItem value="ALL">Match ALL</SelectItem></SelectContent></Select><FormMessage /></FormItem> )}/>
+                <FormField control={control} name="selectedSrsStages" render={({ field }) => (
+                    <FormItem>
+                        <FormLabel className="flex items-center"><GripVertical className="mr-2 h-5 w-5 text-muted-foreground"/> Card SRS Stage</FormLabel>
+                        {renderMultiSelectPopover(
+                            "selectedSrsStages",
+                            srsStageOptions.map(stage => ({ value: stage, label: stage.charAt(0).toUpperCase() + stage.slice(1) })),
+                            field.value,
+                            "Any Stage",
+                            "SRS Stages"
+                        )}
+                        <FormDescription>Include cards from any of the selected SRS stages.</FormDescription>
+                        <FormMessage />
+                    </FormItem>
+                )} />
+            </CardContent>
+        </Card>
 
-                 {/* Call helper */}
-                 {renderTagMultiSelect("excludeTags", "Exclude Tags (Optional)", "Cards with these tags will be excluded.")}
-            </div>
-
-            {/* --- Filter Sections --- */}
-            <div className="space-y-6">
-                {/* Created Date */}
-                <div className="space-y-3 p-4 border rounded-md">
-                    <Label className="text-base font-medium">Created Date</Label>
+        <Card className="dark:border-slate-700">
+            <CardHeader className="pb-2">
+                <CardTitle className="text-base font-medium flex items-center"><CalendarIcon className="mr-2 h-5 w-5 text-muted-foreground"/> Date Filters</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6 pt-4">
+                <div className="space-y-3">
+                    <Label className="text-sm font-medium">Card Created Date</Label>
                     <div className="flex flex-col sm:flex-row items-start sm:items-end gap-2">
-                        <FormField control={form.control} name="createdDateOperator" render={({ field }) => (<FormItem className="w-full sm:flex-shrink-0 sm:w-auto sm:min-w-[180px]"><FormLabel className="sr-only">Condition</FormLabel><Select onValueChange={(value) => { field.onChange(value === 'any' ? null : value); form.resetField("createdDateValueDays"); form.resetField("createdDateValueDate"); form.resetField("createdDateValueRange");}} value={field.value ?? 'any'} disabled={isLoading}><FormControl><SelectTrigger><SelectValue placeholder="Any Date" /></SelectTrigger></FormControl><SelectContent><SelectItem value="any">Any Date</SelectItem>{allowedOperators.createdUpdatedOps.map(op => <SelectItem key={op} value={op}>{op}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                        <FormField control={control} name="createdDateOperator" render={({ field }) => (<FormItem className="w-full sm:flex-shrink-0 sm:w-auto sm:min-w-[180px]"><FormLabel className="sr-only">Condition</FormLabel><UISelect onValueChange={(value) => { field.onChange(value === 'any' ? null : value); resetField("createdDateValueDays"); resetField("createdDateValueDate"); resetField("createdDateValueRange");}} value={field.value ?? 'any'} disabled={isLoading}><FormControl><SelectTrigger><SelectValue placeholder="Any Date" /></SelectTrigger></FormControl><SelectContent><SelectItem value="any">Any Date</SelectItem>{allowedOperators.createdUpdatedOps.map(op => <SelectItem key={`cd-${op}`} value={op}>{op.replace(/([A-Z])/g, ' $1').trim()}</SelectItem>)}</SelectContent></UISelect><FormMessage /></FormItem>)} />
                         {renderDateValueInputs('createdDateOperator', 'createdDateValueDays', 'createdDateValueDate', 'createdDateValueRange')}
                     </div>
                 </div>
-
-                {/* Updated Date */}
-                <div className="space-y-3 p-4 border rounded-md">
-                     <Label className="text-base font-medium">Updated Date</Label>
+                <div className="space-y-3">
+                    <Label className="text-sm font-medium">Card Last Updated Date</Label>
                     <div className="flex flex-col sm:flex-row items-start sm:items-end gap-2">
-                        <FormField control={form.control} name="updatedDateOperator" render={({ field }) => (<FormItem className="w-full sm:flex-shrink-0 sm:w-auto sm:min-w-[180px]"><FormLabel className="sr-only">Condition</FormLabel><Select onValueChange={(value) => { field.onChange(value === 'any' ? null : value); form.resetField("updatedDateValueDays"); form.resetField("updatedDateValueDate"); form.resetField("updatedDateValueRange");}} value={field.value ?? 'any'} disabled={isLoading}><FormControl><SelectTrigger><SelectValue placeholder="Any Date" /></SelectTrigger></FormControl><SelectContent><SelectItem value="any">Any Date</SelectItem>{allowedOperators.createdUpdatedOps.map(op => <SelectItem key={op} value={op}>{op}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                        <FormField control={control} name="updatedDateOperator" render={({ field }) => (<FormItem className="w-full sm:flex-shrink-0 sm:w-auto sm:min-w-[180px]"><FormLabel className="sr-only">Condition</FormLabel><UISelect onValueChange={(value) => { field.onChange(value === 'any' ? null : value); resetField("updatedDateValueDays"); resetField("updatedDateValueDate"); resetField("updatedDateValueRange");}} value={field.value ?? 'any'} disabled={isLoading}><FormControl><SelectTrigger><SelectValue placeholder="Any Date" /></SelectTrigger></FormControl><SelectContent><SelectItem value="any">Any Date</SelectItem>{allowedOperators.createdUpdatedOps.map(op => <SelectItem key={`ud-${op}`} value={op}>{op.replace(/([A-Z])/g, ' $1').trim()}</SelectItem>)}</SelectContent></UISelect><FormMessage /></FormItem>)} />
                         {renderDateValueInputs('updatedDateOperator', 'updatedDateValueDays', 'updatedDateValueDate', 'updatedDateValueRange')}
                     </div>
                 </div>
-
-               {/* Last Reviewed Date */}
-                <div className="space-y-3 p-4 border rounded-md">
-                   <Label className="text-base font-medium">Last Reviewed Date</Label>
+                <div className="space-y-3">
+                   <Label className="text-sm font-medium">Card Last Reviewed Date</Label>
                    <div className="flex flex-col sm:flex-row items-start sm:items-end gap-2">
-                       <FormField control={form.control} name="lastReviewedOperator" render={({ field }) => (<FormItem className="w-full sm:flex-shrink-0 sm:w-auto sm:min-w-[180px]"><FormLabel className="sr-only">Condition</FormLabel><Select onValueChange={(value) => { field.onChange(value === 'any' ? null : value); form.resetField("lastReviewedValueDays"); form.resetField("lastReviewedValueDate"); form.resetField("lastReviewedValueRange");}} value={field.value ?? 'any'} disabled={isLoading}><FormControl><SelectTrigger><SelectValue placeholder="Any / Never" /></SelectTrigger></FormControl><SelectContent><SelectItem value="any">Any / Never</SelectItem>{allowedOperators.lastReviewedOps.map(op => <SelectItem key={op} value={op}>{op}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                       <FormField control={control} name="lastReviewedOperator" render={({ field }) => (<FormItem className="w-full sm:flex-shrink-0 sm:w-auto sm:min-w-[180px]"><FormLabel className="sr-only">Condition</FormLabel><UISelect onValueChange={(value) => { field.onChange(value === 'any' ? null : value); resetField("lastReviewedValueDays"); resetField("lastReviewedValueDate"); resetField("lastReviewedValueRange");}} value={field.value ?? 'any'} disabled={isLoading}><FormControl><SelectTrigger><SelectValue placeholder="Any / Never" /></SelectTrigger></FormControl><SelectContent><SelectItem value="any">Any / Never</SelectItem>{allowedOperators.lastReviewedOps.map(op => <SelectItem key={`lr-${op}`} value={op}>{op.replace(/([A-Z])/g, ' $1').trim()}</SelectItem>)}</SelectContent></UISelect><FormMessage /></FormItem>)} />
                        {renderDateValueInputs('lastReviewedOperator', 'lastReviewedValueDays', 'lastReviewedValueDate', 'lastReviewedValueRange')}
                    </div>
                </div>
-
-               {/* Next Review Due Date */}
-               <div className="space-y-3 p-4 border rounded-md">
-                   <Label className="text-base font-medium">Next Review Due Date</Label>
+               <div className="space-y-3">
+                   <Label className="text-sm font-medium">Card Next Review Due Date</Label>
                    <div className="flex flex-col sm:flex-row items-start sm:items-end gap-2">
-                       <FormField control={form.control} name="nextReviewDueOperator" render={({ field }) => (<FormItem className="w-full sm:flex-shrink-0 sm:w-auto sm:min-w-[180px]"><FormLabel className="sr-only">Condition</FormLabel><Select onValueChange={(value) => { field.onChange(value === 'any' ? null : value); form.resetField("nextReviewDueValueDays"); form.resetField("nextReviewDueValueDate"); form.resetField("nextReviewDueValueRange");}} value={field.value ?? 'any'} disabled={isLoading}><FormControl><SelectTrigger><SelectValue placeholder="Any / Never / Due" /></SelectTrigger></FormControl><SelectContent><SelectItem value="any">Any / Never / Due</SelectItem>{allowedOperators.nextReviewDueOps.map(op => <SelectItem key={op} value={op}>{op}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                       <FormField control={control} name="nextReviewDueOperator" render={({ field }) => (<FormItem className="w-full sm:flex-shrink-0 sm:w-auto sm:min-w-[180px]"><FormLabel className="sr-only">Condition</FormLabel><UISelect onValueChange={(value) => { field.onChange(value === 'any' ? null : value); resetField("nextReviewDueValueDays"); resetField("nextReviewDueValueDate"); resetField("nextReviewDueValueRange");}} value={field.value ?? 'any'} disabled={isLoading}><FormControl><SelectTrigger><SelectValue placeholder="Any / Never / Due" /></SelectTrigger></FormControl><SelectContent><SelectItem value="any">Any / Never / Due</SelectItem>{allowedOperators.nextReviewDueOps.map(op => <SelectItem key={`nr-${op}`} value={op}>{op.replace(/([A-Z])/g, ' $1').trim()}</SelectItem>)}</SelectContent></UISelect><FormMessage /></FormItem>)} />
                        {renderDateValueInputs('nextReviewDueOperator', 'nextReviewDueValueDays', 'nextReviewDueValueDate', 'nextReviewDueValueRange')}
                    </div>
                </div>
+            </CardContent>
+        </Card>
 
-               {/* SRS Level Filter */}
-                <div className="space-y-3 p-4 border rounded-md">
-                    <Label className="text-base font-medium">SRS Level</Label>
-                    <div className="flex flex-col sm:flex-row items-start sm:items-end gap-2">
-                        <FormField control={form.control} name="srsLevelOperator" render={({ field }) => (<FormItem className="w-full sm:flex-shrink-0 sm:w-auto sm:min-w-[180px]"><FormLabel className="sr-only">Condition</FormLabel><Select onValueChange={(value) => { field.onChange(value === 'any' ? null : value); form.resetField("srsLevelValue"); }} value={field.value ?? 'any'} disabled={isLoading}><FormControl><SelectTrigger><SelectValue placeholder="Any Level" /></SelectTrigger></FormControl><SelectContent><SelectItem value="any">Any Level</SelectItem>{allowedOperators.srsLevelOps.map(op => <SelectItem key={op} value={op}>{op}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
-                        <div className={`flex-grow grid grid-cols-1 gap-2 ${srsLevelOperator ? 'mt-2 sm:mt-0' : 'hidden'}`}>
-                            <FormField control={form.control} name="srsLevelValue" render={({ field }) => (<FormItem><FormLabel className="sr-only">Level</FormLabel><FormControl><Input type="number" placeholder="Level (e.g., 0, 1, 5)" {...field} value={typeof field.value === 'number' ? String(field.value) : ''} onChange={e => field.onChange(e.target.value === '' ? null : parseInt(e.target.value, 10))} disabled={isLoading || !srsLevelOperator} min="0" /></FormControl><FormMessage /></FormItem>)} />
-                        </div>
-                    </div>
-                </div>
-
-            </div> {/* End Filter Criteria Wrapper */}
-
-
-            {/* Submit Button */}
-            <Button type="submit" disabled={isLoading || isSaving} className="w-full">
-                {isSaving ? <IconLoader className="animate-spin mr-2 h-4 w-4" /> : null}
-                {initialData?.id ? 'Update Study Set' : 'Create Study Set'}
-            </Button>
+        <Button type="submit" disabled={isLoading || isSaving} className="w-full text-base py-6">
+            {isSaving ? <IconLoader className="animate-spin mr-2 h-5 w-5" /> : null}
+            {initialData?.id ? 'Update Smart Playlist' : 'Create Smart Playlist'}
+        </Button>
       </form>
     </Form>
   );

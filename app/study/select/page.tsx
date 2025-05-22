@@ -45,7 +45,6 @@ export default async function StudySelectPage() {
       <PageHeading 
         title="Choose Study Material"
         description="Select what you want to review" 
-        backHref="/"
       />
       <StudySelectClient 
         initialDecks={(decksResult.data || []) as unknown as DeckWithCounts[]} 

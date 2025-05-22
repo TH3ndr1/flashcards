@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { PlusCircle, Edit } from "lucide-react"
+import { PlusCircle, Edit, Loader2 as IconLoader } from "lucide-react"
 import { useDecks } from "@/hooks/use-decks"
 import { useRouter } from "next/navigation"
 import { useStudySessionStore } from "@/store/studySessionStore"
@@ -92,7 +92,7 @@ export function DeckList() {
       const deckCardsPromises = decks.map(deck => 
         resolveStudyQuery({
           criteria: { 
-            deckId: deck.id, 
+            deckIds: [deck.id], 
             tagLogic: 'ANY' as const,
           }
         })
@@ -209,14 +209,7 @@ export function DeckList() {
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-64">
-        {/* Spinner animation */}
-        <div
-          className={`h-12 w-12 rounded-full border-2 border-primary ${isVisible ? 'animate-spin border-b-transparent' : ''}`}
-          style={{
-            animation: isVisible ? 'spin 1s linear infinite' : 'none',
-            borderBottomColor: 'transparent'
-          }}
-        />
+        {isVisible && <IconLoader className="h-12 w-12 animate-spin text-primary" />}
       </div>
     )
   }

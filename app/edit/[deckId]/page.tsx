@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useParams, useRouter } from "next/navigation"; // Keep useRouter if needed for back button etc.
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Loader2 as IconLoader } from "lucide-react";
 // Import the new hook and components
 import { useEditDeck } from "./useEditDeck";
 import { DeckMetadataEditor } from "./DeckMetadataEditor";
@@ -54,7 +54,7 @@ export default function EditDeckPage() {
     if (loading) {
         return (
             <div className="flex justify-center items-center h-screen">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+                <IconLoader className="h-12 w-12 animate-spin text-primary" />
             </div>
         );
     }
@@ -89,7 +89,7 @@ export default function EditDeckPage() {
 
     // --- Main Render ---
     return (
-        <div className="py-4 px-4 md:p-6 max-w-4xl mx-auto">
+        <div className="container mx-auto py-6 md:py-8 px-4">
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
                 <h1 className="text-2xl font-bold truncate pr-4" title={deck.name}>Edit Deck: {deck.name}</h1>

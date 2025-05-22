@@ -72,7 +72,7 @@ export function DeckListClient({ initialData = [] }: DeckListClientProps) {
   };
 
   const handleCreateDeckClick = () => {
-    router.push('/decks/new');
+    router.push('/decks/create-choice');
   };
 
   if (isLoading) {

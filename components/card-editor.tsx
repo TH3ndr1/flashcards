@@ -10,7 +10,6 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Trash2, Save, Loader2 as IconLoader } from "lucide-react"
 import type { Tables } from "@/types/database" // Use generated DB types
-import { debounce } from "@/lib/utils"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { appLogger } from "@/lib/logger"
@@ -23,8 +22,6 @@ const GENDER_OPTIONS = [
     { value: 'Default', label: 'Neutral / Other'}
 ];
 const GENDERED_POS: ReadonlyArray<string> = ['Noun', 'Adjective', 'Pronoun'] as const;
-
-const DEBOUNCE_WAIT_MS = 750; // Slightly increased debounce for stability
 
 // Use Tables<'cards'> for card data
 type DbCard = Tables<'cards'>;
@@ -61,54 +58,65 @@ export function CardEditor({ card, onUpdate, onDelete, onCreate }: CardEditorPro
   const isExistingCard = !!card?.id && !card.id.startsWith('new-');
 
   useEffect(() => {
+    // This effect ensures the internal state is updated if the card prop changes.
+    // This is important if the parent component updates the card data after a save.
     setInternalQuestion(card?.question || '');
     setInternalAnswer(card?.answer || '');
     setInternalQuestionPos(card?.question_part_of_speech || 'N/A');
     setInternalQuestionGender(card?.question_gender || 'Default');
     setInternalAnswerPos(card?.answer_part_of_speech || 'N/A');
     setInternalAnswerGender(card?.answer_gender || 'Default');
-    setIsSavingNew(false);
-  }, [card]); // Dependencies are correct
+    setIsSavingNew(false); // Reset saving state if card instance changes
+  }, [card]); // Dependency is the card prop itself.
 
-  const debouncedOnUpdate = useCallback(
-    debounce((data: PartialCardDataInput) => {
-      if (isExistingCard && card?.id) {
-        appLogger.info('[CardEditor] Debounced update triggered for ID:', card.id, 'Data:', data);
-        onUpdate(card.id, data);
-      }
-    }, DEBOUNCE_WAIT_MS),
-    // card.id and isExistingCard are derived from props, stable if card prop is stable
-    [onUpdate, card?.id, isExistingCard]
-  );
-
-  const handleFieldChange = (
-    updatesToApply: PartialCardDataInput
-  ) => {
-    // Update local state first
-    if (updatesToApply.question !== undefined) setInternalQuestion(updatesToApply.question);
-    if (updatesToApply.answer !== undefined) setInternalAnswer(updatesToApply.answer);
-    if (updatesToApply.question_part_of_speech !== undefined) setInternalQuestionPos(updatesToApply.question_part_of_speech === null ? 'N/A' : updatesToApply.question_part_of_speech);
-    if (updatesToApply.question_gender !== undefined) setInternalQuestionGender(updatesToApply.question_gender === null ? 'Default' : updatesToApply.question_gender);
-    if (updatesToApply.answer_part_of_speech !== undefined) setInternalAnswerPos(updatesToApply.answer_part_of_speech === null ? 'N/A' : updatesToApply.answer_part_of_speech);
-    if (updatesToApply.answer_gender !== undefined) setInternalAnswerGender(updatesToApply.answer_gender === null ? 'Default' : updatesToApply.answer_gender);
-
-    // Prepare data for debounced update or create
-    const currentData: PartialCardDataInput = {
-        question: updatesToApply.question !== undefined ? updatesToApply.question : internalQuestion,
-        answer: updatesToApply.answer !== undefined ? updatesToApply.answer : internalAnswer,
-        question_part_of_speech: (updatesToApply.question_part_of_speech !== undefined ? updatesToApply.question_part_of_speech : internalQuestionPos) === 'N/A' ? null : (updatesToApply.question_part_of_speech ?? internalQuestionPos),
-        question_gender: (updatesToApply.question_gender !== undefined ? updatesToApply.question_gender : internalQuestionGender) === 'Default' ? null : (updatesToApply.question_gender ?? internalQuestionGender),
-        answer_part_of_speech: (updatesToApply.answer_part_of_speech !== undefined ? updatesToApply.answer_part_of_speech : internalAnswerPos) === 'N/A' ? null : (updatesToApply.answer_part_of_speech ?? internalAnswerPos),
-        answer_gender: (updatesToApply.answer_gender !== undefined ? updatesToApply.answer_gender : internalAnswerGender) === 'Default' ? null : (updatesToApply.answer_gender ?? internalAnswerGender),
-    };
-
-
-    if (isExistingCard) {
-        debouncedOnUpdate(currentData);
-    }
-    // For new cards, the "Save New Card" button will handle the create action
+  const handleQuestionChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInternalQuestion(e.target.value);
   };
 
+  const handleAnswerChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInternalAnswer(e.target.value);
+  };
+
+  const handleQuestionBlur = () => {
+    if (isExistingCard && card?.id && internalQuestion !== card?.question) {
+      appLogger.info('[CardEditor] Question blur update for ID:', card.id);
+      onUpdate(card.id, { question: internalQuestion });
+    }
+  };
+
+  const handleAnswerBlur = () => {
+    if (isExistingCard && card?.id && internalAnswer !== card?.answer) {
+      appLogger.info('[CardEditor] Answer blur update for ID:', card.id);
+      onUpdate(card.id, { answer: internalAnswer });
+    }
+  };
+
+  const handleSelectChange = (
+    field: keyof Pick<CardDataInput, 'question_part_of_speech' | 'question_gender' | 'answer_part_of_speech' | 'answer_gender'>, 
+    value: string
+  ) => {
+    const actualValue = (value === 'N/A' || value === 'Default') ? null : value;
+    let changed = false;
+
+    if (field === 'question_part_of_speech') {
+      setInternalQuestionPos(value); // value here is 'N/A' or actual PoS
+      if (actualValue !== card?.question_part_of_speech) changed = true;
+    } else if (field === 'question_gender') {
+      setInternalQuestionGender(value); // value here is 'Default' or actual Gender
+      if (actualValue !== card?.question_gender) changed = true;
+    } else if (field === 'answer_part_of_speech') {
+      setInternalAnswerPos(value);
+      if (actualValue !== card?.answer_part_of_speech) changed = true;
+    } else if (field === 'answer_gender') {
+      setInternalAnswerGender(value);
+      if (actualValue !== card?.answer_gender) changed = true;
+    }
+
+    if (isExistingCard && card?.id && changed) {
+      appLogger.info('[CardEditor] Select change update for ID:', card.id, 'Field:', field, 'Value:', actualValue);
+      onUpdate(card.id, { [field]: actualValue });
+    }
+  };
 
   const handleDelete = () => {
     if (card?.id) { // Works for both existing and placeholder IDs
@@ -182,7 +190,8 @@ export function CardEditor({ card, onUpdate, onDelete, onCreate }: CardEditorPro
               id={`question-${cardIdSuffix}`}
               placeholder="Enter question..."
               value={internalQuestion}
-              onChange={(e) => handleFieldChange({ question: e.target.value })}
+              onChange={handleQuestionChange}
+              onBlur={handleQuestionBlur}
               className="min-h-[100px]"
               aria-label="Question content"
               disabled={isSavingNew}
@@ -192,7 +201,7 @@ export function CardEditor({ card, onUpdate, onDelete, onCreate }: CardEditorPro
                 <Label htmlFor={`q-pos-${cardIdSuffix}`} className="text-xs text-muted-foreground">Type</Label>
                 <Select
                   value={internalQuestionPos}
-                  onValueChange={(value) => handleFieldChange({ question_part_of_speech: value })}
+                  onValueChange={(value) => handleSelectChange('question_part_of_speech', value)}
                   name={`q-pos-${cardIdSuffix}`}
                   disabled={isSavingNew}
                 >
@@ -210,7 +219,7 @@ export function CardEditor({ card, onUpdate, onDelete, onCreate }: CardEditorPro
                     <Label htmlFor={`q-gender-${cardIdSuffix}`} className="text-xs text-muted-foreground">Gender</Label>
                     <Select
                       value={internalQuestionGender}
-                      onValueChange={(value) => handleFieldChange({ question_gender: value })}
+                      onValueChange={(value) => handleSelectChange('question_gender', value)}
                       name={`q-gender-${cardIdSuffix}`}
                       disabled={isSavingNew}
                     >
@@ -234,7 +243,8 @@ export function CardEditor({ card, onUpdate, onDelete, onCreate }: CardEditorPro
               id={`answer-${cardIdSuffix}`}
               placeholder="Enter answer..."
               value={internalAnswer}
-              onChange={(e) => handleFieldChange({ answer: e.target.value })}
+              onChange={handleAnswerChange}
+              onBlur={handleAnswerBlur}
               className="min-h-[100px]"
               aria-label="Answer content"
               disabled={isSavingNew}
@@ -244,7 +254,7 @@ export function CardEditor({ card, onUpdate, onDelete, onCreate }: CardEditorPro
                 <Label htmlFor={`a-pos-${cardIdSuffix}`} className="text-xs text-muted-foreground">Type</Label>
                 <Select
                   value={internalAnswerPos}
-                  onValueChange={(value) => handleFieldChange({ answer_part_of_speech: value })}
+                  onValueChange={(value) => handleSelectChange('answer_part_of_speech', value)}
                   name={`a-pos-${cardIdSuffix}`}
                   disabled={isSavingNew}
                 >
@@ -262,7 +272,7 @@ export function CardEditor({ card, onUpdate, onDelete, onCreate }: CardEditorPro
                     <Label htmlFor={`a-gender-${cardIdSuffix}`} className="text-xs text-muted-foreground">Gender</Label>
                     <Select
                       value={internalAnswerGender}
-                      onValueChange={(value) => handleFieldChange({ answer_gender: value })}
+                      onValueChange={(value) => handleSelectChange('answer_gender', value)}
                       name={`a-gender-${cardIdSuffix}`}
                       disabled={isSavingNew}
                     >
@@ -291,3 +301,5 @@ export function CardEditor({ card, onUpdate, onDelete, onCreate }: CardEditorPro
     </Card>
   )
 }
+
+CardEditor.displayName = 'CardEditor';

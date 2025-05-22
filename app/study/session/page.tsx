@@ -14,7 +14,7 @@ import { Terminal } from "lucide-react"
 import { toast } from 'sonner';
 import { useSettings } from '@/providers/settings-provider';
 import { useTTS } from "@/hooks/use-tts";
-import type { SessionType, StudyCardDb } from '@/types/study';
+import type { SessionType, StudyCardDb, SessionResults } from '@/types/study'; // Added SessionResults
 import { appLogger } from '@/lib/logger';
 
 const FLIP_DURATION_MS = 300;
@@ -41,17 +41,18 @@ export default function StudySessionPage() {
     error,
     sessionType,
     isComplete,
-    totalCardsInSession,
-    currentCardNumberInSession,
+    totalCardsInSession, // This is initialEligibleCardCount from the hook
+    // currentCardNumberInSession, // We will derive a new one based on refined progress
     initialQueryCount,
     answerCard,
-    sessionResults,
+    sessionResults, // Full SessionResults object
     isProcessingAnswer,
     isFlipped,
     onFlip,
     currentCardStatusDisplay,
     showContinueReviewPrompt,
-    onContinueReview
+    onContinueReview,
+    unifiedSessionPhase // Destructure this new property
   }: UseStudySessionReturn = useStudySession({
     initialInput: currentInputFromStore,
     sessionType: sessionTypeFromStore
@@ -60,15 +61,13 @@ export default function StudySessionPage() {
   const [isTransitioningVisual, setIsTransitioningVisual] = useState(false);
   const { speak, stop, ttsState } = useTTS({});
 
-  // Refs for TTS logic
   const prevCardIdRef = useRef<string | null | undefined>(null);
-  const prevIsFlippedRef = useRef(isFlipped); // Tracks previous flip state for edge detection
-  const speakInitiatedForQuestionRef = useRef(false); // Has speak been called for current Q?
-  const speakInitiatedForAnswerRef = useRef(false);   // Has speak been called for current A?
+  const prevIsFlippedRef = useRef(isFlipped);
+  const speakInitiatedForQuestionRef = useRef(false);
+  const speakInitiatedForAnswerRef = useRef(false);
 
   const isLoadingPage = isInitializing || isLoadingSettings || !isPageInitialized;
 
-  // Effect to check for necessary study parameters and redirect if missing
   useEffect(() => {
     if (!isPageInitialized) {
         setIsPageInitialized(true);
@@ -89,90 +88,66 @@ export default function StudySessionPage() {
     };
   }, [isPageInitialized, currentInputFromStore, sessionTypeFromStore, router, isLoadingSettings, isInitializing]);
 
-
-  // Effect to reset visual transition and TTS "spoken" flags when currentCard.id changes
   useEffect(() => {
     if (currentCard?.id !== prevCardIdRef.current) {
-        appLogger.info(`[SessionPage] Card ID changed. Resetting all TTS spoken flags.`);
+        setIsTransitioningVisual(false);
         speakInitiatedForQuestionRef.current = false;
         speakInitiatedForAnswerRef.current = false;
         prevCardIdRef.current = currentCard?.id;
-        setIsTransitioningVisual(false);
-    } else if (!isFlipped && prevIsFlippedRef.current) { // Just flipped from Answer back to Question
-        appLogger.info(`[SessionPage] Flipped back to question for card ${currentCard?.id}. Resetting answer spoken flag.`);
-        // Only reset answer flag, question might have been spoken and we might want it again
-        speakInitiatedForAnswerRef.current = false;
-        // To allow question to re-speak, reset its flag too if desired
-        // speakInitiatedForQuestionRef.current = false; // <-- Add this line to re-speak question
     }
-}, [currentCard?.id, isFlipped]); // prevIsFlippedRef is not needed here, it's for the next render
+  }, [currentCard?.id]);
 
-// TTS Effect for Speaking Question
-useEffect(() => {
+  useEffect(() => {
     const cardForTTS = currentCard as StudyCardDb | null;
-    // Speak if: TTS enabled, card exists, not loading, ON FRONT, AND (it's a new card OR we just flipped back to front)
-    // The speakInitiated flag is to prevent re-speak due to other state changes (like ttsState) while on the same card face.
-    if (!settings?.ttsEnabled || !cardForTTS || ttsState === 'loading' || isLoadingPage || isFlipped) {
-        if (isFlipped && speakInitiatedForQuestionRef.current) {
-             // If we flipped away from question after it spoke, reset its flag so it can speak again if we flip back
-             // speakInitiatedForQuestionRef.current = false; // This might be too aggressive
-        }
-        return;
+    if (!settings?.ttsEnabled || !cardForTTS || ttsState === 'loading' || isLoadingPage || isFlipped || speakInitiatedForQuestionRef.current) {
+      return;
     }
-
-    // Condition to speak:
-    // 1. Card ID has changed and question hasn't been initiated for this new card.
-    // 2. OR, we just flipped TO the question side (isFlipped is false, prevIsFlippedRef was true)
-    //    AND the question hasn't been initiated yet in this "front-facing" instance.
-    const justFlippedToQuestion = !isFlipped && prevIsFlippedRef.current; // Detects flip from back to front
-
-    if (!speakInitiatedForQuestionRef.current || justFlippedToQuestion) {
-        const textToSpeak = cardForTTS.question;
-        const langToUse = cardForTTS.decks?.primary_language ?? 'en';
-
-        if (textToSpeak && langToUse) {
-            appLogger.info(`[SessionPage TTS - Question] Requesting speak for card ${cardForTTS.id}. Reason: ${!speakInitiatedForQuestionRef.current ? "New card/init" : "Flipped to Q"}`);
-            speakInitiatedForQuestionRef.current = true;
-            stop();
-            speak(textToSpeak, langToUse)
-                .catch(ttsError => {
-                    appLogger.error("[SessionPage TTS - Question] Failed to speak text:", ttsError);
-                    if (typeof window !== 'undefined' && !window.ttsErrorShown) {
-                        toast.error("Text-to-speech error", { description: "TTS for question failed." });
-                        window.ttsErrorShown = true;
-                    }
-                    speakInitiatedForQuestionRef.current = false;
-                });
-        }
+    const textToSpeak = cardForTTS.question;
+    const langToUse = cardForTTS.decks?.primary_language ?? 'en';
+    if (textToSpeak && langToUse) {
+      appLogger.info(`[SessionPage TTS - Question] Requesting speak for card ${cardForTTS.id}`);
+      speakInitiatedForQuestionRef.current = true;
+      stop();
+      speak(textToSpeak, langToUse)
+        .catch(ttsError => {
+          appLogger.error("[SessionPage TTS - Question] Failed to speak text:", ttsError);
+          if (typeof window !== 'undefined' && !window.ttsErrorShown) {
+            toast.error("Text-to-speech error", { description: "TTS for question failed." });
+            window.ttsErrorShown = true;
+          }
+          speakInitiatedForQuestionRef.current = false;
+        });
     }
-}, [currentCard, isFlipped, settings?.ttsEnabled, isLoadingPage, speak, stop, ttsState]); // prevIsFlippedRef managed in its own effect
+  }, [currentCard, isFlipped, settings?.ttsEnabled, isLoadingPage, speak, stop, ttsState]);
 
-// TTS Effect for Speaking Answer (this one is likely fine as is)
-useEffect(() => {
+  useEffect(() => {
     const cardForTTS = currentCard as StudyCardDb | null;
     if (!settings?.ttsEnabled || !cardForTTS || ttsState === 'loading' || isLoadingPage || !isFlipped || speakInitiatedForAnswerRef.current) {
-        return;
+      return;
     }
-
-    if (isFlipped && !prevIsFlippedRef.current) { // Only speak on transition to back
+    if (isFlipped && !prevIsFlippedRef.current) {
         const textToSpeak = cardForTTS.answer;
-        // ... (rest of answer speaking logic)
         const langToUse = cardForTTS.decks?.secondary_language ?? cardForTTS.decks?.primary_language ?? 'en';
         if (textToSpeak && langToUse) {
             appLogger.info(`[SessionPage TTS - Answer] Requesting speak for card ${cardForTTS.id}`);
             speakInitiatedForAnswerRef.current = true;
             stop();
             speak(textToSpeak, langToUse)
-                .catch( /* ... */);
+                .catch(ttsError => {
+                    appLogger.error("[SessionPage TTS - Answer] Failed to speak text:", ttsError);
+                    if (typeof window !== 'undefined' && !window.ttsErrorShown) {
+                        toast.error("Text-to-speech error", { description: "TTS for answer failed." });
+                        window.ttsErrorShown = true;
+                    }
+                    speakInitiatedForAnswerRef.current = false;
+                });
         }
     }
-}, [currentCard, isFlipped, settings?.ttsEnabled, isLoadingPage, speak, stop, ttsState]);
+  }, [currentCard, isFlipped, settings?.ttsEnabled, isLoadingPage, speak, stop, ttsState]);
 
-// Effect to update prevIsFlippedRef (runs after all other effects for the render)
-useEffect(() => {
+  useEffect(() => {
     prevIsFlippedRef.current = isFlipped;
-});
-
+  });
 
   const handleFlip = useCallback(() => {
     if (isTransitioningVisual || isProcessingAnswer) return;
@@ -184,11 +159,52 @@ useEffect(() => {
     return () => clearTimeout(timer);
   }, [isTransitioningVisual, onFlip, isProcessingAnswer]);
 
-  // --- Render Logic ---
+
+  // --- REFINED PROGRESS CALCULATION ---
+  const { progressValue, cardPositionText } = useMemo(() => {
+    const results = sessionResults as SessionResults; // Ensure sessionResults is not null
+
+    if (totalCardsInSession === 0) {
+      return { progressValue: 0, cardPositionText: "No cards" };
+    }
+
+    let currentProgressCount = 0;
+    const maxProgressCount = totalCardsInSession;
+
+    if (sessionType === 'learn-only' || (sessionType === 'unified' && unifiedSessionPhase === 'learning')) {
+      currentProgressCount = results.graduatedFromLearnCount;
+    } else if (sessionType === 'review-only' || (sessionType === 'unified' && unifiedSessionPhase === 'review')) {
+      // For review, each card answered (correctly or incorrectly) is considered "processed" for this pass
+      // If unified, totalAnswered includes learning phase. We need a way to track review phase answers.
+      // For now, using totalAnswered for review-only, and a more complex calculation for unified-review might be needed.
+      // Let's assume for review-only, totalAnswered IS the progress for this phase.
+      // For unified review phase, this might show total progress of entire session.
+      // A simple way for unified review is to count non-learning cards answered or total - learning cards answered.
+      // This needs refinement if precise phase progress is desired for unified review.
+      // Using totalAnswered might be misleading if it doesn't reset between phases of unified.
+      // Let's use totalAnswered for now, and acknowledge this might need phase-specific counters in SessionResults.
+      currentProgressCount = results.totalAnswered; // This will be cumulative for unified
+    } else {
+      currentProgressCount = results.totalAnswered; // Fallback
+    }
+
+    const displayProgressCount = Math.min(currentProgressCount, maxProgressCount);
+    const calculatedProgressValue = maxProgressCount > 0 ? (displayProgressCount / maxProgressCount) * 100 : 0;
+    const currentCardDisplayNum = displayProgressCount + (isComplete || showContinueReviewPrompt ? 0 : 1);
+
+
+    return {
+      progressValue: calculatedProgressValue,
+      cardPositionText: `Card ${Math.min(currentCardDisplayNum, maxProgressCount)} / ${maxProgressCount}`
+    };
+  }, [sessionType, unifiedSessionPhase, sessionResults, totalCardsInSession, isComplete, showContinueReviewPrompt]);
+  // --- END OF REFINED PROGRESS CALCULATION ---
+
+
   if (isLoadingPage) {
      return (
         <div className="flex flex-col justify-center items-center min-h-screen">
-            <IconLoader className="h-10 w-10 animate-spin mb-4" />
+            <IconLoader className="h-12 w-12 animate-spin text-primary mb-4" />
             <p className="text-muted-foreground">Loading session...</p>
         </div>
     );
@@ -265,8 +281,9 @@ useEffect(() => {
     );
   }
 
-  const progressValue = totalCardsInSession > 0 ? (sessionResults.totalAnswered / totalCardsInSession) * 100 : 0;
-  const cardPositionText = `Card ${currentCardNumberInSession} / ${totalCardsInSession}`;
+  // Use the new progressValue and cardPositionText from the useMemo hook
+  // const progressValue = totalCardsInSession > 0 ? (sessionResults.totalAnswered / totalCardsInSession) * 100 : 0;
+  // const cardPositionText = `Card ${currentCardNumberInSession} / ${totalCardsInSession}`;
 
   let displaySessionTitle = 'Practice Session';
   if (sessionType === 'learn-only') {
@@ -274,8 +291,13 @@ useEffect(() => {
   } else if (sessionType === 'review-only') {
       displaySessionTitle = 'Review Session (SRS)';
   } else if (sessionType === 'unified') {
-      displaySessionTitle = showContinueReviewPrompt ? 'Learning Phase Complete' : 'Practice Session (Unified)';
+      displaySessionTitle = showContinueReviewPrompt
+        ? 'Learning Phase Complete'
+        : unifiedSessionPhase === 'learning'
+          ? 'Practice Session (Learning)'
+          : 'Practice Session (Reviewing)';
   }
+
 
   return (
     <div className="container mx-auto p-4 md:p-6 flex flex-col min-h-screen">

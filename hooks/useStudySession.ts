@@ -7,6 +7,7 @@ import { getCardsByIds } from '@/lib/actions/cardActions';
 import { updateCardProgress } from '@/lib/actions/progressActions';
 import { useSettings, type Settings, DEFAULT_SETTINGS } from '@/providers/settings-provider';
 import type { Tables } from '@/types/database';
+
 import {
     SessionCard,
     InternalCardState,
@@ -58,6 +59,7 @@ export interface UseStudySessionReturn {
     showContinueReviewPrompt: boolean;
     onContinueReview: () => void;
     isLoadingSettings: boolean;
+    unifiedSessionPhase: 'learning' | 'review' | 'complete';
 }
 
 interface UseStudySessionProps {
@@ -192,16 +194,32 @@ export function useStudySession({
                 let queryPayloadForAction: Parameters<typeof resolveStudyQuery>[0];
                 if (initialInput.studySetId) {
                     queryPayloadForAction = { studySetId: initialInput.studySetId };
+                    appLogger.info(`${logPrefix} Using studySetId: ${initialInput.studySetId}`);
                 } else if (initialInput.deckId) {
-                    const criteriaForDeck: StudyQueryCriteria = { deckId: initialInput.deckId, tagLogic: 'ANY' };
+                    // CORRECTED: Use deckIds (array) for the criteria
+                    const criteriaForDeck: StudyQueryCriteria = {
+                        deckIds: [initialInput.deckId], // Pass deckId as an array to deckIds
+                        tagLogic: 'ANY',
+                    };
                     queryPayloadForAction = { criteria: criteriaForDeck };
+                    appLogger.info(`${logPrefix} Constructed criteria for single deckId:`, criteriaForDeck);
                 } else if (initialInput.criteria) {
-                    queryPayloadForAction = { criteria: { ...initialInput.criteria, tagLogic: initialInput.criteria.tagLogic || 'ANY'} };
+                    // Ensure the criteria from store/input already matches StudyQueryCriteria structure
+                    // (which should now also use deckIds if applicable)
+                    const criteriaFromInput = initialInput.criteria;
+                    queryPayloadForAction = {
+                         criteria: {
+                            ...criteriaFromInput,
+                            tagLogic: criteriaFromInput.tagLogic || (criteriaFromInput.includeTags && criteriaFromInput.includeTags.length > 0 ? 'ANY' : 'ANY'),
+                        }
+                    };
+                    appLogger.info(`${logPrefix} Using criteria directly from initialInput:`, queryPayloadForAction.criteria);
                 } else {
-                    throw new Error("Invalid initialInput: Must have studySetId, deckId, or criteria.");
+                    appLogger.error(`${logPrefix} Critical error: initialInput is invalid.`, initialInput);
+                    throw new Error("Invalid initialInput structure for study session.");
                 }
 
-                appLogger.info(`${logPrefix} Calling resolveStudyQuery`, { payload: queryPayloadForAction });
+                appLogger.info(`${logPrefix} FINAL Calling resolveStudyQuery with:`, queryPayloadForAction);
                 const queryResult = await resolveStudyQuery(queryPayloadForAction);
 
                 if (!isMounted) return;
@@ -465,6 +483,6 @@ export function useStudySession({
         currentCard, isInitializing: isLoadingData || isLoadingSettings, error, sessionType,
         isComplete, totalCardsInSession, currentCardNumberInSession, initialQueryCount,
         isProcessingAnswer, isFlipped, onFlip, sessionResults, answerCard,
-        currentCardStatusDisplay, showContinueReviewPrompt, onContinueReview, isLoadingSettings
+        currentCardStatusDisplay, showContinueReviewPrompt, onContinueReview, isLoadingSettings, unifiedSessionPhase,
     };
 }

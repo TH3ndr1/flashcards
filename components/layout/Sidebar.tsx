@@ -68,16 +68,16 @@ const navItems: NavGroupDefinition[] = [
   {
     group: 'Practice',
     items: [
-      { href: '/study/select', label: 'Start Session', icon: BookOpen },
-      { href: '/study/sets', label: 'Smart Playlists', icon: List },
+      { href: '/study/select', label: 'Practice', icon: BookOpen },
+      { href: '/', label: 'Decks', icon: LayoutDashboard },
+      { href: '/study/sets', label: 'Playlists', icon: List },
     ],
   },
   {
     group: 'Prepare',
     items: [
-      { href: '/', label: 'Decks', icon: LayoutDashboard },
       { href: '/tags', label: 'Manage Tags', icon: Tags },
-      { id: 'create-deck', label: 'Create Deck', icon: PlusCircle },
+      { href: '/decks/create-choice', label: 'Create Deck', icon: PlusCircle },
     ],
   },
   {
@@ -92,7 +92,6 @@ const navItems: NavGroupDefinition[] = [
 
 function NavigationContent({ isCollapsed, onClose }: { isCollapsed: boolean; onClose?: () => void }) {
   const pathname = usePathname();
-  const [isCreateDeckOpen, setIsCreateDeckOpen] = useState(false);
 
   return (
     <>
@@ -128,31 +127,6 @@ function NavigationContent({ isCollapsed, onClose }: { isCollapsed: boolean; onC
                       )}
                     </Tooltip>
                   );
-                } else if ('id' in item && item.id === 'create-deck') {
-                  // This is the NavButtonAction for 'create-deck'
-                  return (
-                    <Tooltip key={item.id}>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant={'ghost'}
-                          className={cn(
-                            "w-full justify-start",
-                            isCollapsed && "justify-center h-10"
-                          )}
-                          onClick={() => setIsCreateDeckOpen(true)}
-                          aria-label={item.label}
-                        >
-                          <item.icon className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
-                          <span className={cn(isCollapsed && "hidden")}>{item.label}</span>
-                        </Button>
-                      </TooltipTrigger>
-                      {isCollapsed && (
-                        <TooltipContent side="right">
-                          <p>{item.label}</p>
-                        </TooltipContent>
-                      )}
-                    </Tooltip>
-                  );
                 }
                 return null; // Fallback for items that don't match (shouldn't happen with correct types)
               })}
@@ -160,7 +134,6 @@ function NavigationContent({ isCollapsed, onClose }: { isCollapsed: boolean; onC
           </div>
         ))}
       </nav>
-      <CreateDeckDialog open={isCreateDeckOpen} onOpenChange={setIsCreateDeckOpen} />
     </>
   );
 }
