@@ -347,7 +347,7 @@ export function useStudySession({
     }, [currentQueueItem, isProcessingAnswer, isComplete]);
 
     // ... (answerCard callback - no changes) ...
-    const answerCard = useCallback(async (grade: ReviewGrade) => { /* ... */
+    const answerCard = useCallback(async (grade: ReviewGrade) => {
         if (!currentQueueItem || isProcessingAnswer || isComplete || !settingsRef.current) {
             appLogger.warn("[useStudySession] answerCard: Guarded return");
             return;
@@ -357,60 +357,69 @@ export function useStudySession({
         if (!isFlipped) setIsFlipped(true);
 
         setTimeout(async () => {
-            const { card: answeredDbCard, internalState: answeredInternalState } = currentQueueItem;
-            let outcome: CardStateUpdateOutcome;
+            try {
+                const { card: answeredDbCard, internalState: answeredInternalState } = currentQueueItem;
+                let outcome: CardStateUpdateOutcome;
 
-            if (answeredDbCard.srs_level === 0 && (answeredDbCard.learning_state === 'learning' || answeredDbCard.learning_state === null)) {
-                outcome = handleInitialLearningAnswer(answeredDbCard, answeredInternalState, grade, currentSettings);
-            } else if (answeredDbCard.srs_level === 0 && answeredDbCard.learning_state === 'relearning') {
-                outcome = handleRelearningAnswer(answeredDbCard, answeredInternalState, grade, currentSettings);
-            } else if (answeredDbCard.srs_level !== null && answeredDbCard.srs_level >= 1 && answeredDbCard.learning_state === null) {
-                outcome = handleReviewAnswer(answeredDbCard, answeredInternalState, grade, currentSettings);
-            } else {
-                appLogger.error("[useStudySession] answerCard: Unhandled card state:", answeredDbCard);
-                setIsProcessingAnswer(false); return;
-            }
+                if (answeredDbCard.srs_level === 0 && (answeredDbCard.learning_state === 'learning' || answeredDbCard.learning_state === null)) {
+                    outcome = handleInitialLearningAnswer(answeredDbCard, answeredInternalState, grade, currentSettings);
+                } else if (answeredDbCard.srs_level === 0 && answeredDbCard.learning_state === 'relearning') {
+                    outcome = handleRelearningAnswer(answeredDbCard, answeredInternalState, grade, currentSettings);
+                } else if (answeredDbCard.srs_level !== null && answeredDbCard.srs_level >= 1 && answeredDbCard.learning_state === null) {
+                    outcome = handleReviewAnswer(answeredDbCard, answeredInternalState, grade, currentSettings);
+                } else {
+                    appLogger.error("[useStudySession] answerCard: Unhandled card state:", answeredDbCard);
+                    return;
+                }
 
-            setSessionResults(prev => {
-                const newResults = { ...prev, totalAnswered: prev.totalAnswered + 1 };
-                if (grade === 1) newResults.incorrectCount++;
-                else if (grade === 2) newResults.hardCount++;
-                else if (grade >= 3) newResults.correctCount++;
-                if (outcome.sessionResultCategory === 'graduatedLearn') newResults.graduatedFromLearnCount++;
-                if (outcome.sessionResultCategory === 'graduatedRelearn') newResults.graduatedFromRelearnCount++;
-                if (outcome.sessionResultCategory === 'lapsed') newResults.lapsedToRelearnCount++;
-                return newResults;
-            });
+                setSessionResults(prev => {
+                    const newResults = { ...prev, totalAnswered: prev.totalAnswered + 1 };
+                    if (grade === 1) newResults.incorrectCount++;
+                    else if (grade === 2) newResults.hardCount++;
+                    else if (grade >= 3) newResults.correctCount++;
+                    if (outcome.sessionResultCategory === 'graduatedLearn') newResults.graduatedFromLearnCount++;
+                    if (outcome.sessionResultCategory === 'graduatedRelearn') newResults.graduatedFromRelearnCount++;
+                    if (outcome.sessionResultCategory === 'lapsed') newResults.lapsedToRelearnCount++;
+                    return newResults;
+                });
 
-            debouncedUpdateProgress(answeredDbCard.id, outcome.dbUpdatePayload, grade);
-            const nextQueue = updateQueueAfterAnswer(sessionQueue, answeredDbCard.id, outcome, currentSettings);
+                debouncedUpdateProgress(answeredDbCard.id, outcome.dbUpdatePayload, grade);
+                const nextQueue = updateQueueAfterAnswer(sessionQueue, answeredDbCard.id, outcome, currentSettings);
 
-            if (sessionType === 'unified' && unifiedSessionPhase === 'learning') {
-                const remainingLearning = nextQueue.some(item => item.card.srs_level === 0 && (item.card.learning_state === 'learning' || item.card.learning_state === null));
-                if (!remainingLearning) {
-                    appLogger.info("[useStudySession] Learning phase of unified session complete.");
-                    const hasReviewCards = nextQueue.some(item => (item.card.srs_level !== null && item.card.srs_level >= 1) || item.card.learning_state === 'relearning');
-                    if (hasReviewCards) {
-                        appLogger.info("[useStudySession] Review cards exist, showing prompt.");
-                        setShowContinueReviewPrompt(true);
-                        setSessionQueue(nextQueue);
-                        setIsFlipped(false); setIsProcessingAnswer(false); return;
-                    } else {
-                        appLogger.info("[useStudySession] No review cards, unified session complete.");
-                        setUnifiedSessionPhase('complete');
+                if (sessionType === 'unified' && unifiedSessionPhase === 'learning') {
+                    const remainingLearning = nextQueue.some(item => item.card.srs_level === 0 && (item.card.learning_state === 'learning' || item.card.learning_state === null));
+                    if (!remainingLearning) {
+                        appLogger.info("[useStudySession] Learning phase of unified session complete.");
+                        const hasReviewCards = nextQueue.some(item => (item.card.srs_level !== null && item.card.srs_level >= 1) || item.card.learning_state === 'relearning');
+                        if (hasReviewCards) {
+                            appLogger.info("[useStudySession] Review cards exist, showing prompt.");
+                            setShowContinueReviewPrompt(true);
+                            setSessionQueue(nextQueue);
+                            setIsFlipped(false);
+                            return;
+                        } else {
+                            appLogger.info("[useStudySession] No review cards, unified session complete.");
+                            setUnifiedSessionPhase('complete');
+                        }
                     }
                 }
-            }
 
-            setTimeout(() => {
-                setSessionQueue(nextQueue);
-                if (nextQueue.length === 0 && !showContinueReviewPrompt) {
-                    setIsComplete(true); setCurrentCardIndex(0);
-                } else if (!showContinueReviewPrompt) {
-                    setIsFlipped(false);
-                }
+                setTimeout(() => {
+                    setSessionQueue(nextQueue);
+                    if (nextQueue.length === 0 && !showContinueReviewPrompt) {
+                        setIsComplete(true); setCurrentCardIndex(0);
+                    } else if (!showContinueReviewPrompt) {
+                        setIsFlipped(false);
+                    }
+                }, PROCESSING_DELAY_MS);
+
+            } catch (e) {
+                appLogger.error("[useStudySession] CRITICAL ERROR in answerCard's async block:", e);
+                toast.error("An error occurred while processing your answer. Please try again.");
+            } finally {
                 setIsProcessingAnswer(false);
-            }, PROCESSING_DELAY_MS);
+                appLogger.info("[useStudySession] answerCard: setIsProcessingAnswer(false) in finally.");
+            }
         }, FLIP_DURATION_MS);
     }, [currentQueueItem, isProcessingAnswer, isComplete, settingsRef, sessionQueue, debouncedUpdateProgress, sessionType, unifiedSessionPhase, isFlipped]);
 
