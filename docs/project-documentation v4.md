@@ -274,7 +274,7 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
     *   `process-ai-step2/route.ts`: (Step 2a - Intermediate AI Processing) Handles requests for classification or regeneration.
     *   `decks/route.ts`: (Used by Manual & AI Flow Step 2b - Final Persistence) Handles `POST` requests for creating new decks with metadata and (for AI flow) initial flashcards.
 *   **Database Function (`resolve_study_query`):** Filters cards based on `StudyQueryCriteria` JSON (including `srs_level`, `learning_state` via `includeLearning` flag, dates).
-*   **Database Function (`get_decks_with_complete_srs_counts`):** Fetches decks with standard SRS stage counts AND `learn_eligible_count`, `review_eligible_count`. *(Note: Needs update to include 'relearning' count for progress bar if desired).*
+*   **Database Function (`get_decks_with_complete_srs_counts`):** Fetches decks with standard SRS stage counts AND `learn_eligible_count`, `review_eligible_count`. 
 *   **Database View (`cards_with_srs_stage`):** Categorizes cards into 'new', 'learning', 'relearning', 'young', 'mature' based on `srs_level`, `learning_state`, `interval_days`, and `settings.mature_interval_threshold`.
 *   **AI Services (`app/api/extract-pdf/` services):**
     *   `textExtractorService.ts`: Abstracts Vision AI / Document AI logic.

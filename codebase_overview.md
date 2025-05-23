@@ -245,6 +245,7 @@
 ./supabase/migrations/20250518095041_update_cards_with_srs_stage_v2.sql
 ./supabase/migrations/20250518100551_deprecate_get_deck_list_with_srs_counts_function.sql.sql
 ./supabase/migrations/20250518102853_refine_resolve_study_query_srs_filters_v8.sql.sql
+./supabase/migrations/20250522183329_alter_cards_srs_types.sql
 ./tailwind.config.ts
 ./test-gcp-apis.ts
 ./tsconfig.jest.json
@@ -255,7 +256,7 @@
 ./types/study.ts
 ./vercel.json
 
-52 directories, 202 files
+52 directories, 203 files
 
 
 ## Directory: .
@@ -9718,6 +9719,7 @@ interface EnhancedDeck {
   mature_count: number;
   learn_eligible_count: number;
   review_eligible_count: number;
+  relearning_count: number;
 }
 
 interface DeckListClientProps {
@@ -9795,6 +9797,7 @@ export function DeckListClient({ initialData = [] }: DeckListClientProps) {
             decks.map((deck) => {
               const totalCardsForDisplay = (deck.new_count ?? 0) +
                                  (deck.learning_count ?? 0) +
+                                 (deck.relearning_count ?? 0) +
                                  (deck.young_count ?? 0) +
                                  (deck.mature_count ?? 0);
 
@@ -9849,6 +9852,7 @@ export function DeckListClient({ initialData = [] }: DeckListClientProps) {
                         <DeckProgressBar
                           newCount={deck.new_count ?? 0}
                           learningCount={deck.learning_count ?? 0}
+                          relearningCount={deck.relearning_count ?? 0}
                           youngCount={deck.young_count ?? 0}
                           matureCount={deck.mature_count ?? 0}
                         />
@@ -12569,6 +12573,7 @@ import {
 interface DeckProgressBarProps {
   newCount: number;
   learningCount: number;
+  relearningCount: number;
   youngCount: number;
   matureCount: number;
   onClick?: () => void;
@@ -12602,10 +12607,11 @@ function useElementWidth(elementRef: React.RefObject<HTMLElement | null>) {
 export function DeckProgressBar({
   newCount,
   learningCount,
+  relearningCount,
   youngCount,
   matureCount,
 }: Omit<DeckProgressBarProps, 'onClick'>) {
-  const totalCount = newCount + learningCount + youngCount + matureCount;
+  const totalCount = newCount + learningCount + relearningCount + youngCount + matureCount;
   const rootRef = useRef<HTMLDivElement>(null);
   const [hasAnimated, setHasAnimated] = useState(false);
 
@@ -12618,8 +12624,9 @@ export function DeckProgressBar({
 
   // Define stages with gradient hex codes
   const stages = [
-    { name: 'New', count: newCount, percentage: totalCount > 0 ? (newCount / totalCount) * 100 : 0, startColor: '#EC4899', endColor: '#EF4444' }, // Keep pink-500 to red-500
+    { name: 'New', count: newCount, percentage: totalCount > 0 ? (newCount / totalCount) * 100 : 0, startColor: '#EC4899', endColor: '#EF4444' },
     { name: 'Learning', count: learningCount, percentage: totalCount > 0 ? (learningCount / totalCount) * 100 : 0, startColor: '#DA55C6', endColor: '#9353DD' },
+    { name: 'Relearning', count: relearningCount, percentage: totalCount > 0 ? (relearningCount / totalCount) * 100 : 0, startColor: '#F59E0B', endColor: '#F97316' },
     { name: 'Young', count: youngCount, percentage: totalCount > 0 ? (youngCount / totalCount) * 100 : 0, startColor: '#6055DA', endColor: '#5386DD' },
     { name: 'Mature', count: matureCount, percentage: totalCount > 0 ? (matureCount / totalCount) * 100 : 0, startColor: '#55A9DA', endColor: '#53DDDD' },
   ];
@@ -12639,10 +12646,11 @@ export function DeckProgressBar({
   // Calculate percentages safely
   const newPercentage = stages[0].percentage;
   const learningPercentage = stages[1].percentage;
-  const youngPercentage = stages[2].percentage;
-  const maturePercentage = stages[3].percentage;
+  const relearningPercentage = stages[2].percentage;
+  const youngPercentage = stages[3].percentage;
+  const maturePercentage = stages[4].percentage;
 
-  const ariaLabel = `Deck progress: ${Math.round(maturePercentage)}% mature, ${Math.round(youngPercentage)}% young, ${Math.round(learningPercentage)}% learning, ${Math.round(newPercentage)}% new. Total ${totalCount} cards.`;
+  const ariaLabel = `Deck progress: ${Math.round(maturePercentage)}% mature, ${Math.round(youngPercentage)}% young, ${Math.round(relearningPercentage)}% relearning, ${Math.round(learningPercentage)}% learning, ${Math.round(newPercentage)}% new. Total ${totalCount} cards.`;
 
   return (
     <div
@@ -12656,29 +12664,30 @@ export function DeckProgressBar({
     >
       {/* Flex container for slices and gutters */}
       <div className="absolute inset-0 flex w-full h-full gap-px bg-border">
-        {stages.map((stage) => {
-          const label = `${stage.name} ${stage.count}`;
-          const tooltipLabel = `${stage.name} ${stage.count} cards`;
-
+        {stages.map((stage, index) => {
+          if (stage.count === 0) return null;
+          const width = hasAnimated ? `${stage.percentage}%` : '0%';
           return (
-            <Tooltip key={stage.name}>
-              <TooltipTrigger asChild>
-                {stage.percentage > 0 ? (
+            <TooltipProvider key={stage.name}>
+              <Tooltip delayDuration={100}>
+                <TooltipTrigger
+                  asChild
+                  aria-label={`${stage.name}: ${stage.count} card${stage.count === 1 ? '' : 's'}`}
+                >
                   <div
-                    className="h-full transition-colors"
+                    className="h-full transition-all duration-500 ease-out"
                     style={{
-                      width: `${stage.percentage}%`,
+                      width: width,
                       backgroundImage: `linear-gradient(to right, ${stage.startColor}, ${stage.endColor})`,
+                      marginLeft: index > 0 && stages.slice(0, index).every(s => s.count === 0) ? '0' : index > 0 ? '1px' : '0',
                     }}
                   />
-                ) : (
-                   <span style={{ width: '0px' }} />
-                )}
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{tooltipLabel}</p>
-              </TooltipContent>
-            </Tooltip>
+                </TooltipTrigger>
+                <TooltipContent className="text-xs">
+                  {stage.name}: {stage.count} card{stage.count === 1 ? '' : 's'}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           );
         })}
       </div>
@@ -14035,7 +14044,7 @@ export function StudySetSelector({
       const criteriaForAll: StudyQueryCriteria = { allCards: true, tagLogic: 'ANY' };
       return { criteria: criteriaForAll };
     } else if (selectionSource === 'deck' && selectedDeckId) {
-      const criteriaForDeck: StudyQueryCriteria = { deckId: selectedDeckId, tagLogic: 'ANY' };
+      const criteriaForDeck: StudyQueryCriteria = { deckIds: [selectedDeckId], tagLogic: 'ANY' };
       return { criteria: criteriaForDeck };
     } else if (selectionSource === 'studySet' && selectedStudySetId) {
       return { studySetId: selectedStudySetId };
@@ -20870,7 +20879,7 @@ export function useStudySession({
     }, [currentQueueItem, isProcessingAnswer, isComplete]);
 
     // ... (answerCard callback - no changes) ...
-    const answerCard = useCallback(async (grade: ReviewGrade) => { /* ... */
+    const answerCard = useCallback(async (grade: ReviewGrade) => {
         if (!currentQueueItem || isProcessingAnswer || isComplete || !settingsRef.current) {
             appLogger.warn("[useStudySession] answerCard: Guarded return");
             return;
@@ -20880,60 +20889,75 @@ export function useStudySession({
         if (!isFlipped) setIsFlipped(true);
 
         setTimeout(async () => {
-            const { card: answeredDbCard, internalState: answeredInternalState } = currentQueueItem;
-            let outcome: CardStateUpdateOutcome;
+            try {
+                const { card: answeredDbCard, internalState: answeredInternalState } = currentQueueItem;
+                let outcome: CardStateUpdateOutcome;
 
-            if (answeredDbCard.srs_level === 0 && (answeredDbCard.learning_state === 'learning' || answeredDbCard.learning_state === null)) {
-                outcome = handleInitialLearningAnswer(answeredDbCard, answeredInternalState, grade, currentSettings);
-            } else if (answeredDbCard.srs_level === 0 && answeredDbCard.learning_state === 'relearning') {
-                outcome = handleRelearningAnswer(answeredDbCard, answeredInternalState, grade, currentSettings);
-            } else if (answeredDbCard.srs_level !== null && answeredDbCard.srs_level >= 1 && answeredDbCard.learning_state === null) {
-                outcome = handleReviewAnswer(answeredDbCard, answeredInternalState, grade, currentSettings);
-            } else {
-                appLogger.error("[useStudySession] answerCard: Unhandled card state:", answeredDbCard);
-                setIsProcessingAnswer(false); return;
-            }
+                if (answeredDbCard.srs_level === 0 && (answeredDbCard.learning_state === 'learning' || answeredDbCard.learning_state === null /* treat new as learning for handler */)) {
+                    outcome = handleInitialLearningAnswer(answeredDbCard, answeredInternalState, grade, currentSettings);
+                } else if (answeredDbCard.srs_level === 0 && answeredDbCard.learning_state === 'relearning') {
+                    outcome = handleRelearningAnswer(answeredDbCard, answeredInternalState, grade, currentSettings);
+                } else { // Reviewing (srs_level >= 1)
+                    outcome = handleReviewAnswer(answeredDbCard, answeredInternalState, grade, currentSettings);
+                }
 
-            setSessionResults(prev => {
-                const newResults = { ...prev, totalAnswered: prev.totalAnswered + 1 };
-                if (grade === 1) newResults.incorrectCount++;
-                else if (grade === 2) newResults.hardCount++;
-                else if (grade >= 3) newResults.correctCount++;
-                if (outcome.sessionResultCategory === 'graduatedLearn') newResults.graduatedFromLearnCount++;
-                if (outcome.sessionResultCategory === 'graduatedRelearn') newResults.graduatedFromRelearnCount++;
-                if (outcome.sessionResultCategory === 'lapsed') newResults.lapsedToRelearnCount++;
-                return newResults;
-            });
+                // Log the outcome right after it's determined and BEFORE passing to queue manager
+                appLogger.debug(`[useStudySession] answerCard: Outcome from state handler for card ${answeredDbCard.id}, grade ${grade}:`, {
+                    queueInstruction: outcome.queueInstruction,
+                    nextDueTime: outcome.nextInternalState.dueTime,
+                    learningState: outcome.dbUpdatePayload.learning_state,
+                    learningStepIndex: outcome.dbUpdatePayload.learning_step_index,
+                    reinsertAfterNJobs: outcome.reinsertAfterNJobs
+                });
 
-            debouncedUpdateProgress(answeredDbCard.id, outcome.dbUpdatePayload, grade);
-            const nextQueue = updateQueueAfterAnswer(sessionQueue, answeredDbCard.id, outcome, currentSettings);
+                setSessionResults(prev => {
+                    const newResults = { ...prev, totalAnswered: prev.totalAnswered + 1 };
+                    if (grade === 1) newResults.incorrectCount++;
+                    else if (grade === 2) newResults.hardCount++;
+                    else if (grade >= 3) newResults.correctCount++;
+                    if (outcome.sessionResultCategory === 'graduatedLearn') newResults.graduatedFromLearnCount++;
+                    if (outcome.sessionResultCategory === 'graduatedRelearn') newResults.graduatedFromRelearnCount++;
+                    if (outcome.sessionResultCategory === 'lapsed') newResults.lapsedToRelearnCount++;
+                    return newResults;
+                });
 
-            if (sessionType === 'unified' && unifiedSessionPhase === 'learning') {
-                const remainingLearning = nextQueue.some(item => item.card.srs_level === 0 && (item.card.learning_state === 'learning' || item.card.learning_state === null));
-                if (!remainingLearning) {
-                    appLogger.info("[useStudySession] Learning phase of unified session complete.");
-                    const hasReviewCards = nextQueue.some(item => (item.card.srs_level !== null && item.card.srs_level >= 1) || item.card.learning_state === 'relearning');
-                    if (hasReviewCards) {
-                        appLogger.info("[useStudySession] Review cards exist, showing prompt.");
-                        setShowContinueReviewPrompt(true);
-                        setSessionQueue(nextQueue);
-                        setIsFlipped(false); setIsProcessingAnswer(false); return;
-                    } else {
-                        appLogger.info("[useStudySession] No review cards, unified session complete.");
-                        setUnifiedSessionPhase('complete');
+                debouncedUpdateProgress(answeredDbCard.id, outcome.dbUpdatePayload, grade);
+                const nextQueue = updateQueueAfterAnswer(sessionQueue, answeredDbCard.id, outcome, currentSettings);
+
+                if (sessionType === 'unified' && unifiedSessionPhase === 'learning') {
+                    const remainingLearning = nextQueue.some(item => item.card.srs_level === 0 && (item.card.learning_state === 'learning' || item.card.learning_state === null));
+                    if (!remainingLearning) {
+                        appLogger.info("[useStudySession] Learning phase of unified session complete.");
+                        const hasReviewCards = nextQueue.some(item => (item.card.srs_level !== null && item.card.srs_level >= 1) || item.card.learning_state === 'relearning');
+                        if (hasReviewCards) {
+                            appLogger.info("[useStudySession] Review cards exist, showing prompt.");
+                            setShowContinueReviewPrompt(true);
+                            setSessionQueue(nextQueue);
+                            setIsFlipped(false);
+                            return;
+                        } else {
+                            appLogger.info("[useStudySession] No review cards, unified session complete.");
+                            setUnifiedSessionPhase('complete');
+                        }
                     }
                 }
-            }
 
-            setTimeout(() => {
-                setSessionQueue(nextQueue);
-                if (nextQueue.length === 0 && !showContinueReviewPrompt) {
-                    setIsComplete(true); setCurrentCardIndex(0);
-                } else if (!showContinueReviewPrompt) {
-                    setIsFlipped(false);
-                }
+                setTimeout(() => {
+                    setSessionQueue(nextQueue);
+                    if (nextQueue.length === 0 && !showContinueReviewPrompt) {
+                        setIsComplete(true); setCurrentCardIndex(0);
+                    } else if (!showContinueReviewPrompt) {
+                        setIsFlipped(false);
+                    }
+                }, PROCESSING_DELAY_MS);
+
+            } catch (e) {
+                appLogger.error("[useStudySession] CRITICAL ERROR in answerCard's async block:", e);
+                toast.error("An error occurred while processing your answer. Please try again.");
+            } finally {
                 setIsProcessingAnswer(false);
-            }, PROCESSING_DELAY_MS);
+                appLogger.info("[useStudySession] answerCard: setIsProcessingAnswer(false) in finally.");
+            }
         }, FLIP_DURATION_MS);
     }, [currentQueueItem, isProcessingAnswer, isComplete, settingsRef, sessionQueue, debouncedUpdateProgress, sessionType, unifiedSessionPhase, isFlipped]);
 
@@ -21858,12 +21882,21 @@ export function calculateSm2State(
   // --- Handle Lapse (Grade 1 from Review) ---
   if (grade === 1) {
       appLogger.info("[calculateSm2State] Grade 1 (Again) in Review. Lapsing to Relearning.");
-      const relearningIntervalMinutes = settings.relearningStepsMinutes[0]; // First relearning step
-      const nextReviewDue = addMinutes(new Date(), relearningIntervalMinutes);
+      
+      let firstRelearningStepMinutes: number;
+      if (settings.relearningStepsMinutes && settings.relearningStepsMinutes.length > 0 && typeof settings.relearningStepsMinutes[0] === 'number' && settings.relearningStepsMinutes[0] > 0) {
+          firstRelearningStepMinutes = settings.relearningStepsMinutes[0];
+      } else {
+          // Fallback to a sensible hardcoded default if settings are invalid or empty
+          firstRelearningStepMinutes = 10; // Default to 10 minutes as a final safeguard
+          appLogger.warn(`[calculateSm2State] Invalid, empty, or non-positive relearningStepsMinutes[0] in settings. Falling back to hardcoded default: ${firstRelearningStepMinutes} min. Settings array:`, settings.relearningStepsMinutes);
+      }
+
+      const nextReviewDue = addMinutes(new Date(), firstRelearningStepMinutes);
 
       newSrsLevel = 0; // Reset level on lapse
       // EF penalty already applied above as part of standard EF calculation
-      newIntervalDays = relearningIntervalMinutes / (60 * 24); // Store interval as fractional days
+      newIntervalDays = firstRelearningStepMinutes / (60 * 24); // Store interval as fractional days
       newLearningState = 'relearning'; // Card is now in relearning state
       newLearningStepIndex = 0; // Start at step 0 of relearning
 
@@ -21955,14 +21988,17 @@ export function calculateNextStandardLearnStep(
     let nextStepIndex: number | 'graduated';
     let intervalMinutes: number | null = null; // The interval for the *next* step
 
-    if (!steps || steps.length === 0) {
-        appLogger.error("Standard learning steps not defined or empty in settings. Graduating immediately.");
+    if (!steps || steps.length === 0 || typeof steps[0] !== 'number') { // GUARD CLAUSE with type check
+        appLogger.error(`Standard learning steps not defined, empty, or invalid in settings. Graduating immediately. Steps:`, steps);
+        // Fallback to a very short step to avoid issues, effectively graduating or re-evaluating quickly.
+        // Or use a default like settings.defaultFirstLearningStepMinutes if available.
+        // For now, graduating is a safe fallback if steps are misconfigured.
         return { nextStepIndex: 'graduated', nextDueTime: new Date(), intervalMinutes: null };
     }
 
     if (grade === 1) { // Again: Go back to first step
         nextStepIndex = 0;
-        intervalMinutes = steps[0];
+        intervalMinutes = steps[0]; // Safe due to guard clause
     } else if (grade === 4) { // Easy: Skip all steps and graduate
         nextStepIndex = 'graduated';
         intervalMinutes = null; // Graduation interval handled by createGraduationPayload
@@ -22007,8 +22043,8 @@ export function calculateNextRelearningStep(
     let nextStepIndex: number | 'graduatedFromRelearning';
     let intervalMinutes: number | null = null; // The interval for the *next* step
 
-     if (!steps || steps.length === 0) {
-        appLogger.error("Relearning steps not defined or empty in settings. Defaulting to immediate re-entry to review.");
+     if (!steps || steps.length === 0 || typeof steps[0] !== 'number') { // GUARD CLAUSE with type check
+        appLogger.error(`Relearning steps not defined, empty, or invalid in settings. Defaulting to immediate re-entry to review. Steps:`, steps);
         return { nextStepIndex: 'graduatedFromRelearning', nextDueTime: new Date(), intervalMinutes: null };
     }
 
@@ -22983,6 +23019,7 @@ export type DeckListItemWithCounts = {
     updated_at: string;
     new_count: number;
     learning_count: number;
+    relearning_count: number;
     young_count: number;
     mature_count: number;
     learn_eligible_count: number;
@@ -23023,6 +23060,7 @@ export async function getDecks(): Promise<ActionResult<DeckListItemWithCounts[]>
             ...deck,
             new_count: Number(deck.new_count ?? 0),
             learning_count: Number(deck.learning_count ?? 0),
+            relearning_count: Number(deck.relearning_count ?? 0),
             young_count: Number(deck.young_count ?? 0),
             mature_count: Number(deck.mature_count ?? 0),
             learn_eligible_count: Number(deck.learn_eligible_count ?? 0),
@@ -25160,9 +25198,9 @@ export function handleReviewAnswer(
         srsLevel: card.srs_level,
         easinessFactor: card.easiness_factor ?? settings.defaultEasinessFactor,
         intervalDays: card.interval_days ?? 0,
-        learningState: null, // In review, these are null
-        learningStepIndex: null, // In review, these are null
-        nextReviewDue: card.next_review_due ? parseISO(card.next_review_due) : null // CORRECTED IMPORT
+        learningState: null,
+        learningStepIndex: null,
+        nextReviewDue: card.next_review_due ? parseISO(card.next_review_due) : null
     };
 
     const sm2Result = calculateSm2State(sm2Input, grade, settings);
@@ -25177,10 +25215,9 @@ export function handleReviewAnswer(
     if (sm2Result.learningState === 'relearning') {
         console.log(`[CardStateHandler] Card ${card.id} lapsed to Relearning.`);
         sessionResultCategory = 'lapsed';
-        nextInternalState.learningStepIndex = 0;
+        nextInternalState.learningStepIndex = sm2Result.learningStepIndex;
         nextInternalState.dueTime = sm2Result.nextReviewDue || new Date();
-        // If relearning steps are very short and should happen in the same session:
-        // queueInstruction = 'set-timed-step'; // This would keep it in the queue
+        queueInstruction = 'set-timed-step';
     } else {
         console.log(`[CardStateHandler] Card ${card.id} successful in Review. Next due: ${dbUpdatePayload.next_review_due}`);
     }
@@ -28121,6 +28158,8 @@ USING (auth.uid() = user_id);
 ### File: supabase/migrations/20250510020000_add_complete_srs_counts_function.sql
 
 ```
+DROP FUNCTION IF EXISTS public.get_decks_with_complete_srs_counts(uuid);
+
 -- Add database function to fetch decks with complete SRS counts in one query
 
 CREATE OR REPLACE FUNCTION public.get_decks_with_complete_srs_counts(
@@ -28137,6 +28176,7 @@ RETURNS TABLE (
   learning_count bigint,
   young_count bigint,
   mature_count bigint,
+  relearning_count bigint, -- Added for relearning cards
   learn_eligible_count bigint, -- New Learn button count
   review_eligible_count bigint -- New Review button count
 )
@@ -28163,15 +28203,17 @@ srs_counts AS (
   SELECT
     c.deck_id,
     COUNT(*) FILTER (WHERE c.last_reviewed_at IS NULL) AS new_count,
-    COUNT(*) FILTER (WHERE c.last_reviewed_at IS NOT NULL AND 
-                    (COALESCE(c.interval_days, 0) = 0 OR c.last_review_grade = 1)) AS learning_count,
+    COUNT(*) FILTER (WHERE c.learning_state = 'learning') AS learning_count,
+    COUNT(*) FILTER (WHERE c.learning_state = 'relearning') AS relearning_count,
     COUNT(*) FILTER (WHERE c.last_reviewed_at IS NOT NULL AND
+                    c.learning_state IS DISTINCT FROM 'learning' AND c.learning_state IS DISTINCT FROM 'relearning' AND
                     COALESCE(c.interval_days, 0) > 0 AND 
                     c.last_review_grade != 1 AND
                     COALESCE(c.interval_days, 0) < COALESCE(
                         (SELECT mature_interval_threshold FROM public.settings WHERE user_id = p_user_id), 
                         21)) AS young_count,
     COUNT(*) FILTER (WHERE c.last_reviewed_at IS NOT NULL AND
+                    c.learning_state IS DISTINCT FROM 'learning' AND c.learning_state IS DISTINCT FROM 'relearning' AND
                     COALESCE(c.interval_days, 0) > 0 AND 
                     c.last_review_grade != 1 AND
                     COALESCE(c.interval_days, 0) >= COALESCE(
@@ -28206,6 +28248,7 @@ SELECT
   COALESCE(s.learning_count, 0) AS learning_count,
   COALESCE(s.young_count, 0) AS young_count,
   COALESCE(s.mature_count, 0) AS mature_count,
+  COALESCE(s.relearning_count, 0) AS relearning_count,
   COALESCE(s.learn_eligible_count, 0) AS learn_eligible_count,
   COALESCE(s.review_eligible_count, 0) AS review_eligible_count
 FROM
@@ -28512,6 +28555,71 @@ GRANT EXECUTE ON FUNCTION public.resolve_study_query(uuid, jsonb) TO authenticat
 
 COMMENT ON FUNCTION public.resolve_study_query(uuid, jsonb) IS
 'Resolves study query criteria into card IDs. v10: Multi-deck, language filter, SRS stage filter, date filter completion.';
+```
+
+### File: supabase/migrations/20250522183329_alter_cards_srs_types.sql
+
+```
+-- Migration script to update 'interval_days' data type in 'cards' table
+-- and recreate dependent view 'cards_with_srs_stage'
+
+BEGIN;
+
+-- 1. Drop the dependent view
+-- The original migration file also uses DROP VIEW IF EXISTS, which is good practice.
+DROP VIEW IF EXISTS public.cards_with_srs_stage;
+
+-- 2. Alter the table column type for 'interval_days'
+ALTER TABLE public.cards
+ALTER COLUMN interval_days TYPE REAL; -- Using REAL as discussed. Change to DOUBLE PRECISION if preferred.
+
+-- 3. Recreate the view 'cards_with_srs_stage' using its exact definition
+CREATE OR REPLACE VIEW public.cards_with_srs_stage AS
+SELECT
+    c.id,
+    c.deck_id,
+    c.user_id,
+    c.question,
+    c.answer,
+    c.created_at,
+    c.updated_at,
+    c.last_reviewed_at,
+    c.next_review_due,
+    c.srs_level,
+    c.easiness_factor,
+    c.interval_days, -- This column in the cards table is now REAL
+    c.learning_state,
+    c.learning_step_index,
+    c.failed_attempts_in_learn,
+    c.hard_attempts_in_learn,
+    c.stability,
+    c.difficulty,
+    c.last_review_grade,
+    c.correct_count,
+    c.incorrect_count,
+    c.attempt_count,
+    c.question_part_of_speech,
+    c.question_gender,
+    c.answer_part_of_speech,
+    c.answer_gender,
+    s.mature_interval_threshold,
+    CASE
+        WHEN c.srs_level = 0 AND c.learning_state IS NULL THEN 'new'::text
+        WHEN c.srs_level = 0 AND c.learning_state = 'learning' THEN 'learning'::text
+        WHEN c.srs_level = 0 AND c.learning_state = 'relearning' THEN 'relearning'::text
+        WHEN c.srs_level >= 1 AND c.interval_days > 0 AND c.interval_days < COALESCE(s.mature_interval_threshold, 21) THEN 'young'::text
+        WHEN c.srs_level >= 1 AND c.interval_days >= COALESCE(s.mature_interval_threshold, 21) THEN 'mature'::text
+        ELSE 'unknown'::text
+    END AS srs_stage
+FROM
+    public.cards c
+    LEFT JOIN public.settings s ON c.user_id = s.user_id;
+
+-- Add comments (Optional but good practice)
+COMMENT ON COLUMN public.cards.interval_days IS 'SRS interval in days. Can be fractional for learning/relearning steps. (Type changed to REAL)';
+COMMENT ON VIEW public.cards_with_srs_stage IS 'Extends cards with calculated SRS stage (new, learning, relearning, young, mature) based on srs_level, learning_state, interval_days, and user settings. Version 2. (Underlying cards.interval_days type updated)';
+
+COMMIT;
 ```
 
 ## Directory: types
