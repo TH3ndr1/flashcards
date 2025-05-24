@@ -70,8 +70,6 @@ export const StudyQueryCriteriaSchema = z.object({
     .describe("Optional array of Tag UUIDs (deck tags) to exclude"),
   tagLogic: z.enum(['ANY', 'ALL']).optional().default('ANY')
     .describe("Logic for 'includeTags': ANY (default) or ALL"),
-  includeLearning: z.boolean().optional()
-    .describe("If true, includes cards primarily for initial learning (srs_level = 0 and learning_state is null or 'learning')"),
 
   // NEW Language Filter
   containsLanguage: z.string().length(2, "Language code must be 2 characters").optional() // e.g., "en", "fr"
@@ -83,11 +81,9 @@ export const StudyQueryCriteriaSchema = z.object({
   lastReviewed: LastReviewedDateFilterSchema.optional(),
   nextReviewDue: NextReviewDueDateFilterSchema.optional(),
 
-  // NEW SRS Stage Filter (replaces old srsLevel numeric filter)
-  srsStages: z.array(z.enum(['new', 'learning', 'relearning', 'young', 'mature'])).optional()
-    .describe("Optional array of SRS stage names to include cards from."),
-
-  // REMOVED: srsLevel: srsLevelFilterSchema.optional()
+  // NEW SRS Filter (replaces srsStages)
+  srsFilter: z.enum(['new', 'due', 'all', 'none', 'learn', 'review', 'new_review']).optional()
+    .describe("Optional filter for SRS stages (e.g., 'new', 'due', 'learn', 'review')"),
 })
 .describe("Schema defining the criteria for selecting cards for a study session");
 

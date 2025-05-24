@@ -100,6 +100,10 @@ export async function updateUserSettings({
         if ('minEasinessFactor' in updates && updates.minEasinessFactor !== undefined) dbPayload.min_easiness_factor = updates.minEasinessFactor;
         if ('defaultEasinessFactor' in updates && updates.defaultEasinessFactor !== undefined) dbPayload.default_easiness_factor = updates.defaultEasinessFactor;
         // ------------------------------------
+        if ('enableStudyTimer' in updates && updates.enableStudyTimer !== undefined) {dbPayload.enable_study_timer = updates.enableStudyTimer;}
+        if ('studyTimerDurationMinutes' in updates && updates.studyTimerDurationMinutes !== undefined) {dbPayload.study_timer_duration_minutes = updates.studyTimerDurationMinutes;}
+        if ('uiLanguage' in updates && updates.uiLanguage !== undefined) {dbPayload.ui_language = updates.uiLanguage;}
+        if ('deckListGroupingPreference' in updates && updates.deckListGroupingPreference !== undefined) {dbPayload.deck_list_grouping_preference = updates.deckListGroupingPreference;}
 
         if (Object.keys(dbPayload).length === 0) {
              appLogger.info("[updateUserSettings] No valid fields provided for update after mapping.");

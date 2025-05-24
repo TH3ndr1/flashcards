@@ -321,3 +321,50 @@ export async function deleteStudySet(studySetId: string): Promise<ActionResult<n
  * Alias for getUserStudySets to maintain backward compatibility
  */
 export const getStudySets = getUserStudySets; 
+
+// Define the type for a study set augmented with its total card count
+// This should match the structure of public.study_set_with_total_count from the SQL migration
+export type StudySetWithTotalCount = Tables<'study_sets'> & {
+    total_card_count: number;
+};
+
+/**
+ * Fetches all study sets for the current user, each augmented with its total card count.
+ * 
+ * @returns {Promise<ActionResult<StudySetWithTotalCount[]>>} Array of user's study sets with counts.
+ * @throws {Error} If fetching fails or user is not authenticated.
+ */
+export async function getUserStudySetsWithCounts(): Promise<ActionResult<StudySetWithTotalCount[]>> {
+    const { supabase, user, error: authError } = await getSupabaseAndUser();
+    if (authError || !supabase || !user) {
+        return { data: null, error: authError };
+    }
+
+    appLogger.info("[getUserStudySetsWithCounts] User:", user.id);
+
+    try {
+        const { data: studySetsWithCounts, error: rpcError } = await supabase.rpc(
+            'get_user_study_sets_with_total_counts' as any, // Cast to any for new RPC
+            { p_user_id: user.id }
+        );
+
+        if (rpcError) {
+            appLogger.error("[getUserStudySetsWithCounts] RPC error:", rpcError);
+            return { data: null, error: 'Failed to fetch study sets with counts.' };
+        }
+
+        // The RPC returns an array of objects matching StudySetWithTotalCount
+        // Ensure the data is correctly typed and nulls are handled for total_card_count
+        const resultData: StudySetWithTotalCount[] = (studySetsWithCounts || []).map((set: any) => ({
+            ...set,
+            total_card_count: Number(set.total_card_count ?? 0)
+        }));
+
+        appLogger.info(`[getUserStudySetsWithCounts] Found ${resultData.length} sets with counts.`);
+        return { data: resultData, error: null };
+
+    } catch (err) {
+        appLogger.error("[getUserStudySetsWithCounts] Unexpected error:", err);
+        return { data: null, error: 'An unexpected error occurred.' };
+    }
+} 

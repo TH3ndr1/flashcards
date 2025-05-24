@@ -21,6 +21,8 @@ export type DeckListItemWithCounts = {
     mature_count: number;
     learn_eligible_count: number;
     review_eligible_count: number;
+    deck_tags_json: Json; // Raw JSON from DB
+    tags?: Array<{ id: string; name: string; }>;
 };
 
 type DeckWithTags = Tables<'decks'> & { tags: Tables<'tags'>[] };
@@ -68,6 +70,7 @@ export async function getDecks(): Promise<ActionResult<DeckListItemWithCounts[]>
             secondary_language: deck.secondary_language,
             is_bilingual: deck.is_bilingual,
             updated_at: deck.updated_at,
+            deck_tags_json: deck.deck_tags_json,
         }));
 
         appLogger.info(`[deckActions - getDecks] Successfully fetched and processed ${processedData.length} decks via RPC.`);

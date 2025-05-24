@@ -21,7 +21,7 @@ export default function CreateChoicePage() {
 
             <div className="grid grid-cols-1 gap-6">
                 {/* Option 1: Manual Creation */}
-                <Link href="/decks/new" legacyBehavior>
+                <Link href="/manage/decks/new/manual" legacyBehavior>
                     <a className="block hover:no-underline">
                         <Card className="hover:border-primary hover:shadow-md transition-all cursor-pointer">
                             <CardHeader className="flex flex-row items-center gap-4 pb-2">

@@ -6,7 +6,7 @@ import { cookies } from 'next/headers';
 import { createServerClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { getTags } from '@/lib/actions/tagActions';
-import { TagManagerClient } from '../../components/tags/TagManagerClient';
+import { TagManagerClient } from '@/components/tags/TagManagerClient';
 
 /**
  * Tags Management Page

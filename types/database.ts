@@ -7,6 +7,31 @@ export type Json =
   | Json[]
 
 export type Database = {
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          operationName?: string
+          query?: string
+          variables?: Json
+          extensions?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       cards: {
@@ -189,11 +214,13 @@ export type Database = {
           color_only_non_native: boolean | null
           created_at: string | null
           custom_learn_requeue_gap: number
+          deck_list_grouping_preference: string
           default_easiness_factor: number
           easy_interval_days: number
           enable_advanced_color_coding: boolean | null
           enable_basic_color_coding: boolean | null
           enable_dedicated_learn_mode: boolean
+          enable_study_timer: boolean
           enable_word_color_coding: boolean | null
           graduating_interval_days: number
           id: string
@@ -209,8 +236,10 @@ export type Database = {
           relearning_steps_minutes: number[]
           show_deck_progress: boolean
           show_difficulty: boolean | null
+          study_timer_duration_minutes: number
           theme_light_dark_mode: string
           tts_enabled: boolean | null
+          ui_language: string
           updated_at: string | null
           user_id: string
           word_palette_config: Json | null
@@ -221,11 +250,13 @@ export type Database = {
           color_only_non_native?: boolean | null
           created_at?: string | null
           custom_learn_requeue_gap?: number
+          deck_list_grouping_preference?: string
           default_easiness_factor?: number
           easy_interval_days?: number
           enable_advanced_color_coding?: boolean | null
           enable_basic_color_coding?: boolean | null
           enable_dedicated_learn_mode?: boolean
+          enable_study_timer?: boolean
           enable_word_color_coding?: boolean | null
           graduating_interval_days?: number
           id?: string
@@ -241,8 +272,10 @@ export type Database = {
           relearning_steps_minutes?: number[]
           show_deck_progress?: boolean
           show_difficulty?: boolean | null
+          study_timer_duration_minutes?: number
           theme_light_dark_mode?: string
           tts_enabled?: boolean | null
+          ui_language?: string
           updated_at?: string | null
           user_id: string
           word_palette_config?: Json | null
@@ -253,11 +286,13 @@ export type Database = {
           color_only_non_native?: boolean | null
           created_at?: string | null
           custom_learn_requeue_gap?: number
+          deck_list_grouping_preference?: string
           default_easiness_factor?: number
           easy_interval_days?: number
           enable_advanced_color_coding?: boolean | null
           enable_basic_color_coding?: boolean | null
           enable_dedicated_learn_mode?: boolean
+          enable_study_timer?: boolean
           enable_word_color_coding?: boolean | null
           graduating_interval_days?: number
           id?: string
@@ -273,8 +308,10 @@ export type Database = {
           relearning_steps_minutes?: number[]
           show_deck_progress?: boolean
           show_difficulty?: boolean | null
+          study_timer_duration_minutes?: number
           theme_light_dark_mode?: string
           tts_enabled?: boolean | null
+          ui_language?: string
           updated_at?: string | null
           user_id?: string
           word_palette_config?: Json | null
@@ -390,9 +427,15 @@ export type Database = {
           learning_count: number
           young_count: number
           mature_count: number
+          relearning_count: number
           learn_eligible_count: number
           review_eligible_count: number
+          deck_tags_json: Json
         }[]
+      }
+      get_study_set_card_count: {
+        Args: { p_user_id: string; p_query_criteria: Json }
+        Returns: number
       }
       resolve_study_query: {
         Args: { p_user_id: string; p_query_criteria: Json }
@@ -514,6 +557,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       font_option: ["default", "opendyslexic", "atkinson"],

@@ -51,7 +51,6 @@ export interface Settings {
   showDeckProgress: boolean;
   themePreference: ThemePreference;
 
-  // --- NEW Study Algorithm Fields ---
   studyAlgorithm: 'dedicated-learn' | 'standard-sm2';
   enableDedicatedLearnMode: boolean;
   masteryThreshold: number;
@@ -62,9 +61,14 @@ export interface Settings {
   initialLearningStepsMinutes: number[];
   lapsedEfPenalty: number;
   learnAgainPenalty: number;
-    learnHardPenalty: number;
+  learnHardPenalty: number;
   minEasinessFactor: number;
   defaultEasinessFactor: number;
+
+  enableStudyTimer: boolean;
+  studyTimerDurationMinutes: number;
+  uiLanguage: string;                  // For UI internationalization
+  deckListGroupingPreference: string;  // e.g., 'none', 'tag', 'language'
 }
 
 // Re-declare DB Type Alias to potentially help TS
@@ -107,6 +111,11 @@ export const DEFAULT_SETTINGS: Settings = {
   learnHardPenalty: 0.05,
   minEasinessFactor: 1.3,
   defaultEasinessFactor: 2.5,
+
+  enableStudyTimer: false,
+  studyTimerDurationMinutes: 25,
+  uiLanguage: "en",
+  deckListGroupingPreference: "none",
 };
 
 // --- Updated Transformation Function ---
@@ -142,6 +151,10 @@ const transformDbSettingsToSettings = (dbSettings: DbSettings | null): Settings 
             languageDialects: languageDialectsFinal,
             ttsEnabled: dbSettings.tts_enabled ?? DEFAULT_SETTINGS.ttsEnabled,
             showDifficulty: dbSettings.show_difficulty ?? DEFAULT_SETTINGS.showDifficulty,
+            enableStudyTimer: dbSettings.enable_study_timer ?? DEFAULT_SETTINGS.enableStudyTimer,
+            studyTimerDurationMinutes: dbSettings.study_timer_duration_minutes ?? DEFAULT_SETTINGS.studyTimerDurationMinutes,
+            uiLanguage: dbSettings.ui_language ?? DEFAULT_SETTINGS.uiLanguage,
+            deckListGroupingPreference: dbSettings.deck_list_grouping_preference ?? DEFAULT_SETTINGS.deckListGroupingPreference,
             cardFont: cardFontFinal,
             enableBasicColorCoding: dbSettings.enable_basic_color_coding ?? DEFAULT_SETTINGS.enableBasicColorCoding,
             enableAdvancedColorCoding: dbSettings.enable_advanced_color_coding ?? DEFAULT_SETTINGS.enableAdvancedColorCoding,
