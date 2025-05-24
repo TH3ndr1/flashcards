@@ -1,10 +1,10 @@
 // components/study/StudySetListClient.tsx
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react'; // Added useEffect, useCallback
+import React from 'react'; // Removed useState, useEffect, useCallback as they are no longer needed in PlaylistPracticeButton for counts
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Tooltip,
   TooltipContent,
@@ -16,86 +16,73 @@ import { formatDistanceToNow } from 'date-fns';
 import type { Tables } from '@/types/database';
 import { useStudySessionStore } from '@/store/studySessionStore';
 import type { StudySessionInput, SessionType } from '@/types/study';
-import { resolveStudyQuery } from '@/lib/actions/studyQueryActions';
-import { getCardSrsStatesByIds } from '@/lib/actions/cardActions';
-import { isValid, parseISO } from 'date-fns';
+// resolveStudyQuery and getCardSrsStatesByIds are no longer needed here
+// import { isValid, parseISO } from 'date-fns'; // No longer needed here
 import { toast } from 'sonner';
 import { appLogger } from '@/lib/logger';
-import { useRouter } from 'next/navigation'; // Import useRouter
+import { useRouter } from 'next/navigation';
+import { DeckProgressBar } from "@/components/deck/DeckProgressBar"; // Import progress bar
+import { Separator } from "@/components/ui/separator"; // Import Separator
+import type { SrsDistribution } from '@/lib/actions/studyQueryActions'; // Import SrsDistribution type
 
 // Updated type for the study set data passed from the server component
-type StudySetWithDeckNames = Tables<'study_sets'> & {
+// This should match the type defined in app/practice/sets/page.tsx
+type StudySetWithCountsAndDeckNames = Tables<'study_sets'> & {
   relatedDeckNames?: string[];
+  totalMatchingCardCount: number;
+  actionableCardCount: number;
+  srsDistribution?: SrsDistribution | null; // Added for progress bar
 };
 
 interface StudySetListClientProps {
-  initialData?: StudySetWithDeckNames[];
+  initialData?: StudySetWithCountsAndDeckNames[];
+  // TODO: Potentially add a user setting prop for showing progress bars on sets
+  // showStudySetProgress?: boolean;
 }
 
-// PlaylistPracticeButton sub-component (same as previously corrected version)
+// PlaylistPracticeButton sub-component
 interface PlaylistPracticeButtonProps {
   studySetId: string;
   studySetName: string;
+  actionableCardCount: number; // Changed from totalCardCount
 }
-function PlaylistPracticeButton({ studySetId, studySetName }: PlaylistPracticeButtonProps) {
+
+function PlaylistPracticeButton({ studySetId, studySetName, actionableCardCount }: PlaylistPracticeButtonProps) {
   const router = useRouter();
   const { setStudyParameters, clearStudyParameters } = useStudySessionStore();
-  const [isLoadingCounts, setIsLoadingCounts] = useState(true);
-  const [learnEligibleCount, setLearnEligibleCount] = useState(0);
-  const [reviewEligibleCount, setReviewEligibleCount] = useState(0);
-  const [fetchError, setFetchError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let isMounted = true;
-    const fetchCounts = async () => {
-      setIsLoadingCounts(true); setFetchError(null);
-      try {
-        appLogger.info(`[PlaylistPracticeButton] Fetching card IDs for StudySet: ${studySetId}`);
-        const idResult = await resolveStudyQuery({ studySetId });
-        if (!isMounted) return;
-        if (idResult.error || !idResult.data) throw new Error(idResult.error || "Failed to resolve study set card IDs.");
-        if (idResult.data.length === 0) { if(isMounted){setLearnEligibleCount(0); setReviewEligibleCount(0); setIsLoadingCounts(false);} return; }
-        const srsStatesResult = await getCardSrsStatesByIds(idResult.data);
-        if (!isMounted) return;
-        if (srsStatesResult.error || !srsStatesResult.data) throw new Error(srsStatesResult.error || "Failed to fetch SRS states.");
-        const cardStates = srsStatesResult.data;
-        const now = new Date();
-        const learnCards = cardStates.filter(c => c.srs_level === 0 && (c.learning_state === null || c.learning_state === 'learning')).length;
-        const reviewCards = cardStates.filter(c => {
-          const isReviewable = (c.srs_level != null && c.srs_level >= 1) || (c.srs_level === 0 && c.learning_state === 'relearning');
-          const isDue = c.next_review_due && isValid(parseISO(c.next_review_due)) && parseISO(c.next_review_due) <= now;
-          return isReviewable && isDue;
-        }).length;
-        if(isMounted){setLearnEligibleCount(learnCards); setReviewEligibleCount(reviewCards);}
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Error fetching counts.";
-        appLogger.error(`[PlaylistPracticeButton] Error for ${studySetId}:`, message);
-        if(isMounted) setFetchError(message);
-      } finally {
-        if(isMounted) setIsLoadingCounts(false);
-      }
-    };
-    fetchCounts();
-    return () => { isMounted = false; };
-  }, [studySetId]);
-
-  const totalPracticeable = learnEligibleCount + reviewEligibleCount;
   const handlePractice = () => {
-    if (totalPracticeable === 0 && !isLoadingCounts && !fetchError) { toast.info(`No cards currently available to practice in "${studySetName}".`); return; }
-    if (fetchError && !isLoadingCounts){ toast.error(`Cannot start practice for "${studySetName}" due to an error loading card counts.`); return; }
+    if (actionableCardCount === 0) { 
+      toast.info(`No cards currently available to practice in "${studySetName}".`); 
+      return; 
+    }
+    
     const studyInput: StudySessionInput = { studySetId };
-    const sessionType: SessionType = 'unified';
-    appLogger.info(`[PlaylistPracticeButton] Starting '${sessionType}' session for StudySet ${studySetId}`);
-    clearStudyParameters(); setStudyParameters(studyInput, sessionType); router.push('/study/session');
+    const sessionType: SessionType = 'unified'; // Or derive as needed
+    appLogger.info(`[PlaylistPracticeButton] Starting '${sessionType}' session for StudySet ${studySetId} with ${actionableCardCount} cards.`);
+    clearStudyParameters(); 
+    setStudyParameters(studyInput, sessionType);
+    router.push('/study/session');
   };
-  if (isLoadingCounts) return <Button size="sm" disabled className="w-full justify-center"><IconLoader className="h-4 w-4 mr-2 animate-spin" /> Checking Cards...</Button>;
-  if(fetchError) return <Button size="sm" variant="outline" className="w-full justify-center border-destructive text-destructive hover:bg-destructive/10" onClick={handlePractice} title={fetchError}><Play className="h-4 w-4 mr-2" /> Practice (Error)</Button>;
-  return <Button onClick={handlePractice} disabled={totalPracticeable === 0} size="sm" className="w-full bg-primary hover:bg-primary/90 justify-center" title={totalPracticeable === 0 ? `No cards to practice in "${studySetName}"` : `Practice ${totalPracticeable} card(s) from "${studySetName}"`}><Play className="h-4 w-4 mr-2" />Practice {totalPracticeable > 0 ? `(${totalPracticeable})` : ''}</Button>;
+
+  return (
+    <Button 
+      onClick={handlePractice} 
+      disabled={actionableCardCount === 0} 
+      size="sm" 
+      className="w-full bg-primary hover:bg-primary/90 justify-center"
+      title={actionableCardCount === 0 ? `No cards to practice in "${studySetName}"` : `Practice ${actionableCardCount} card(s) from "${studySetName}"`}
+    >
+      <Play className="h-4 w-4 mr-2" />
+      Practice {actionableCardCount > 0 ? `(${actionableCardCount})` : ''}
+    </Button>
+  );
 }
 
 
 export function StudySetListClient({ initialData = [] }: StudySetListClientProps) {
   const studySets = initialData;
+  // const showProgress = showStudySetProgress ?? true; // Example if we add a setting
 
   if (studySets.length === 0) {
     return (
@@ -114,14 +101,14 @@ export function StudySetListClient({ initialData = [] }: StudySetListClientProps
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0 text-muted-foreground" aria-label={`Edit ${set.name}`} asChild>
-                      <Link href={`/study/sets/${set.id}/edit`}><Edit className="h-4 w-4" /></Link>
+                      <Link href={`/practice/sets/${set.id}/edit`}><Edit className="h-4 w-4" /></Link>
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent><p>Edit Playlist</p></TooltipContent>
                 </Tooltip>
               </div>
-              <CardDescription>
-                {set.description || `Updated ${formatDistanceToNow(new Date(set.updated_at), { addSuffix: true })}`}
+              <CardDescription className="text-muted-foreground gap-1 pt-1">
+                <span>{set.totalMatchingCardCount} cards</span>
               </CardDescription>
               {/* Display Related Deck Names */}
               {set.relatedDeckNames && set.relatedDeckNames.length > 0 && (
@@ -132,13 +119,28 @@ export function StudySetListClient({ initialData = [] }: StudySetListClientProps
                 </div>
               )}
             </CardHeader>
-            {/* Removed CardContent that was empty */}
-            <CardFooter className="flex justify-end items-center mt-auto pt-4 px-4 pb-4">
-              <PlaylistPracticeButton studySetId={set.id} studySetName={set.name} />
+            <CardFooter className="flex justify-center items-center mt-auto pt-4 px-4 pb-4">
+              <PlaylistPracticeButton studySetId={set.id} studySetName={set.name} actionableCardCount={set.actionableCardCount} />
             </CardFooter>
+            {/* Add Progress Bar here */}
+            {set.srsDistribution && set.totalMatchingCardCount > 0 && (
+              <>
+                <Separator />
+                <CardContent className="px-4 pt-4 pb-4 bg-slate-50 dark:bg-slate-700/50 rounded-b-lg">
+                  <DeckProgressBar
+                    newCount={set.srsDistribution.new_count}
+                    learningCount={set.srsDistribution.learning_count}
+                    relearningCount={set.srsDistribution.relearning_count}
+                    youngCount={set.srsDistribution.young_count}
+                    matureCount={set.srsDistribution.mature_count}
+                  />
+                </CardContent>
+              </>
+            )}
           </Card>
         ))}
       </div>
+      {/* Consider if a legend is needed here like in DeckListClient */}
     </TooltipProvider>
   );
 }

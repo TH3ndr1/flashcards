@@ -21,6 +21,9 @@ import {
 } from "@/components/ui/tooltip";
 import {
   BookOpen,
+  BarChart,
+  User,
+  Archive,
   Tags,
   Settings,
   LayoutDashboard,
@@ -29,6 +32,7 @@ import {
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
+  ClipboardCheck,
 } from 'lucide-react';
 import { CreateDeckDialog } from '@/components/create-deck-dialog';
 import { type LucideProps } from 'lucide-react'; // Changed import for LucideProps
@@ -66,26 +70,38 @@ interface SidebarProps {
 
 const navItems: NavGroupDefinition[] = [
   {
-    group: 'Practice',
+    group: 'Practice', // This is a top-level section
     items: [
-      { href: '/study/select', label: 'Practice', icon: BookOpen },
-      { href: '/', label: 'Decks', icon: LayoutDashboard },
-      { href: '/study/sets', label: 'Playlists', icon: List },
+      // Assuming '/practice/decks' becomes the main view for practicing with decks
+      { href: '/practice/decks', label: 'Decks', icon: LayoutDashboard },
+      { href: '/practice/sets', label: 'Playlists', icon: List },
+      { href: '/practice/select', label: 'Custom', icon: BookOpen },
     ],
   },
   {
-    group: 'Prepare',
+    group: 'Test', // New top-level section for examinations
     items: [
-      { href: '/tags', label: 'Manage Tags', icon: Tags },
-      { href: '/decks/create-choice', label: 'Create Deck', icon: PlusCircle },
+      // Option 1: Single entry point to a test selection page
+      { href: '/test', label: 'Examination', icon: ClipboardCheck },
+      { href: '/test/scoring', label: 'Scores', icon: BarChart },
+      // Option 2: Direct links if /test is just a container route
+      // { href: '/test/decks', label: 'Test from Deck', icon: FileText },
+      // { href: '/test/playlists', label: 'Test from Playlist', icon: ListChecks },
     ],
   },
   {
-    group: 'Other',
+    group: 'Manage', // New top-level section for content management
+    items: [
+      { href: '/manage/decks', label: 'Content', icon: Archive }, // Links to table view
+      { href: '/manage/decks/new', label: 'Create New Deck', icon: PlusCircle }, // Or /decks/create-choice
+      { href: '/manage/tags', label: 'Tags', icon: Tags },
+    ],
+  },
+  {
+    group: 'Application', // For settings, profile etc.
     items: [
       { href: '/settings', label: 'Settings', icon: Settings },
-      // Add Logout or other links here
-      // Example: { href: '/logout', label: 'Logout', icon: LogOut }
+      { href: '/profile', label: 'Profile', icon: User }, // Profile is usually via UserNavButton
     ],
   },
 ];
@@ -98,6 +114,11 @@ function NavigationContent({ isCollapsed, onClose }: { isCollapsed: boolean; onC
       <nav className="flex flex-col gap-4 py-4">
         {navItems.map((group) => (
           <div key={group.group} className={cn("px-3", isCollapsed && "px-1")}>
+            {!isCollapsed && group.group && (
+              <h4 className="mb-1 rounded-md px-2 py-1 text-sm font-semibold text-muted-foreground">
+                {group.group}
+              </h4>
+            )}
             <div className="space-y-1">
               {group.items.map((item: NavItemUnion) => { // Added NavItemUnion type for item
                 if ('href' in item && typeof item.href === 'string') {

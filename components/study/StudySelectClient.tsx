@@ -10,26 +10,29 @@ import { useStudySessionStore } from '@/store/studySessionStore';
 import type { StudySessionInput, SessionType } from '@/types/study';
 import { toast } from 'sonner';
 import type { Tables } from '@/types/database';
+import type { DeckListItemWithCounts } from '@/lib/actions/deckActions'; // For Deck type with SRS counts
+import type { UserGlobalSrsSummary } from '@/lib/actions/studyQueryActions'; // Import the new type
 
-type Deck = Tables<'decks'> & {
-   new_count: number;
-   learning_count: number;
-   young_count: number;
-   mature_count: number;
-   learn_eligible_count?: number;
-   review_eligible_count?: number;
+// Expected augmented types from the server component
+type DeckWithTotalCount = DeckListItemWithCounts & {
+  totalCardCount: number;
 };
-type StudySet = Tables<'study_sets'>;
+
+type StudySetWithTotalCount = Tables<'study_sets'> & {
+  totalCardCount: number;
+};
 
 interface StudySelectClientProps {
-  initialDecks: Deck[];
-  initialStudySets: StudySet[];
+  initialDecks: DeckWithTotalCount[];
+  initialStudySets: StudySetWithTotalCount[];
+  initialGlobalSrsSummary: UserGlobalSrsSummary; // Added new prop
   hasErrors: boolean;
 }
 
 export function StudySelectClient({
   initialDecks,
   initialStudySets,
+  initialGlobalSrsSummary, // Destructure new prop
   hasErrors
 }: StudySelectClientProps) {
   const router = useRouter();
@@ -59,6 +62,7 @@ export function StudySelectClient({
       <StudySetSelector
         decks={initialDecks}
         studySets={initialStudySets}
+        globalSrsSummary={initialGlobalSrsSummary} // Pass new prop
         isLoadingStudySets={false}
         onStartStudying={handleStartStudying} // This callback now expects SessionType
       />
