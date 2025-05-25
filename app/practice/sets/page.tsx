@@ -1,4 +1,4 @@
-// app/study/sets/page.tsx
+// app/practice/sets/page.tsx
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 // import { cookies } from 'next/headers'; // Not strictly needed if createServerClient handles it
@@ -50,17 +50,25 @@ export default async function ListStudySetsPage() {
           .filter(name => name !== undefined) as string[];
       }
 
-      // Base criteria for the set (used for SRS distribution and actionable count)
+      // Construct criteriaForSet, ensuring tagLogic has a default consistent with StudyQueryCriteria type
       const criteriaForSet: StudyQueryCriteria = {
         ...(baseCriteria || {}),
+        // Ensure tagLogic is 'ANY' or 'ALL'. The StudyQueryCriteria type expects this due to Zod's .default('ANY').
+        tagLogic: baseCriteria?.tagLogic === 'ALL' ? 'ALL' : 'ANY',
       };
-      if (!criteriaForSet.deckIds || criteriaForSet.deckIds.length === 0) {
-        if (criteriaForSet.allCards === undefined) { 
-            criteriaForSet.allCards = true;
-        }
+      
+      // Ensure allCards is true if no specific deckIds are provided and allCards isn't already defined
+      if ((!criteriaForSet.deckIds || criteriaForSet.deckIds.length === 0) && criteriaForSet.allCards === undefined) {
+        criteriaForSet.allCards = true;
       }
-      if (!criteriaForSet.tagLogic) { 
-        criteriaForSet.tagLogic = 'ANY';
+      
+      // The explicit if (!criteriaForSet.tagLogic) { criteriaForSet.tagLogic = 'ANY'; } block
+      // should no longer be strictly necessary due to the direct assignment above,
+      // but having it doesn't hurt as a safeguard if baseCriteria itself could somehow 
+      // have an explicitly undefined tagLogic after the spread, though unlikely with the new assignment.
+      // For clarity and to be certain, let's ensure it's explicitly set if the above didn't catch it (e.g. if baseCriteria.tagLogic was null not undefined):
+      if (criteriaForSet.tagLogic !== 'ANY' && criteriaForSet.tagLogic !== 'ALL') {
+          criteriaForSet.tagLogic = 'ANY';
       }
 
       // 1. Fetch SRS distribution (which now includes actionable_count)
@@ -106,7 +114,7 @@ export default async function ListStudySetsPage() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Your Smart Playlists</h1>
         <Button asChild>
-          <Link href="/study/sets/new">Create New Playlist</Link>
+          <Link href="/practice/sets/new">Create New Playlist</Link>
         </Button>
       </div>
       {/* Pass the augmented data to the client component */}
