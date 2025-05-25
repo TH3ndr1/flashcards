@@ -57,13 +57,14 @@ export function StudySetBuilder({ initialData, onSave, isSaving = false }: Study
     decks,   // Used in renderMultiSelectPopover
     onSubmit,
     watchedOperators,
-    watchedFilterValues,
     allowedOperators,
-    srsStageOptions
+    srsFilterOptions
   } = useStudySetForm({ initialData, onSave, isSaving });
 
   const { control, watch, setValue, resetField } = form;
-  const { includeTags } = watchedFilterValues;
+
+  // Watch includeTags directly for conditional rendering of tagLogic
+  const includeTags = watch("includeTags");
 
   const renderDateValueInputs = useCallback((
       opFieldKey: keyof Pick<StudySetBuilderFormData, "createdDateOperator" | "updatedDateOperator" | "lastReviewedOperator" | "nextReviewDueOperator">,
@@ -108,9 +109,9 @@ export function StudySetBuilder({ initialData, onSave, isSaving = false }: Study
   }, [control, isLoading, watch]);
 
   const renderMultiSelectPopover = useCallback((
-      field: keyof Pick<StudySetBuilderFormData, "selectedDeckIds" | "selectedSrsStages" | "includeTags" | "excludeTags">,
+      field: keyof Pick<StudySetBuilderFormData, "selectedDeckIds" | "includeTags" | "excludeTags">,
       options: { value: string; label: string }[],
-      selectedValuesProp: string[] | SrsStage[] | undefined,
+      selectedValuesProp: string[] | undefined,
       placeholder: string,
       groupLabel: string
     ) => {
@@ -193,7 +194,7 @@ export function StudySetBuilder({ initialData, onSave, isSaving = false }: Study
                         </FormItem>
                     )} />
                     <FormField control={control} name="tagLogic" render={({ field }) => (
-                        <FormItem className={(field.value && includeTags && includeTags.length > 1) ? 'mt-2 pl-2' : 'hidden'}>
+                        <FormItem className={(includeTags && includeTags.length > 1) ? 'mt-2 pl-2' : 'hidden'}>
                             <FormLabel>Tag Logic</FormLabel>
                             <UISelect onValueChange={field.onChange} value={field.value ?? 'ANY'} disabled={isLoading || !(includeTags && includeTags.length > 1)}>
                                 <FormControl><SelectTrigger className="w-full sm:w-[220px]"><SelectValue /></SelectTrigger></FormControl>
@@ -230,17 +231,31 @@ export function StudySetBuilder({ initialData, onSave, isSaving = false }: Study
                     </FormItem>
                 )} />
 
-                <FormField control={control} name="selectedSrsStages" render={({ field }) => (
+                <FormField control={control} name="srsFilter" render={({ field }) => (
                     <FormItem>
                         <FormLabel className="flex items-center"><GripVertical className="mr-2 h-5 w-5 text-muted-foreground"/> Card SRS Stage</FormLabel>
-                        {renderMultiSelectPopover(
-                            "selectedSrsStages",
-                            srsStageOptions.map(stage => ({ value: stage, label: stage.charAt(0).toUpperCase() + stage.slice(1) })),
-                            field.value,
-                            "Any Stage",
-                            "SRS Stages"
-                        )}
-                        <FormDescription>Include cards from any of the selected SRS stages.</FormDescription>
+                        <UISelect
+                            onValueChange={(value) => field.onChange(value === "__ANY_STAGE__" ? null : value)}
+                            value={field.value || "__ANY_STAGE__"}
+                            disabled={isLoading}
+                        >
+                            <FormControl><SelectTrigger><SelectValue placeholder="-- Any Stage --" /></SelectTrigger></FormControl>
+                            <SelectContent>
+                                <SelectItem value="__ANY_STAGE__">-- Any Stage --</SelectItem>
+                                {srsFilterOptions.map(stage => {
+                                    let label = stage.charAt(0).toUpperCase() + stage.slice(1);
+                                    if (stage === 'learning') {
+                                        label = 'Learning / Relearning';
+                                    }
+                                    return (
+                                        <SelectItem key={stage} value={stage}>
+                                            {label}
+                                        </SelectItem>
+                                    );
+                                })}
+                            </SelectContent>
+                        </UISelect>
+                        <FormDescription>Include cards from a specific SRS stage.</FormDescription>
                         <FormMessage />
                     </FormItem>
                 )} />

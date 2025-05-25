@@ -50,6 +50,10 @@ export async function getDecks(): Promise<ActionResult<DeckListItemWithCounts[]>
             { p_user_id: user.id }
         );
 
+        if (rpcData && rpcData.length > 0) {
+            appLogger.info('[deckActions - getDecks] First item from rpcData:', JSON.stringify(rpcData[0], null, 2));
+        }
+
         if (rpcError) {
             appLogger.error('[deckActions - getDecks] Supabase RPC failed:', rpcError);
             return { data: null, error: rpcError.message || 'Failed to fetch decks via RPC.' };

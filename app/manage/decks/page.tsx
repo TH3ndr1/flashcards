@@ -10,6 +10,7 @@ import { DeckProgressBar } from '@/components/deck/DeckProgressBar';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { formatDistanceToNow } from 'date-fns';
+import { appLogger } from '@/lib/logger';
 
 // Type for deck data including SRS counts, similar to EnhancedDeck in DeckListClient
 interface ManageDeckItem {
@@ -96,6 +97,8 @@ export default async function ManageDecksPage() {
         <>
           <div className="space-y-4">
             {decks.map((deck) => {
+              appLogger.info(`[ManageDecksPage] Deck: ${deck.name}, Tags JSON:`, deck.deck_tags_json);
+
               const totalCardsForDisplay = (deck.new_count ?? 0) +
                                    (deck.learning_count ?? 0) +
                                    (deck.relearning_count ?? 0) +

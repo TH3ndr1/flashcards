@@ -451,10 +451,10 @@ export function useStudySession({
             const delay = getNextDueCheckDelay(sessionQueue);
             if (delay !== null) {
                 const diffSeconds = Math.ceil(delay / 1000);
-                if (diffSeconds <= 1) return `Next card in ~1s`;
-                if (diffSeconds < 60) return `Next card in ${diffSeconds}s`;
+                if (diffSeconds <= 1) return `Next card in about 1 second.`;
+                if (diffSeconds < 60) return `Next card in about ${diffSeconds} seconds.`;
                 const diffMinutes = Math.ceil(delay / (1000 * 60));
-                return `Next card in ~${diffMinutes}m`;
+                return `Next card in about ${diffMinutes} minutes.`;
             }
             return sessionQueue.length > 0 ? "Preparing next card..." : "No cards currently due.";
         }

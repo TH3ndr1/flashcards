@@ -10,6 +10,7 @@ import { getStudySetCardCountByCriteria, getStudySetSrsDistribution, type SrsDis
 import { StudySetListClient } from '@/components/study/StudySetListClient'; // Use absolute path
 import type { StudyQueryCriteria } from '@/lib/schema/study-query.schema'; // For casting criteria
 import type { Tables } from '@/types/database'; // For Deck type if needed
+import { appLogger } from '@/lib/logger';
 
 // Define a more specific type for the study sets data passed to the client
 type StudySetWithCountsAndDeckNames = Tables<'study_sets'> & {
@@ -70,6 +71,9 @@ export default async function ListStudySetsPage() {
       if (criteriaForSet.tagLogic !== 'ANY' && criteriaForSet.tagLogic !== 'ALL') {
           criteriaForSet.tagLogic = 'ANY';
       }
+
+      // Log the criteria being used for this specific set before fetching distribution
+      appLogger.debug(`[ListStudySetsPage] For set '${set.name}' (ID: ${set.id}), using criteria for SRS distribution:`, JSON.stringify(criteriaForSet, null, 2));
 
       // 1. Fetch SRS distribution (which now includes actionable_count)
       const distributionResult = await getStudySetSrsDistribution({ criteria: criteriaForSet });

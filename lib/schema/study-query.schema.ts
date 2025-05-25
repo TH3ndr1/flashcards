@@ -81,9 +81,9 @@ export const StudyQueryCriteriaSchema = z.object({
   lastReviewed: LastReviewedDateFilterSchema.optional(),
   nextReviewDue: NextReviewDueDateFilterSchema.optional(),
 
-  // NEW SRS Filter (replaces srsStages)
-  srsFilter: z.enum(['new', 'due', 'all', 'none', 'learn', 'review', 'new_review']).optional()
-    .describe("Optional filter for SRS stages (e.g., 'new', 'due', 'learn', 'review')"),
+  // Ensure srsFilter enum includes 'learning', 'young', 'mature' and other necessary values
+  srsFilter: z.enum(['new', 'due', 'learning', 'young', 'mature', 'new_review', 'all', 'none']).optional()
+    .describe("Optional filter for SRS stages (e.g., 'new', 'due', 'learning', 'young', 'mature')"),
 })
 .describe("Schema defining the criteria for selecting cards for a study session");
 

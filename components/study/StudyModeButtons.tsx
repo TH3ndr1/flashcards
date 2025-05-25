@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { resolveStudyQuery } from '@/lib/actions/studyQueryActions';
 import { getCardSrsStatesByIds } from '@/lib/actions/cardActions';
 import { useStudySessionStore } from '@/store/studySessionStore';
@@ -37,6 +37,7 @@ export function StudyModeButtons({
   batchFetchInProgress = false
 }: StudyModeButtonsProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const setStudyParameters = useStudySessionStore((state) => state.setStudyParameters);
   const clearStudyParameters = useStudySessionStore((state) => state.clearStudyParameters);
 
@@ -90,7 +91,7 @@ export function StudyModeButtons({
             queryPayloadForAction = { studySetId: contentId };
         } else { // deck
             const criteriaForDeck: StudyQueryCriteria = {
-                deckId: contentId,
+                deckIds: [contentId],
                 tagLogic: 'ANY', // Default, other filters can be added if needed by StudyModeButtons
             };
             queryPayloadForAction = { criteria: criteriaForDeck };
@@ -144,7 +145,7 @@ export function StudyModeButtons({
       studyInputForStore = { deckId: contentId };
     }
 
-    console.log(`[StudyModeButtons] Starting '${sessionTypeToStart}' session with input:`, studyInputForStore);
+    console.log(`[StudyModeButtons] Starting '${sessionTypeToStart}' session from ${pathname} with input:`, studyInputForStore);
 
     if (sessionTypeToStart === 'learn-only' && learnCount === 0) {
       toast.info("No new cards available to learn in this selection.");
@@ -156,7 +157,7 @@ export function StudyModeButtons({
     }
 
     clearStudyParameters();
-    setStudyParameters(studyInputForStore, sessionTypeToStart);
+    setStudyParameters(studyInputForStore, sessionTypeToStart, pathname);
     router.push('/study/session');
   };
 

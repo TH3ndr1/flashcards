@@ -55,6 +55,15 @@ DECLARE
     v_mature_threshold     INTEGER;
     v_dynamic_where_conditions TEXT;
     v_actionable_srs_condition TEXT; -- For the 'new_review' filter for actionable_count
+
+    -- Temporary variables for initial distribution calculation
+    DECLARE
+        temp_new_count INTEGER;
+        temp_learning_count INTEGER;
+        temp_relearning_count INTEGER;
+        temp_young_count INTEGER;
+        temp_mature_count INTEGER;
+        total_cards_in_filtered_set INTEGER;
 BEGIN
     RAISE LOG '[get_study_set_srs_distribution_v2] User: %, Criteria: %', p_user_id, p_query_criteria;
 
@@ -116,20 +125,19 @@ BEGIN
     
     -- Language Filter
     IF v_contains_language IS NOT NULL AND char_length(v_contains_language) = 2 THEN
-        -- Ensure deck join exists for language filter if not already added by tags
-        IF v_join_clauses !~ 'd_lang' AND v_join_clauses !~ 'decks d' THEN -- Check for various ways decks might be aliased
-            v_join_clauses := v_join_clauses || ' JOIN public.decks d_lang ON c.deck_id = d_lang.id';
-        END IF;
-        -- Use the alias that was added, or default to d_lang if it's complex
-        -- This part needs robust alias handling or consistent aliasing. For now, assume d_lang if new, or reuse existing deck alias.
-        -- Simplified: if a deck join exists, use 'd' (common generic), else use 'd_lang'
         DECLARE
             v_deck_alias_for_lang TEXT;
         BEGIN
-            IF v_join_clauses ~ 'JOIN public.decks d([^_]|$)' THEN v_deck_alias_for_lang := 'd'; 
-            ELSIF v_join_clauses ~ 'JOIN public.decks d_tags' THEN v_deck_alias_for_lang := 'd_tags'; -- If joined by tags
-            ELSIF v_join_clauses ~ 'JOIN public.decks d_tags_incl' THEN v_deck_alias_for_lang := 'd_tags_incl';
-            ELSE v_deck_alias_for_lang := 'd_lang'; -- Fallback or if it was specifically d_lang
+            IF array_length(v_include_tags, 1) > 0 THEN
+                -- Tags are included, so 'd_tags_incl' alias for decks is already joined by the tag filtering logic.
+                v_deck_alias_for_lang := 'd_tags_incl';
+            ELSE
+                -- No tags included. Add a new join for language filter with alias 'd_lang'.
+                -- Ensure this specific join isn't redundantly added if it somehow existed from other logic (unlikely here).
+                IF v_join_clauses !~ 'JOIN public.decks d_lang ON c.deck_id = d_lang.id' THEN
+                    v_join_clauses := v_join_clauses || ' JOIN public.decks d_lang ON c.deck_id = d_lang.id';
+                END IF;
+                v_deck_alias_for_lang := 'd_lang';
             END IF;
 
             v_where_clauses := array_append(v_where_clauses,
@@ -253,7 +261,7 @@ BEGIN
         END IF;
     END;
     
-    -- Main SQL to get SRS distribution counts and actionable count
+    -- Main SQL to get SRS distribution counts and total card count for the filtered set
     v_base_sql := format(
         'SELECT ' ||
         '   COALESCE(SUM(CASE WHEN c.srs_level = 0 THEN 1 ELSE 0 END), 0)::BIGINT AS new_count, ' ||
@@ -261,20 +269,87 @@ BEGIN
         '   COALESCE(SUM(CASE WHEN c.learning_state = ''relearning'' THEN 1 ELSE 0 END), 0)::BIGINT AS relearning_count, ' ||
         '   COALESCE(SUM(CASE WHEN c.srs_level > 0 AND c.interval_days < %s AND c.learning_state IS DISTINCT FROM ''learning'' AND c.learning_state IS DISTINCT FROM ''relearning'' THEN 1 ELSE 0 END), 0)::BIGINT AS young_count, ' ||
         '   COALESCE(SUM(CASE WHEN c.srs_level > 0 AND c.interval_days >= %s AND c.learning_state IS DISTINCT FROM ''learning'' AND c.learning_state IS DISTINCT FROM ''relearning'' THEN 1 ELSE 0 END), 0)::BIGINT AS mature_count, ' ||
-        '   COALESCE(SUM(CASE WHEN %s THEN 1 ELSE 0 END), 0)::BIGINT AS actionable_count ' || -- Sum based on the actionable_srs_condition
+        '   COALESCE(COUNT(*), 0)::BIGINT AS total_for_set ' || -- Calculate total cards in the filtered set
         '%s %s WHERE %s',
         v_mature_threshold,          -- for young_count
         v_mature_threshold,          -- for mature_count
-        v_actionable_srs_condition,  -- for actionable_count
         v_from_clause,               -- e.g., FROM public.cards c
         v_join_clauses,              -- e.g., JOIN public.decks d ON ...
         v_dynamic_where_conditions   -- e.g., c.user_id = '...' AND (other filters)
     );
 
-    RAISE LOG '[get_study_set_srs_distribution_v2] Final SQL for distribution: %', v_base_sql;
-    
-    EXECUTE v_base_sql INTO v_distribution_result;
-    
+    RAISE LOG '[get_study_set_srs_distribution_v2] Final SQL for distribution counts: %', v_base_sql;
+
+    -- Execute the main query to populate temporary distribution variables and total count
+    EXECUTE v_base_sql
+    INTO
+        temp_new_count,
+        temp_learning_count,
+        temp_relearning_count,
+        temp_young_count,
+        temp_mature_count,
+        total_cards_in_filtered_set; -- Ensure v_base_sql selects these 6 values in order
+
+    -- Conditionally populate the result based on p_srs_filter
+    DECLARE
+        v_srs_filter_val TEXT := p_query_criteria->>'srsFilter';
+    BEGIN
+        IF v_srs_filter_val = 'new' THEN
+            v_distribution_result.new_count = total_cards_in_filtered_set;
+            v_distribution_result.learning_count = 0;
+            v_distribution_result.relearning_count = 0;
+            v_distribution_result.young_count = 0;
+            v_distribution_result.mature_count = 0;
+        ELSIF v_srs_filter_val = 'learning' THEN -- UI "Learning / Relearning"
+            v_distribution_result.new_count = 0;
+            -- temp_learning_count and temp_relearning_count are based on the *already filtered* set of cards.
+            -- If srsFilter was 'learning', then total_cards_in_filtered_set = temp_learning_count + temp_relearning_count.
+            v_distribution_result.learning_count = temp_learning_count; 
+            v_distribution_result.relearning_count = temp_relearning_count;
+            v_distribution_result.young_count = 0;
+            v_distribution_result.mature_count = 0;
+        ELSIF v_srs_filter_val = 'young' THEN 
+            -- 'young' filter in schema maps to: (c.srs_level > 0 AND c.interval_days < v_mature_threshold AND learning_state IS DISTINCT FROM 'learning' AND learning_state IS DISTINCT FROM 'relearning')
+            -- The SrsDistribution.young_count is for srs_level 1-4 (interval < mature_threshold)
+            -- The SrsDistribution.mature_count is for srs_level >=5 (interval >= mature_threshold)
+            -- If the filter was 'young', all cards match this. We need to assign to the correct bucket in the output.
+            -- The temp_young_count already correctly counts cards with interval_days < v_mature_threshold.
+            v_distribution_result.new_count = 0;
+            v_distribution_result.learning_count = 0;
+            v_distribution_result.relearning_count = 0;
+            v_distribution_result.young_count = total_cards_in_filtered_set; -- All filtered cards are 'young' by definition of the filter
+            v_distribution_result.mature_count = 0;
+        ELSIF v_srs_filter_val = 'mature' THEN
+            -- 'mature' filter in schema maps to: (c.srs_level > 0 AND c.interval_days >= v_mature_threshold AND learning_state IS DISTINCT FROM 'learning' AND learning_state IS DISTINCT FROM 'relearning')
+            -- All cards in total_cards_in_filtered_set fit this. These are all considered 'mature' for the distribution.
+            v_distribution_result.new_count = 0;
+            v_distribution_result.learning_count = 0;
+            v_distribution_result.relearning_count = 0;
+            v_distribution_result.young_count = 0;
+            v_distribution_result.mature_count = total_cards_in_filtered_set;
+        ELSE -- For NULL, 'all', 'due', 'new_review', or any other filters, use the full calculated distribution
+            v_distribution_result.new_count = temp_new_count;
+            v_distribution_result.learning_count = temp_learning_count;
+            v_distribution_result.relearning_count = temp_relearning_count;
+            v_distribution_result.young_count = temp_young_count;
+            v_distribution_result.mature_count = temp_mature_count;
+        END IF;
+    END;
+
+    -- Calculate actionable_count separately using the previously defined conditions
+    DECLARE
+        v_actionable_query TEXT;
+    BEGIN
+        v_actionable_query := format(
+            'SELECT COALESCE(SUM(CASE WHEN %s THEN 1 ELSE 0 END), 0)::BIGINT FROM public.cards c %s WHERE %s',
+            v_actionable_srs_condition, 
+            v_join_clauses, 
+            v_dynamic_where_conditions
+        );
+        RAISE LOG '[get_study_set_srs_distribution_v2] Actionable count query: %', v_actionable_query;
+        EXECUTE v_actionable_query INTO v_distribution_result.actionable_count;
+    END;
+
     RETURN v_distribution_result;
 
 EXCEPTION WHEN others THEN

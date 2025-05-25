@@ -102,7 +102,7 @@ export default function EditStudySetPage() {
             } else {
                 toast.success(`Study Set "${result.data?.name}" updated successfully!`);
                 // Optionally navigate back or refresh data
-                router.push('/study/sets'); // Navigate back to list on success
+                router.push('/practice/sets'); // Navigate back to list on success
                  // Or maybe just refresh initial data if staying on page:
                  // setInitialData(result.data); // Update local state with saved data
             }
@@ -129,7 +129,7 @@ export default function EditStudySetPage() {
                 toast.error(`Failed to delete "${setName}"`, { description: result.error });
             } else {
                 toast.success(`Study Set "${setName}" deleted.`);
-                router.push('/study/sets'); // Navigate back to list on success
+                router.push('/practice/sets'); // Navigate back to list on success
             }
         } catch (err) {
             appLogger.error(`[EditStudySetPage] Unexpected error deleting study set:`, err);
@@ -158,7 +158,7 @@ export default function EditStudySetPage() {
                   <AlertTitle>Error Loading Study Set</AlertTitle>
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
-                <Button onClick={() => router.push('/study/sets')} className="mt-4" variant="outline">
+                <Button onClick={() => router.push('/practice/sets')} className="mt-4" variant="outline">
                     Back to Playlists
                 </Button>
             </div>
@@ -175,7 +175,7 @@ export default function EditStudySetPage() {
              <div className="flex justify-between items-center mb-6">
                 <h1 className="text-2xl font-bold">Edit Smart Playlist</h1>
                 <Button variant="outline" asChild>
-                    <Link href="/study/sets">Cancel</Link>
+                    <Link href="/practice/sets">Cancel</Link>
                 </Button>
              </div>
 

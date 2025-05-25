@@ -47,34 +47,34 @@ interface StudySetCardItemProps {
 
 const StudySetCardItem = React.memo(function StudySetCardItem({ set }: StudySetCardItemProps) {
   return (
-    <Card key={set.id} className="hover:shadow-md transition-shadow flex flex-col bg-gradient-to-b from-slate-100/40 dark:from-slate-800/40 to-transparent dark:border-slate-700">
-      <CardHeader className="pt-4 pb-2 space-y-1 px-4">
-        <div className="flex justify-between items-center">
-          <CardTitle className="truncate" title={set.name}>{set.name}</CardTitle>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0 text-muted-foreground" aria-label={`Edit ${set.name}`} asChild>
-                <Link href={`/practice/sets/${set.id}/edit`}><Edit className="h-4 w-4" /></Link>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent><p>Edit Playlist</p></TooltipContent>
-          </Tooltip>
-        </div>
+          <Card key={set.id} className="hover:shadow-md transition-shadow flex flex-col bg-gradient-to-b from-slate-100/40 dark:from-slate-800/40 to-transparent dark:border-slate-700">
+            <CardHeader className="pt-4 pb-2 space-y-1 px-4">
+              <div className="flex justify-between items-center">
+                <CardTitle className="truncate" title={set.name}>{set.name}</CardTitle>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0 text-muted-foreground" aria-label={`Edit ${set.name}`} asChild>
+                      <Link href={`/practice/sets/${set.id}/edit`}><Edit className="h-4 w-4" /></Link>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p>Edit Playlist</p></TooltipContent>
+                </Tooltip>
+              </div>
         <CardDescription className="text-muted-foreground gap-1 pt-1">
           <span>{set.totalMatchingCardCount} cards</span>
-        </CardDescription>
-        {/* Display Related Deck Names */}
-        {set.relatedDeckNames && set.relatedDeckNames.length > 0 && (
-          <div className="mt-1 pt-1 border-t border-dashed border-slate-200 dark:border-slate-700">
-              <p className="text-xs text-muted-foreground">
-                  <span className="font-medium">Decks:</span> {set.relatedDeckNames.join(', ')}
-              </p>
-          </div>
-        )}
-      </CardHeader>
+              </CardDescription>
+              {/* Display Related Deck Names */}
+              {set.relatedDeckNames && set.relatedDeckNames.length > 0 && (
+                <div className="mt-1 pt-1 border-t border-dashed border-slate-200 dark:border-slate-700">
+                    <p className="text-xs text-muted-foreground">
+                        <span className="font-medium">Decks:</span> {set.relatedDeckNames.join(', ')}
+                    </p>
+                </div>
+              )}
+            </CardHeader>
       <CardFooter className="flex justify-center items-center mt-auto pt-4 px-4 pb-4">
         <PlaylistPracticeButton studySetId={set.id} studySetName={set.name} actionableCardCount={set.actionableCardCount} />
-      </CardFooter>
+            </CardFooter>
       {/* Add Progress Bar here */}
       {set.srsDistribution && set.totalMatchingCardCount > 0 && (
         <>
@@ -90,7 +90,7 @@ const StudySetCardItem = React.memo(function StudySetCardItem({ set }: StudySetC
           </CardContent>
         </>
       )}
-    </Card>
+          </Card>
   );
 });
 
