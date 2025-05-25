@@ -1,7 +1,7 @@
 // components/DeckListClient.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { PlusCircle, Edit, Play } from "lucide-react";
@@ -19,6 +19,7 @@ import { DeckProgressBar } from "@/components/deck/DeckProgressBar";
 import { useSettings } from "@/providers/settings-provider";
 import { Separator } from "@/components/ui/separator";
 import { toast } from 'sonner';
+import { Skeleton } from "@/components/ui/skeleton";
 
 // Type for enhanced deck data that includes learn/review counts
 interface EnhancedDeck {
@@ -41,6 +42,101 @@ interface DeckListClientProps {
   initialData?: EnhancedDeck[];
 }
 
+// --- DeckCardItem Sub-component ---
+interface DeckCardItemProps {
+  deck: EnhancedDeck;
+  showProgressBar: boolean; // Actual value based on loaded settings
+  isSettingsLoading: boolean; // To indicate if we should show a skeleton for the progress bar
+  onPracticeDeck: (deckId: string, learnCount: number, reviewCount: number) => void;
+  onEditDeck: (deckId: string) => void;
+}
+
+const DeckCardItem = React.memo(({ 
+  deck, 
+  showProgressBar, 
+  isSettingsLoading, 
+  onPracticeDeck,
+  onEditDeck 
+}: DeckCardItemProps) => {
+  const totalCardsForDisplay = (deck.new_count ?? 0) +
+                             (deck.learning_count ?? 0) +
+                             (deck.relearning_count ?? 0) +
+                             (deck.young_count ?? 0) +
+                             (deck.mature_count ?? 0);
+
+  let languageDisplay = deck.primary_language || 'N/A';
+  if (deck.is_bilingual && deck.secondary_language) {
+      languageDisplay = `${deck.primary_language ?? '?'}/${deck.secondary_language ?? '?'}`;
+  }
+
+  const learnEligible = deck.learn_eligible_count ?? 0;
+  const reviewEligible = deck.review_eligible_count ?? 0;
+  const totalPracticeable = learnEligible + reviewEligible;
+
+  return (
+    <Card key={deck.id} className="hover:shadow-md transition-shadow flex flex-col bg-gradient-to-b from-slate-100/40 dark:from-slate-800/40 to-transparent dark:border-slate-700">
+      <CardHeader className="pt-4 pb-2 space-y-1 px-4">
+        <div className="flex justify-between items-center">
+          <CardTitle className="truncate text-lg" title={deck.name}>{deck.name}</CardTitle>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => onEditDeck(deck.id)}
+                className="h-7 w-7 flex-shrink-0 text-muted-foreground"
+                aria-label={`Edit deck ${deck.name}`}
+              >
+                <Edit className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent><p>Edit Deck</p></TooltipContent>
+          </Tooltip>
+        </div>
+        <CardDescription className="text-sm">
+          {totalCardsForDisplay} card{totalCardsForDisplay !== 1 ? 's' : ''} • {languageDisplay}
+        </CardDescription>
+      </CardHeader>
+      <CardFooter className="flex justify-center pt-4 px-4 pb-4">
+        <Button
+            onClick={() => onPracticeDeck(deck.id, learnEligible, reviewEligible)}
+            disabled={totalPracticeable === 0}
+            size="sm"
+            className="w-full bg-primary hover:bg-primary/90"
+        >
+            <Play className="h-4 w-4 mr-2" />
+            Practice {totalPracticeable > 0 ? `(${totalPracticeable})` : ''}
+        </Button>
+      </CardFooter>
+      {isSettingsLoading && totalCardsForDisplay > 0 && ( // Show skeleton if settings are loading
+        <>
+          <Separator />
+          <CardContent className="px-4 pt-4 pb-4 bg-slate-50 dark:bg-slate-700/50 rounded-b-lg">
+            <Skeleton className="h-3 w-full rounded-lg" />
+          </CardContent>
+        </>
+      )}
+      {!isSettingsLoading && showProgressBar && totalCardsForDisplay > 0 && ( // Show actual bar if settings loaded and enabled
+        <>
+          <Separator />
+          <CardContent className="px-4 pt-4 pb-4 bg-slate-50 dark:bg-slate-700/50 rounded-b-lg">
+            <DeckProgressBar
+              newCount={deck.new_count ?? 0}
+              learningCount={deck.learning_count ?? 0}
+              relearningCount={deck.relearning_count ?? 0}
+              youngCount={deck.young_count ?? 0}
+              matureCount={deck.mature_count ?? 0}
+            />
+          </CardContent>
+        </>
+      )}
+    </Card>
+  );
+});
+DeckCardItem.displayName = 'DeckCardItem'; // For better debugging
+
+// --- End DeckCardItem Sub-component ---
+
 export function DeckListClient({ initialData = [] }: DeckListClientProps) {
   const { settings, loading: settingsLoading } = useSettings();
   const router = useRouter();
@@ -48,7 +144,6 @@ export function DeckListClient({ initialData = [] }: DeckListClientProps) {
   const clearStudyParameters = useStudySessionStore((state) => state.clearStudyParameters);
 
   const decks = initialData;
-  const isLoading = settingsLoading; // Assuming initialData means data loading is handled by parent
 
   const legendStages = [
     { name: 'New', startColor: '#EC4899', endColor: '#EF4444' },
@@ -72,19 +167,17 @@ export function DeckListClient({ initialData = [] }: DeckListClientProps) {
     router.push('/study/session');
   };
 
+  const handleEditDeck = (deckId: string) => {
+    router.push(`/edit/${deckId}`);
+  };
+
   const handleCreateDeckClick = () => {
     router.push('/manage/decks/new');
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="h-12 w-12 rounded-full border-2 border-primary animate-spin border-b-transparent" />
-      </div>
-    );
-  }
-
-  const showDeckProgress = settings?.showDeckProgress ?? true;
+  // Determine showDeckProgress once settings are loaded or defaulted
+  const showDeckProgressSetting = settingsLoading ? false : (settings?.showDeckProgress ?? true);
+  const actualShowProgressBarValue = settingsLoading ? false : showDeckProgressSetting;
 
   return (
     <TooltipProvider>
@@ -102,85 +195,36 @@ export function DeckListClient({ initialData = [] }: DeckListClientProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {decks.length === 0 ? (
             <div className="col-span-full text-center text-muted-foreground mt-10">
-              <p>You haven't created any decks yet.</p>
-              <Button onClick={handleCreateDeckClick} className="mt-4">
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Create Your First Deck
-              </Button>
+              {settingsLoading ? ( // If settings still loading and no decks, show spinner
+                 <div className="flex justify-center items-center h-32">
+                   <div className="h-12 w-12 rounded-full border-2 border-primary animate-spin border-b-transparent" />
+                 </div>
+              ) : (
+                <>
+                  <p>You haven't created any decks yet.</p>
+                  <Button onClick={handleCreateDeckClick} className="mt-4">
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Create Your First Deck
+                  </Button>
+                </>
+              )}
             </div>
           ) : (
-            decks.map((deck) => {
-              const totalCardsForDisplay = (deck.new_count ?? 0) +
-                                 (deck.learning_count ?? 0) +
-                                 (deck.relearning_count ?? 0) +
-                                 (deck.young_count ?? 0) +
-                                 (deck.mature_count ?? 0);
-
-              let languageDisplay = deck.primary_language || 'N/A';
-              if (deck.is_bilingual && deck.secondary_language) {
-                  languageDisplay = `${deck.primary_language ?? '?'}/${deck.secondary_language ?? '?'}`;
-              }
-
-              const learnEligible = deck.learn_eligible_count ?? 0;
-              const reviewEligible = deck.review_eligible_count ?? 0;
-              const totalPracticeable = learnEligible + reviewEligible;
-
-              return (
-                <Card key={deck.id} className="hover:shadow-md transition-shadow flex flex-col bg-gradient-to-b from-slate-100/40 dark:from-slate-800/40 to-transparent dark:border-slate-700">
-                  <CardHeader className="pt-4 pb-2 space-y-1 px-4">
-                    <div className="flex justify-between items-center">
-                      <CardTitle className="truncate text-lg" title={deck.name}>{deck.name}</CardTitle>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => router.push(`/edit/${deck.id}`)}
-                            className="h-7 w-7 flex-shrink-0 text-muted-foreground"
-                            aria-label={`Edit deck ${deck.name}`}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent><p>Edit Deck</p></TooltipContent>
-                      </Tooltip>
-                    </div>
-                    <CardDescription className="text-sm">
-                      {totalCardsForDisplay} card{totalCardsForDisplay !== 1 ? 's' : ''} • {languageDisplay}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardFooter className="flex justify-center pt-4 px-4 pb-4">
-                    <Button
-                        onClick={() => handlePracticeDeck(deck.id, learnEligible, reviewEligible)}
-                        disabled={totalPracticeable === 0}
-                        size="sm"
-                        className="w-full bg-primary hover:bg-primary/90"
-                    >
-                        <Play className="h-4 w-4 mr-2" />
-                        Practice {totalPracticeable > 0 ? `(${totalPracticeable})` : ''}
-                    </Button>
-                  </CardFooter>
-                  {showDeckProgress && totalCardsForDisplay > 0 && (
-                    <>
-                      <Separator />
-                      <CardContent className="px-4 pt-4 pb-4 bg-slate-50 dark:bg-slate-700/50 rounded-b-lg">
-                        <DeckProgressBar
-                          newCount={deck.new_count ?? 0}
-                          learningCount={deck.learning_count ?? 0}
-                          relearningCount={deck.relearning_count ?? 0}
-                          youngCount={deck.young_count ?? 0}
-                          matureCount={deck.mature_count ?? 0}
-                        />
-                      </CardContent>
-                    </>
-                  )}
-                </Card>
-              );
-            })
+            decks.map((deck) => (
+              <DeckCardItem
+                key={deck.id}
+                deck={deck}
+                showProgressBar={actualShowProgressBarValue} // This is now correctly timed
+                isSettingsLoading={settingsLoading}
+                onPracticeDeck={handlePracticeDeck}
+                onEditDeck={handleEditDeck}
+              />
+            ))
           )}
         </div>
 
-        {showDeckProgress && decks.length > 0 && (
+        {/* Legend: only show if settings are loaded AND progress bars are enabled AND there are decks */}
+        {!settingsLoading && actualShowProgressBarValue && decks.length > 0 && (
           <div className="mt-4 flex justify-end">
             <div className="text-xs text-muted-foreground flex flex-wrap gap-x-3 gap-y-1 p-2 border rounded-md bg-background shadow-sm">
               {legendStages.map(stage => (

@@ -2,10 +2,10 @@
 'use client';
 
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useStudySessionStore } from '@/store/studySessionStore';
 import { useStudySession, type UseStudySessionReturn } from '@/hooks/useStudySession';
-import { StudyFlashcardView, type StudyFlashcardViewProps } from '@/components/study-flashcard-view';
 import { Loader2 as IconLoader } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from "@/components/ui/progress";
@@ -16,6 +16,19 @@ import { useSettings } from '@/providers/settings-provider';
 import { useTTS } from "@/hooks/use-tts";
 import type { SessionType, StudyCardDb, SessionResults } from '@/types/study'; // Added SessionResults
 import { appLogger } from '@/lib/logger';
+
+// Dynamically import StudyFlashcardView
+const StudyFlashcardView = dynamic(() => 
+  import('@/components/study-flashcard-view').then(mod => mod.StudyFlashcardView),
+  {
+    loading: () => (
+      <div className="w-full max-w-2xl h-80 flex items-center justify-center">
+        <IconLoader className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    ),
+    ssr: false // StudyFlashcardView uses client-side hooks like useTheme, useTTS extensively
+  }
+);
 
 const FLIP_DURATION_MS = 300;
 

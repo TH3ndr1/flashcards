@@ -20,7 +20,6 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster as SonnerToaster } from "sonner";
 import { AuthProvider } from "@/hooks/use-auth";
 import { SettingsProvider } from "@/providers/settings-provider";
-import { SpeedInsights } from "@vercel/speed-insights/next";
 
 interface ClientProvidersProps {
   children: React.ReactNode;
@@ -41,7 +40,6 @@ export function ClientProviders({ children }: ClientProvidersProps) {
         <SettingsProvider>
           {children}
           <SonnerToaster richColors closeButton />
-          <SpeedInsights />
         </SettingsProvider>
       </AuthProvider>
     </ThemeProvider>

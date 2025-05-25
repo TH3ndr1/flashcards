@@ -43,32 +43,32 @@ function useElementWidth(elementRef: React.RefObject<HTMLElement | null>) {
   return width;
 }
 
-export function DeckProgressBar({
+const DeckProgressBarInternal = ({
   newCount,
   learningCount,
   relearningCount,
   youngCount,
   matureCount,
-}: Omit<DeckProgressBarProps, 'onClick'>) {
+}: Omit<DeckProgressBarProps, 'onClick'>) => {
   const totalCount = newCount + learningCount + relearningCount + youngCount + matureCount;
   const rootRef = useRef<HTMLDivElement>(null);
-  const [hasAnimated, setHasAnimated] = useState(false);
+  const [hasAnimated, setHasAnimated] = useState(false); // Restore animation state
 
-  useEffect(() => {
+  useEffect(() => { // Restore animation effect
     const timer = setTimeout(() => {
       setHasAnimated(true);
     }, 50);
     return () => clearTimeout(timer);
   }, []);
 
-  // Define stages with gradient hex codes
-  const stages = [
+  // Define stages with gradient hex codes - useMemo to prevent recreation if counts don't change
+  const stages = React.useMemo(() => [
     { name: 'New', count: newCount, percentage: totalCount > 0 ? (newCount / totalCount) * 100 : 0, startColor: '#EC4899', endColor: '#EF4444' },
     { name: 'Learning', count: learningCount, percentage: totalCount > 0 ? (learningCount / totalCount) * 100 : 0, startColor: '#DA55C6', endColor: '#9353DD' },
     { name: 'Relearning', count: relearningCount, percentage: totalCount > 0 ? (relearningCount / totalCount) * 100 : 0, startColor: '#F59E0B', endColor: '#F97316' },
     { name: 'Young', count: youngCount, percentage: totalCount > 0 ? (youngCount / totalCount) * 100 : 0, startColor: '#6055DA', endColor: '#5386DD' },
     { name: 'Mature', count: matureCount, percentage: totalCount > 0 ? (matureCount / totalCount) * 100 : 0, startColor: '#55A9DA', endColor: '#53DDDD' },
-  ];
+  ], [newCount, learningCount, relearningCount, youngCount, matureCount, totalCount]);
 
   // Placeholder for zero cards
   if (totalCount === 0) {
@@ -102,35 +102,35 @@ export function DeckProgressBar({
       )}
     >
       {/* Flex container for slices and gutters */}
-      <div className="absolute inset-0 flex w-full h-full gap-px bg-border">
-        {stages.map((stage, index) => {
-          if (stage.count === 0) return null;
-          const width = hasAnimated ? `${stage.percentage}%` : '0%';
-          return (
-            <TooltipProvider key={stage.name}>
-              <Tooltip delayDuration={100}>
-                <TooltipTrigger
-                  asChild
-                  aria-label={`${stage.name}: ${stage.count} card${stage.count === 1 ? '' : 's'}`}
-                >
-                  <div
-                    className="h-full transition-all duration-500 ease-out"
-                    style={{
-                      width: width,
-                      backgroundImage: `linear-gradient(to right, ${stage.startColor}, ${stage.endColor})`,
-                      marginLeft: index > 0 && stages.slice(0, index).every(s => s.count === 0) ? '0' : index > 0 ? '1px' : '0',
-                    }}
-                  />
-                </TooltipTrigger>
-                <TooltipContent className="text-xs">
-                  {stage.name}: {stage.count} card{stage.count === 1 ? '' : 's'}
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          );
-        })}
-      </div>
-      {/* Animation Overlay */}
+      <TooltipProvider>
+        <div className="absolute inset-0 flex w-full h-full gap-px bg-border">
+          {stages.map((stage, index) => {
+            if (stage.count === 0) return null;
+            const width = hasAnimated ? `${stage.percentage}%` : '0%'; // Restore animation-dependent width
+            return (
+                <Tooltip key={stage.name} delayDuration={100}>
+                  <TooltipTrigger
+                    asChild
+                    aria-label={`${stage.name}: ${stage.count} card${stage.count === 1 ? '' : 's'}`}
+                  >
+                    <div
+                      className="h-full transition-all duration-500 ease-out"
+                      style={{
+                        width: width,
+                        backgroundImage: `linear-gradient(to right, ${stage.startColor}, ${stage.endColor})`,
+                        marginLeft: index > 0 && stages.slice(0, index).every(s => s.count === 0) ? '0' : index > 0 ? '1px' : '0',
+                      }}
+                    />
+                  </TooltipTrigger>
+                  <TooltipContent className="text-xs">
+                    {stage.name}: {stage.count} card{stage.count === 1 ? '' : 's'}
+                  </TooltipContent>
+                </Tooltip>
+            );
+          })}
+        </div>
+      </TooltipProvider>
+      {/* Animation Overlay - Restored */}
       <div
         className={cn(
           'absolute inset-0 bg-background transition-transform duration-600 ease-out',
@@ -139,4 +139,6 @@ export function DeckProgressBar({
       />
     </div>
   );
-}
+};
+
+export const DeckProgressBar = React.memo(DeckProgressBarInternal);

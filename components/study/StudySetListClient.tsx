@@ -40,6 +40,60 @@ interface StudySetListClientProps {
   // showStudySetProgress?: boolean;
 }
 
+// StudySetCardItem sub-component
+interface StudySetCardItemProps {
+  set: StudySetWithCountsAndDeckNames;
+}
+
+const StudySetCardItem = React.memo(function StudySetCardItem({ set }: StudySetCardItemProps) {
+  return (
+    <Card key={set.id} className="hover:shadow-md transition-shadow flex flex-col bg-gradient-to-b from-slate-100/40 dark:from-slate-800/40 to-transparent dark:border-slate-700">
+      <CardHeader className="pt-4 pb-2 space-y-1 px-4">
+        <div className="flex justify-between items-center">
+          <CardTitle className="truncate" title={set.name}>{set.name}</CardTitle>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0 text-muted-foreground" aria-label={`Edit ${set.name}`} asChild>
+                <Link href={`/practice/sets/${set.id}/edit`}><Edit className="h-4 w-4" /></Link>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent><p>Edit Playlist</p></TooltipContent>
+          </Tooltip>
+        </div>
+        <CardDescription className="text-muted-foreground gap-1 pt-1">
+          <span>{set.totalMatchingCardCount} cards</span>
+        </CardDescription>
+        {/* Display Related Deck Names */}
+        {set.relatedDeckNames && set.relatedDeckNames.length > 0 && (
+          <div className="mt-1 pt-1 border-t border-dashed border-slate-200 dark:border-slate-700">
+              <p className="text-xs text-muted-foreground">
+                  <span className="font-medium">Decks:</span> {set.relatedDeckNames.join(', ')}
+              </p>
+          </div>
+        )}
+      </CardHeader>
+      <CardFooter className="flex justify-center items-center mt-auto pt-4 px-4 pb-4">
+        <PlaylistPracticeButton studySetId={set.id} studySetName={set.name} actionableCardCount={set.actionableCardCount} />
+      </CardFooter>
+      {/* Add Progress Bar here */}
+      {set.srsDistribution && set.totalMatchingCardCount > 0 && (
+        <>
+          <Separator />
+          <CardContent className="px-4 pt-4 pb-4 bg-slate-50 dark:bg-slate-700/50 rounded-b-lg">
+            <DeckProgressBar
+              newCount={set.srsDistribution.new_count}
+              learningCount={set.srsDistribution.learning_count}
+              relearningCount={set.srsDistribution.relearning_count}
+              youngCount={set.srsDistribution.young_count}
+              matureCount={set.srsDistribution.mature_count}
+            />
+          </CardContent>
+        </>
+      )}
+    </Card>
+  );
+});
+
 // PlaylistPracticeButton sub-component
 interface PlaylistPracticeButtonProps {
   studySetId: string;
@@ -47,7 +101,7 @@ interface PlaylistPracticeButtonProps {
   actionableCardCount: number; // Changed from totalCardCount
 }
 
-function PlaylistPracticeButton({ studySetId, studySetName, actionableCardCount }: PlaylistPracticeButtonProps) {
+function PlaylistPracticeButtonInternal({ studySetId, studySetName, actionableCardCount }: PlaylistPracticeButtonProps) {
   const router = useRouter();
   const { setStudyParameters, clearStudyParameters } = useStudySessionStore();
 
@@ -79,6 +133,7 @@ function PlaylistPracticeButton({ studySetId, studySetName, actionableCardCount 
   );
 }
 
+const PlaylistPracticeButton = React.memo(PlaylistPracticeButtonInternal);
 
 export function StudySetListClient({ initialData = [] }: StudySetListClientProps) {
   const studySets = initialData;
@@ -94,50 +149,7 @@ export function StudySetListClient({ initialData = [] }: StudySetListClientProps
     <TooltipProvider>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {studySets.map((set) => (
-          <Card key={set.id} className="hover:shadow-md transition-shadow flex flex-col bg-gradient-to-b from-slate-100/40 dark:from-slate-800/40 to-transparent dark:border-slate-700">
-            <CardHeader className="pt-4 pb-2 space-y-1 px-4">
-              <div className="flex justify-between items-center">
-                <CardTitle className="truncate" title={set.name}>{set.name}</CardTitle>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0 text-muted-foreground" aria-label={`Edit ${set.name}`} asChild>
-                      <Link href={`/practice/sets/${set.id}/edit`}><Edit className="h-4 w-4" /></Link>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent><p>Edit Playlist</p></TooltipContent>
-                </Tooltip>
-              </div>
-              <CardDescription className="text-muted-foreground gap-1 pt-1">
-                <span>{set.totalMatchingCardCount} cards</span>
-              </CardDescription>
-              {/* Display Related Deck Names */}
-              {set.relatedDeckNames && set.relatedDeckNames.length > 0 && (
-                <div className="mt-1 pt-1 border-t border-dashed border-slate-200 dark:border-slate-700">
-                    <p className="text-xs text-muted-foreground">
-                        <span className="font-medium">Decks:</span> {set.relatedDeckNames.join(', ')}
-                    </p>
-                </div>
-              )}
-            </CardHeader>
-            <CardFooter className="flex justify-center items-center mt-auto pt-4 px-4 pb-4">
-              <PlaylistPracticeButton studySetId={set.id} studySetName={set.name} actionableCardCount={set.actionableCardCount} />
-            </CardFooter>
-            {/* Add Progress Bar here */}
-            {set.srsDistribution && set.totalMatchingCardCount > 0 && (
-              <>
-                <Separator />
-                <CardContent className="px-4 pt-4 pb-4 bg-slate-50 dark:bg-slate-700/50 rounded-b-lg">
-                  <DeckProgressBar
-                    newCount={set.srsDistribution.new_count}
-                    learningCount={set.srsDistribution.learning_count}
-                    relearningCount={set.srsDistribution.relearning_count}
-                    youngCount={set.srsDistribution.young_count}
-                    matureCount={set.srsDistribution.mature_count}
-                  />
-                </CardContent>
-              </>
-            )}
-          </Card>
+          <StudySetCardItem set={set} key={set.id} />
         ))}
       </div>
       {/* Consider if a legend is needed here like in DeckListClient */}

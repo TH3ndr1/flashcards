@@ -170,19 +170,19 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
 
 ### 4.3 Practice Mode Features
 *   **Study Session Initiation:** Start sessions based on:
-    *   A specific Deck (from `/` page "Practice" button, initiates `'unified'` `SessionType`).
-    *   All user cards (from `/study/select`, can be `'learn-only'` or `'review-only'` `SessionType`).
+    *   A specific Deck (from `/practice/decks` page "Practice (Unified)" button, initiates `'unified'` `SessionType`).
+    *   All user cards (from `/practice/select`, can be `'learn-only'` or `'review-only'` `SessionType`).
     *   A specific Tag (typically via a Smart Playlist that filters by tags).
-    *   A saved Study Set ("Smart Playlist") (from `/study/sets` or `/study/select`, can be `'learn-only'` or `'review-only'` `SessionType`).
+    *   A saved Study Set ("Smart Playlist") (from `/practice/sets` or `/practice/select`, can be `'learn-only'` or `'review-only'` `SessionType`).
 *   **Session Type Selection & Behavior:** The type of study session determines which cards are initially queued and how the session progresses.
-    *   **`Learn-only` Session (e.g., from `/study/select` "Learn New" button):**
+    *   **`Learn-only` Session (e.g., from `/practice/select` "Learn New" button):**
         *   Initially queues cards from the selected source where `srs_level = 0` AND (`learning_state IS NULL` OR `learning_state = 'learning'`).
         *   New cards (`learning_state IS NULL`) transition to `learning_state = 'learning'` (in DB) upon their first answer that doesn't graduate them.
         *   Card progression within this session follows the user's chosen `settings.studyAlgorithm` ('dedicated-learn' or 'standard-sm2') until graduated or the session ends.
-    *   **`Review-only` Session (e.g., from `/study/select` "Review Due" button):**
+    *   **`Review-only` Session (e.g., from `/practice/select` "Review Due" button):**
         *   Initially queues cards from the selected source where (`srs_level >= 1` OR (`srs_level = 0` AND `learning_state = 'relearning'`)) AND `next_review_due <= NOW()`.
         *   Card progression follows SM-2 rules for review and relearning steps.
-    *   **`Unified Practice` Session (e.g., from Deck List "Practice" button):**
+    *   **`Unified Practice` Session (e.g., from `/practice/decks` "Practice (Unified)" button):**
         *   The `useStudySession` hook, when `sessionType` is `'unified'`, handles two phases:
             1.  **Learning Phase:** Prioritizes and processes all `learn-only` eligible cards from the source using the chosen `settings.studyAlgorithm`.
             2.  **Review Phase Transition:** After all learning cards are processed, if review-eligible cards exist, the user is prompted: "Learning phase complete. Continue to Review?".
@@ -213,9 +213,10 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
 3.  **Deck Editing Flow (`/edit/[deckId]`):** Page uses `useEditDeck`. Metadata changes trigger debounced `deckActions.updateDeck`. Card changes trigger `cardActions`. Tag changes trigger `tagActions`.
 4.  Tag Management Flow (`/tags` page & `DeckTagEditor` on deck edit page).
 5.  Study Set Creation Flow (`/study/sets/new` using `StudySetBuilder`).
-6.  Study Session Initiation Flow (User selects content source & `SessionType`. Deck List "Practice" button initiates 'unified'. `/study/select` initiates 'learn-only' or 'review-only').
+6.  Study Session Initiation Flow (User selects content source & `SessionType`. `/practice/decks` "Practice (Unified)" button initiates 'unified'. `/practice/select` initiates 'learn-only' or 'review-only'. `/test/decks` or `/test/playlists` initiate 'examination').
 7.  Study Session Execution Flow (Handled by `useStudySession` based on `SessionType` and `studyAlgorithm` setting).
 8.  Settings Flow (`/settings` page, UI for `studyAlgorithm` selection deferred - Task 4.4).
+9.  **Deck Management Flow (Manage Mode):** Navigate `/manage/decks` -> View table -> Click "Edit" (to `/edit/[deckId]`), "Delete", or "Create New Deck" (to `/decks/new`).
 
 ---
 
@@ -412,17 +413,31 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
     *   **Purpose:** A standard trigger function designed to be attached to tables. When a row in an associated table is updated, this function automatically sets the `updated_at` column of that row to the current timestamp (`NOW()`).
 
 ### 5.5 Navigation Structure
-*   **Sidebar (Primary Navigation):**
-    *   Practice: "Start Session" (`/study/select`), "Smart Playlists" (`/study/sets`).
-    *   Prepare: "Decks" (`/`), "Manage Tags" (`/tags`), "Create Deck" (`/decks/new`), "AI Flashcards" (`/prepare/ai-generate`).
-    *   Other: "Settings" (`/settings`), Auth links.
+*   **Sidebar (Primary Navigation - Updated for Feature X Refactor):**
+    *   **Practice Mode:**
+        *   "Decks" (`/practice/decks`): Card-based overview for "Unified Practice".
+        *   "Custom Session" (`/practice/select`): For 'Learn-only' or 'Review-only' sessions.
+        *   "Smart Playlists" (`/practice/sets`): For targeted SRS practice.
+    *   **Test Mode:**
+        *   "Select Deck for Test" (`/test/decks`): Select a deck for an examination.
+        *   "Select Playlist for Test" (`/test/playlists`): Select a playlist for an examination.
+        *   (Future: "Start Examination from All Cards")
+    *   **Manage Mode:**
+        *   "Decks (Table)" (`/manage/decks`): Table-based list for deck administration.
+        *   "Create Deck" (`/decks/new`): Navigates to the deck creation page.
+        *   "Manage Tags" (`/tags`): Navigates to the tag management page.
+    *   **Other:**
+        *   "Settings" (`/settings`)
+        *   Authentication links (Login/Logout, Profile via UserNavButton)
 *   **Header:** App Title/Logo, global icons, mobile Hamburger menu.
 *   **Contextual Navigation:**
-    *   Deck List (`/`): Links to Edit Deck (`/edit/[deckId]`). Single "Practice" button initiates `'unified'` `SessionType` to `/study/session`. "+ Create Deck" button navigates to `/decks/new`.
+    *   Main Deck Overview (`/practice/decks`): "Practice (Unified)" button initiates `'unified'` `SessionType` to `/study/session`. Grouping controls available. No "Edit" buttons.
+    *   Manage Decks Table (`/manage/decks`): Links to Edit Deck (`/edit/[deckId]`), Delete Deck, and "Create New Deck" button navigates to `/decks/new`.
     *   Deck Creation (`/decks/new`): Offers choices (Manual, AI). Manual path form submits to `POST /api/decks`, then navigates to `/edit/[newDeckId]`. AI path links to `/prepare/ai-generate`.
     *   AI Generate Page (`/prepare/ai-generate`): Upload, generate, review, save form. Navigates to `/edit/[id]` on save via `POST /api/decks`.
-    *   Study Set List (`/study/sets`): Links to Edit, New. "Learn"/"Review" buttons initiate `'learn-only'`/`'review-only'` `SessionType` to `/study/session`.
+    *   Study Set List (`/practice/sets`): Links to Edit, New. "Learn"/"Review" buttons initiate `'learn-only'`/`'review-only'` `SessionType` to `/study/session`.
     *   Settings Page (`/settings`): UI for `studyAlgorithm` selection is deferred.
+*   **Application Root (`/`):** Redirects to `/practice/decks` (or as configured by middleware for locale detection if i18n is active).
 
 ### 5.6 Code Structure and Organization
 #### 5.6.1 Component Architecture
@@ -434,24 +449,43 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
 ```plaintext
 /
 ├── app/
-│   ├── api/
-│   │   ├── decks/route.ts      # POST for deck creation
-│   │   ├── extract-pdf/      # AI Step 1 services & route
-│   │   └── process-ai-step2/ # AI Step 2 services & route
+│   ├── api/                  # API Routes (unchanged by this refactor)
+│   │   ├── decks/route.ts
+│   │   ├── extract-pdf/
+│   │   └── process-ai-step2/
+│   ├── manage/               # NEW: Manage Mode
+│   │   └── decks/page.tsx    # New table-based deck list page
+│   ├── practice/             # NEW: Practice Mode
+│   │   ├── decks/page.tsx    # Old home page (deck list for practice)
+│   │   ├── select/page.tsx   # Moved from study/select
+│   │   └── sets/             # Moved from study/sets
+│   │       ├── [studySetId]/edit/page.tsx
+│   │       ├── new/page.tsx
+│   │       └── page.tsx
+│   ├── test/                 # NEW: Test Mode
+│   │   ├── decks/page.tsx    # Page for selecting a deck for examination
+│   │   └── playlists/page.tsx # Page for selecting a playlist for examination
+│   │   └── page.tsx          # Landing page for test mode
+│   ├── edit/[deckId]/        # Deck Edit feature (path unchanged)
+│   ├── prepare/ai-generate/  # AI Generation UI & hook (path unchanged)
 │   ├── decks/
-│   │   └── new/page.tsx        # Unified deck creation choice/form page
-│   ├── edit/[deckId]/        # Deck Edit feature
-│   ├── prepare/ai-generate/  # AI Generation UI & hook
+│   │   └── new/page.tsx        # Unified deck creation choice/form page (path unchanged)
+│   ├── tags/page.tsx         # Tag Management UI (path unchanged)
 │   ├── study/
-│   │   ├── select/page.tsx   # Study Session Selection UI
-│   │   ├── session/page.tsx  # Active Study Session UI
-│   │   └── sets/             # Study Set (Smart Playlist) Management
-│   └── tags/page.tsx         # Tag Management UI
+│   │   └── session/page.tsx  # Active Study Session UI (path unchanged)
+│   ├── auth/                 # Authentication pages (login, signup etc.)
+│   ├── profile/              # User profile page
+│   ├── settings/             # Settings page
+│   ├── layout.tsx            # Root layout
+│   └── page.tsx              # Root page (likely redirects to /practice/decks)
 ├── components/
-│   ├── deck-list.tsx         # Or DeckListClient.tsx - for home page
+│   ├── deck/
+│   │   └── DeckListClient.tsx  # Used in /practice/decks
+│   ├── manage/                 # NEW: Components specific to Manage mode
+│   │   └── DeckTableClient.tsx # For the table view in /manage/decks
 │   ├── study/
-│   │   ├── StudySetSelector.tsx
-│   │   └── StudyFlashcardView.tsx
+│   │   ├── StudySetSelector.tsx # Used in /practice/select
+│   │   └── StudyFlashcardView.tsx # Used in /study/session
 │   └── ... (other UI components)
 ├── hooks/
 │   ├── useStudySession.ts    # Refactored: orchestrates session logic
@@ -475,8 +509,9 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
 
 #### 5.6.3 Key Components and Their Functions (Selected Updates)
 *   **`useStudySession` Hook:** Orchestrates the active study session. Receives `StudySessionInput` and `SessionType`. Fetches card data, uses `session-queue-manager` to prepare/update the queue, calls `card-state-handlers` to process answers based on card state and `settings.studyAlgorithm`, persists progress (debounced), manages UI state, and handles 'unified' session phase transitions.
-*   **`DeckListClient.tsx` (or `deck-list.tsx`):** Displays decks from `useDecks`. Shows progress bars. Renders a single "Practice" button per deck, using `learn_eligible_count` and `review_eligible_count` for its label/state, initiating a `'unified'` `SessionType`.
-*   **`StudySetSelector.tsx`:** UI on `/study/select`. Allows user to choose content source (All, Deck, Study Set) and then select study type (Learn New or Review Due), which translates to `'learn-only'` or `'review-only'` `SessionType`. Fetches and displays eligible card counts for these types.
+*   **`components/deck/DeckListClient.tsx`:** Displays decks from `useDecks`. Used in `/practice/decks`. Shows progress bars. Renders a single "Practice (Unified)" button per deck, using `learn_eligible_count` and `review_eligible_count` for its label/state, initiating a `'unified'` `SessionType`. Edit buttons are removed in this context. Implements grouping logic based on user settings.
+*   **`components/manage/DeckTableClient.tsx` (New):** Client component for the `/manage/decks` page. Fetches deck data (potentially a simpler RPC than `get_decks_with_complete_srs_counts` if SRS details aren't needed here). Uses `shadcn/ui Table` to display deck information with "Edit" and "Delete" actions per row.
+*   **`components/study/StudySetSelector.tsx`:** UI on `/practice/select`. Allows user to choose content source (All, Deck, Study Set) and then select study type (Learn New or Review Due), which translates to `'learn-only'` or `'review-only'` `SessionType`. Fetches and displays eligible card counts for these types.
 *   **`app/settings/page.tsx`:** UI controls for `studyAlgorithm` selection and its parameters are deferred (Task 4.4).
 *   **`app/decks/new/page.tsx`:** The primary entry point for creating decks, offering choices for manual or AI-assisted creation.
 *   **`lib/study/card-state-handlers.ts`**: Contains pure functions applying SRS logic (from `lib/srs.ts`) based on card state, grade, and `settings.studyAlgorithm`. Returns `CardStateUpdateOutcome`.
@@ -493,7 +528,7 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
 *   **Active Study Session Logic:** The `useStudySession` hook manages all active session state internally, using helpers from `session-queue-manager.ts` and `card-state-handlers.ts`.
 
 #### 5.6.5 Data Flow (Conceptual for Study Session)
-1.  **Initiation:** UI (`DeckListClient` or `StudySetSelector`) -> `studySessionStore` (sets `StudySessionInput`, `SessionType`) -> Navigate to `/study/session`.
+1.  **Initiation:** UI (`DeckListClient` from `/practice/decks` or `StudySetSelector` from `/practice/select`) -> `studySessionStore` (sets `StudySessionInput`, `SessionType`) -> Navigate to `/study/session`.
 2.  **Session Page (`app/study/session/page.tsx`):** Reads from store -> Passes props to `useStudySession`.
 3.  **`useStudySession`:**
     *   `resolveStudyQuery` action -> DB function -> Card IDs.
@@ -578,7 +613,7 @@ graph TD
 
         O_studySessionPage[app/study/session/page.tsx] --> F_useStudySession; O_studySessionPage --> L_StudyFlashcardView # Page uses hook & renders view
         
-        P_studySelectPage[app/study/select/page.tsx] --> P_StudySelectClient[components/StudySelectClient.tsx]
+        P_practiceSelectPage[app/practice/select/page.tsx] --> P_StudySelectClient[components/StudySelectClient.tsx]
         P_StudySelectClient --> K_studySessionStore # Sets initial params (SessionType: 'learn-only'/'review-only')
         P_StudySelectClient --> Q_StudySetSelector[components/study/StudySetSelector.tsx] # StudySelectClient renders StudySetSelector
         Q_StudySetSelector --> H_cardActions_Get # Needs cardActions/deckActions for initial counts for selector
@@ -589,7 +624,7 @@ graph TD
         R_useDecks[hooks/useDecks.ts] --> RA_deckActions[lib/actions/deckActions.ts - getDecks, getDeck, updateDeck, deleteDeck, createDeck]
         RA_deckActions -- getDecks calls --> DB_get_decks_with_complete_srs_counts[DB: get_decks_with_complete_srs_counts()]
         
-        S_homePage[app/page.tsx] --> T_DeckListClient[components/DeckListClient.tsx]
+        S_practiceDecksPage[app/practice/decks/page.tsx] --> T_DeckListClient[components/deck/DeckListClient.tsx]
         T_DeckListClient --> R_useDecks # For fetching list data
         T_DeckListClient --> T_DeckProgressBar[components/deck/DeckProgressBar.tsx] # Renders progress
         T_DeckListClient -- Practice Button Clicks --> K_studySessionStore # Sets initial params (SessionType: 'unified')
@@ -597,6 +632,14 @@ graph TD
         S_createDeckPage[app/decks/new/page.tsx] -- Manual Path Form --> ZC_decksRoute_Manual[POST /api/decks/route.ts] # Manual creation uses /api/decks
         S_createDeckPage -- AI Path Link --> Y_aiGeneratePage[app/prepare/ai-generate/page.tsx]
         ZC_decksRoute_Manual -- uses internally --> RA_deckActions_create[lib/actions/deckActions.ts - createDeck] # API route calls server action for manual
+    end
+
+    subgraph "Manage Decks Flow" # NEW
+        MD_manageDecksPage[app/manage/decks/page.tsx] --> MD_DeckTableClient[components/manage/DeckTableClient.tsx]
+        MD_DeckTableClient --> R_useDecks # For fetching list data (or a simpler RPC)
+        MD_DeckTableClient -- Edit button --> U_editDeckPage[app/edit/[deckId]/page.tsx]
+        MD_DeckTableClient -- Delete button --> RA_deckActions # Calls deleteDeck
+        MD_manageDecksPage -- Create New Deck button --> S_createDeckPage
     end
 
     subgraph "Deck Editing Flow"
@@ -794,8 +837,8 @@ end
 
 **Phase 1: Session Initiation (User Action -> Store -> Page Prop)**
 1.  **Content & Type Selection:**
-    *   **Deck List (`/`):** User clicks "Practice" on a deck. `DeckListClient.tsx` sets `StudySessionInput = { deckId }` and `SessionType = 'unified'` in `studySessionStore`.
-    *   **Study Setup Page (`/study/select`):** User uses `StudySetSelector.tsx` to pick a source (All Cards, Deck, Study Set) creating a `StudySessionInput`, and selects a study type, which maps to `SessionType = 'learn-only'` or `SessionType = 'review-only'`. These are set in `studySessionStore`.
+    *   **Deck List (`/practice/decks`):** User clicks "Practice" on a deck. `DeckListClient.tsx` sets `StudySessionInput = { deckId }` and `SessionType = 'unified'` in `studySessionStore`.
+    *   **Study Setup Page (`/practice/select`):** User uses `StudySetSelector.tsx` to pick a source (All Cards, Deck, Study Set) creating a `StudySessionInput`, and selects a study type, which maps to `SessionType = 'learn-only'` or `SessionType = 'review-only'`. These are set in `studySessionStore`.
 2.  **Navigation:** User is navigated to `/study/session`.
 3.  **Parameter Passing:** `app/study/session/page.tsx` reads `StudySessionInput` and `SessionType` from the store and passes them as props to the `useStudySession` hook.
 
@@ -875,7 +918,7 @@ end
     *   `app/layout.tsx` (`RootLayout`): Main layout wrapper integrating all providers (`ClientProviders`). Applies global theme via `ThemeProvider`.
     *   `components/layout/ResponsiveLayout.tsx`: Handles overall page structure including `Header` and `Sidebar`.
     *   `components/layout/Header.tsx` (formerly `SiteHeader`): Top navigation bar, app title/logo, global icons (Settings, Profile/Auth via `UserNav`), mobile menu toggle for `MobileNav`.
-    *   `components/layout/Sidebar.tsx` (formerly `SiteSidebar`): Primary navigation menu (Prepare/Practice modes). Fixed on desktop, toggleable on mobile.
+    *   `components/layout/Sidebar.tsx` (formerly `SiteSidebar`): Primary navigation menu reflecting Practice, Test, Manage modes. Fixed on desktop, toggleable on mobile.
     *   `components/layout/MobileNav.tsx`: Mobile-specific navigation overlay.
 *   **Providers (`providers/` & `components/ClientProviders.tsx`):**
     *   `components/ClientProviders.tsx`: Wraps client-side context providers like `AuthProvider` and `SettingsProvider`.
@@ -885,13 +928,13 @@ end
 *   **Core Study Components (`components/study/`, `app/study/`):**
     *   `app/study/session/page.tsx`: Main page orchestrating the study UI. Uses `hooks/useStudySession` hook. Displays `components/study/StudyFlashcardView.tsx`. Handles "Continue to Review" prompt for 'unified' sessions.
     *   `components/study/StudyFlashcardView.tsx`: Displays the current flashcard (question/answer content via `ContentRenderer`), handles flip animation, provides grading buttons (Again, Hard, Good, Easy), and shows card status information (e.g., streak, step, due time) derived from `useStudySession`. Integrates `hooks/useTTS` for audio playback.
-    *   `app/study/select/page.tsx` & `components/StudySelectClient.tsx`: Entry point for starting custom study sessions. `StudySelectClient` renders `StudySetSelector`.
+    *   `app/practice/select/page.tsx` & `components/StudySelectClient.tsx`: Entry point for starting custom study sessions. `StudySelectClient` renders `StudySetSelector`.
     *   `components/study/StudySetSelector.tsx`: UI for selecting content source (All Cards, specific Deck, or Study Set) and the `SessionType` ('learn-only' or 'review-only'). Displays eligible card counts using `cardActions` and `studyQueryActions`.
     *   `components/study/StudySetBuilder.tsx`: Form for creating and editing "Smart Playlists" (Study Sets) with various filter criteria (decks, tags, dates, SRS levels). Used with `hooks/useStudySetForm.ts`.
     *   `components/study/StudyCompletionSummary.tsx`: Displays results, statistics, and options at the end of a study session.
     *   `components/study/DifficultyIndicator.tsx`: (If implemented) Visual component showing SRS progress/difficulty of cards.
 *   **Deck & Card Management Components (`components/deck/`, `app/decks/`, `app/edit/`):**
-    *   `app/page.tsx` & `components/DeckListClient.tsx`: Displays the list of user's decks with `DeckProgressBar` and "Practice" buttons.
+    *   `app/practice/decks/page.tsx` & `components/deck/DeckListClient.tsx`: Displays the list of user's decks with `DeckProgressBar` and "Practice (Unified)" buttons. Grouping controls will be added here. Edit buttons are removed from this context.
     *   `components/deck/DeckProgressBar.tsx`: Visual representation of card distribution within a deck across SRS stages (new, learning, relearning, young, mature).
     *   `app/decks/new/page.tsx`: Unified page for initiating deck creation, offering choices for manual or AI-assisted methods. Contains forms for manual deck metadata, which submit to `POST /api/decks`.
     *   `app/edit/[deckId]/page.tsx`: Orchestrates the deck editing interface using `hooks/useEditDeck.ts`. Renders various sub-components for metadata, cards, and tags.
@@ -936,6 +979,9 @@ end
     *   `hooks/useAuth.ts`: Provides authentication state (user, session) and methods (login, logout, signup) from `AuthProvider`.
     *   `hooks/useSettings.ts`: (From `SettingsProvider`) Provides access to user settings values and update functions.
     *   `hooks/useSupabase.ts`: Provides a Supabase client instance for direct interaction when needed (though most DB access should be through actions/APIs).
+*   **Manage Mode Components (`app/manage/`, `components/manage/`):** (New Section)
+    *   `app/manage/decks/page.tsx`: Page for displaying decks in a table format for administrative purposes. Uses `components/manage/DeckTableClient.tsx`.
+    *   `components/manage/DeckTableClient.tsx`: Client component responsible for fetching and rendering the deck data in a `shadcn/ui Table`. Includes columns like Deck Name, # Cards, Languages, Tags, Last Modified. Provides "Edit" and "Delete" actions per row, and a link to "Create New Deck".
 
 ---
 
@@ -1043,6 +1089,15 @@ end
     *   Added `get_user_global_srs_summary` DB function and server action to consolidate fetching of global card counts (total, new, due, new/review) for the `/practice/select` page, improving its load performance.
     *   Added `get_user_study_sets_with_total_counts` DB function and server action to fetch all study sets for a user along with their total card counts in a single call, further optimizing `/practice/select` page load time.
     *   Iteratively debugged SQL syntax and logic for the new database functions.
+    *   **Implemented major application structure refactor (Feature X):**
+        *   Introduced top-level directories `app/manage/`, `app/practice/`, and `app/test/`.
+        *   Moved existing functionality:
+            *   Deck list overview (old `/`) to `app/practice/decks/page.tsx`.
+            *   Custom session selection (`/study/select`) to `app/practice/select/page.tsx`.
+            *   Smart Playlists/Study Sets (`/study/sets`) to `app/practice/sets/`.
+        *   Created new page `app/manage/decks/page.tsx` for table-based deck management.
+        *   Updated sidebar navigation to reflect new Practice, Test, and Manage modes.
+        *   The root `app/page.tsx` now serves as a redirect or simple landing.
 *   **v3.3 (2025-04-29):** Initial plan for refactoring Study Session logic with distinct Learn/Review modes and configurable algorithms. Added new SRS fields to `cards` and new study algorithm settings to `settings` table. Initial updates to `cards_with_srs_stage` view and related functions.
 *   **v3.2 (2025-04-29 - Placeholder):** Added Deck Progress visualization and Theme Preference.
     *   Added `mature_interval_threshold`, `show_deck_progress`, `theme_light_dark_mode` to `settings` table.
@@ -1110,10 +1165,10 @@ end
 
 **Phase 4: UI Integration & Workflow Updates (v4.0 Focus)**
 *   `[x]` **Task 4.1: Update Study Session Page (`app/study/session/page.tsx`)**
-*   `[x]` **Task 4.2: Update Study Select Page (`app/study/select/page.tsx` & `components/study/StudySetSelector.tsx` / `StudySelectClient.tsx`)**
+*   `[x]` **Task 4.2: Update Study Select Page (`app/practice/select/page.tsx` & `components/study/StudySetSelector.tsx` / `StudySelectClient.tsx`)**
     *   `[x]` Optimized global count fetching using `get_user_global_srs_summary`.
     *   `[x]` Optimized study set total count fetching using `get_user_study_sets_with_total_counts`.
-*   `[x]` **Task 4.3: Update Deck List Page (`app/page.tsx` & `components/DeckListClient.tsx`)**
+*   `[x]` **Task 4.3: Update Deck List Page (`app/practice/decks/page.tsx` & `components/deck/DeckListClient.tsx`)**
 *   `[x]` **Task 4.3a (Implicit): Update Study Sets Page (`app/practice/sets/page.tsx`)** 
     *   `[x]` Implemented progress bars using `get_study_set_srs_distribution`.
     *   `[x]` Optimized actionable count fetching by integrating it into `get_study_set_srs_distribution`.

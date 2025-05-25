@@ -8,25 +8,42 @@ import { z } from 'zod';
 import type { Database, Tables, Json } from "@/types/database";
 import type { ActionResult } from '@/lib/actions/types';
 // Import the Settings type used by the frontend/provider
-import type { Settings, FontOption } from "@/providers/settings-provider";
+// import type { Settings, FontOption } from "@/providers/settings-provider"; // No longer directly needed for 'updates' type
 import { appLogger, statusLogger } from '@/lib/logger';
 
 type DbSettings = Tables<'settings'>;
 
-// --- UPDATED Zod Schema ---
-const updateSettingsSchema = z.object({
-  appLanguage: z.string().optional(),
-  cardFont: z.enum(["default", "opendyslexic", "atkinson"]).optional(),
-  showDifficulty: z.boolean().optional().nullable(),
-  masteryThreshold: z.number().int().min(1).max(10).optional().nullable(),
-  ttsEnabled: z.boolean().optional().nullable(),
-  srs_algorithm: z.enum(['sm2', 'fsrs']).optional(),
-  languageDialects: z.record(z.string()).optional().nullable(),
-  enableBasicColorCoding: z.boolean().optional().nullable(),
-  enableAdvancedColorCoding: z.boolean().optional().nullable(),
-  // --- Replaced wordColorConfig with wordPaletteConfig ---
-  wordPaletteConfig: z.record(z.record(z.string())).optional().nullable(), // Expects { PoS: { Gender: PaletteID }}
-  // ------------------------------------------------------
+// Zod schema can remain for validation if needed, but ensure it matches DB columns
+const updateSettingsDbSchema = z.object({
+  app_language: z.string().optional(),
+  card_font: z.enum(["default", "opendyslexic", "atkinson"]).optional(),
+  show_difficulty: z.boolean().optional().nullable(),
+  mastery_threshold: z.number().int().min(1).max(10).optional().nullable(),
+  tts_enabled: z.boolean().optional().nullable(),
+  srs_algorithm: z.enum(['sm2', 'fsrs']).optional(), // Example, adjust to actual column
+  language_dialects: z.record(z.string()).optional().nullable(),
+  enable_basic_color_coding: z.boolean().optional().nullable(),
+  enable_advanced_color_coding: z.boolean().optional().nullable(),
+  word_palette_config: z.record(z.record(z.string())).optional().nullable(),
+  color_only_non_native: z.boolean().optional().nullable(),
+  show_deck_progress: z.boolean().optional().nullable(),
+  theme_light_dark_mode: z.string().optional().nullable(), // Assuming themePreference is stored as string
+  enable_dedicated_learn_mode: z.boolean().optional().nullable(),
+  custom_learn_requeue_gap: z.number().int().optional().nullable(),
+  graduating_interval_days: z.number().int().optional().nullable(),
+  easy_interval_days: z.number().int().optional().nullable(),
+  relearning_steps_minutes: z.array(z.number().int()).optional().nullable(),
+  initial_learning_steps_minutes: z.array(z.number().int()).optional().nullable(),
+  lapsed_ef_penalty: z.number().optional().nullable(),
+  learn_again_penalty: z.number().optional().nullable(),
+  learn_hard_penalty: z.number().optional().nullable(),
+  min_easiness_factor: z.number().optional().nullable(),
+  default_easiness_factor: z.number().optional().nullable(),
+  enable_study_timer: z.boolean().optional().nullable(),
+  study_timer_duration_minutes: z.number().int().optional().nullable(),
+  ui_language: z.string().optional().nullable(),
+  deck_list_grouping_preference: z.string().optional().nullable(),
+  // Add any other DbSettings fields here
 }).partial();
 
 
@@ -52,12 +69,12 @@ export async function getUserSettings(): Promise<ActionResult<DbSettings | null>
 }
 
 /**
- * Updates user settings.
+ * Updates user settings. Expects payload with snake_case keys matching DB columns.
  */
 export async function updateUserSettings({
   updates,
 }: {
-  updates: Partial<Settings>; // Expect camelCase from provider
+  updates: Partial<DbSettings>; // Expect snake_case keys directly matching DB
 }): Promise<ActionResult<DbSettings | null>> {
     appLogger.info(`[updateUserSettings] Action started.`);
     try {
@@ -69,46 +86,26 @@ export async function updateUserSettings({
              return { data: null, error: authError?.message || 'Not authenticated' };
         }
 
-        // Manual Mapping from frontend camelCase to DB snake_case
-        const dbPayload: Partial<DbSettings> = {};
+        // The 'updates' object should now directly contain snake_case keys
+        // and values ready for the database.
+        // Optional: Validate 'updates' against updateSettingsDbSchema if strict validation is needed.
+        // For example:
+        // const parseResult = updateSettingsDbSchema.safeParse(updates);
+        // if (!parseResult.success) {
+        //   appLogger.error('[updateUserSettings] Validation error:', parseResult.error.flatten());
+        //   return { data: null, error: "Invalid settings format." };
+        // }
+        // const dbPayload = parseResult.data;
 
-        // Map fields 
-        if ('appLanguage' in updates && updates.appLanguage !== undefined) dbPayload.app_language = updates.appLanguage;
-        if ('cardFont' in updates && updates.cardFont !== undefined) dbPayload.card_font = updates.cardFont;
-        if ('showDifficulty' in updates && updates.showDifficulty !== undefined) dbPayload.show_difficulty = updates.showDifficulty;
-        if ('ttsEnabled' in updates && updates.ttsEnabled !== undefined) dbPayload.tts_enabled = updates.ttsEnabled;
-        if ('languageDialects' in updates && updates.languageDialects !== undefined) dbPayload.language_dialects = updates.languageDialects as Json;
-        if ('colorOnlyNonNative' in updates && updates.colorOnlyNonNative !== undefined) dbPayload.color_only_non_native = updates.colorOnlyNonNative;
-        if ('enableBasicColorCoding' in updates && updates.enableBasicColorCoding !== undefined) dbPayload.enable_basic_color_coding = updates.enableBasicColorCoding;
-        if ('enableAdvancedColorCoding' in updates && updates.enableAdvancedColorCoding !== undefined) dbPayload.enable_advanced_color_coding = updates.enableAdvancedColorCoding;
-        if ('wordPaletteConfig' in updates && updates.wordPaletteConfig !== undefined) dbPayload.word_palette_config = updates.wordPaletteConfig as Json;
-        if ('showDeckProgress' in updates && updates.showDeckProgress !== undefined) dbPayload.show_deck_progress = updates.showDeckProgress;
-        if ('themePreference' in updates && updates.themePreference !== undefined) dbPayload.theme_light_dark_mode = String(updates.themePreference);
+        // For now, assuming 'updates' is already well-formed Partial<DbSettings>
+        const dbPayload: Partial<DbSettings> = { ...updates };
 
-        // --- NEW Study Algorithm Mappings ---
-        // Note: studyAlgorithm itself might not map directly if derived from enableDedicatedLearnMode
-        if ('enableDedicatedLearnMode' in updates && updates.enableDedicatedLearnMode !== undefined) dbPayload.enable_dedicated_learn_mode = updates.enableDedicatedLearnMode;
-        if ('masteryThreshold' in updates && updates.masteryThreshold !== undefined) dbPayload.mastery_threshold = updates.masteryThreshold;
-        if ('customLearnRequeueGap' in updates && updates.customLearnRequeueGap !== undefined) dbPayload.custom_learn_requeue_gap = updates.customLearnRequeueGap;
-        if ('graduatingIntervalDays' in updates && updates.graduatingIntervalDays !== undefined) dbPayload.graduating_interval_days = updates.graduatingIntervalDays;
-        if ('easyIntervalDays' in updates && updates.easyIntervalDays !== undefined) dbPayload.easy_interval_days = updates.easyIntervalDays;
-        if ('relearningStepsMinutes' in updates && updates.relearningStepsMinutes !== undefined) dbPayload.relearning_steps_minutes = updates.relearningStepsMinutes;
-        if ('initialLearningStepsMinutes' in updates && updates.initialLearningStepsMinutes !== undefined) dbPayload.initial_learning_steps_minutes = updates.initialLearningStepsMinutes;
-        if ('lapsedEfPenalty' in updates && updates.lapsedEfPenalty !== undefined) dbPayload.lapsed_ef_penalty = updates.lapsedEfPenalty;
-        if ('learnAgainPenalty' in updates && updates.learnAgainPenalty !== undefined) dbPayload.learn_again_penalty = updates.learnAgainPenalty;
-        if ('learnHardPenalty' in updates && updates.learnHardPenalty !== undefined) dbPayload.learn_hard_penalty = updates.learnHardPenalty;
-        if ('minEasinessFactor' in updates && updates.minEasinessFactor !== undefined) dbPayload.min_easiness_factor = updates.minEasinessFactor;
-        if ('defaultEasinessFactor' in updates && updates.defaultEasinessFactor !== undefined) dbPayload.default_easiness_factor = updates.defaultEasinessFactor;
-        // ------------------------------------
-        if ('enableStudyTimer' in updates && updates.enableStudyTimer !== undefined) {dbPayload.enable_study_timer = updates.enableStudyTimer;}
-        if ('studyTimerDurationMinutes' in updates && updates.studyTimerDurationMinutes !== undefined) {dbPayload.study_timer_duration_minutes = updates.studyTimerDurationMinutes;}
-        if ('uiLanguage' in updates && updates.uiLanguage !== undefined) {dbPayload.ui_language = updates.uiLanguage;}
-        if ('deckListGroupingPreference' in updates && updates.deckListGroupingPreference !== undefined) {dbPayload.deck_list_grouping_preference = updates.deckListGroupingPreference;}
 
         if (Object.keys(dbPayload).length === 0) {
-             appLogger.info("[updateUserSettings] No valid fields provided for update after mapping.");
-             const { data: currentSettings } = await getUserSettings();
-             return { data: currentSettings, error: null };
+             appLogger.info("[updateUserSettings] No valid fields provided for update.");
+             // Optionally, still fetch and return current settings, or return an error/specific message.
+             const { data: currentSettingsIfNoUpdate } = await getUserSettings();
+             return { data: currentSettingsIfNoUpdate, error: null }; // Or: {data: null, error: "No changes to apply"}
         }
 
         // Add updated_at timestamp
@@ -116,7 +113,7 @@ export async function updateUserSettings({
 
         appLogger.info(`[updateUserSettings] User: ${user.id}, Upserting payload:`, dbPayload);
 
-        // Perform Upsert (unchanged logic)
+        // Perform Upsert
         const { data: updatedSettings, error: upsertError } = await supabase
             .from('settings')
             .upsert({ ...dbPayload, user_id: user.id }, { onConflict: 'user_id' })

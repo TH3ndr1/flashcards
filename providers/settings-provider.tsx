@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { getUserSettings, updateUserSettings } from "@/lib/actions/settingsActions";
 import { toast } from "sonner";
@@ -249,54 +249,75 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const updateSettings = useCallback(async (
     updates: Partial<Settings> // Accepts Partial<Settings> with wordPaletteConfig
   ): Promise<ActionResult<DbSettings | null>> => {
-    debug('updateSettings called', { current: settings, updates });
+    debug('updateSettings called with:', updates);
     if (!user) {
-         debug('Cannot update settings - no user');
-         toast.warning("Cannot save settings", { description: "You must be logged in." });
-         return { data: null, error: "Not authenticated" };
+      toast.error("Not logged in", { description: "Cannot save settings." });
+      return { data: null, error: "User not authenticated" };
     }
-    if (!settings) {
-        debug('Cannot update settings - current settings are null/not loaded');
-        toast.warning("Cannot save settings", { description: "Settings not loaded yet." });
-        return { data: null, error: "Settings not loaded" };
+    // Prevent full settings object from being passed if only partial update
+    const currentNonNullSettings = settings ?? { ...DEFAULT_SETTINGS };
+    const newSettingsCandidate = { ...currentNonNullSettings, ...updates };
+
+    // Here, we map only the fields that exist on DbSettings
+    // This requires knowing the structure of your 'settings' table
+    // Example mapping (adjust to your actual DB schema):
+    const dbUpdates: Partial<DbSettings> = {
+        app_language: newSettingsCandidate.appLanguage,
+        card_font: newSettingsCandidate.cardFont,
+        show_difficulty: newSettingsCandidate.showDifficulty,
+        tts_enabled: newSettingsCandidate.ttsEnabled,
+        language_dialects: newSettingsCandidate.languageDialects as Json, // Cast to Json
+        enable_basic_color_coding: newSettingsCandidate.enableBasicColorCoding,
+        enable_advanced_color_coding: newSettingsCandidate.enableAdvancedColorCoding,
+        word_palette_config: newSettingsCandidate.wordPaletteConfig as Json, // Cast to Json
+        color_only_non_native: newSettingsCandidate.colorOnlyNonNative,
+        show_deck_progress: newSettingsCandidate.showDeckProgress,
+        theme_light_dark_mode: newSettingsCandidate.themePreference,
+
+        enable_dedicated_learn_mode: newSettingsCandidate.enableDedicatedLearnMode,
+        mastery_threshold: newSettingsCandidate.masteryThreshold,
+        custom_learn_requeue_gap: newSettingsCandidate.customLearnRequeueGap,
+        graduating_interval_days: newSettingsCandidate.graduatingIntervalDays,
+        easy_interval_days: newSettingsCandidate.easyIntervalDays,
+        relearning_steps_minutes: newSettingsCandidate.relearningStepsMinutes as unknown as Json, // Cast for DB
+        initial_learning_steps_minutes: newSettingsCandidate.initialLearningStepsMinutes as unknown as Json, // Cast for DB
+        lapsed_ef_penalty: newSettingsCandidate.lapsedEfPenalty,
+        learn_again_penalty: newSettingsCandidate.learnAgainPenalty,
+        learn_hard_penalty: newSettingsCandidate.learnHardPenalty,
+        min_easiness_factor: newSettingsCandidate.minEasinessFactor,
+        default_easiness_factor: newSettingsCandidate.defaultEasinessFactor,
+
+        enable_study_timer: newSettingsCandidate.enableStudyTimer,
+        study_timer_duration_minutes: newSettingsCandidate.studyTimerDurationMinutes,
+        ui_language: newSettingsCandidate.uiLanguage,
+        deck_list_grouping_preference: newSettingsCandidate.deckListGroupingPreference,
+    };
+
+    // Pass dbUpdates inside an object with the key 'updates'
+    const { data: updatedDbSettings, error } = await updateUserSettings({ updates: dbUpdates });
+    if (error) {
+      toast.error("Failed to save settings", { description: error });
+      return { data: null, error };
     }
-
-    const previousSettings = { ...settings };
-    debug('Applying optimistic update');
-    setSettings(prev => prev ? { ...prev, ...updates } : null);
-
-    try {
-      debug('Calling updateUserSettings action with updates:', updates);
-      // Action needs to handle mapping wordPaletteConfig -> word_palette_config
-      const { data, error } = await updateUserSettings({ updates: updates });
-
-      if (error) {
-        appLogger.error("Failed to update settings via action:", error);
-        debug('Settings action update failed, reverting optimistic update', { error });
-        toast.error("Error Saving Settings", { description: error || "Could not save settings." });
-        setSettings(previousSettings);
-        return { data: null, error: error };
-      } else {
-        debug('Settings action update successful, optimistic update confirmed', data);
-        // OPTIONAL: Re-transform DB data if needed
-        // setSettings(transformDbSettingsToSettings(data));
-        return { data, error: null };
-      }
-    } catch (unexpectedError) {
-      appLogger.error("Unexpected error during settings action call:", unexpectedError);
-      debug('Unexpected settings update error, reverting optimistic update');
-      const errorMsg = unexpectedError instanceof Error ? unexpectedError.message : "An unexpected error occurred.";
-      toast.error("Error Saving Settings", { description: errorMsg });
-      setSettings(previousSettings);
-      return { data: null, error: errorMsg };
+    if (updatedDbSettings) {
+        const finalSettings = transformDbSettingsToSettings(updatedDbSettings);
+        setSettings(finalSettings);
+        toast.success("Settings saved!");
+        return { data: updatedDbSettings, error: null };
     }
-  }, [settings, user]); // Dependencies
+    return { data: null, error: "Failed to update settings, no data returned." };
+  }, [user, settings]); // Added settings to dependency array of useCallback
 
-  // Log state changes (Unchanged)
-  useEffect(() => { debug('Settings state changed', { settings, loading }); }, [settings, loading]);
+  // Memoize the context value
+  const contextValue = useMemo(() => ({
+    settings,
+    updateSettings,
+    loading
+  }), [settings, updateSettings, loading]);
 
+  debug('SettingsProvider rendering with loading:', loading, 'and settings:', settings);
   return (
-    <SettingsContext.Provider value={{ settings, updateSettings, loading }}>
+    <SettingsContext.Provider value={contextValue}>
       {children}
     </SettingsContext.Provider>
   );

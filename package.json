@@ -7,6 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "analyze": "ANALYZE=true next build",
     "test": "jest --verbose",
     "lint": "next lint",
     "export:codebase": "bash scripts/export_codebase.sh"
@@ -83,6 +84,7 @@
     "zustand": "^5.0.3"
   },
   "devDependencies": {
+    "@next/bundle-analyzer": "15.4.0-canary.51",
     "@next/eslint-plugin-next": "^15.3.2",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react-hooks": "^8.0.1",

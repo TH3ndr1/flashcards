@@ -5,8 +5,16 @@ try {
   // ignore error
 }
 
+// --- Bundle Analyzer Setup ---
+import nextBundleAnalyzer from '@next/bundle-analyzer';
+
+const withBundleAnalyzer = nextBundleAnalyzer({
+  enabled: process.env.ANALYZE === 'true',
+});
+// --- End Bundle Analyzer Setup ---
+
 /** @type {import('next').NextConfig} */
-const nextConfig = {
+let nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
@@ -23,6 +31,10 @@ const nextConfig = {
   },
   serverExternalPackages: ['pino', 'thread-stream'],
 }
+
+// --- Apply Bundle Analyzer ---
+nextConfig = withBundleAnalyzer(nextConfig);
+// --- End Apply Bundle Analyzer ---
 
 mergeConfig(nextConfig, userConfig)
 

@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import { CreateDeckDialog } from '@/components/create-deck-dialog';
 import { type LucideProps } from 'lucide-react'; // Changed import for LucideProps
+import React from 'react';
 
 // Define explicit types for navigation items
 type LucideIconComponent = React.ComponentType<LucideProps>; // Defined LucideIconComponent type
@@ -106,7 +107,8 @@ const navItems: NavGroupDefinition[] = [
   },
 ];
 
-function NavigationContent({ isCollapsed, onClose }: { isCollapsed: boolean; onClose?: () => void }) {
+// Memoize NavigationContent as it primarily depends on isCollapsed and navItems (which is constant)
+const NavigationContentInternal = ({ isCollapsed, onClose }: { isCollapsed: boolean; onClose?: () => void }) => {
   const pathname = usePathname();
 
   return (
@@ -157,9 +159,10 @@ function NavigationContent({ isCollapsed, onClose }: { isCollapsed: boolean; onC
       </nav>
     </>
   );
-}
+};
+const NavigationContent = React.memo(NavigationContentInternal);
 
-export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }: SidebarProps) {
+const SidebarInternal = ({ isOpen, onClose, isCollapsed, onToggleCollapse }: SidebarProps) => {
   return (
     <TooltipProvider>
       {/* Mobile Sidebar using Sheet */}
@@ -197,4 +200,6 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }: Side
       </aside>
     </TooltipProvider>
   );
-} 
+};
+
+export const Sidebar = React.memo(SidebarInternal); 

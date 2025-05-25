@@ -1,5 +1,6 @@
 import { DeckListClient } from "@/components/DeckListClient";
-import { getDecksWithSrsCounts } from "@/lib/actions/deckActions";
+// import { getDecksWithSrsCounts } from "@/lib/actions/deckActions"; // Deprecated
+import { getDecks } from "@/lib/actions/deckActions"; // Use the new function
 import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
@@ -28,8 +29,8 @@ export default async function Home() {
     redirect("/login");
   }
   
-  // Fetch all deck data with SRS counts in a single database call
-  const { data: decksWithCounts, error: fetchError } = await getDecksWithSrsCounts();
+  // Fetch all deck data with SRS counts in a single database call using the new function
+  const { data: decksWithCounts, error: fetchError } = await getDecks();
   
   // Log any fetch errors but still render the page (client will handle empty state)
   if (fetchError) {
