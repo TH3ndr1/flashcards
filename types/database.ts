@@ -7,31 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          operationName?: string
-          query?: string
-          variables?: Json
-          extensions?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       cards: {
@@ -437,8 +412,25 @@ export type Database = {
         Args: { p_user_id: string; p_query_criteria: Json }
         Returns: number
       }
-      resolve_study_query: {
+      get_study_set_srs_distribution: {
         Args: { p_user_id: string; p_query_criteria: Json }
+        Returns: Database["public"]["CompositeTypes"]["srs_distribution_counts"]
+      }
+      get_user_global_srs_summary: {
+        Args: { p_user_id: string }
+        Returns: Database["public"]["CompositeTypes"]["user_global_srs_summary_counts"]
+      }
+      get_user_study_sets_with_total_counts: {
+        Args: { p_user_id: string }
+        Returns: Database["public"]["CompositeTypes"]["study_set_with_total_count"][]
+      }
+      resolve_study_query: {
+        Args: {
+          p_user_id: string
+          p_input_criteria?: Json
+          p_study_set_id?: string
+          p_random_seed?: number
+        }
         Returns: string[]
       }
     }
@@ -446,7 +438,30 @@ export type Database = {
       font_option: "default" | "opendyslexic" | "atkinson"
     }
     CompositeTypes: {
-      [_ in never]: never
+      srs_distribution_counts: {
+        new_count: number | null
+        learning_count: number | null
+        relearning_count: number | null
+        young_count: number | null
+        mature_count: number | null
+        actionable_count: number | null
+      }
+      study_set_with_total_count: {
+        id: string | null
+        user_id: string | null
+        name: string | null
+        description: string | null
+        query_criteria: Json | null
+        created_at: string | null
+        updated_at: string | null
+        total_card_count: number | null
+      }
+      user_global_srs_summary_counts: {
+        total_cards: number | null
+        new_cards: number | null
+        due_cards: number | null
+        new_review_cards: number | null
+      }
     }
   }
 }
@@ -557,9 +572,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       font_option: ["default", "opendyslexic", "atkinson"],

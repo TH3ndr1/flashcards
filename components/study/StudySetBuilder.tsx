@@ -109,7 +109,7 @@ export function StudySetBuilder({ initialData, onSave, isSaving = false }: Study
   }, [control, isLoading, watch]);
 
   const renderMultiSelectPopover = useCallback((
-      field: keyof Pick<StudySetBuilderFormData, "selectedDeckIds" | "includeTags" | "excludeTags">,
+      field: keyof Pick<StudySetBuilderFormData, "selectedDeckIds" | "includeTags">,
       options: { value: string; label: string }[],
       selectedValuesProp: string[] | undefined,
       placeholder: string,
@@ -203,14 +203,6 @@ export function StudySetBuilder({ initialData, onSave, isSaving = false }: Study
                             <FormMessage />
                         </FormItem>
                     )}/>
-                    <FormField control={control} name="excludeTags" render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Exclude Deck Tags</FormLabel>
-                            {renderMultiSelectPopover("excludeTags", allTags.map(t => ({ value: t.id, label: t.name })), field.value, "None", "Tags")}
-                            <FormDescription>Cards with any of these deck tags will be excluded.</FormDescription>
-                            <FormMessage />
-                        </FormItem>
-                    )} />
                 </div>
 
                 <FormField control={control} name="containsLanguage" render={({ field }) => (
@@ -236,7 +228,7 @@ export function StudySetBuilder({ initialData, onSave, isSaving = false }: Study
                         <FormLabel className="flex items-center"><GripVertical className="mr-2 h-5 w-5 text-muted-foreground"/> Card SRS Stage</FormLabel>
                         <UISelect
                             onValueChange={(value) => field.onChange(value === "__ANY_STAGE__" ? null : value)}
-                            value={field.value || "__ANY_STAGE__"}
+                            value={(field.value === 'all' || field.value === 'none') ? "__ANY_STAGE__" : field.value || "__ANY_STAGE__"}
                             disabled={isLoading}
                         >
                             <FormControl><SelectTrigger><SelectValue placeholder="-- Any Stage --" /></SelectTrigger></FormControl>

@@ -24,6 +24,7 @@ import { useRouter } from 'next/navigation';
 import { DeckProgressBar } from "@/components/deck/DeckProgressBar"; // Import progress bar
 import { Separator } from "@/components/ui/separator"; // Import Separator
 import type { SrsDistribution } from '@/lib/actions/studyQueryActions'; // Import SrsDistribution type
+import type { StudyQueryCriteria } from '@/lib/schema/study-query.schema';
 
 // Updated type for the study set data passed from the server component
 // This should match the type defined in app/practice/sets/page.tsx
@@ -73,7 +74,12 @@ const StudySetCardItem = React.memo(function StudySetCardItem({ set }: StudySetC
               )}
             </CardHeader>
       <CardFooter className="flex justify-center items-center mt-auto pt-4 px-4 pb-4">
-        <PlaylistPracticeButton studySetId={set.id} studySetName={set.name} actionableCardCount={set.actionableCardCount} />
+        <PlaylistPracticeButton 
+          studySetId={set.id} 
+          studySetName={set.name} 
+          actionableCardCount={set.actionableCardCount}
+          queryCriteria={set.query_criteria as StudyQueryCriteria}
+        />
             </CardFooter>
       {/* Add Progress Bar here */}
       {set.srsDistribution && set.totalMatchingCardCount > 0 && (
@@ -98,10 +104,11 @@ const StudySetCardItem = React.memo(function StudySetCardItem({ set }: StudySetC
 interface PlaylistPracticeButtonProps {
   studySetId: string;
   studySetName: string;
-  actionableCardCount: number; // Changed from totalCardCount
+  actionableCardCount: number;
+  queryCriteria: StudyQueryCriteria | null;
 }
 
-function PlaylistPracticeButtonInternal({ studySetId, studySetName, actionableCardCount }: PlaylistPracticeButtonProps) {
+function PlaylistPracticeButtonInternal({ studySetId, studySetName, actionableCardCount, queryCriteria }: PlaylistPracticeButtonProps) {
   const router = useRouter();
   const { setStudyParameters, clearStudyParameters } = useStudySessionStore();
 
@@ -111,9 +118,18 @@ function PlaylistPracticeButtonInternal({ studySetId, studySetName, actionableCa
       return; 
     }
     
-    const studyInput: StudySessionInput = { studySetId };
-    const sessionType: SessionType = 'unified'; // Or derive as needed
-    appLogger.info(`[PlaylistPracticeButton] Starting '${sessionType}' session for StudySet ${studySetId} with ${actionableCardCount} cards.`);
+    let studyInput: StudySessionInput;
+    if (queryCriteria) {
+      // Use the passed queryCriteria for the study session
+      studyInput = { criteria: queryCriteria, studySetId: undefined, deckId: undefined };
+      appLogger.info(`[PlaylistPracticeButton] Starting session for StudySet ${studySetId} using provided criteria. Actionable: ${actionableCardCount} cards. Criteria:`, JSON.stringify(queryCriteria));
+    } else {
+      // Fallback if queryCriteria is somehow null (should not happen if set.query_criteria is always populated)
+      studyInput = { studySetId: studySetId, criteria: undefined, deckId: undefined };
+      appLogger.warn(`[PlaylistPracticeButton] Starting session for StudySet ${studySetId} using only ID (queryCriteria was null). Actionable: ${actionableCardCount} cards.`);
+    }
+    
+    const sessionType: SessionType = 'unified';
     clearStudyParameters(); 
     setStudyParameters(studyInput, sessionType);
     router.push('/study/session');

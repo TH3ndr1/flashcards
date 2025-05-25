@@ -35,7 +35,6 @@ DECLARE
     -- Parsed criteria variables (copied from get_study_set_card_count)
     v_deck_ids             UUID[];
     v_include_tags         UUID[];
-    v_exclude_tags         UUID[];
     v_tag_logic            TEXT;
     v_contains_language    TEXT;
     -- v_srs_filter is NOT directly used from p_query_criteria for the main distribution,
@@ -85,11 +84,6 @@ BEGIN
     END IF;
     v_include_tags := COALESCE(v_include_tags, ARRAY[]::UUID[]);
 
-    IF jsonb_typeof(p_query_criteria->'excludeTags') = 'array' THEN
-        SELECT array_agg(elem::uuid) INTO v_exclude_tags FROM jsonb_array_elements_text(p_query_criteria->'excludeTags') elem;
-    END IF;
-    v_exclude_tags := COALESCE(v_exclude_tags, ARRAY[]::UUID[]);
-
     -- Deck filter
     IF array_length(v_deck_ids, 1) > 0 THEN
         v_where_clauses := array_append(v_where_clauses, format('c.deck_id = ANY(%L::uuid[])', v_deck_ids));
@@ -108,18 +102,6 @@ BEGIN
             v_where_clauses := array_append(v_where_clauses, format(
                 'EXISTS (SELECT 1 FROM public.deck_tags dt_any WHERE dt_any.deck_id = c.deck_id AND dt_any.tag_id = ANY(%L::uuid[]))',
                 v_include_tags ));
-        END IF;
-    END IF;
-    IF array_length(v_exclude_tags, 1) > 0 THEN
-         IF v_join_clauses !~ 'JOIN public.deck_tags' AND v_join_clauses !~ 'LEFT JOIN public.deck_tags' THEN
-             -- This case might be tricky if includeTags also added a join. Assuming separate joins for now, or a more robust single join structure would be needed.
-             -- For simplicity, let's ensure a join that allows checking for non-existence.
-            v_join_clauses := v_join_clauses || ' LEFT JOIN public.deck_tags dt_exclude_check ON c.deck_id = dt_exclude_check.deck_id AND dt_exclude_check.tag_id = ANY(%L::uuid[])';
-            v_where_clauses := array_append(v_where_clauses, 'dt_exclude_check.tag_id IS NULL');
-        ELSE
-             v_where_clauses := array_append(v_where_clauses, format(
-                'NOT EXISTS (SELECT 1 FROM public.deck_tags dt_none WHERE dt_none.deck_id = c.deck_id AND dt_none.tag_id = ANY(%L::uuid[]))',
-                 v_exclude_tags ));
         END IF;
     END IF;
     
@@ -206,62 +188,59 @@ BEGIN
     IF array_length(v_where_clauses, 1) > 0 THEN
         v_dynamic_where_conditions := array_to_string(v_where_clauses, ' AND ');
     ELSE
-        -- This case should ideally not be hit if user_id is always enforced.
-        -- If p_query_criteria might lead to no filters (e.g. allCards:true and no other criteria),
-        -- we might need a 'TRUE' condition if user_id was not part of v_where_clauses.
-        -- However, user_id is always added, so this branch is less likely for an empty string.
         v_dynamic_where_conditions := 'TRUE'; 
     END IF;
+    RAISE LOG '[GSSD_LOG] Initial v_dynamic_where_conditions (before srsFilter): %', v_dynamic_where_conditions;
 
-    -- Construct SRS condition for actionable_count (new_review)
-    -- This is '(c.srs_level = 0 OR (c.next_review_due IS NOT NULL AND c.next_review_due <= NOW()))'
-    -- AND learning_state IS DISTINCT FROM 'learning' AND learning_state IS DISTINCT FROM 'relearning'
-    -- (as per existing get_study_set_card_count logic for 'new_review')
-    v_actionable_srs_condition := '(c.srs_level = 0 OR (c.next_review_due IS NOT NULL AND c.next_review_due <= NOW())) AND c.learning_state IS DISTINCT FROM ''learning'' AND c.learning_state IS DISTINCT FROM ''relearning''';
-
-    -- If p_query_criteria contains an 'srsFilter' field, and it is one of 'new', 'due', 'learning', 'young', 'mature',
-    -- this function's primary purpose is overall distribution, so the explicit srsFilter from input is NOT generally applied to the distribution counts.
-    -- However, if a study set was *saved* with e.g. srsFilter: 'new', its distribution will inherently be only for new cards.
-    -- The `v_actionable_srs_condition` is a fixed filter for the `actionable_count` field.
-    -- If p_query_criteria itself has an srsFilter, that filter is ALREADY part of v_dynamic_where_conditions if it was parsed.
-    -- Let's refine this: the specific srsFilter from criteria *should* apply to ALL counts if present.
-    -- The original function's comment "v_srs_filter is NOT used here" means it doesn't add its *own* srs_filter on top.
-    -- But if the criteria *provides* one, it should be respected.
-
-    -- Re-check srsFilter parsing from get_study_set_card_count for inclusion in v_dynamic_where_conditions
+    -- BEGIN: Restore srsFilter application to v_dynamic_where_conditions
     DECLARE
         v_srs_filter_criteria TEXT := p_query_criteria->>'srsFilter';
         v_srs_filter_clause TEXT := '';
     BEGIN
-        IF v_srs_filter_criteria IS NOT NULL AND v_srs_filter_criteria <> 'all' THEN
+        RAISE LOG '[GSSD_LOG] srsFilter processing: v_srs_filter_criteria is "%".', COALESCE(v_srs_filter_criteria, 'NULL') ;
+        IF v_srs_filter_criteria IS NOT NULL AND v_srs_filter_criteria <> 'all' AND v_srs_filter_criteria <> 'none' THEN
             IF v_srs_filter_criteria = 'new' THEN
-                v_srs_filter_clause := 'c.srs_level = 0';
-            ELSIF v_srs_filter_criteria = 'due' THEN
-                -- Due: next_review_due is past AND not currently in learning/relearning
-                v_srs_filter_clause := '(c.next_review_due IS NOT NULL AND c.next_review_due <= NOW()) AND c.learning_state IS DISTINCT FROM ''learning'' AND c.learning_state IS DISTINCT FROM ''relearning''';
-            ELSIF v_srs_filter_criteria = 'learning' THEN
-                v_srs_filter_clause := '(c.learning_state = ''learning'' OR c.learning_state = ''relearning'')'; -- Combined learning & relearning
+                v_srs_filter_clause := '(c.srs_level = 0 AND c.learning_state IS NULL)'; -- Strictly new
+            ELSIF v_srs_filter_criteria = 'learning' THEN -- UI "Learning / Relearning"
+                v_srs_filter_clause := '(c.learning_state = ''learning'' OR c.learning_state = ''relearning'')';
             ELSIF v_srs_filter_criteria = 'young' THEN
-                v_srs_filter_clause := format('(c.srs_level > 0 AND c.interval_days < %s AND c.learning_state IS DISTINCT FROM ''learning'' AND c.learning_state IS DISTINCT FROM ''relearning'')', v_mature_threshold);
+                 v_srs_filter_clause := format('(c.srs_level > 0 AND c.interval_days < %s AND c.learning_state IS DISTINCT FROM ''learning'' AND c.learning_state IS DISTINCT FROM ''relearning'')', v_mature_threshold);
             ELSIF v_srs_filter_criteria = 'mature' THEN
-                v_srs_filter_clause := format('(c.srs_level > 0 AND c.interval_days >= %s AND c.learning_state IS DISTINCT FROM ''learning'' AND c.learning_state IS DISTINCT FROM ''relearning'')', v_mature_threshold);
-            ELSIF v_srs_filter_criteria = 'new_review' THEN
-                v_srs_filter_clause := '(c.srs_level = 0 OR (c.next_review_due IS NOT NULL AND c.next_review_due <= NOW())) AND c.learning_state IS DISTINCT FROM ''learning'' AND c.learning_state IS DISTINCT FROM ''relearning''';
+                 v_srs_filter_clause := format('(c.srs_level > 0 AND c.interval_days >= %s AND c.learning_state IS DISTINCT FROM ''learning'' AND c.learning_state IS DISTINCT FROM ''relearning'')', v_mature_threshold);
+            ELSIF v_srs_filter_criteria = 'due' THEN 
+                v_srs_filter_clause := '( ((c.srs_level >= 1) OR (c.srs_level = 0 AND c.learning_state = ''relearning'')) AND c.next_review_due <= NOW() )';
+            ELSIF v_srs_filter_criteria = 'new_review' THEN 
+                v_srs_filter_clause := '( (c.srs_level = 0 AND c.learning_state IS NULL) OR (c.srs_level = 0 AND c.learning_state = ''learning'') OR ( ((c.srs_level >= 1) OR (c.srs_level = 0 AND c.learning_state = ''relearning'')) AND c.next_review_due <= NOW() ) )';
             END IF;
+            RAISE LOG '[GSSD_LOG] Derived v_srs_filter_clause: %', v_srs_filter_clause;
 
             IF v_srs_filter_clause <> '' THEN
-                -- Prepend to v_dynamic_where_conditions if it's not just 'TRUE'
                 IF v_dynamic_where_conditions = 'TRUE' THEN
                     v_dynamic_where_conditions := v_srs_filter_clause;
                 ELSE
-                    v_dynamic_where_conditions := v_srs_filter_clause || ' AND ' || v_dynamic_where_conditions;
+                    v_dynamic_where_conditions := v_dynamic_where_conditions || ' AND ' || v_srs_filter_clause; 
                 END IF;
-                RAISE LOG '[get_study_set_srs_distribution_v2] Applied srsFilter from criteria: %', v_srs_filter_criteria;
+                RAISE LOG '[get_study_set_srs_distribution_v2] Applied srsFilter "%": to v_dynamic_where_conditions', v_srs_filter_criteria; -- Kept original log tag for consistency
             END IF;
         END IF;
     END;
+    -- END: Restore srsFilter application to v_dynamic_where_conditions
+    RAISE LOG '[GSSD_LOG] Final v_dynamic_where_conditions (after srsFilter): %', v_dynamic_where_conditions;
+
+    -- Define v_actionable_srs_condition based on p_query_criteria->>'srsFilter'
+    v_actionable_srs_condition := CASE p_query_criteria->>'srsFilter'
+        WHEN 'new' THEN 'c.srs_level = 0' 
+        WHEN 'learning' THEN '(c.learning_state = ''learning'' OR c.learning_state = ''relearning'')' 
+        WHEN 'young' THEN format('(c.srs_level > 0 AND c.interval_days < %s AND c.learning_state IS DISTINCT FROM ''learning'' AND c.learning_state IS DISTINCT FROM ''relearning'' AND c.next_review_due <= NOW())', v_mature_threshold)
+        WHEN 'mature' THEN format('(c.srs_level > 0 AND c.interval_days >= %s AND c.learning_state IS DISTINCT FROM ''learning'' AND c.learning_state IS DISTINCT FROM ''relearning'' AND c.next_review_due <= NOW())', v_mature_threshold)
+        WHEN 'due' THEN '( ((c.srs_level >= 1) OR (c.srs_level = 0 AND c.learning_state = ''relearning'')) AND c.next_review_due <= NOW() )'
+        WHEN 'new_review' THEN '( (c.srs_level = 0 AND c.learning_state IS NULL) OR (c.srs_level = 0 AND c.learning_state = ''learning'') OR ( ((c.srs_level >= 1) OR (c.srs_level = 0 AND c.learning_state = ''relearning'')) AND c.next_review_due <= NOW() ) )'
+        ELSE '( (c.srs_level = 0 AND c.learning_state IS NULL) OR (c.srs_level = 0 AND c.learning_state = ''learning'') OR ( ((c.srs_level >= 1) OR (c.srs_level = 0 AND c.learning_state = ''relearning'')) AND c.next_review_due <= NOW() ) )'
+    END;
+    RAISE LOG '[GSSD_LOG] v_actionable_srs_condition set to: %s (for srsFilter: %s)', v_actionable_srs_condition, COALESCE(p_query_criteria->>'srsFilter', 'NULL/default');
     
     -- Main SQL to get SRS distribution counts and total card count for the filtered set
+    RAISE LOG '[GSSD_LOG] Formatting v_base_sql with: FROM=[%], JOIN=[%], WHERE=[%]', v_from_clause, COALESCE(v_join_clauses, 'EMPTY'), v_dynamic_where_conditions;
     v_base_sql := format(
         'SELECT ' ||
         '   COALESCE(SUM(CASE WHEN c.srs_level = 0 THEN 1 ELSE 0 END), 0)::BIGINT AS new_count, ' ||
@@ -269,85 +248,82 @@ BEGIN
         '   COALESCE(SUM(CASE WHEN c.learning_state = ''relearning'' THEN 1 ELSE 0 END), 0)::BIGINT AS relearning_count, ' ||
         '   COALESCE(SUM(CASE WHEN c.srs_level > 0 AND c.interval_days < %s AND c.learning_state IS DISTINCT FROM ''learning'' AND c.learning_state IS DISTINCT FROM ''relearning'' THEN 1 ELSE 0 END), 0)::BIGINT AS young_count, ' ||
         '   COALESCE(SUM(CASE WHEN c.srs_level > 0 AND c.interval_days >= %s AND c.learning_state IS DISTINCT FROM ''learning'' AND c.learning_state IS DISTINCT FROM ''relearning'' THEN 1 ELSE 0 END), 0)::BIGINT AS mature_count, ' ||
-        '   COALESCE(COUNT(*), 0)::BIGINT AS total_for_set ' || -- Calculate total cards in the filtered set
+        '   COALESCE(COUNT(*), 0)::BIGINT AS total_for_set ' ||
         '%s %s WHERE %s',
-        v_mature_threshold,          -- for young_count
-        v_mature_threshold,          -- for mature_count
-        v_from_clause,               -- e.g., FROM public.cards c
-        v_join_clauses,              -- e.g., JOIN public.decks d ON ...
-        v_dynamic_where_conditions   -- e.g., c.user_id = '...' AND (other filters)
+        v_mature_threshold, v_mature_threshold, v_from_clause, v_join_clauses, v_dynamic_where_conditions
     );
+    RAISE LOG '[get_study_set_srs_distribution_v2] Final SQL for distribution counts: %', v_base_sql; -- Kept original log tag
 
-    RAISE LOG '[get_study_set_srs_distribution_v2] Final SQL for distribution counts: %', v_base_sql;
-
-    -- Execute the main query to populate temporary distribution variables and total count
     EXECUTE v_base_sql
-    INTO
-        temp_new_count,
-        temp_learning_count,
-        temp_relearning_count,
-        temp_young_count,
-        temp_mature_count,
-        total_cards_in_filtered_set; -- Ensure v_base_sql selects these 6 values in order
+    INTO temp_new_count, temp_learning_count, temp_relearning_count, temp_young_count, temp_mature_count, total_cards_in_filtered_set;
+    RAISE LOG '[GSSD_LOG] After EXECUTE v_base_sql: new=%, learn=%, relearn=%, young=%, mature=%, total_filtered=%',
+        temp_new_count, temp_learning_count, temp_relearning_count, temp_young_count, temp_mature_count, total_cards_in_filtered_set;
 
     -- Conditionally populate the result based on p_srs_filter
     DECLARE
         v_srs_filter_val TEXT := p_query_criteria->>'srsFilter';
     BEGIN
+        RAISE LOG '[GSSD_LOG] Conditional distribution: v_srs_filter_val is "%".', COALESCE(v_srs_filter_val, 'NULL');
         IF v_srs_filter_val = 'new' THEN
             v_distribution_result.new_count = total_cards_in_filtered_set;
             v_distribution_result.learning_count = 0;
             v_distribution_result.relearning_count = 0;
             v_distribution_result.young_count = 0;
             v_distribution_result.mature_count = 0;
-        ELSIF v_srs_filter_val = 'learning' THEN -- UI "Learning / Relearning"
+        ELSIF v_srs_filter_val = 'learning' THEN
             v_distribution_result.new_count = 0;
-            -- temp_learning_count and temp_relearning_count are based on the *already filtered* set of cards.
-            -- If srsFilter was 'learning', then total_cards_in_filtered_set = temp_learning_count + temp_relearning_count.
             v_distribution_result.learning_count = temp_learning_count; 
             v_distribution_result.relearning_count = temp_relearning_count;
             v_distribution_result.young_count = 0;
             v_distribution_result.mature_count = 0;
         ELSIF v_srs_filter_val = 'young' THEN 
-            -- 'young' filter in schema maps to: (c.srs_level > 0 AND c.interval_days < v_mature_threshold AND learning_state IS DISTINCT FROM 'learning' AND learning_state IS DISTINCT FROM 'relearning')
-            -- The SrsDistribution.young_count is for srs_level 1-4 (interval < mature_threshold)
-            -- The SrsDistribution.mature_count is for srs_level >=5 (interval >= mature_threshold)
-            -- If the filter was 'young', all cards match this. We need to assign to the correct bucket in the output.
-            -- The temp_young_count already correctly counts cards with interval_days < v_mature_threshold.
             v_distribution_result.new_count = 0;
             v_distribution_result.learning_count = 0;
             v_distribution_result.relearning_count = 0;
-            v_distribution_result.young_count = total_cards_in_filtered_set; -- All filtered cards are 'young' by definition of the filter
+            v_distribution_result.young_count = total_cards_in_filtered_set; 
             v_distribution_result.mature_count = 0;
         ELSIF v_srs_filter_val = 'mature' THEN
-            -- 'mature' filter in schema maps to: (c.srs_level > 0 AND c.interval_days >= v_mature_threshold AND learning_state IS DISTINCT FROM 'learning' AND learning_state IS DISTINCT FROM 'relearning')
-            -- All cards in total_cards_in_filtered_set fit this. These are all considered 'mature' for the distribution.
             v_distribution_result.new_count = 0;
             v_distribution_result.learning_count = 0;
             v_distribution_result.relearning_count = 0;
             v_distribution_result.young_count = 0;
             v_distribution_result.mature_count = total_cards_in_filtered_set;
-        ELSE -- For NULL, 'all', 'due', 'new_review', or any other filters, use the full calculated distribution
+        ELSE 
             v_distribution_result.new_count = temp_new_count;
             v_distribution_result.learning_count = temp_learning_count;
             v_distribution_result.relearning_count = temp_relearning_count;
             v_distribution_result.young_count = temp_young_count;
             v_distribution_result.mature_count = temp_mature_count;
         END IF;
+        RAISE LOG '[GSSD_LOG] v_distribution_result after conditional assignment: new=%, learn=%, relearn=%, young=%, mature=%',
+            v_distribution_result.new_count, v_distribution_result.learning_count, v_distribution_result.relearning_count, v_distribution_result.young_count, v_distribution_result.mature_count;
     END;
 
-    -- Calculate actionable_count separately using the previously defined conditions
+    -- Calculate actionable_count 
     DECLARE
-        v_actionable_query TEXT;
+        v_srs_filter_for_actionable TEXT := p_query_criteria->>'srsFilter';
     BEGIN
-        v_actionable_query := format(
-            'SELECT COALESCE(SUM(CASE WHEN %s THEN 1 ELSE 0 END), 0)::BIGINT FROM public.cards c %s WHERE %s',
-            v_actionable_srs_condition, 
-            v_join_clauses, 
-            v_dynamic_where_conditions
-        );
-        RAISE LOG '[get_study_set_srs_distribution_v2] Actionable count query: %', v_actionable_query;
-        EXECUTE v_actionable_query INTO v_distribution_result.actionable_count;
+        RAISE LOG '[GSSD_LOG] Actionable count calc: v_srs_filter_for_actionable is "%".', COALESCE(v_srs_filter_for_actionable, 'NULL');
+        IF v_srs_filter_for_actionable = 'new' OR v_srs_filter_for_actionable = 'learning' THEN
+            v_distribution_result.actionable_count = total_cards_in_filtered_set;
+            RAISE LOG '[get_study_set_srs_distribution_v2] Actionable count for srsFilter "%": set to total_cards_in_filtered_set (%s)', 
+                v_srs_filter_for_actionable, total_cards_in_filtered_set; -- Kept original log tag
+        ELSE
+            RAISE LOG '[get_study_set_srs_distribution_v2] Calculating actionable_count for srsFilter "%" using condition: %s', 
+                COALESCE(v_srs_filter_for_actionable, 'default'), 
+                v_actionable_srs_condition; -- Kept original log tag
+            
+            EXECUTE format(
+                'SELECT COALESCE(COUNT(*), 0)::BIGINT
+                 FROM public.cards c %s 
+                 WHERE (%s) AND (%s)',
+                v_join_clauses,             -- joins
+                v_dynamic_where_conditions, -- main filters including srsFilter
+                v_actionable_srs_condition  -- specific actionable condition for the srsFilter type
+            )
+            INTO v_distribution_result.actionable_count;
+        END IF;
+        RAISE LOG '[GSSD_LOG] Final actionable_count: %', v_distribution_result.actionable_count;
     END;
 
     RETURN v_distribution_result;

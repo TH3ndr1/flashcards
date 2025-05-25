@@ -116,17 +116,75 @@ export async function resolveStudyQuery(
          return { data: null, error: 'Failed to determine study criteria.' };
     }
 
+    // ---- BEGIN TRANSFORMATION for srsFilter to srsStages ----
+    // The resolve_study_query SQL function (v10) expects srsStages: string[]
+    // Our criteriaToUse has srsFilter: string. We need to map this.
+    let finalCriteriaForRpc = { ...criteriaToUse };
+
+    if (finalCriteriaForRpc.srsFilter) {
+        const filterValue = finalCriteriaForRpc.srsFilter;
+        let stages: string[] = [];
+        if (filterValue === 'new') {
+            stages = ['new'];
+        } else if (filterValue === 'learning') {
+            // Assuming 'learning' in UI implies both learning and relearning stages in cards_with_srs_stage view
+            stages = ['learning', 'relearning']; 
+        } else if (filterValue === 'young') {
+            stages = ['young'];
+        } else if (filterValue === 'mature') {
+            stages = ['mature'];
+        } else if (filterValue === 'due' || filterValue === 'new_review' || filterValue === 'all' || filterValue === 'none') {
+            // For 'due', 'new_review', 'all', 'none', the current resolve_study_query v10
+            // doesn't have specific logic beyond what srsStages array can provide.
+            // If these are passed, and cards_with_srs_stage has corresponding stage names, they might work.
+            // Otherwise, for these more complex filters, resolve_study_query would ideally need logic
+            // similar to get_study_set_srs_distribution.
+            // For now, if they are passed, we pass them along if they match potential stage names.
+            // If not, we effectively remove the srsFilter by not setting srsStages.
+            // This part might need refinement if these filters are used extensively in playlists
+            // and cards_with_srs_stage view doesn't directly support them.
+             appLogger.warn(`[resolveStudyQuery] srsFilter '${filterValue}' received. Mapping to srsStages might be imprecise with current SQL.`);
+            if (['new', 'learning', 'relearning', 'young', 'mature', 'due', 'review'].includes(filterValue)) { // Example stages view might have
+                 stages = [filterValue];
+            } else if (filterValue === 'all' || filterValue === 'none') {
+                // 'all' or 'none' srsFilter means no specific SRS stage filtering via srsStages array.
+                // Let other criteria apply.
+            }
+        }
+        
+        if (stages.length > 0) {
+            (finalCriteriaForRpc as any).srsStages = stages;
+        }
+        delete (finalCriteriaForRpc as any).srsFilter; // Remove the original srsFilter
+    }
+    // ---- END TRANSFORMATION ----
+
     // 3. RPC Call to the Database Function
-    appLogger.info("[resolveStudyQuery] Calling RPC with criteria:", criteriaToUse);
+    appLogger.info("[resolveStudyQuery] Calling RPC with criteria:", finalCriteriaForRpc);
+
+    // Determine if the original input to this TS action was a studySetId
+    // This helps decide if p_study_set_id should be the original ID or null if criteria was direct
+    // However, for THIS specific RPC call, p_study_set_id should be null because
+    // we are passing the resolved criteria directly as p_input_criteria.
+    // The SQL function's internal logic will use p_input_criteria if p_study_set_id is NULL.
+    // If the SQL function were to be called with a study_set_id, then p_input_criteria would be NULL.
+    
+    const studySetIdForRpc: string | null = ('studySetId' in input && input.studySetId) 
+                                            ? input.studySetId 
+                                            : null;
+
+    // If we've resolved criteria from a studySetId, pass NULL for p_study_set_id to the SQL
+    // function because p_input_criteria will contain the resolved criteria.
+    // If the input was direct criteria, studySetIdForRpc is already null.
+    // The SQL function handles fetching from study_sets table if p_study_set_id is NOT NULL and p_input_criteria IS NULL.
+
     const { data, error: rpcError } = await supabase.rpc(
       'resolve_study_query', 
       {
         p_user_id: user.id,
-        // Cast criteriaToUse to Json if Supabase types require it, otherwise direct pass should work
-        p_query_criteria: criteriaToUse as unknown as Json, 
-        // TODO: Potentially pass orderby info if needed from criteria or separate param?
-        // p_order_by_field: criteriaToUse.orderBy?.field ?? 'created_at', 
-        // p_order_by_direction: criteriaToUse.orderBy?.direction ?? 'DESC' 
+        p_input_criteria: finalCriteriaForRpc as unknown as Json, // Use p_input_criteria
+        p_study_set_id: undefined, // Pass undefined, as criteria are already resolved and in p_input_criteria
+        p_random_seed: Math.random() // Add random seed
       }
     );
 

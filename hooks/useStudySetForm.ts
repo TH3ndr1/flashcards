@@ -39,7 +39,6 @@ const studySetFormSchema = z.object({
   selectedDeckIds: z.array(z.string().uuid()).optional().default([]),
   includeTags: z.array(z.string().uuid()).optional().default([]),
   tagLogic: z.enum(['ANY', 'ALL']).optional().default('ANY'),
-  excludeTags: z.array(z.string().uuid()).optional().default([]),
   containsLanguage: z.string().length(2).or(z.literal('')).optional().nullable(),
   createdDateOperator: z.string().nullable().optional(),
   createdDateValueDays: z.string().regex(/^\d*$/, "Must be a number").nullable().optional(),
@@ -113,7 +112,6 @@ export interface UseStudySetFormReturn {
     };
     watchedFilterValues: {
         includeTags: string[] | undefined;
-        excludeTags: string[] | undefined;
         selectedDeckIds: string[] | undefined;
         srsFilter: string | null | undefined;
     };
@@ -146,7 +144,6 @@ export function useStudySetForm({ initialData, onSave, isSaving = false }: UseSt
       selectedDeckIds: initialData?.criteria?.deckIds || [],
       includeTags: initialData?.criteria?.includeTags || [],
       tagLogic: initialData?.criteria?.tagLogic || 'ANY',
-      excludeTags: initialData?.criteria?.excludeTags || [],
       containsLanguage: initialData?.criteria?.containsLanguage || null,
       createdDateOperator: initialCreated.operator,
       createdDateValueDays: initialCreated.days,
@@ -172,9 +169,9 @@ export function useStudySetForm({ initialData, onSave, isSaving = false }: UseSt
   });
 
   const watchedOperatorsArray = form.watch(['createdDateOperator', 'updatedDateOperator', 'lastReviewedOperator', 'nextReviewDueOperator']);
-  const watchedFilterValuesArray = form.watch(['includeTags', 'excludeTags', 'selectedDeckIds', 'srsFilter']);
+  const watchedFilterValuesArray = form.watch(['includeTags', 'selectedDeckIds', 'srsFilter']);
   const [createdDateOperator, updatedDateOperator, lastReviewedOperator, nextReviewDueOperator] = watchedOperatorsArray;
-  const [includeTags, excludeTags, selectedDeckIds, srsFilter] = watchedFilterValuesArray;
+  const [includeTags, selectedDeckIds, srsFilter] = watchedFilterValuesArray;
 
   const mapDateFilterToCriteria = useCallback(( /* ... same as previous correct version ... */
     operator?: string | null,
@@ -208,9 +205,6 @@ export function useStudySetForm({ initialData, onSave, isSaving = false }: UseSt
       criteriaToBuild.includeTags = formData.includeTags;
       criteriaToBuild.tagLogic = formData.tagLogic ?? 'ANY';
     }
-    if (formData.excludeTags && formData.excludeTags.length > 0) {
-      criteriaToBuild.excludeTags = formData.excludeTags;
-    }
     if (formData.containsLanguage && formData.containsLanguage.length === 2) {
         criteriaToBuild.containsLanguage = formData.containsLanguage;
     }
@@ -224,9 +218,16 @@ export function useStudySetForm({ initialData, onSave, isSaving = false }: UseSt
     const nextReviewDueFilter = mapDateFilterToCriteria(formData.nextReviewDueOperator, formData.nextReviewDueValueDays, formData.nextReviewDueValueDate, formData.nextReviewDueValueRange);
     if (nextReviewDueFilter) criteriaToBuild.nextReviewDue = nextReviewDueFilter;
 
-    if (formData.srsFilter && formData.srsFilter !== '__ANY_STAGE__') { // __ANY_STAGE__ is placeholder from component
+    // Handle srsFilter
+    if (formData.srsFilter && formData.srsFilter !== '__ANY_STAGE__') {
         criteriaToBuild.srsFilter = formData.srsFilter;
+    } else if (formData.srsFilter === null) { 
+        // If user explicitly selected "-- Any Stage --", which sets srsFilter to null in the form
+        criteriaToBuild.srsFilter = 'all'; // Explicitly save 'all'
     }
+    // If formData.srsFilter is initially undefined (new form, not touched), it will be omitted.
+    // This is acceptable as srsFilter is optional in StudyQueryCriteriaSchema,
+    // and the SQL function get_study_set_srs_distribution defaults to 'all' behavior if srsFilter is not present.
 
     const parsedFinalCriteria = StudyQueryCriteriaSchema.safeParse(criteriaToBuild);
     if (!parsedFinalCriteria.success) {
@@ -260,7 +261,7 @@ export function useStudySetForm({ initialData, onSave, isSaving = false }: UseSt
     decks: (decks || []) as DeckListItem[],
     onSubmit: handleFormSubmit,
     watchedOperators: { createdDateOperator, updatedDateOperator, lastReviewedOperator, nextReviewDueOperator },
-    watchedFilterValues: { includeTags, excludeTags, selectedDeckIds, srsFilter },
+    watchedFilterValues: { includeTags, selectedDeckIds, srsFilter },
     allowedOperators: {
         createdUpdatedOps: [...DateDaysOperators, ...DateSpecificOperators],
         lastReviewedOps: [...DateDaysOperators, ...DateSpecificOperators, ...NullableDateOperators],

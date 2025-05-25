@@ -66,8 +66,10 @@ export const StudyQueryCriteriaSchema = z.object({
     .describe("If true, fetch all cards for the user, overriding most other filters except possibly user-level ones"),
   includeTags: z.array(z.string().uuid("Invalid Tag ID format")).optional()
     .describe("Optional array of Tag UUIDs (deck tags) to include"),
+  /*
   excludeTags: z.array(z.string().uuid("Invalid Tag ID format")).optional()
     .describe("Optional array of Tag UUIDs (deck tags) to exclude"),
+  */
   tagLogic: z.enum(['ANY', 'ALL']).optional().default('ANY')
     .describe("Logic for 'includeTags': ANY (default) or ALL"),
 
