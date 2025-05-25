@@ -123,6 +123,37 @@ export default async function ListStudySetsPage() {
       </div>
       {/* Pass the augmented data to the client component */}
       <StudySetListClient initialData={studySetsWithCountsAndDeckNames} />
+
+      {/* Added SRS Legend */}
+      {studySetsWithCountsAndDeckNames.some(set => 
+        set.srsDistribution && (
+          set.srsDistribution.new_count > 0 || 
+          set.srsDistribution.learning_count > 0 || 
+          set.srsDistribution.relearning_count > 0 || 
+          set.srsDistribution.young_count > 0 || 
+          set.srsDistribution.mature_count > 0
+        )
+      ) && (
+        <div className="mt-8 flex justify-center sm:justify-end">
+          <div className="text-xs text-muted-foreground flex flex-wrap gap-x-3 gap-y-1 p-2 border rounded-md bg-background shadow-sm">
+            {[
+              { name: 'New', startColor: '#EC4899', endColor: '#EF4444' },
+              { name: 'Learning', startColor: '#DA55C6', endColor: '#9353DD' },
+              { name: 'Relearning', startColor: '#F59E0B', endColor: '#F97316' },
+              { name: 'Young', startColor: '#6055DA', endColor: '#5386DD' },
+              { name: 'Mature', startColor: '#55A9DA', endColor: '#53DDDD' },
+            ].map(stage => (
+              <span key={stage.name} className="flex items-center gap-1.5">
+                <span
+                  className="h-2.5 w-2.5 rounded-sm"
+                  style={{ backgroundImage: `linear-gradient(to right, ${stage.startColor}, ${stage.endColor})` }}
+                ></span>
+                {stage.name}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

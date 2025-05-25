@@ -28,9 +28,9 @@ export default function NewStudySetPage() {
       } else {
         toast.success(`Study Set "${result.data?.name}" created successfully!`);
         // Navigate back to the list page (adjust path if different)
-        router.push('/study/sets'); 
+        router.push('/practice/sets'); 
         // Optional: revalidate list page path if needed, though action might handle it
-        // revalidatePath('/study/sets'); 
+        // revalidatePath('/practice/sets'); // Already handled by the action
       }
     } catch (err) {
       appLogger.error("[NewStudySetPage] Unexpected error saving study set:", err);

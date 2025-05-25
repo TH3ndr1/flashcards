@@ -99,7 +99,7 @@ export async function createStudySet(
         }
 
         appLogger.info("[createStudySet] Success, ID:", newStudySet?.id);
-        revalidatePath('/study-sets'); // Revalidate page listing study sets
+        revalidatePath('/practice/sets'); // Revalidate page listing study sets
         return { data: newStudySet, error: null };
 
     } catch (err) {
@@ -259,7 +259,7 @@ export async function updateStudySet(
         }
 
         appLogger.info("[updateStudySet] Success, ID:", updatedStudySet.id);
-        revalidatePath('/study-sets'); // Revalidate list page
+        revalidatePath('/practice/sets'); // Revalidate list page
         revalidatePath(`/study-sets/${studySetId}`); // Revalidate specific set page (if exists)
         return { data: updatedStudySet, error: null };
 
@@ -308,7 +308,7 @@ export async function deleteStudySet(studySetId: string): Promise<ActionResult<n
         }
 
         appLogger.info("[deleteStudySet] Success for ID:", studySetId);
-        revalidatePath('/study-sets'); // Revalidate list page
+        revalidatePath('/practice/sets'); // Revalidate list page
         return { data: null, error: null }; // Success
 
     } catch (err) {

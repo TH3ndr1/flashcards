@@ -243,12 +243,12 @@ BEGIN
     RAISE LOG '[GSSD_LOG] Formatting v_base_sql with: FROM=[%], JOIN=[%], WHERE=[%]', v_from_clause, COALESCE(v_join_clauses, 'EMPTY'), v_dynamic_where_conditions;
     v_base_sql := format(
         'SELECT ' ||
-        '   COALESCE(SUM(CASE WHEN c.srs_level = 0 THEN 1 ELSE 0 END), 0)::BIGINT AS new_count, ' ||
-        '   COALESCE(SUM(CASE WHEN c.learning_state = ''learning'' THEN 1 ELSE 0 END), 0)::BIGINT AS learning_count, ' ||
-        '   COALESCE(SUM(CASE WHEN c.learning_state = ''relearning'' THEN 1 ELSE 0 END), 0)::BIGINT AS relearning_count, ' ||
-        '   COALESCE(SUM(CASE WHEN c.srs_level > 0 AND c.interval_days < %s AND c.learning_state IS DISTINCT FROM ''learning'' AND c.learning_state IS DISTINCT FROM ''relearning'' THEN 1 ELSE 0 END), 0)::BIGINT AS young_count, ' ||
-        '   COALESCE(SUM(CASE WHEN c.srs_level > 0 AND c.interval_days >= %s AND c.learning_state IS DISTINCT FROM ''learning'' AND c.learning_state IS DISTINCT FROM ''relearning'' THEN 1 ELSE 0 END), 0)::BIGINT AS mature_count, ' ||
-        '   COALESCE(COUNT(*), 0)::BIGINT AS total_for_set ' ||
+        '   COUNT(DISTINCT CASE WHEN c.srs_level = 0 AND c.learning_state IS NULL THEN c.id ELSE NULL END)::BIGINT AS new_count, ' ||
+        '   COUNT(DISTINCT CASE WHEN c.learning_state = ''learning'' THEN c.id ELSE NULL END)::BIGINT AS learning_count, ' ||
+        '   COUNT(DISTINCT CASE WHEN c.learning_state = ''relearning'' THEN c.id ELSE NULL END)::BIGINT AS relearning_count, ' ||
+        '   COUNT(DISTINCT CASE WHEN c.srs_level > 0 AND c.interval_days < %s AND c.learning_state IS DISTINCT FROM ''learning'' AND c.learning_state IS DISTINCT FROM ''relearning'' THEN c.id ELSE NULL END)::BIGINT AS young_count, ' ||
+        '   COUNT(DISTINCT CASE WHEN c.srs_level > 0 AND c.interval_days >= %s AND c.learning_state IS DISTINCT FROM ''learning'' AND c.learning_state IS DISTINCT FROM ''relearning'' THEN c.id ELSE NULL END)::BIGINT AS mature_count, ' ||
+        '   COUNT(DISTINCT c.id)::BIGINT AS total_for_set ' ||
         '%s %s WHERE %s',
         v_mature_threshold, v_mature_threshold, v_from_clause, v_join_clauses, v_dynamic_where_conditions
     );
@@ -314,9 +314,9 @@ BEGIN
                 v_actionable_srs_condition; -- Kept original log tag
             
             EXECUTE format(
-                'SELECT COALESCE(COUNT(*), 0)::BIGINT
-                 FROM public.cards c %s 
-                 WHERE (%s) AND (%s)',
+                'SELECT COUNT(DISTINCT c.id)::BIGINT ' ||
+                'FROM public.cards c %s ' ||
+                'WHERE (%s) AND (%s)',
                 v_join_clauses,             -- joins
                 v_dynamic_where_conditions, -- main filters including srsFilter
                 v_actionable_srs_condition  -- specific actionable condition for the srsFilter type
