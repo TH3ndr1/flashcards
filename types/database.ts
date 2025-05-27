@@ -189,7 +189,10 @@ export type Database = {
           color_only_non_native: boolean | null
           created_at: string | null
           custom_learn_requeue_gap: number
-          deck_list_grouping_preference: string
+          deck_list_active_tag_group_id: string | null
+          deck_list_grouping_mode: string
+          deck_list_sort_direction: string
+          deck_list_sort_field: string
           default_easiness_factor: number
           easy_interval_days: number
           enable_advanced_color_coding: boolean | null
@@ -225,7 +228,10 @@ export type Database = {
           color_only_non_native?: boolean | null
           created_at?: string | null
           custom_learn_requeue_gap?: number
-          deck_list_grouping_preference?: string
+          deck_list_active_tag_group_id?: string | null
+          deck_list_grouping_mode?: string
+          deck_list_sort_direction?: string
+          deck_list_sort_field?: string
           default_easiness_factor?: number
           easy_interval_days?: number
           enable_advanced_color_coding?: boolean | null
@@ -261,7 +267,10 @@ export type Database = {
           color_only_non_native?: boolean | null
           created_at?: string | null
           custom_learn_requeue_gap?: number
-          deck_list_grouping_preference?: string
+          deck_list_active_tag_group_id?: string | null
+          deck_list_grouping_mode?: string
+          deck_list_sort_direction?: string
+          deck_list_sort_field?: string
           default_easiness_factor?: number
           easy_interval_days?: number
           enable_advanced_color_coding?: boolean | null
@@ -291,7 +300,15 @@ export type Database = {
           user_id?: string
           word_palette_config?: Json | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "fk_deck_list_active_tag_group"
+            columns: ["deck_list_active_tag_group_id"]
+            isOneToOne: false
+            referencedRelation: "tags"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       study_sets: {
         Row: {

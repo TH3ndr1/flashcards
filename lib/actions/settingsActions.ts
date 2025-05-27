@@ -5,7 +5,7 @@ import { createActionClient } from '@/lib/supabase/server';
 // import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 // Ensure types/database includes the new settings columns
-import type { Database, Tables, Json } from "@/types/database";
+import type { Database, Tables, Json, TablesUpdate } from "@/types/database";
 import type { ActionResult } from '@/lib/actions/types';
 // Import the Settings type used by the frontend/provider
 // import type { Settings, FontOption } from "@/providers/settings-provider"; // No longer directly needed for 'updates' type
@@ -42,7 +42,10 @@ const updateSettingsDbSchema = z.object({
   enable_study_timer: z.boolean().optional().nullable(),
   study_timer_duration_minutes: z.number().int().optional().nullable(),
   ui_language: z.string().optional().nullable(),
-  deck_list_grouping_preference: z.string().optional().nullable(),
+  deck_list_grouping_mode: z.enum(['none', 'language', 'tag_id']).optional().nullable(),
+  deck_list_active_tag_group_id: z.string().uuid().nullable().optional(),
+  deck_list_sort_field: z.enum(['name', 'created_at']).optional().nullable(),
+  deck_list_sort_direction: z.enum(['asc', 'desc']).optional().nullable(),
   // Add any other DbSettings fields here
 }).partial();
 
@@ -74,7 +77,7 @@ export async function getUserSettings(): Promise<ActionResult<DbSettings | null>
 export async function updateUserSettings({
   updates,
 }: {
-  updates: Partial<DbSettings>; // Expect snake_case keys directly matching DB
+  updates: TablesUpdate<'settings'>; // Expect snake_case keys directly matching DB
 }): Promise<ActionResult<DbSettings | null>> {
     appLogger.info(`[updateUserSettings] Action started.`);
     try {
@@ -98,7 +101,7 @@ export async function updateUserSettings({
         // const dbPayload = parseResult.data;
 
         // For now, assuming 'updates' is already well-formed Partial<DbSettings>
-        const dbPayload: Partial<DbSettings> = { ...updates };
+        const dbPayload: TablesUpdate<'settings'> = { ...updates };
 
 
         if (Object.keys(dbPayload).length === 0) {

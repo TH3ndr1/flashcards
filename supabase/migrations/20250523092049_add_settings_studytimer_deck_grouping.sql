@@ -1,4 +1,4 @@
--- supabase/migrations/YYYYMMDDHHMMSS_add_all_new_feature_settings.sql
+-- supabase/migrations/YYYYMMDDHHMMSS_add_final_feature_settings.sql
 
 BEGIN;
 
@@ -16,16 +16,14 @@ ADD COLUMN IF NOT EXISTS ui_language TEXT NOT NULL DEFAULT 'en';
 
 COMMENT ON COLUMN public.settings.ui_language IS 'User preferred language for the application UI. Default: ''en''. BCP-47 language tag.';
 
--- Add column for Deck List Grouping preference
+-- Add columns for Deck List Grouping and Sorting preference
 ALTER TABLE public.settings
-ADD COLUMN IF NOT EXISTS deck_list_grouping_preference TEXT NOT NULL DEFAULT 'none';
--- Example for a more constrained type if desired in the future:
--- ADD CONSTRAINT valid_deck_grouping CHECK (deck_list_grouping_preference IN ('none', 'tag', 'language', 'language_then_tag', 'tag_then_language'));
+ADD COLUMN IF NOT EXISTS deck_list_grouping_mode TEXT NOT NULL DEFAULT 'none', -- e.g., 'none', 'language', 'tag'
+ADD COLUMN IF NOT EXISTS deck_list_sort_field TEXT NOT NULL DEFAULT 'name',    -- e.g., 'name', 'updated_at', 'totalCards'
+ADD COLUMN IF NOT EXISTS deck_list_sort_direction TEXT NOT NULL DEFAULT 'asc'; -- 'asc', 'desc'
 
-COMMENT ON COLUMN public.settings.deck_list_grouping_preference IS 'User preference for grouping decks on overview pages (e.g., ''none'', ''tag'', ''language'', ''language,tag''). Default: ''none''.';
-
--- Note: study_algorithm and enable_dedicated_learn_mode were added by a previous migration (20250501154500).
--- No changes to them are needed in *this specific* migration script unless their defaults or constraints need adjustment
--- in light of these new settings, which is not currently indicated.
+COMMENT ON COLUMN public.settings.deck_list_grouping_mode IS 'Preference for grouping decks on overview pages. Default: ''none''.';
+COMMENT ON COLUMN public.settings.deck_list_sort_field IS 'Field to sort decks by on overview pages. Default: ''name''.';
+COMMENT ON COLUMN public.settings.deck_list_sort_direction IS 'Sort direction for decks on overview pages. Default: ''asc''.';
 
 COMMIT;

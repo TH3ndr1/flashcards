@@ -6,6 +6,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { getUserStudySets } from '@/lib/actions/studySetActions';
 import { getDecks as getDecksAction } from '@/lib/actions/deckActions'; // Import deck action
+import { getTags as getTagsAction } from '@/lib/actions/tagActions'; // Import getTags action
 import { getStudySetCardCountByCriteria, getStudySetSrsDistribution, type SrsDistribution } from '@/lib/actions/studyQueryActions'; // Import new action and type
 import { StudySetListClient } from '@/components/study/StudySetListClient'; // Use absolute path
 import type { StudyQueryCriteria } from '@/lib/schema/study-query.schema'; // For casting criteria
@@ -18,6 +19,7 @@ type StudySetWithCountsAndDeckNames = Tables<'study_sets'> & {
     totalMatchingCardCount: number; // Renamed for clarity
     actionableCardCount: number;  // Explicitly for new/due cards
     srsDistribution?: SrsDistribution | null; // Added for progress bar
+    criteriaTags?: Array<{ id: string; name: string; }>; // Added for resolved criteria tags
 };
 
 export default async function ListStudySetsPage() {
@@ -28,16 +30,20 @@ export default async function ListStudySetsPage() {
     redirect('/login');
   }
 
-  const [studySetsResult, decksResult] = await Promise.all([
+  const [studySetsResult, decksResult, tagsResult] = await Promise.all([
     getUserStudySets(),
-    getDecksAction() // Fetch all user decks
+    getDecksAction(), // Fetch all user decks
+    getTagsAction() // Fetch all user tags
   ]);
 
   const studySetsRaw = studySetsResult.data || [];
   const allUserDecks = decksResult.data || []; // This will be DeckListItemWithCounts[]
+  const allUserTags = tagsResult.data || []; // This will be Tables<'tags'>[]
 
   // Create a map for quick deck name lookup
   const decksMap = new Map(allUserDecks.map(d => [d.id, d.name]));
+  // Create a map for quick tag name lookup
+  const tagsMap = new Map(allUserTags.map(t => [t.id, t.name]));
 
   // Fetch card counts for all study sets in parallel
   const studySetsWithCountsAndDeckNames: StudySetWithCountsAndDeckNames[] = await Promise.all(
@@ -49,6 +55,17 @@ export default async function ListStudySetsPage() {
         relatedDeckNames = baseCriteria.deckIds
           .map(id => decksMap.get(id))
           .filter(name => name !== undefined) as string[];
+      }
+
+      // Resolve criteria tag names
+      let criteriaTags: Array<{ id: string; name: string; }> = [];
+      if (baseCriteria?.includeTags && Array.isArray(baseCriteria.includeTags)) {
+        criteriaTags = baseCriteria.includeTags
+          .map(tagId => {
+            const tagName = tagsMap.get(tagId);
+            return tagName ? { id: tagId, name: tagName } : null;
+          })
+          .filter(tag => tag !== null) as Array<{ id: string; name: string; }>;
       }
 
       // Construct criteriaForSet, ensuring tagLogic has a default consistent with StudyQueryCriteria type
@@ -108,7 +125,8 @@ export default async function ListStudySetsPage() {
         relatedDeckNames: relatedDeckNames.length > 0 ? relatedDeckNames : undefined,
         totalMatchingCardCount: totalMatchingCardCount, 
         actionableCardCount: actionableCardCount, // Now derived from srsDistribution
-        srsDistribution: srsDistribution 
+        srsDistribution: srsDistribution,
+        criteriaTags: criteriaTags.length > 0 ? criteriaTags : undefined, // Add resolved tags
       };
     })
   );
@@ -116,7 +134,7 @@ export default async function ListStudySetsPage() {
   return (
     <div className="py-4 px-4 md:p-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Your Smart Playlists</h1>
+        <h1 className="text-2xl font-bold">Practice Your Playlists</h1>
         <Button asChild>
           <Link href="/practice/sets/new">Create New Playlist</Link>
         </Button>

@@ -8,7 +8,6 @@ import {
   createDeck as createDeckAction,
   updateDeck as updateDeckAction,
   deleteDeck as deleteDeckAction,
-  type DeckListItemWithCounts
 } from '@/lib/actions/deckActions';
 import type { Database, Tables } from "@/types/database";
 import type { ActionResult } from "@/lib/actions/types";
@@ -18,9 +17,30 @@ import { appLogger, statusLogger } from '@/lib/logger';
 
 import type { CreateDeckInput as CreateDeckParams, UpdateDeckInput as UpdateDeckParams } from '@/lib/schema/deckSchemas';
 import type { DeckWithCardsAndTags } from '@/lib/actions/deckActions';
+import type { Json } from '@/types/database'; // Make sure Json is imported if used in DeckListItemWithCounts
+
+
+export type DeckListItemWithCounts = { // Add export keyword
+  id: string;
+  name: string;
+  primary_language: string | null;
+  secondary_language: string | null;
+  is_bilingual: boolean;
+  updated_at: string; // Assuming string from RPC
+  created_at?: string; // Add this if you sort by it and it exists in RPC output
+  new_count: number;
+  learning_count: number;
+  relearning_count: number;
+  young_count: number;
+  mature_count: number;
+  learn_eligible_count: number;
+  review_eligible_count: number;
+  deck_tags_json: Json; // Or Array<{ id: string; name: string; }> if parsed in action
+};
 
 // Export these types so they can be used by other modules
 export type { UpdateDeckParams, DeckWithCardsAndTags };
+
 
 type DeckListItem = DeckListItemWithCounts;
 
@@ -116,8 +136,14 @@ export function useDecks(): UseDecksReturn {
         // The RPC get_decks_with_complete_srs_counts defines updated_at as timestamptz (non-null).
         // Assuming the action for createDeck returns it non-null as per its SELECT.
         updated_at: result.data.updated_at || new Date().toISOString(), // Fallback if create action somehow returns null
-        new_count: 0, learning_count: 0, young_count: 0, mature_count: 0,
-        learn_eligible_count: 0, review_eligible_count: 0,
+        new_count: 0,
+        learning_count: 0,
+        relearning_count: 0,
+        young_count: 0,
+        mature_count: 0,
+        learn_eligible_count: 0,
+        review_eligible_count: 0,
+        deck_tags_json: [],
       };
       setDecks((prev) => [...prev, newDeckItem].sort((a, b) => a.name.localeCompare(b.name)));
     } else if (result.error) {

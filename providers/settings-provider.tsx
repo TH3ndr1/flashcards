@@ -2,51 +2,36 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { getUserSettings, updateUserSettings } from "@/lib/actions/settingsActions";
+// Alias the imported server action to avoid naming conflict
+import { updateUserSettings as updateUserSettingsServerAction, getUserSettings } from "@/lib/actions/settingsActions";
 import { toast } from "sonner";
-import type { Database, Tables, Json } from "@/types/database"; // Ensure this is updated
-import type { ActionResult } from '@/lib/actions/types'; // Ensure path is correct
-// --- Import Palette types and defaults ---
-import {
-    DEFAULT_PALETTE_CONFIG,
-    // DEFAULT_WORD_COLORS // No longer needed here if palettes cover defaults
-} from "@/lib/palettes"; // Adjust path if needed
-import { appLogger, statusLogger } from '@/lib/logger';
-// -----------------------------------------
+import type { Database, Tables, Json, TablesUpdate } from "@/types/database";
+import type { ActionResult } from '@/lib/actions/types';
+import { DEFAULT_PALETTE_CONFIG } from "@/lib/palettes";
+import { appLogger } from '@/lib/logger'; // Removed statusLogger as it wasn't used here
 
-
-// Debug flag
 const DEBUG = true;
-
-// Debug logging function
 const debug = (...args: any[]) => {
   if (DEBUG && process.env.NODE_ENV !== 'production') {
-    appLogger.info('[Settings Provider Debug]:', ...args); // Use debug instead of warn
+    appLogger.info('[Settings Provider Debug]:', ...args);
   }
 };
 
-// Define types
 export type ThemePreference = "light" | "dark" | "system";
 export type FontOption = "default" | "opendyslexic" | "atkinson";
 
-// --- Updated Settings Interface ---
 export interface Settings {
   appLanguage: string;
   cardFont: FontOption;
   showDifficulty: boolean;
   ttsEnabled: boolean;
   removeMasteredCards?: boolean;
-  languageDialects: { // Non-nullable
-    en: string;
-    nl: string;
-    fr: string;
-    de: string;
-    es: string;
-    it: string;
+  languageDialects: {
+    en: string; nl: string; fr: string; de: string; es: string; it: string;
   };
   enableBasicColorCoding: boolean;
   enableAdvancedColorCoding: boolean;
-  wordPaletteConfig: Record<string, Record<string, string>>; // Stores Palette IDs
+  wordPaletteConfig: Record<string, Record<string, string>>;
   colorOnlyNonNative: boolean;
   showDeckProgress: boolean;
   themePreference: ThemePreference;
@@ -67,12 +52,15 @@ export interface Settings {
 
   enableStudyTimer: boolean;
   studyTimerDurationMinutes: number;
-  uiLanguage: string;                  // For UI internationalization
-  deckListGroupingPreference: string;  // e.g., 'none', 'tag', 'language'
+  uiLanguage: string;
+  deckListGroupingMode: 'none' | 'language' | 'tag_id';
+  deckListActiveTagGroupId: string | null; // Store UUID as string, can be null
+  deckListSortField: 'name' | 'created_at';
+  deckListSortDirection: 'asc' | 'desc';
 }
 
-// Re-declare DB Type Alias to potentially help TS
 type DbSettings = Tables<'settings'>;
+type DbSettingsUpdate = TablesUpdate<'settings'>; // For partial updates
 
 interface SettingsContextType {
   settings: Settings | null;
@@ -80,24 +68,19 @@ interface SettingsContextType {
   loading: boolean;
 }
 
-// --- Updated Default Settings ---
 export const DEFAULT_SETTINGS: Settings = {
   appLanguage: "en",
   cardFont: "default",
   showDifficulty: true,
   ttsEnabled: true,
   removeMasteredCards: false,
-  languageDialects: {
-    en: "en-GB", nl: "nl-NL", fr: "fr-FR", de: "de-DE", es: "es-ES", it: "it-IT",
-  },
+  languageDialects: { en: "en-GB", nl: "nl-NL", fr: "fr-FR", de: "de-DE", es: "es-ES", it: "it-IT" },
   enableBasicColorCoding: true,
   enableAdvancedColorCoding: false,
   wordPaletteConfig: DEFAULT_PALETTE_CONFIG,
   colorOnlyNonNative: true,
   showDeckProgress: true,
   themePreference: 'system',
-
-  // --- NEW Study Algorithm Defaults ---
   studyAlgorithm: 'dedicated-learn',
   enableDedicatedLearnMode: true,
   masteryThreshold: 3,
@@ -111,18 +94,70 @@ export const DEFAULT_SETTINGS: Settings = {
   learnHardPenalty: 0.05,
   minEasinessFactor: 1.3,
   defaultEasinessFactor: 2.5,
-
   enableStudyTimer: false,
   studyTimerDurationMinutes: 25,
-  uiLanguage: "en",
-  deckListGroupingPreference: "none",
+  uiLanguage: 'en',
+  deckListGroupingMode: 'none',
+  deckListActiveTagGroupId: null, // Default to null as no tag is pre-selected
+  deckListSortField: 'name',
+  deckListSortDirection: 'asc',
 };
 
-// --- Updated Transformation Function ---
+const transformSettingsToDbUpdates = (updates: Partial<Settings>): DbSettingsUpdate => {
+  const dbUpdates: DbSettingsUpdate = {};
+
+  if (updates.appLanguage !== undefined) dbUpdates.app_language = updates.appLanguage;
+  if (updates.cardFont !== undefined) dbUpdates.card_font = updates.cardFont;
+  if (updates.showDifficulty !== undefined) dbUpdates.show_difficulty = updates.showDifficulty;
+  if (updates.ttsEnabled !== undefined) dbUpdates.tts_enabled = updates.ttsEnabled;
+  // removeMasteredCards is not in DbSettings based on current schema, assuming it's a client-only or derived setting.
+  // If it were to be saved, a corresponding snake_case field (e.g., remove_mastered_cards) would be needed.
+  if (updates.languageDialects !== undefined) dbUpdates.language_dialects = updates.languageDialects as Json;
+  if (updates.enableBasicColorCoding !== undefined) dbUpdates.enable_basic_color_coding = updates.enableBasicColorCoding;
+  if (updates.enableAdvancedColorCoding !== undefined) dbUpdates.enable_advanced_color_coding = updates.enableAdvancedColorCoding;
+  if (updates.wordPaletteConfig !== undefined) dbUpdates.word_palette_config = updates.wordPaletteConfig as Json;
+  if (updates.colorOnlyNonNative !== undefined) dbUpdates.color_only_non_native = updates.colorOnlyNonNative;
+  if (updates.showDeckProgress !== undefined) dbUpdates.show_deck_progress = updates.showDeckProgress;
+  if (updates.themePreference !== undefined) dbUpdates.theme_light_dark_mode = updates.themePreference;
+
+  // Note: studyAlgorithm is derived into enable_dedicated_learn_mode in transformDbSettingsToSettings.
+  // We should update enable_dedicated_learn_mode based on studyAlgorithm.
+  if (updates.studyAlgorithm !== undefined) {
+    dbUpdates.enable_dedicated_learn_mode = updates.studyAlgorithm === 'dedicated-learn';
+  }
+  // Direct mapping if enableDedicatedLearnMode is explicitly passed (though studyAlgorithm is preferred source of truth)
+  if (updates.enableDedicatedLearnMode !== undefined) dbUpdates.enable_dedicated_learn_mode = updates.enableDedicatedLearnMode;
+  
+  if (updates.masteryThreshold !== undefined) dbUpdates.mastery_threshold = updates.masteryThreshold;
+  if (updates.customLearnRequeueGap !== undefined) dbUpdates.custom_learn_requeue_gap = updates.customLearnRequeueGap;
+  if (updates.graduatingIntervalDays !== undefined) dbUpdates.graduating_interval_days = updates.graduatingIntervalDays;
+  if (updates.easyIntervalDays !== undefined) dbUpdates.easy_interval_days = updates.easyIntervalDays;
+  if (updates.relearningStepsMinutes !== undefined) dbUpdates.relearning_steps_minutes = updates.relearningStepsMinutes;
+  if (updates.initialLearningStepsMinutes !== undefined) dbUpdates.initial_learning_steps_minutes = updates.initialLearningStepsMinutes;
+  if (updates.lapsedEfPenalty !== undefined) dbUpdates.lapsed_ef_penalty = updates.lapsedEfPenalty;
+  if (updates.learnAgainPenalty !== undefined) dbUpdates.learn_again_penalty = updates.learnAgainPenalty;
+  if (updates.learnHardPenalty !== undefined) dbUpdates.learn_hard_penalty = updates.learnHardPenalty;
+  if (updates.minEasinessFactor !== undefined) dbUpdates.min_easiness_factor = updates.minEasinessFactor;
+  if (updates.defaultEasinessFactor !== undefined) dbUpdates.default_easiness_factor = updates.defaultEasinessFactor;
+
+  if (updates.enableStudyTimer !== undefined) dbUpdates.enable_study_timer = updates.enableStudyTimer;
+  if (updates.studyTimerDurationMinutes !== undefined) dbUpdates.study_timer_duration_minutes = updates.studyTimerDurationMinutes;
+  if (updates.uiLanguage !== undefined) dbUpdates.ui_language = updates.uiLanguage;
+  if (updates.deckListGroupingMode !== undefined) dbUpdates.deck_list_grouping_mode = updates.deckListGroupingMode; // Ensure this matches DB column
+  if (updates.deckListActiveTagGroupId !== undefined) dbUpdates.deck_list_active_tag_group_id = updates.deckListActiveTagGroupId; // New mapping
+  if (updates.deckListSortField !== undefined) dbUpdates.deck_list_sort_field = updates.deckListSortField;
+  if (updates.deckListSortDirection !== undefined) dbUpdates.deck_list_sort_direction = updates.deckListSortDirection;
+  
+  // Ensure no undefined values are accidentally passed if a key is present in `updates` but its value is undefined.
+  // The checks `updates.fieldName !== undefined` already handle this.
+
+  return dbUpdates;
+};
+
 const transformDbSettingsToSettings = (dbSettings: DbSettings | null): Settings => {
     if (!dbSettings) {
         debug('transformDbSettingsToSettings: No DB settings provided, returning default.');
-        return { ...DEFAULT_SETTINGS }; // Return a copy
+        return { ...DEFAULT_SETTINGS };
     }
     try {
         debug('transformDbSettingsToSettings: Transforming DB settings:', dbSettings);
@@ -133,15 +168,9 @@ const transformDbSettingsToSettings = (dbSettings: DbSettings | null): Settings 
         const dbDialects = dbSettings.language_dialects as Record<string, string> | null;
         const languageDialectsFinal = { ...(DEFAULT_SETTINGS.languageDialects), ...(dbDialects ?? {}) };
 
-        // --- Handle Palette Config ---
-        // Read the new snake_case column from the DB type
         const dbPaletteConfig = dbSettings.word_palette_config as Record<string, Record<string, string>> | null;
-        // Merge DB config over the imported defaults
         const wordPaletteConfigFinal = dbPaletteConfig ? { ...DEFAULT_PALETTE_CONFIG, ...dbPaletteConfig } : { ...DEFAULT_PALETTE_CONFIG };
-        // --------------------------
 
-        // Determine studyAlgorithm based on enable_dedicated_learn_mode for simplicity
-        // You might want a dedicated 'study_algorithm' column in the DB later
         const studyAlgorithmFinal = (dbSettings.enable_dedicated_learn_mode ?? DEFAULT_SETTINGS.enableDedicatedLearnMode)
             ? 'dedicated-learn'
             : 'standard-sm2';
@@ -151,10 +180,6 @@ const transformDbSettingsToSettings = (dbSettings: DbSettings | null): Settings 
             languageDialects: languageDialectsFinal,
             ttsEnabled: dbSettings.tts_enabled ?? DEFAULT_SETTINGS.ttsEnabled,
             showDifficulty: dbSettings.show_difficulty ?? DEFAULT_SETTINGS.showDifficulty,
-            enableStudyTimer: dbSettings.enable_study_timer ?? DEFAULT_SETTINGS.enableStudyTimer,
-            studyTimerDurationMinutes: dbSettings.study_timer_duration_minutes ?? DEFAULT_SETTINGS.studyTimerDurationMinutes,
-            uiLanguage: dbSettings.ui_language ?? DEFAULT_SETTINGS.uiLanguage,
-            deckListGroupingPreference: dbSettings.deck_list_grouping_preference ?? DEFAULT_SETTINGS.deckListGroupingPreference,
             cardFont: cardFontFinal,
             enableBasicColorCoding: dbSettings.enable_basic_color_coding ?? DEFAULT_SETTINGS.enableBasicColorCoding,
             enableAdvancedColorCoding: dbSettings.enable_advanced_color_coding ?? DEFAULT_SETTINGS.enableAdvancedColorCoding,
@@ -162,53 +187,67 @@ const transformDbSettingsToSettings = (dbSettings: DbSettings | null): Settings 
             colorOnlyNonNative: dbSettings.color_only_non_native ?? DEFAULT_SETTINGS.colorOnlyNonNative,
             showDeckProgress: dbSettings.show_deck_progress ?? DEFAULT_SETTINGS.showDeckProgress,
             themePreference: (dbSettings.theme_light_dark_mode ?? DEFAULT_SETTINGS.themePreference) as ThemePreference,
-
-            // --- NEW Study Algorithm Mappings ---
             studyAlgorithm: studyAlgorithmFinal,
             enableDedicatedLearnMode: dbSettings.enable_dedicated_learn_mode ?? DEFAULT_SETTINGS.enableDedicatedLearnMode,
             masteryThreshold: dbSettings.mastery_threshold ?? DEFAULT_SETTINGS.masteryThreshold,
             customLearnRequeueGap: dbSettings.custom_learn_requeue_gap ?? DEFAULT_SETTINGS.customLearnRequeueGap,
             graduatingIntervalDays: dbSettings.graduating_interval_days ?? DEFAULT_SETTINGS.graduatingIntervalDays,
             easyIntervalDays: dbSettings.easy_interval_days ?? DEFAULT_SETTINGS.easyIntervalDays,
-            // Ensure arrays are handled correctly, provide default if null/invalid
             relearningStepsMinutes: Array.isArray(dbSettings.relearning_steps_minutes) ? dbSettings.relearning_steps_minutes : DEFAULT_SETTINGS.relearningStepsMinutes,
             initialLearningStepsMinutes: Array.isArray(dbSettings.initial_learning_steps_minutes) ? dbSettings.initial_learning_steps_minutes : DEFAULT_SETTINGS.initialLearningStepsMinutes,
-            // Ensure numbers are handled correctly
             lapsedEfPenalty: typeof dbSettings.lapsed_ef_penalty === 'number' ? dbSettings.lapsed_ef_penalty : DEFAULT_SETTINGS.lapsedEfPenalty,
             learnAgainPenalty: typeof dbSettings.learn_again_penalty === 'number' ? dbSettings.learn_again_penalty : DEFAULT_SETTINGS.learnAgainPenalty,
             learnHardPenalty: typeof dbSettings.learn_hard_penalty === 'number' ? dbSettings.learn_hard_penalty : DEFAULT_SETTINGS.learnHardPenalty,
             minEasinessFactor: typeof dbSettings.min_easiness_factor === 'number' ? dbSettings.min_easiness_factor : DEFAULT_SETTINGS.minEasinessFactor,
             defaultEasinessFactor: typeof dbSettings.default_easiness_factor === 'number' ? dbSettings.default_easiness_factor : DEFAULT_SETTINGS.defaultEasinessFactor,
+            enableStudyTimer: dbSettings.enable_study_timer ?? DEFAULT_SETTINGS.enableStudyTimer,
+            studyTimerDurationMinutes: dbSettings.study_timer_duration_minutes ?? DEFAULT_SETTINGS.studyTimerDurationMinutes,
+            uiLanguage: dbSettings.ui_language ?? DEFAULT_SETTINGS.uiLanguage,
+            
+            deckListGroupingMode: (dbSettings.deck_list_grouping_mode === 'none' || dbSettings.deck_list_grouping_mode === 'language' || dbSettings.deck_list_grouping_mode === 'tag_id') 
+                                    ? dbSettings.deck_list_grouping_mode 
+                                    : DEFAULT_SETTINGS.deckListGroupingMode,
+            deckListActiveTagGroupId: dbSettings.deck_list_active_tag_group_id ?? DEFAULT_SETTINGS.deckListActiveTagGroupId, // Handles null from DB
+            
+            deckListSortField: (dbSettings.deck_list_sort_field === 'name' || dbSettings.deck_list_sort_field === 'created_at')
+                                ? dbSettings.deck_list_sort_field
+                                : DEFAULT_SETTINGS.deckListSortField,
+            deckListSortDirection: (dbSettings.deck_list_sort_direction === 'asc' || dbSettings.deck_list_sort_direction === 'desc')
+                                    ? dbSettings.deck_list_sort_direction
+                                    : DEFAULT_SETTINGS.deckListSortDirection,
+            
+            // Ensure removeMasteredCards is handled if it's part of the Settings interface
+            // If it's not a DB field, it should primarily rely on DEFAULT_SETTINGS
+            // or be managed purely client-side if not persisted.
+            // For now, assuming it's not in DbSettings:
+            removeMasteredCards: DEFAULT_SETTINGS.removeMasteredCards, 
         };
         debug('transformDbSettingsToSettings: Transformation result:', transformed);
         return transformed;
     } catch (e) {
         appLogger.error("Error transforming DbSettings:", e);
         debug('transformDbSettingsToSettings: Error during transformation, returning default.');
-        return { ...DEFAULT_SETTINGS }; // Return copy on error
+        return { ...DEFAULT_SETTINGS };
     }
 };
 
-// Context Definition (Unchanged)
 export const SettingsContext = createContext<SettingsContextType>({
   settings: null,
   updateSettings: async () => ({ data: null, error: "Context not initialized" }),
   loading: true,
 });
 
-// SettingsProvider Component (Logic unchanged, uses updated types/defaults)
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   debug('SettingsProvider initializing');
   const { user } = useAuth();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Fetch Settings Effect (Unchanged)
   useEffect(() => {
     debug('Settings load effect triggered', { userId: user?.id });
     if (!user) {
       debug('No user, setting settings to null and loading to false');
-      setSettings(null);
+      setSettings(null); // Or set to DEFAULT_SETTINGS if preferred for logged-out state
       setLoading(false);
       return;
     }
@@ -227,7 +266,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
           toast.error("Failed to load settings", { description: error || "Using default settings." });
           setSettings({ ...DEFAULT_SETTINGS });
         } else {
-          const finalSettings = transformDbSettingsToSettings(dbSettings); // Uses updated transform
+          const finalSettings = transformDbSettingsToSettings(dbSettings);
           debug('Setting user settings state', finalSettings);
           setSettings(finalSettings);
         }
@@ -245,70 +284,57 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     return () => { isMounted = false; debug("Settings load effect cleanup"); };
   }, [user]);
 
-  // Update Settings Callback (Unchanged)
-  const updateSettings = useCallback(async (
-    updates: Partial<Settings> // Accepts Partial<Settings> with wordPaletteConfig
-  ): Promise<ActionResult<DbSettings | null>> => {
-    debug('updateSettings called with:', updates);
-    if (!user) {
-      toast.error("Not logged in", { description: "Cannot save settings." });
-      return { data: null, error: "User not authenticated" };
+// providers/settings-provider.tsx (Corrected updateSettings callback)
+
+const updateSettings = useCallback(async (
+  updates: Partial<Settings> // Expects camelCase partial updates
+): Promise<ActionResult<DbSettings | null>> => {
+  debug('updateSettings callback in provider called with:', updates);
+  if (!user) {
+    toast.error("Not logged in", { description: "Cannot save settings." });
+    return { data: null, error: "User not authenticated" };
+  }
+
+  // Store previous state for potential revert
+  const previousSettings = settings ? { ...settings } : null; 
+  
+  // Optimistically update the local state
+  setSettings(prev => {
+    if (prev) {
+      return { ...prev, ...updates };
     }
-    // Prevent full settings object from being passed if only partial update
-    const currentNonNullSettings = settings ?? { ...DEFAULT_SETTINGS };
-    const newSettingsCandidate = { ...currentNonNullSettings, ...updates };
+    // If prev is null (settings not yet loaded), apply updates to default settings
+    // This case should be rare if updateSettings is called after initial load.
+    return { ...DEFAULT_SETTINGS, ...updates }; 
+  });
 
-    // Here, we map only the fields that exist on DbSettings
-    // This requires knowing the structure of your 'settings' table
-    // Example mapping (adjust to your actual DB schema):
-    const dbUpdates: Partial<DbSettings> = {
-        app_language: newSettingsCandidate.appLanguage,
-        card_font: newSettingsCandidate.cardFont,
-        show_difficulty: newSettingsCandidate.showDifficulty,
-        tts_enabled: newSettingsCandidate.ttsEnabled,
-        language_dialects: newSettingsCandidate.languageDialects as Json, // Cast to Json
-        enable_basic_color_coding: newSettingsCandidate.enableBasicColorCoding,
-        enable_advanced_color_coding: newSettingsCandidate.enableAdvancedColorCoding,
-        word_palette_config: newSettingsCandidate.wordPaletteConfig as Json, // Cast to Json
-        color_only_non_native: newSettingsCandidate.colorOnlyNonNative,
-        show_deck_progress: newSettingsCandidate.showDeckProgress,
-        theme_light_dark_mode: newSettingsCandidate.themePreference,
+  // Call the server action, passing the camelCase partial updates.
+  // The server action (Task 0.5) is responsible for mapping these to snake_case for the DB.
+  const dbUpdatesPayload = transformSettingsToDbUpdates(updates);
+  const { data: updatedDbSettingsFromAction, error } = await updateUserSettingsServerAction({ updates: dbUpdatesPayload });
 
-        enable_dedicated_learn_mode: newSettingsCandidate.enableDedicatedLearnMode,
-        mastery_threshold: newSettingsCandidate.masteryThreshold,
-        custom_learn_requeue_gap: newSettingsCandidate.customLearnRequeueGap,
-        graduating_interval_days: newSettingsCandidate.graduatingIntervalDays,
-        easy_interval_days: newSettingsCandidate.easyIntervalDays,
-        relearning_steps_minutes: newSettingsCandidate.relearningStepsMinutes as unknown as Json, // Cast for DB
-        initial_learning_steps_minutes: newSettingsCandidate.initialLearningStepsMinutes as unknown as Json, // Cast for DB
-        lapsed_ef_penalty: newSettingsCandidate.lapsedEfPenalty,
-        learn_again_penalty: newSettingsCandidate.learnAgainPenalty,
-        learn_hard_penalty: newSettingsCandidate.learnHardPenalty,
-        min_easiness_factor: newSettingsCandidate.minEasinessFactor,
-        default_easiness_factor: newSettingsCandidate.defaultEasinessFactor,
+  if (error) {
+    toast.error("Failed to save settings", { description: error });
+    setSettings(previousSettings); // Revert optimistic update on error
+    return { data: null, error };
+  }
 
-        enable_study_timer: newSettingsCandidate.enableStudyTimer,
-        study_timer_duration_minutes: newSettingsCandidate.studyTimerDurationMinutes,
-        ui_language: newSettingsCandidate.uiLanguage,
-        deck_list_grouping_preference: newSettingsCandidate.deckListGroupingPreference,
-    };
+  if (updatedDbSettingsFromAction) {
+      // The server action returns the updated DbSettings (snake_case from DB)
+      // Transform it back to frontend Settings (camelCase) to update our state accurately
+      const finalSettings = transformDbSettingsToSettings(updatedDbSettingsFromAction);
+      setSettings(finalSettings); // Confirm update with transformed data from DB
+      // toast.success("Settings saved!"); // Toast can be here or in the component calling this
+      return { data: updatedDbSettingsFromAction, error: null };
+  }
+  
+  // This case implies the action succeeded (no error) but returned no data, which is unexpected.
+  appLogger.warn("updateSettings: Action succeeded but returned no data. Reverting optimistic update.");
+  setSettings(previousSettings); 
+  return { data: null, error: "Failed to update settings: action returned no data." };
 
-    // Pass dbUpdates inside an object with the key 'updates'
-    const { data: updatedDbSettings, error } = await updateUserSettings({ updates: dbUpdates });
-    if (error) {
-      toast.error("Failed to save settings", { description: error });
-      return { data: null, error };
-    }
-    if (updatedDbSettings) {
-        const finalSettings = transformDbSettingsToSettings(updatedDbSettings);
-        setSettings(finalSettings);
-        toast.success("Settings saved!");
-        return { data: updatedDbSettings, error: null };
-    }
-    return { data: null, error: "Failed to update settings, no data returned." };
-  }, [user, settings]); // Added settings to dependency array of useCallback
+}, [user, settings, updateUserSettingsServerAction]); // updateUserSettingsServerAction is the imported action
 
-  // Memoize the context value
   const contextValue = useMemo(() => ({
     settings,
     updateSettings,
@@ -323,7 +349,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-// useSettings Hook (Unchanged)
 export function useSettings() {
   const context = useContext(SettingsContext);
   if (context === undefined) {

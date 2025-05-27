@@ -25,6 +25,8 @@ import { DeckProgressBar } from "@/components/deck/DeckProgressBar"; // Import p
 import { Separator } from "@/components/ui/separator"; // Import Separator
 import type { SrsDistribution } from '@/lib/actions/studyQueryActions'; // Import SrsDistribution type
 import type { StudyQueryCriteria } from '@/lib/schema/study-query.schema';
+import { Badge } from "@/components/ui/badge";
+import { ItemInfoBadges } from '@/components/ItemInfoBadges'; // Updated import path
 
 // Updated type for the study set data passed from the server component
 // This should match the type defined in app/practice/sets/page.tsx
@@ -33,6 +35,7 @@ type StudySetWithCountsAndDeckNames = Tables<'study_sets'> & {
   totalMatchingCardCount: number;
   actionableCardCount: number;
   srsDistribution?: SrsDistribution | null; // Added for progress bar
+  criteriaTags?: Array<{ id: string; name: string; }>; // Ensure this matches server-side type
 };
 
 interface StudySetListClientProps {
@@ -47,6 +50,10 @@ interface StudySetCardItemProps {
 }
 
 const StudySetCardItem = React.memo(function StudySetCardItem({ set }: StudySetCardItemProps) {
+  const criteria = set.query_criteria as Partial<StudyQueryCriteria> | null;
+  // The tagsToDisplay logic is now simplified as names are pre-resolved from the server
+  const criteriaTagsToDisplay = set.criteriaTags || [];
+
   return (
           <Card key={set.id} className="hover:shadow-md transition-shadow flex flex-col bg-gradient-to-b from-slate-100/40 dark:from-slate-800/40 to-transparent dark:border-slate-700">
             <CardHeader className="pt-4 pb-2 space-y-1 px-4">
@@ -61,9 +68,11 @@ const StudySetCardItem = React.memo(function StudySetCardItem({ set }: StudySetC
                   <TooltipContent><p>Edit Playlist</p></TooltipContent>
                 </Tooltip>
               </div>
-        <CardDescription className="text-muted-foreground gap-1 pt-1">
-          <span>{set.totalMatchingCardCount} cards</span>
-              </CardDescription>
+              <ItemInfoBadges 
+                languageCriterion={criteria?.containsLanguage}
+                cardCount={set.totalMatchingCardCount}
+                tags={criteriaTagsToDisplay}
+              />
               {/* Display Related Deck Names */}
               {set.relatedDeckNames && set.relatedDeckNames.length > 0 && (
                 <div className="mt-1 pt-1 border-t border-dashed border-slate-200 dark:border-slate-700">

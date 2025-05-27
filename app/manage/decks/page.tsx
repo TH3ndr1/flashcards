@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Separator } from "@/components/ui/separator";
 import { formatDistanceToNow } from 'date-fns';
 import { appLogger } from '@/lib/logger';
+import { ItemInfoBadges } from '@/components/ItemInfoBadges';
 
 // Type for deck data including SRS counts, similar to EnhancedDeck in DeckListClient
 interface ManageDeckItem {
@@ -122,29 +123,16 @@ export default async function ManageDecksPage() {
                       <div className="flex flex-col sm:flex-row sm:items-baseline sm:flex-wrap gap-x-2 gap-y-1">
                         <div className="flex items-baseline flex-wrap gap-x-2 gap-y-1">
                           <h3 className="text-lg font-semibold truncate mr-1 group-hover:text-primary transition-colors" title={deck.name}>{deck.name}</h3>
-                          {deck.primary_language && (
-                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full whitespace-nowrap dark:bg-blue-700 dark:text-blue-100">
-                              {deck.primary_language}
-                            </span>
-                          )}
-                          {deck.is_bilingual && deck.secondary_language && (
-                            <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full whitespace-nowrap dark:bg-indigo-700 dark:text-indigo-100">
-                              {deck.secondary_language}
-                            </span>
-                          )}
+                          {/* Language badges are now handled by ItemInfoBadges */}
                         </div>
-                        <div className="flex items-baseline flex-wrap gap-x-2 gap-y-1">
-                          <Badge variant="secondary" className="whitespace-nowrap self-start sm:self-auto">
-                            {totalCardsForDisplay} card{totalCardsForDisplay !== 1 ? 's' : ''}
-                          </Badge>
-                          <div className="flex flex-wrap gap-1.5 items-baseline">
-                            {tagsToDisplay.map(tag => (
-                              <span key={tag.id || tag.name} className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full whitespace-nowrap dark:bg-slate-700 dark:text-slate-100">
-                                {tag.name}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
+                        {/* The ItemInfoBadges component will be placed here, consolidating language, card count, and tags */}
+                        <ItemInfoBadges 
+                          primaryLanguage={deck.primary_language}
+                          secondaryLanguage={deck.secondary_language}
+                          isBilingual={deck.is_bilingual}
+                          cardCount={totalCardsForDisplay} // Ensure this is correctly calculated as before
+                          tags={tagsToDisplay} // Ensure this is correctly prepared as before
+                        />
                       </div>
                     </div>
 
