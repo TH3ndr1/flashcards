@@ -69,7 +69,7 @@ export default async function ManageDecksPage() {
           <h1 className="text-2xl font-semibold">Manage Your Decks</h1>
         </div>
         <Button asChild>
-          <Link href="/decks/create-choice">
+          <Link href="/manage/decks/new">
             <PlusCircle className="mr-2 h-4 w-4" />
             Create New Deck
           </Link>
@@ -87,7 +87,7 @@ export default async function ManageDecksPage() {
         <div className="text-center text-muted-foreground mt-10">
           <p>You haven't created any decks yet.</p>
           <Button asChild className="mt-4">
-            <Link href="/decks/create-choice">
+            <Link href="/manage/decks/new">
               <PlusCircle className="mr-2 h-4 w-4" />
               Create Your First Deck
             </Link>
