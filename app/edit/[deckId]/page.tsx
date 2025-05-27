@@ -1,11 +1,11 @@
 // app/edit/[deckId]/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation"; // Keep useRouter if needed for back button etc.
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Loader2 as IconLoader } from "lucide-react";
+import { ArrowLeft, Loader2 as IconLoader, FileDown } from "lucide-react";
 // Import the new hook and components
 import { useEditDeck } from "./useEditDeck";
 import { DeckMetadataEditor } from "./DeckMetadataEditor";
@@ -13,8 +13,12 @@ import { CardViewTabContent } from "./CardViewTabContent";
 import { TableViewTabContent } from "./TableViewTabContent";
 import { DeckDangerZone } from "./DeckDangerZone";
 import { DeckTagEditor } from '@/components/deck-tag-editor';
-import type { Tables } from "@/types/database"; // Keep type import
+import type { Tables, Database } from "@/types/database"; // Keep type import
 import { appLogger, statusLogger } from '@/lib/logger';
+import { createBrowserClient } from '@supabase/ssr'; // For client-side Supabase access
+import { toast } from 'sonner'; // For notifications
+import { useSettings, DEFAULT_SETTINGS } from "@/providers/settings-provider"; // <-- Import useSettings
+import type { FontOption } from "@/providers/settings-provider"; // <-- Optional: type for cardFont
 
 type DbCard = Tables<'cards'>;
 
@@ -28,6 +32,12 @@ export default function EditDeckPage() {
     const params = useParams<{ deckId: string }>();
     const deckId = params?.deckId;
     const router = useRouter();
+    const supabase = createBrowserClient<Database>(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+
+    const { settings: userSettings, loading: settingsLoading } = useSettings(); // <-- Initialize useSettings
 
     // Use the custom hook to manage state and actions
     const {
@@ -49,9 +59,10 @@ export default function EditDeckPage() {
     } = useEditDeck(deckId);
 
     const [activeTab, setActiveTab] = useState("cards");
+    const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
-    // --- Loading State ---
-    if (loading) {
+    // --- Loading State (Combined for deck and settings) ---
+    if (loading || settingsLoading) { // <-- Check settingsLoading as well
         return (
             <div className="flex justify-center items-center h-screen">
                 <IconLoader className="h-12 w-12 animate-spin text-primary" />
@@ -91,12 +102,82 @@ export default function EditDeckPage() {
     return (
         <div className="container mx-auto py-6 md:py-8 px-4">
             {/* Header */}
-            <div className="flex items-center justify-between mb-6">
-                <h1 className="text-2xl font-bold truncate pr-4" title={deck.name}>Edit Deck: {deck.name}</h1>
-                <Button variant="outline" onClick={() => router.back()}>
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    Back
-                </Button>
+            <div className="flex items-center justify-between mb-6 gap-2 flex-wrap">
+                <h1 className="text-2xl font-bold truncate pr-2" title={deck.name}>Edit Deck: {deck.name}</h1>
+                <div className="flex items-center gap-2">
+                    <Button 
+                        variant="outline" 
+                        onClick={async () => {
+                            if (!deckId) {
+                                toast.error("Deck ID is missing.");
+                                return;
+                            }
+                            setIsGeneratingPdf(true);
+                            toast.info("Generating PDF...");
+
+                            try {
+                                const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+                                if (sessionError || !session) {
+                                    throw new Error(sessionError?.message || "User not authenticated.");
+                                }
+
+                                // Get cardFont from settings, fallback to default if necessary
+                                const cardFontToUse = userSettings?.cardFont || DEFAULT_SETTINGS.cardFont;
+
+                                const response = await fetch(
+                                    `/api/generate-deck-pdf`,
+                                    {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                            'Authorization': `Bearer ${session.access_token}`,
+                                        },
+                                        body: JSON.stringify({ 
+                                            deckId, 
+                                            cardFont: cardFontToUse // <-- Add cardFont to payload
+                                        }),
+                                    }
+                                );
+
+                                if (!response.ok) {
+                                    const errorData = await response.json().catch(() => ({ message: "Failed to generate PDF. Please try again." }));
+                                    throw new Error(errorData.error || errorData.message || "PDF generation failed");
+                                }
+
+                                const blob = await response.blob();
+                                const url = window.URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                const safeDeckName = (deck.name || 'deck').replace(/[^\w\s.-]/g, '_');
+                                a.href = url;
+                                a.download = `${safeDeckName}.pdf`;
+                                document.body.appendChild(a);
+                                a.click();
+                                window.URL.revokeObjectURL(url);
+                                a.remove();
+                                toast.success("PDF generated and download started.");
+
+                            } catch (err: any) {
+                                console.error("Error generating PDF:", err);
+                                appLogger.error("[EditDeckPage - PDF] Error:", err);
+                                toast.error(`PDF Generation Failed: ${err.message}`);
+                            } finally {
+                                setIsGeneratingPdf(false);
+                            }
+                        }}
+                        disabled={isGeneratingPdf}
+                    >
+                        {isGeneratingPdf ? (
+                            <IconLoader className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                            <FileDown className="mr-2 h-4 w-4" />
+                        )}
+                        Save to PDF
+                    </Button>
+                    <Button variant="outline" onClick={() => router.back()}>
+                        <ArrowLeft className="mr-2 h-4 w-4" />
+                        Back
+                    </Button>
+                </div>
             </div>
 
             {/* Deck Metadata Editor */}
