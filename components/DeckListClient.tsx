@@ -281,11 +281,6 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
             <AccordionItem value="dueDecks" className="border-none">
               <AccordionTrigger className="text-lg font-medium font-atkinson hover:no-underline p-3 bg-muted/50 rounded-md flex items-center">
                 <span>Due for Review</span>
-                {dueDecks.length > 0 && (
-                  <span className="ml-2 flex h-6 w-6 items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground">
-                    {dueDecks.length}
-                  </span>
-                )}
               </AccordionTrigger>
               <AccordionContent className="pt-4">
                 {dueDecks.length > 0 ? (
@@ -302,11 +297,6 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
             <AccordionItem value="otherDecks" className="border-none">
               <AccordionTrigger className="text-lg font-medium font-atkinson hover:no-underline p-3 bg-muted/50 rounded-md flex items-center">
                 <span>Not Due for Review</span>
-                {otherDecks.length > 0 && (
-                  <span className="ml-2 flex h-6 w-6 items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground">
-                    {otherDecks.length}
-                  </span>
-                )}
               </AccordionTrigger>
               <AccordionContent className="pt-4">
                 {otherDecks.length > 0 ? (
