@@ -198,6 +198,7 @@ export type Database = {
           enable_advanced_color_coding: boolean | null
           enable_basic_color_coding: boolean | null
           enable_dedicated_learn_mode: boolean
+          enable_pdf_word_color_coding: boolean
           enable_study_timer: boolean
           enable_word_color_coding: boolean | null
           graduating_interval_days: number
@@ -210,8 +211,10 @@ export type Database = {
           mastery_threshold: number | null
           mature_interval_threshold: number
           min_easiness_factor: number
+          pdf_card_content_font_size: number
           preferred_voices: Json
           relearning_steps_minutes: number[]
+          show_card_status_icons_in_pdf: boolean
           show_deck_progress: boolean
           show_difficulty: boolean | null
           study_timer_duration_minutes: number
@@ -237,6 +240,7 @@ export type Database = {
           enable_advanced_color_coding?: boolean | null
           enable_basic_color_coding?: boolean | null
           enable_dedicated_learn_mode?: boolean
+          enable_pdf_word_color_coding?: boolean
           enable_study_timer?: boolean
           enable_word_color_coding?: boolean | null
           graduating_interval_days?: number
@@ -249,8 +253,10 @@ export type Database = {
           mastery_threshold?: number | null
           mature_interval_threshold?: number
           min_easiness_factor?: number
+          pdf_card_content_font_size?: number
           preferred_voices?: Json
           relearning_steps_minutes?: number[]
+          show_card_status_icons_in_pdf?: boolean
           show_deck_progress?: boolean
           show_difficulty?: boolean | null
           study_timer_duration_minutes?: number
@@ -276,6 +282,7 @@ export type Database = {
           enable_advanced_color_coding?: boolean | null
           enable_basic_color_coding?: boolean | null
           enable_dedicated_learn_mode?: boolean
+          enable_pdf_word_color_coding?: boolean
           enable_study_timer?: boolean
           enable_word_color_coding?: boolean | null
           graduating_interval_days?: number
@@ -288,8 +295,10 @@ export type Database = {
           mastery_threshold?: number | null
           mature_interval_threshold?: number
           min_easiness_factor?: number
+          pdf_card_content_font_size?: number
           preferred_voices?: Json
           relearning_steps_minutes?: number[]
+          show_card_status_icons_in_pdf?: boolean
           show_deck_progress?: boolean
           show_difficulty?: boolean | null
           study_timer_duration_minutes?: number

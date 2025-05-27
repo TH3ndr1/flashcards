@@ -151,6 +151,14 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
     *   View Decks: List user's decks (`/` via `DeckListClient.tsx`).
     *   Edit Decks: Modify deck metadata, manage cards, and assign/unassign deck tags (`/edit/[deckId]` page via `useEditDeck` hook).
     *   Delete Decks: Remove decks and associated cards (via `DeckDangerZone` component on `/edit/[deckId]` page, triggering `useEditDeck().handleDeleteDeckConfirm` -> `deckActions.deleteDeck`).
+    *   **Export Deck to PDF:** From the `/edit/[deckId]` page, users can download the deck's content as a PDF file.
+        *   The PDF includes the deck title, tags, and a two-column layout for questions and answers.
+        *   It supports dynamic font selection mirroring the user's app settings for card fonts.
+        *   Word color coding (based on part-of-speech and gender, similar to the app) can be enabled/disabled for the PDF.
+        *   The font size for questions and answers in the PDF is adjustable via user settings.
+        *   Card status icons (e.g., for 'new' or 'relearning' cards) can be optionally included.
+        *   The PDF includes page numbers ("Page X / Y") and a "Created by StudyCards on <date>" attribution (date on first page header, name in footer).
+        *   A legend for card status icons is included in the footer.
 *   **Card Management:** Create, view, edit, delete individual cards within the deck edit page (`/edit/[deckId]`, managed by `useEditDeck` hook calling `cardActions`).
 *   **Tag Management:**
     *   Create, view, delete user-specific global tags (`/tags` page via `TagManagerClient.tsx`, using `tagActions`).
@@ -275,6 +283,7 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
     *   `extract-pdf/route.ts`: (Step 1 of AI Flow) Orchestrates AI file processing (upload, text extraction via `textExtractorService`, initial flashcard generation via `flashcardGeneratorService`).
     *   `process-ai-step2/route.ts`: (Step 2a - Intermediate AI Processing) Handles requests for classification or regeneration.
     *   `decks/route.ts`: (Used by Manual & AI Flow Step 2b - Final Persistence) Handles `POST` requests for creating new decks. For manual, it takes deck metadata and calls `deckActions.createDeck`. For AI flow, it takes deck metadata and final flashcards, creates the deck (via `deckActions.createDeck`), then calls `cardActions.createCardsBatch`.
+    *   `generate-deck-pdf/route.ts`: Handles `POST` requests for generating a PDF version of a deck. Receives deck ID and various PDF-specific settings (font, color coding, font size, icon visibility). Fetches deck data, constructs the PDF using `pdf-lib` and `fontkit`, and returns it for download.
 *   **Database Function (`resolve_study_query`):** Filters cards based on `StudyQueryCriteria` JSON (including `srs_level`, `learning_state` via `includeLearning` flag, dates).
 *   **Database Function (`get_decks_with_complete_srs_counts`):** Fetches decks with standard SRS stage counts AND `learn_eligible_count` and `review_eligible_count`.
 *   **Database View (`cards_with_srs_stage`):** Categorizes cards into 'new', 'learning', 'relearning', 'young', 'mature' based on `srs_level`, `learning_state`, `interval_days`, and `settings.mature_interval_threshold`.
@@ -453,6 +462,7 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
 │   │   ├── decks/route.ts
 │   │   ├── extract-pdf/
 │   │   └── process-ai-step2/
+│   │   └── generate-deck-pdf/route.ts # NEW: API route for PDF generation
 │   ├── manage/               # NEW: Manage Mode
 │   │   └── decks/page.tsx    # New table-based deck list page
 │   ├── practice/             # NEW: Practice Mode
@@ -652,6 +662,9 @@ graph TD
         U_editDeckPage --> VB_EditableCardTable[app/edit/[deckId]/EditableCardTable.tsx] # May contain CardTagEditor
         U_editDeckPage --> VC_DeckTagEditor[app/edit/[deckId]/DeckTagEditor.tsx] # For assigning tags to deck
         U_editDeckPage --> VD_DeckDangerZone[app/edit/[deckId]/DeckDangerZone.tsx]
+        U_editDeckPage -- "Save to PDF Button Click" --> PDF_API_ROUTE[app/api/generate-deck-pdf/route.ts] # NEW
+        PDF_API_ROUTE -- "fetches deck data" --> RA_deckActions # Or directly to DB
+        PDF_API_ROUTE -- "uses settings" --> E_SettingsProvider # Or settings passed in payload
     end
 
     subgraph "AI Deck Creation Flow"
@@ -748,6 +761,25 @@ end
 *   **AI Services (`app/api/extract-pdf/services/*.ts`)**:
     *   `textExtractorService.ts`: Abstracts text extraction logic from PDF/Image files using Google Vision AI or Document AI. Includes page limit validation.
     *   `flashcardGeneratorService.ts`: Abstracts flashcard generation logic using Google Vertex AI (Gemini). Handles initial Q&A generation (`generateInitialFlashcards`), grammar classification (`classifyTranslationFlashcards`), and knowledge mode regeneration (`regenerateAsKnowledgeFlashcards`).
+*   **`app/api/generate-deck-pdf/route.ts` (New):**
+    *   **Purpose:** Handles requests to generate a PDF document for a specific deck.
+    *   **Functionality:**
+        *   Receives `deckId` and PDF generation settings (selected card font, word coloring enablement, PDF card content font size, show card status icons flag, color palette configuration, etc.) in the request body.
+        *   Authenticates the user and validates inputs.
+        *   Fetches the deck's metadata (name, tags) and all its cards (question, answer, grammatical info, SRS status) from Supabase.
+        *   Uses `pdf-lib` to construct the PDF document.
+        *   Registers `fontkit` to enable embedding custom fonts.
+        *   Dynamically loads the selected card font (e.g., Atkinson, OpenDyslexic) from `public/fonts/`.
+        *   Arranges content:
+            *   Deck title and tags at the top.
+            *   "Created by StudyCards on <date>" on the first page header, aligned with the title.
+            *   Questions and answers in a two-column layout.
+            *   Applies word coloring if enabled, using a helper function adapted from the app's `getWordStyles`.
+            *   Uses the specified font size for Q/A text.
+            *   Optionally prepends status icons (🌱, 🔄) to questions.
+            *   Includes a footer with "Page X / Y" on the left and a card status icon legend on the right.
+            *   Handles pagination, repeating column headers and drawing appropriate lines.
+        *   Returns the generated PDF as a downloadable file.
 
 #### 5.8.4 Data Flow Patterns (Diagram)
 
@@ -825,6 +857,19 @@ graph TD
         CARD_ACTIONS_BATCH_AI -- "creates cards in DB" --> DB_cardsTable_AI_Write[DB: cards table]
         API_DECKS_SAVE_AI -- "(newDeck: {id, name,...})" --> AI_GEN_HOOK
         AI_GEN_HOOK -- "navigates to /edit/[newDeckId]" --> UserInterface
+    end
+
+    subgraph "PDF Generation Flow" # NEW
+        PDF_EDIT_DECK_PAGE[app/edit/[deckId]/page.tsx] -- "User clicks 'Save to PDF'" --> ClientAction_GeneratePdf
+        ClientAction_GeneratePdf -- "(deckId, pdfSettings: {cardFont, enablePdfWordColorCoding, pdfCardContentFontSize, showCardStatusIconsInPdf,...})" --> API_GENERATE_PDF[POST /api/generate-deck-pdf/route.ts]
+        API_GENERATE_PDF -- "1. Authenticates user, validates input" --> API_GENERATE_PDF
+        API_GENERATE_PDF -- "2. Fetches deck data (name, tags, cards with Q/A, SRS status, grammar info)" --> DB_access_for_PDF[Supabase DB: decks, cards, tags tables]
+        DB_access_for_PDF -- "(deckData)" --> API_GENERATE_PDF
+        API_GENERATE_PDF -- "3. Uses pdf-lib & fontkit to construct PDF" --> PDF_Lib_Processing
+        PDF_Lib_Processing -- "Embeds fonts (e.g., from public/fonts/)" --> API_GENERATE_PDF
+        PDF_Lib_Processing -- "Draws text, lines, icons based on deckData & pdfSettings" --> API_GENERATE_PDF
+        API_GENERATE_PDF -- "4. Returns PDF file" --> ClientAction_GeneratePdf
+        ClientAction_GeneratePdf -- "Triggers browser download" --> UserInterface_PdfDownload[User downloads PDF]
     end
 end
 ```

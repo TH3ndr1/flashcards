@@ -57,6 +57,11 @@ export interface Settings {
   deckListActiveTagGroupId: string | null; // Store UUID as string, can be null
   deckListSortField: 'name' | 'created_at';
   deckListSortDirection: 'asc' | 'desc';
+
+  // --- New PDF Export Settings ---
+  enablePdfWordColorCoding: boolean;
+  pdfCardContentFontSize: number;
+  showCardStatusIconsInPdf: boolean;
 }
 
 type DbSettings = Tables<'settings'>;
@@ -101,6 +106,11 @@ export const DEFAULT_SETTINGS: Settings = {
   deckListActiveTagGroupId: null, // Default to null as no tag is pre-selected
   deckListSortField: 'name',
   deckListSortDirection: 'asc',
+
+  // --- Defaults for New PDF Export Settings ---
+  enablePdfWordColorCoding: true,
+  pdfCardContentFontSize: 10,
+  showCardStatusIconsInPdf: true,
 };
 
 const transformSettingsToDbUpdates = (updates: Partial<Settings>): DbSettingsUpdate => {
@@ -148,16 +158,20 @@ const transformSettingsToDbUpdates = (updates: Partial<Settings>): DbSettingsUpd
   if (updates.deckListSortField !== undefined) dbUpdates.deck_list_sort_field = updates.deckListSortField;
   if (updates.deckListSortDirection !== undefined) dbUpdates.deck_list_sort_direction = updates.deckListSortDirection;
   
-  // Ensure no undefined values are accidentally passed if a key is present in `updates` but its value is undefined.
-  // The checks `updates.fieldName !== undefined` already handle this.
-
+  // --- PDF Export Settings ---
+  if (updates.enablePdfWordColorCoding !== undefined) dbUpdates.enable_pdf_word_color_coding = updates.enablePdfWordColorCoding;
+  if (updates.pdfCardContentFontSize !== undefined) dbUpdates.pdf_card_content_font_size = updates.pdfCardContentFontSize;
+  if (updates.showCardStatusIconsInPdf !== undefined) dbUpdates.show_card_status_icons_in_pdf = updates.showCardStatusIconsInPdf;
+  
   return dbUpdates;
 };
 
 const transformDbSettingsToSettings = (dbSettings: DbSettings | null): Settings => {
     if (!dbSettings) {
         debug('transformDbSettingsToSettings: No DB settings provided, returning default.');
-        return { ...DEFAULT_SETTINGS };
+        return { 
+            ...DEFAULT_SETTINGS 
+        };
     }
     try {
         debug('transformDbSettingsToSettings: Transforming DB settings:', dbSettings);
@@ -216,18 +230,21 @@ const transformDbSettingsToSettings = (dbSettings: DbSettings | null): Settings 
                                     ? dbSettings.deck_list_sort_direction
                                     : DEFAULT_SETTINGS.deckListSortDirection,
             
-            // Ensure removeMasteredCards is handled if it's part of the Settings interface
-            // If it's not a DB field, it should primarily rely on DEFAULT_SETTINGS
-            // or be managed purely client-side if not persisted.
-            // For now, assuming it's not in DbSettings:
             removeMasteredCards: DEFAULT_SETTINGS.removeMasteredCards, 
+
+            // --- PDF Export Settings ---
+            enablePdfWordColorCoding: dbSettings.enable_pdf_word_color_coding ?? DEFAULT_SETTINGS.enablePdfWordColorCoding,
+            pdfCardContentFontSize: dbSettings.pdf_card_content_font_size ?? DEFAULT_SETTINGS.pdfCardContentFontSize,
+            showCardStatusIconsInPdf: dbSettings.show_card_status_icons_in_pdf ?? DEFAULT_SETTINGS.showCardStatusIconsInPdf,
         };
         debug('transformDbSettingsToSettings: Transformation result:', transformed);
         return transformed;
     } catch (e) {
         appLogger.error("Error transforming DbSettings:", e);
         debug('transformDbSettingsToSettings: Error during transformation, returning default.');
-        return { ...DEFAULT_SETTINGS };
+        return { 
+            ...DEFAULT_SETTINGS 
+        };
     }
 };
 
@@ -323,7 +340,19 @@ const updateSettings = useCallback(async (
       // The server action returns the updated DbSettings (snake_case from DB)
       // Transform it back to frontend Settings (camelCase) to update our state accurately
       const finalSettings = transformDbSettingsToSettings(updatedDbSettingsFromAction);
-      setSettings(finalSettings); // Confirm update with transformed data from DB
+      
+      // Preserve PDF settings that are not persisted to database yet
+      if (updates.enablePdfWordColorCoding !== undefined) {
+        finalSettings.enablePdfWordColorCoding = updates.enablePdfWordColorCoding;
+      }
+      if (updates.pdfCardContentFontSize !== undefined) {
+        finalSettings.pdfCardContentFontSize = updates.pdfCardContentFontSize;
+      }
+      if (updates.showCardStatusIconsInPdf !== undefined) {
+        finalSettings.showCardStatusIconsInPdf = updates.showCardStatusIconsInPdf;
+      }
+      
+      setSettings(finalSettings); // Confirm update with transformed data from DB + preserved PDF settings
       // toast.success("Settings saved!"); // Toast can be here or in the component calling this
       return { data: updatedDbSettingsFromAction, error: null };
   }

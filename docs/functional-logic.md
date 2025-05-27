@@ -95,6 +95,11 @@ The app is conceptually divided into two main activities:
     *   **Edit Existing Cards:** Modify question, answer, and grammatical classifications. Changes are auto-saved (debounced) via `cardActions.updateCard`.
     *   **Delete Cards:** Via `cardActions.deleteCard`.
 *   Users can assign/unassign global tags to the deck via `tagActions.addTagToDeck` / `removeTagFromDeck`.
+*   **Export to PDF:** Users can click a "Save to PDF" button to download the deck's content.
+    *   The PDF will include the deck title, tags, and questions/answers in a two-column format.
+    *   It uses the user's selected card font, and supports optional word color coding and adjustable Q&A font size (configured in Settings).
+    *   Optionally, icons indicating card status (new, relearning) can be included.
+    *   The PDF features page numbers, a "Created by StudyCards on <date>" mark, and a legend for status icons.
 
 ##### 2.1.1.4. Viewing Decks ("Your Decks" page - `/`)
 *   Uses `DeckListClient.tsx`. Data is fetched server-side by `app/page.tsx` using `deckActions.getDecksWithSrsCounts`.
@@ -301,6 +306,8 @@ Imagine StudyCards is your smart study buddy!
   - Want to study only French verbs from Chapter 1 that are due soon?
   - Create a "Smart Playlist!"
   - You tell it what to look for (deck, tags, how new/old the cards are, if they are due), give it a name, and it makes a special study list for you.
+- **Save Your Deck as a PDF:**
+  - When you're editing a deck, you can save it as a PDF file to view or print. It will have your questions, answers, and even use the special fonts or colors you like!
 
 ### 3.2. Time to Study! (Practice)
 

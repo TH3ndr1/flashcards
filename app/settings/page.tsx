@@ -66,6 +66,10 @@ export default function SettingsPage() {
   // --- Add state for new setting ---
   const [showDeckProgress, setShowDeckProgress] = useState<boolean>(LOCAL_DEFAULT_SETTINGS.showDeckProgress);
   const [themePreference, setThemePreference] = useState<ThemePreference>(LOCAL_DEFAULT_SETTINGS.themePreference);
+  // --- State for New PDF Settings ---
+  const [enablePdfWordColorCoding, setEnablePdfWordColorCoding] = useState<boolean>(LOCAL_DEFAULT_SETTINGS.enablePdfWordColorCoding);
+  const [pdfCardContentFontSize, setPdfCardContentFontSize] = useState<number>(LOCAL_DEFAULT_SETTINGS.pdfCardContentFontSize);
+  const [showCardStatusIconsInPdf, setShowCardStatusIconsInPdf] = useState<boolean>(LOCAL_DEFAULT_SETTINGS.showCardStatusIconsInPdf);
   // --------------------------------
 
   // Effects (Keep original logic)
@@ -93,6 +97,10 @@ export default function SettingsPage() {
          // --- Load new setting ---
          setShowDeckProgress(currentSettings.showDeckProgress);
          setThemePreference(currentSettings.themePreference); // Load theme preference
+         // --- Load New PDF Settings ---
+         setEnablePdfWordColorCoding(currentSettings.enablePdfWordColorCoding);
+         setPdfCardContentFontSize(currentSettings.pdfCardContentFontSize);
+         setShowCardStatusIconsInPdf(currentSettings.showCardStatusIconsInPdf);
          // --------------------------
      }
   }, [settings, settingsLoading, user]);
@@ -184,6 +192,39 @@ export default function SettingsPage() {
       toast.info(`Theme set to ${value}.`);
   }, [handleSettingChange, setTheme]); // Added setTheme to dependencies
   // --------------------------------------
+
+  // --- Handlers for New PDF Settings ---
+  const handleEnablePdfWordColorCodingChange = useCallback(async (checked: boolean) => {
+    setEnablePdfWordColorCoding(checked);
+    await handleSettingChange({ enablePdfWordColorCoding: checked });
+  }, [handleSettingChange]);
+
+  const handlePdfCardContentFontSizeChange = useCallback(async (value: string) => {
+    const numericValue = parseInt(value);
+    if (!isNaN(numericValue) && numericValue >= 8 && numericValue <= 28) {
+      setPdfCardContentFontSize(numericValue);
+      await handleSettingChange({ pdfCardContentFontSize: numericValue });
+    }
+  }, [handleSettingChange]);
+
+  const handleShowCardStatusIconsInPdfChange = useCallback(async (checked: boolean) => {
+    setShowCardStatusIconsInPdf(checked);
+    await handleSettingChange({ showCardStatusIconsInPdf: checked });
+  }, [handleSettingChange]);
+
+  const handlePdfCardContentFontSizeBlur = useCallback(async (e: React.FocusEvent<HTMLInputElement>) => {
+    const value = parseInt(e.target.value);
+    if (isNaN(value) || value < 6 || value > 24) {
+      // Reset to default if invalid
+      setPdfCardContentFontSize(LOCAL_DEFAULT_SETTINGS.pdfCardContentFontSize);
+      await handleSettingChange({ pdfCardContentFontSize: LOCAL_DEFAULT_SETTINGS.pdfCardContentFontSize });
+    } else {
+      // Ensure the valid value is saved
+      setPdfCardContentFontSize(value);
+      await handleSettingChange({ pdfCardContentFontSize: value });
+    }
+  }, [handleSettingChange]);
+  // ------------------------------------
 
   // Loading/User checks
   if (settingsLoading || authLoading) { return <div className="container mx-auto p-8">Loading Settings...</div>; }
@@ -461,6 +502,73 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
         {/* --- End Word Color Coding Card --- */}
+
+        {/* --- New PDF Export Settings Card --- */}
+        <Card>
+            <CardHeader>
+                <CardTitle>PDF Export Settings</CardTitle>
+                <CardDescription>Customize how your decks are exported to PDF.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                {/* Enable PDF Word Color Coding */}
+                <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div>
+                        <h3 className="font-medium">Enable Word Color Coding in PDF</h3>
+                        <p className="text-sm text-muted-foreground">
+                            Apply grammatical color coding to words in the generated PDF.
+                        </p>
+                    </div>
+                    <Switch
+                        checked={enablePdfWordColorCoding}
+                        onCheckedChange={handleEnablePdfWordColorCodingChange}
+                        id="enablePdfWordColorCoding"
+                    />
+                </div>
+
+                {/* PDF Card Content Font Size */}
+                <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="pdfCardContentFontSize" className="text-right col-span-1">
+                        PDF Font Size (Q/A)
+                    </Label>
+                    <div className="col-span-3 flex items-center gap-4">
+                        <Select 
+                            value={String(pdfCardContentFontSize)} 
+                            onValueChange={handlePdfCardContentFontSizeChange}
+                        >
+                            <SelectTrigger id="pdfCardContentFontSize" className="w-24">
+                                <SelectValue placeholder="Select size..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {Array.from({ length: (28 - 8) / 2 + 1 }, (_, i) => 8 + i * 2).map(size => (
+                                    <SelectItem key={size} value={String(size)}>{size}pt</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <span className="text-sm text-muted-foreground">
+                            Font size for questions and answers in PDF (8-28pt).
+                        </span>
+                    </div>
+                </div>
+
+                {/* Show Card Status Icons in PDF */}
+                <Separator />
+                <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div>
+                        <h3 className="font-medium">Show Card Status Icons</h3>
+                        <p className="text-sm text-muted-foreground">
+                            Display icons (e.g., 🌱 for New, 🔄 for Relearning) next to questions in the PDF.
+                        </p>
+                    </div>
+                    <Switch
+                        checked={showCardStatusIconsInPdf}
+                        onCheckedChange={handleShowCardStatusIconsInPdfChange}
+                        id="showCardStatusIconsInPdf"
+                    />
+                </div>
+
+            </CardContent>
+        </Card>
+        {/* ------------------------------------ */}
 
       </div> {/* End main grid */}
     </div> // End container

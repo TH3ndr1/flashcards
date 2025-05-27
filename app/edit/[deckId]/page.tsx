@@ -18,6 +18,7 @@ import { appLogger, statusLogger } from '@/lib/logger';
 import { createBrowserClient } from '@supabase/ssr'; // For client-side Supabase access
 import { toast } from 'sonner'; // For notifications
 import { useSettings, DEFAULT_SETTINGS } from "@/providers/settings-provider"; // <-- Import useSettings
+import { useTheme } from "next-themes"; // <-- Import useTheme
 import type { FontOption } from "@/providers/settings-provider"; // <-- Optional: type for cardFont
 
 type DbCard = Tables<'cards'>;
@@ -37,7 +38,8 @@ export default function EditDeckPage() {
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
 
-    const { settings: userSettings, loading: settingsLoading } = useSettings(); // <-- Initialize useSettings
+    const { settings: userSettings, loading: settingsLoading } = useSettings();
+    const { theme, resolvedTheme } = useTheme(); // <-- Get theme and resolvedTheme
 
     // Use the custom hook to manage state and actions
     const {
@@ -121,8 +123,34 @@ export default function EditDeckPage() {
                                     throw new Error(sessionError?.message || "User not authenticated.");
                                 }
 
-                                // Get cardFont from settings, fallback to default if necessary
-                                const cardFontToUse = userSettings?.cardFont || DEFAULT_SETTINGS.cardFont;
+                                // Consolidate settings access with fallbacks
+                                const settingsForPdf = {
+                                    cardFont: userSettings?.cardFont || DEFAULT_SETTINGS.cardFont,
+                                    enablePdfWordColorCoding: userSettings?.enablePdfWordColorCoding ?? DEFAULT_SETTINGS.enablePdfWordColorCoding,
+                                    pdfCardContentFontSize: userSettings?.pdfCardContentFontSize || DEFAULT_SETTINGS.pdfCardContentFontSize,
+                                    showCardStatusIconsInPdf: userSettings?.showCardStatusIconsInPdf ?? DEFAULT_SETTINGS.showCardStatusIconsInPdf,
+                                    wordPaletteConfig: userSettings?.wordPaletteConfig || DEFAULT_SETTINGS.wordPaletteConfig,
+                                    enableBasicColorCoding: userSettings?.enableBasicColorCoding ?? DEFAULT_SETTINGS.enableBasicColorCoding,
+                                    enableAdvancedColorCoding: userSettings?.enableAdvancedColorCoding ?? DEFAULT_SETTINGS.enableAdvancedColorCoding,
+                                    colorOnlyNonNative: userSettings?.colorOnlyNonNative ?? DEFAULT_SETTINGS.colorOnlyNonNative,
+                                    appLanguage: userSettings?.appLanguage || DEFAULT_SETTINGS.appLanguage,
+                                };
+
+                                // Construct the payload explicitly to log it accurately
+                                const payload = {
+                                    deckId,
+                                    cardFont: settingsForPdf.cardFont,
+                                    enablePdfWordColorCoding: settingsForPdf.enablePdfWordColorCoding,
+                                    pdfCardContentFontSize: settingsForPdf.pdfCardContentFontSize,
+                                    showCardStatusIconsInPdf: settingsForPdf.showCardStatusIconsInPdf,
+                                    wordPaletteConfig: settingsForPdf.wordPaletteConfig,
+                                    enableBasicColorCoding: settingsForPdf.enableBasicColorCoding,
+                                    enableAdvancedColorCoding: settingsForPdf.enableAdvancedColorCoding,
+                                    colorOnlyNonNative: settingsForPdf.colorOnlyNonNative,
+                                    appLanguage: settingsForPdf.appLanguage,
+                                };
+
+                                appLogger.debug("Client-side payload for PDF:", JSON.stringify(payload)); // Log the payload
 
                                 const response = await fetch(
                                     `/api/generate-deck-pdf`,
@@ -132,10 +160,7 @@ export default function EditDeckPage() {
                                             'Content-Type': 'application/json',
                                             'Authorization': `Bearer ${session.access_token}`,
                                         },
-                                        body: JSON.stringify({ 
-                                            deckId, 
-                                            cardFont: cardFontToUse // <-- Add cardFont to payload
-                                        }),
+                                        body: JSON.stringify(payload), // Use the constructed payload object
                                     }
                                 );
 
@@ -164,7 +189,7 @@ export default function EditDeckPage() {
                                 setIsGeneratingPdf(false);
                             }
                         }}
-                        disabled={isGeneratingPdf}
+                        disabled={isGeneratingPdf || settingsLoading}
                     >
                         {isGeneratingPdf ? (
                             <IconLoader className="mr-2 h-4 w-4 animate-spin" />
