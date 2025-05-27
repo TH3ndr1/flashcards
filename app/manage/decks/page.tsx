@@ -12,6 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { formatDistanceToNow } from 'date-fns';
 import { appLogger } from '@/lib/logger';
 import { ItemInfoBadges } from '@/components/ItemInfoBadges';
+import { DeckProgressLegend } from '@/components/deck/DeckProgressLegend';
 
 // Type for deck data including SRS counts, similar to EnhancedDeck in DeckListClient
 interface ManageDeckItem {
@@ -146,38 +147,13 @@ export default async function ManageDecksPage() {
                             youngCount={deck.young_count ?? 0}
                             matureCount={deck.mature_count ?? 0}
                           />
-                          <div className="mt-1.5 text-xs text-muted-foreground flex flex-wrap gap-x-3 gap-y-1 justify-center md:justify-start">
-                            {(deck.new_count ?? 0) > 0 && (
-                              <span className="flex items-center">
-                                <span className="h-2 w-2 rounded-full mr-1.5" style={{ backgroundColor: legendStages.find(s => s.name === 'New')?.endColor }}></span>
-                                New: {deck.new_count}
-                              </span>
-                            )}
-                            {(deck.learning_count ?? 0) > 0 && (
-                              <span className="flex items-center">
-                                <span className="h-2 w-2 rounded-full mr-1.5" style={{ backgroundColor: legendStages.find(s => s.name === 'Learning')?.endColor }}></span>
-                                Learning: {deck.learning_count}
-                              </span>
-                            )}
-                            {(deck.relearning_count ?? 0) > 0 && (
-                              <span className="flex items-center">
-                                <span className="h-2 w-2 rounded-full mr-1.5" style={{ backgroundColor: legendStages.find(s => s.name === 'Relearning')?.endColor }}></span>
-                                Relearning: {deck.relearning_count}
-                              </span>
-                            )}
-                            {(deck.young_count ?? 0) > 0 && (
-                              <span className="flex items-center">
-                                <span className="h-2 w-2 rounded-full mr-1.5" style={{ backgroundColor: legendStages.find(s => s.name === 'Young')?.endColor }}></span>
-                                Young: {deck.young_count}
-                              </span>
-                            )}
-                            {(deck.mature_count ?? 0) > 0 && (
-                              <span className="flex items-center">
-                                <span className="h-2 w-2 rounded-full mr-1.5" style={{ backgroundColor: legendStages.find(s => s.name === 'Mature')?.endColor }}></span>
-                                Mature: {deck.mature_count}
-                              </span>
-                            )}
-                          </div>
+                          <DeckProgressLegend 
+                            newCount={deck.new_count ?? 0}
+                            learningCount={deck.learning_count ?? 0}
+                            relearningCount={deck.relearning_count ?? 0}
+                            youngCount={deck.young_count ?? 0}
+                            matureCount={deck.mature_count ?? 0}
+                          />
                         </>
                       ) : (
                         <p className="text-sm text-muted-foreground text-center py-2 md:py-0">Deck is empty</p>

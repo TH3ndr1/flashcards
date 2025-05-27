@@ -23,7 +23,15 @@ import { useDecks as useDecksHook } from "@/hooks/use-decks"; // Renamed to avoi
 import type { DeckListItemWithCounts } from "@/hooks/use-decks"; // Import this type
 import { parseISO, format } from 'date-fns'; // For sorting by date
 import { Badge } from "@/components/ui/badge";
-import { ItemInfoBadges } from '@/components/ItemInfoBadges'; // Updated import path
+import { ItemInfoBadges } from '@/components/ItemInfoBadges';
+import { DeckProgressLegend } from '@/components/deck/DeckProgressLegend';
+import { cn } from "@/lib/utils";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"; // Added Accordion imports
 
 // Type for TagInfo (if not already globally defined)
 interface TagInfo {
@@ -63,6 +71,9 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
   const showDeckProgressBars = settings?.showDeckProgress ?? DEFAULT_SETTINGS.showDeckProgress; // Use setting for progress bar
 
   const isOverallLoading = decksLoading || settingsLoading;
+
+  // State for accordion sections - default to open
+  const [openSections, setOpenSections] = useState<string[]>(["dueDecks", "otherDecks"]);
 
   const legendStages = [ /* ... as before ... */
     { name: 'New', startColor: '#EC4899', endColor: '#EF4444' },
@@ -123,6 +134,18 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
 
   }, [rawDecksFromHook, groupingMode, activeTagGroupId, sortField, sortDirection]);
 
+  // Segregate decks into 'due' and 'other' based on practiceable count
+  const dueDecks = useMemo(() => 
+    processedAndSortedDecks.filter(deck => 
+      (deck.learn_eligible_count ?? 0) + (deck.review_eligible_count ?? 0) > 0
+    )
+  , [processedAndSortedDecks]);
+
+  const otherDecks = useMemo(() => 
+    processedAndSortedDecks.filter(deck => 
+      (deck.learn_eligible_count ?? 0) + (deck.review_eligible_count ?? 0) === 0
+    )
+  , [processedAndSortedDecks]);
 
   // The actual rendering of groups (Accordion, etc.) will be in Task X.3.3
   // For this task, we just confirm settings are read.
@@ -167,45 +190,47 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
     const reviewEligible = deck.review_eligible_count ?? 0;
     const totalPracticeable = learnEligible + reviewEligible;
 
+    const cardClasses = cn(
+      "hover:shadow-md transition-shadow flex flex-col bg-gradient-to-b from-slate-100/40 dark:from-slate-800/40 to-transparent dark:border-slate-700 cursor-pointer"
+    );
+
     return (
-      <Card key={deck.id} className="hover:shadow-md transition-shadow flex flex-col bg-gradient-to-b from-slate-100/40 dark:from-slate-800/40 to-transparent dark:border-slate-700">
+      <Card 
+        key={deck.id} 
+        className={cardClasses}
+        onClick={() => handlePracticeDeck(deck.id, learnEligible, reviewEligible)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            handlePracticeDeck(deck.id, learnEligible, reviewEligible);
+          }
+        }}
+      >
         <CardHeader className="pt-4 pb-2 space-y-1 px-4">
-          <div className="flex justify-between items-center">
-            <CardTitle className="truncate text-lg" title={deck.name}>{deck.name}</CardTitle>
-            {/* Edit button is removed for practice view - Task X.3.2 */}
+          <div className="flex justify-between items-start">
+            <CardTitle className="truncate text-lg font-medium mr-2" title={deck.name}>{deck.name}</CardTitle>
           </div>
-          <ItemInfoBadges 
-            primaryLanguage={deck.primary_language}
-            secondaryLanguage={deck.secondary_language}
-            isBilingual={deck.is_bilingual}
-            cardCount={deck.totalCards}
-            tags={deck.tags}
-          />
         </CardHeader>
-        <CardFooter className="flex justify-center pt-4 px-4 pb-4 mt-auto"> {/* Added mt-auto for consistent button placement */}
-          <Button
-              onClick={() => handlePracticeDeck(deck.id, learnEligible, reviewEligible)}
-              disabled={totalPracticeable === 0}
-              size="sm"
-              className="w-full bg-primary hover:bg-primary/90"
-          >
-              <Play className="h-4 w-4 mr-2" />
-              Practice {totalPracticeable > 0 ? `(${totalPracticeable})` : ''}
-          </Button>
-        </CardFooter>
         {showDeckProgressBars && deck.totalCards > 0 && (
-          <>
+          <CardContent className="px-4 pt-3 pb-4 bg-slate-50 dark:bg-slate-700/50 rounded-b-lg space-y-3">
+            <ItemInfoBadges 
+              primaryLanguage={deck.primary_language}
+              secondaryLanguage={deck.secondary_language}
+              isBilingual={deck.is_bilingual}
+              cardCount={deck.totalCards}
+              tags={deck.tags}
+              practiceableCount={totalPracticeable}
+            />
             <Separator />
-            <CardContent className="px-4 pt-4 pb-4 bg-slate-50 dark:bg-slate-700/50 rounded-b-lg">
-              <DeckProgressBar
-                newCount={deck.new_count ?? 0}
-                learningCount={deck.learning_count ?? 0}
-                relearningCount={deck.relearning_count ?? 0}
-                youngCount={deck.young_count ?? 0}
-                matureCount={deck.mature_count ?? 0}
-              />
-            </CardContent>
-          </>
+            <DeckProgressBar
+              newCount={deck.new_count ?? 0}
+              learningCount={deck.learning_count ?? 0}
+              relearningCount={deck.relearning_count ?? 0}
+              youngCount={deck.young_count ?? 0}
+              matureCount={deck.mature_count ?? 0}
+            />
+          </CardContent>
         )}
       </Card>
     );
@@ -244,16 +269,68 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
           </div>
         )}
 
-        {/* Actual rendering based on groupingMode will be built in Task X.3.3 */}
-        {/* For now, rendering a flat list for simplicity of this task */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {processedAndSortedDecks.map(renderDeckItem)}
-        </div>
+        {/* Accordion for Due Decks and Other Decks */}
+        {processedAndSortedDecks.length > 0 && (
+          <Accordion 
+            type="multiple" 
+            className="w-full space-y-4"
+            value={openSections}
+            onValueChange={setOpenSections} // Allow controlling open/close state
+          >
+            {/* Section 1: Decks with Cards Due */}
+            <AccordionItem value="dueDecks" className="border-none">
+              <AccordionTrigger className="text-lg font-medium font-atkinson hover:no-underline p-3 bg-muted/50 rounded-md flex items-center">
+                <span>Due for Review</span>
+                {dueDecks.length > 0 && (
+                  <span className="ml-2 flex h-6 w-6 items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground">
+                    {dueDecks.length}
+                  </span>
+                )}
+              </AccordionTrigger>
+              <AccordionContent className="pt-4">
+                {dueDecks.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {dueDecks.map(renderDeckItem)}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground text-center py-4">No decks currently have cards due for review.</p>
+                )}
+              </AccordionContent>
+            </AccordionItem>
 
+            {/* Section 2: Other Decks */}
+            <AccordionItem value="otherDecks" className="border-none">
+              <AccordionTrigger className="text-lg font-medium font-atkinson hover:no-underline p-3 bg-muted/50 rounded-md flex items-center">
+                <span>Not Due for Review</span>
+                {otherDecks.length > 0 && (
+                  <span className="ml-2 flex h-6 w-6 items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground">
+                    {otherDecks.length}
+                  </span>
+                )}
+              </AccordionTrigger>
+              <AccordionContent className="pt-4">
+                {otherDecks.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {otherDecks.map(renderDeckItem)}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground text-center py-4">No other decks to display.</p>
+                )}
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        )}
 
         {showDeckProgressBars && processedAndSortedDecks.length > 0 && (
-          <div className="mt-4 flex justify-end">
-            {/* ... legend ... */}
+          <div className="mt-8 pt-4 border-t dark:border-slate-700 flex justify-center">
+            <DeckProgressLegend 
+              newCount={0} // Dummy values, as showEmptyStages will display them
+              learningCount={0}
+              relearningCount={0}
+              youngCount={0}
+              matureCount={0}
+              showEmptyStages={true} // Ensure all stages are shown for the global legend
+            />
           </div>
         )}
       </div>
