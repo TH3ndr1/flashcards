@@ -5,6 +5,7 @@ import type { Database } from '@/types/database';
 import { appLogger } from '@/lib/logger';
 import * as fs from 'fs'; // For reading font files
 import * as path from 'path'; // For constructing file paths
+import * as fontkit from 'fontkit'; // Changed to namespace import
 
 // --- BEGIN FONT CONFIGURATION ---
 // Assuming CONVERTED .ttf or .otf files will be placed here from your .woff2 files
@@ -32,16 +33,16 @@ const FONT_CONFIG_MAP: Record<string, FontChoiceConfig> = {
     bold: { type: 'standard', standardFont: StandardFonts.HelveticaBold },
   },
   'atkinson': {
-    regular: { type: 'custom', fileName: 'AtkinsonHyperlegible-Regular.ttf' },
+    regular: { type: 'custom', fileName: 'AtkinsonHyperlegibleNext-Regular.otf' },
     // If AtkinsonHyperlegible-Bold.ttf is not available, fallback to a standard bold font
-    bold: { type: 'standard', standardFont: StandardFonts.HelveticaBold }, 
+    bold: { type: 'custom', fileName: 'AtkinsonHyperlegibleNext-Bold.otf' },
     // If you add AtkinsonHyperlegible-Bold.ttf, change above to:
     // bold: { type: 'custom', fileName: 'AtkinsonHyperlegible-Bold.ttf' }, 
   },
   'opendyslexic': {
-    regular: { type: 'custom', fileName: 'OpenDyslexic-Regular.ttf' },
+    regular: { type: 'custom', fileName: 'OpenDyslexic-Regular.otf' },
     // If OpenDyslexic-Bold.ttf is not available, fallback to a standard bold font
-    bold: { type: 'standard', standardFont: StandardFonts.HelveticaBold },
+    bold: { type: 'custom', fileName: 'OpenDyslexic-Bold.otf'},
     // If you add OpenDyslexic-Bold.ttf, change above to:
     // bold: { type: 'custom', fileName: 'OpenDyslexic-Bold.ttf' },
   },
@@ -105,13 +106,21 @@ async function drawTextWithWrapping(
 // Helper function to load a font
 async function loadFont(pdfDoc: PDFDocument, style: FontStylePath | FontStyleStandard): Promise<PDFFont> {
   if (style.type === 'custom') {
+    const resolvedPath = path.join(process.cwd(), FONT_FILES_BASE_PATH, style.fileName);
     try {
-      const fontPath = path.join(process.cwd(), FONT_FILES_BASE_PATH, style.fileName);
-      const fontBytes = fs.readFileSync(fontPath);
+      appLogger.debug(`[PDF Generation] Attempting to load custom font from path: ${resolvedPath}`);
+      appLogger.debug(`[PDF Generation] Does file exist at path? (fs.existsSync): ${fs.existsSync(resolvedPath)}`);
+      const fontBytes = fs.readFileSync(resolvedPath);
       return await pdfDoc.embedFont(fontBytes);
-    } catch (error) {
-      appLogger.warn(`[PDF Generation] Failed to load custom font: ${style.fileName}. Falling back.`, { error });
-      // Fallback to Helvetica if custom font fails to load
+    } catch (error: any) {
+      appLogger.warn(`[PDF Generation] Failed to load custom font: ${style.fileName}. Falling back.`, {
+        errorMessage: error.message,
+        errorStack: error.stack,
+        errorCode: error.code,
+        errorName: error.name,
+        fullErrorObject: JSON.stringify(error, Object.getOwnPropertyNames(error))
+      });
+      appLogger.info(`[PDF Generation] Using fallback font for ${style.fileName}.`);
       return await pdfDoc.embedFont(style.fileName.toLowerCase().includes('bold') ? StandardFonts.HelveticaBold : StandardFonts.Helvetica);
     }
   } else {
@@ -152,6 +161,7 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const { deckId, cardFont: userCardFontChoice } = body;
+    appLogger.debug('[PDF Generation] Received userCardFontChoice from request:', userCardFontChoice);
 
     if (!deckId) {
       return NextResponse.json({ error: 'deckId is required in the request body.' }, { status: 400 });
@@ -159,6 +169,7 @@ export async function POST(req: NextRequest) {
 
     // Determine font configuration - fallback to 'default' if choice is invalid or not provided
     const selectedFontKey = (userCardFontChoice && FONT_CONFIG_MAP[userCardFontChoice]) ? userCardFontChoice : 'default';
+    appLogger.debug('[PDF Generation] Determined selectedFontKey for FONT_CONFIG_MAP:', selectedFontKey);
     const fontChoiceConfig = FONT_CONFIG_MAP[selectedFontKey];
 
     const { data: fetchedDeckData, error: fetchError } = await supabase
@@ -183,8 +194,9 @@ export async function POST(req: NextRequest) {
 
     // PDF Generation
     const pdfDoc = await PDFDocument.create();
+    pdfDoc.registerFontkit(fontkit); // Register fontkit (the namespace) with the PDFDocument instance
     
-    // Load the selected fonts
+    // Load the selected fonts (loadFont will now use the registered fontkit via pdfDoc.embedFont)
     const font = await loadFont(pdfDoc, fontChoiceConfig.regular);
     const fontBold = await loadFont(pdfDoc, fontChoiceConfig.bold);
     

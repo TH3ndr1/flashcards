@@ -25,7 +25,7 @@ export const openDyslexicFont = localFont({
 export const atkinsonFont = localFont({
   src: [
     {
-      path: '../public/fonts/AtkinsonHyperlegible-Regular.woff2', // Adjust path
+      path: '../public/fonts/AtkinsonHyperlegibleNext-Regular.woff2', // Adjust path
       weight: '400',
       style: 'normal',
     },
