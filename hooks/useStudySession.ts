@@ -10,7 +10,6 @@ import type { Tables } from '@/types/database';
 
 import {
     SessionCard,
-    InternalCardState,
     SessionType,
     SessionResults,
     StudyCardDb,
@@ -98,12 +97,13 @@ export function useStudySession({
     const prevSettingsRefHook = useRef<Settings | null | undefined>(undefined);
     const prevIsLoadingSettingsRef = useRef<boolean | undefined>(undefined);
     const initEffectRunCountRef = useRef(0);
+    const isProcessingAnswerRef = useRef(false);
 
     useEffect(() => {
         settingsRef.current = settings;
     }, [settings]);
 
-    const debouncedUpdateProgress = useCallback( /* ... same as previous correct version ... */
+    const debouncedUpdateProgress = useMemo(() =>
       debounce(async (cardId: string, dbPayload: Partial<Tables<'cards'>>, grade: ReviewGrade) => {
         if (!cardId || Object.keys(dbPayload).length === 0) {
             appLogger.warn("[useStudySession] Debounced update: No cardId or empty payload.");
@@ -142,9 +142,8 @@ export function useStudySession({
           appLogger.error(`[useStudySession] Exception saving progress for card ${cardId}:`, e);
           toast.error(`Exception saving progress for a card.`);
         }
-      }, PROGRESS_UPDATE_DEBOUNCE_MS),
-      []
-    );
+      }, PROGRESS_UPDATE_DEBOUNCE_MS)
+    , []);
 
     useEffect(() => {
         initEffectRunCountRef.current += 1;
@@ -348,10 +347,18 @@ export function useStudySession({
 
     // ... (answerCard callback - no changes) ...
     const answerCard = useCallback(async (grade: ReviewGrade) => {
-        if (!currentQueueItem || isProcessingAnswer || isComplete || !settingsRef.current) {
-            appLogger.warn("[useStudySession] answerCard: Guarded return");
+        // Fast path guards (avoid setting the ref if clearly not actionable)
+        if (!currentQueueItem || isComplete || !settingsRef.current) {
+            appLogger.warn("[useStudySession] answerCard: Guarded return (no item/settings or session complete)");
             return;
         }
+        // Synchronous re-entrancy guard to prevent double-submits (keyboard + click, rapid key repeats, etc.)
+        if (isProcessingAnswerRef.current) {
+            appLogger.warn("[useStudySession] answerCard: Duplicate submit blocked by ref guard");
+            return;
+        }
+        isProcessingAnswerRef.current = true;
+
         const currentSettings = settingsRef.current;
         setIsProcessingAnswer(true);
         if (!isFlipped) setIsFlipped(true);
@@ -425,9 +432,10 @@ export function useStudySession({
             } finally {
                 setIsProcessingAnswer(false);
                 appLogger.info("[useStudySession] answerCard: setIsProcessingAnswer(false) in finally.");
+                isProcessingAnswerRef.current = false;
             }
         }, FLIP_DURATION_MS);
-    }, [currentQueueItem, isProcessingAnswer, isComplete, settingsRef, sessionQueue, debouncedUpdateProgress, sessionType, unifiedSessionPhase, isFlipped]);
+    }, [currentQueueItem, isComplete, settingsRef, sessionQueue, debouncedUpdateProgress, sessionType, unifiedSessionPhase, isFlipped, showContinueReviewPrompt]);
 
     // ... (onContinueReview callback - no changes) ...
     const onContinueReview = useCallback(() => { /* ... */

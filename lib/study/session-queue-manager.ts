@@ -15,7 +15,7 @@ import type {
     StudyCardDb,
     CardStateUpdateOutcome
 } from '@/types/study';
-import { parseISO, isValid as isValidDate } from 'date-fns'; // Renamed isValid to avoid conflict
+import { parseISO, isValid as isValidDate, endOfDay } from 'date-fns'; // Renamed isValid to avoid conflict
 
 // Type alias for card data from DB
 type DbCard = Tables<'cards'>;
@@ -39,6 +39,7 @@ export function initializeQueue(
 ): SessionCard[] {
     console.log(`[QueueManager] Initializing queue. Type: ${sessionType}, Fetched cards: ${fetchedCards.length}`);
     const now = new Date();
+    const dueCutoff = endOfDay(now); // Treat all cards due today as available now
     let eligibleCards: StudyCardDb[] = [];
 
     // 1. Filter cards based on sessionType and their current state
@@ -51,7 +52,7 @@ export function initializeQueue(
         eligibleCards = fetchedCards.filter(card => {
             const isReviewState = card.srs_level !== null && card.srs_level >= 1 && card.learning_state === null;
             const isRelearningState = card.srs_level === 0 && card.learning_state === 'relearning';
-            const isDue = card.next_review_due && isValidDate(parseISO(card.next_review_due)) && parseISO(card.next_review_due) <= now;
+            const isDue = card.next_review_due && isValidDate(parseISO(card.next_review_due)) && parseISO(card.next_review_due) <= dueCutoff;
             return (isReviewState || isRelearningState) && isDue;
         });
         console.log(`[QueueManager] Filtered for 'review-only' (due): ${eligibleCards.length} cards.`);
@@ -63,7 +64,7 @@ export function initializeQueue(
             const isReviewEligible = (
                 (card.srs_level !== null && card.srs_level >= 1 && card.learning_state === null) ||
                 (card.srs_level === 0 && card.learning_state === 'relearning')
-            ) && card.next_review_due && isValidDate(parseISO(card.next_review_due)) && parseISO(card.next_review_due) <= now;
+            ) && card.next_review_due && isValidDate(parseISO(card.next_review_due)) && parseISO(card.next_review_due) <= dueCutoff;
             return isLearnEligible || isReviewEligible;
         });
         console.log(`[QueueManager] Filtered for 'unified' (learn or due review): ${eligibleCards.length} cards.`);
@@ -85,14 +86,23 @@ export function initializeQueue(
             initialLearningStepIndex = 0; // Start at step 0 for session internal state
         }
 
+        // Determine initial dueTime. If a review/relearning card is due today (<= dueCutoff),
+        // make it immediately available by setting dueTime to now.
+        let computedDueTime: Date;
+        const hasReviewState = (card.srs_level !== null && card.srs_level >= 1) || (card.srs_level === 0 && card.learning_state === 'relearning');
+        if (hasReviewState && card.next_review_due && isValidDate(parseISO(card.next_review_due))) {
+            const dueDate = parseISO(card.next_review_due);
+            computedDueTime = (dueDate <= dueCutoff) ? now : dueDate;
+        } else {
+            computedDueTime = now;
+        }
+
         const internalState: InternalCardState = {
             streak: 0,
             learningStepIndex: initialLearningStepIndex,
             // For review cards, dueTime is their actual DB due time.
             // For new/learning cards in learn/unified, they are due now unless steps dictate otherwise.
-            dueTime: (card.srs_level !== null && card.srs_level >= 1 && card.next_review_due && isValidDate(parseISO(card.next_review_due)))
-                        ? parseISO(card.next_review_due)
-                        : now,
+            dueTime: computedDueTime,
             failedAttemptsInLearnSession: 0,
             hardAttemptsInLearnSession: 0,
             justSeenInSession: false,
