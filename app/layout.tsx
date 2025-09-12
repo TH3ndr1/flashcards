@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 // --- End of imports ---
 import "./globals.css";
 import { ClientProviders } from "@/components/ClientProviders";
-import { ResponsiveLayout } from '@/components/layout/ResponsiveLayout';
+import { ConditionalLayout } from '@/components/layout/ConditionalLayout';
 import LayoutScript from "./layout-script";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
@@ -66,15 +66,9 @@ export default function RootLayout({
       >
       {/* --- End of body className changes --- */}
         <ClientProviders>
-          <ResponsiveLayout>
-            <div className="relative flex min-h-screen flex-col">
-              <div className="flex-1">
-                <div className="pb-8">
-                  {children}
-                </div>
-              </div>
-            </div>
-          </ResponsiveLayout>
+          <ConditionalLayout>
+            {children}
+          </ConditionalLayout>
         </ClientProviders>
         <LayoutScript />
         <SpeedInsights />

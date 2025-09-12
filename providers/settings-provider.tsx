@@ -66,6 +66,11 @@ export interface Settings {
   // --- Kid-friendly SRS tuning ---
   firstReviewBaseDays: number; // Base for first review interval (level 1 -> 2)
   earlyReviewMaxDays: number;  // Cap for intervals while srs_level <= 3
+
+  // --- Feature Flags ---
+  settingsAccessEnabled: boolean;
+  editFunctionalityEnabled: boolean;
+  childModeEnabled: boolean;
 }
 
 type DbSettings = Tables<'settings'> & {
@@ -122,6 +127,11 @@ export const DEFAULT_SETTINGS: Settings = {
   // --- Kid-friendly SRS tuning defaults ---
   firstReviewBaseDays: 4,
   earlyReviewMaxDays: 14,
+
+  // --- Feature Flags defaults ---
+  settingsAccessEnabled: true,
+  editFunctionalityEnabled: true,
+  childModeEnabled: false,
 };
 
 const transformSettingsToDbUpdates = (updates: Partial<Settings>): DbSettingsUpdate => {
@@ -176,6 +186,11 @@ const transformSettingsToDbUpdates = (updates: Partial<Settings>): DbSettingsUpd
   if (updates.enablePdfWordColorCoding !== undefined) dbUpdates.enable_pdf_word_color_coding = updates.enablePdfWordColorCoding;
   if (updates.pdfCardContentFontSize !== undefined) dbUpdates.pdf_card_content_font_size = updates.pdfCardContentFontSize;
   if (updates.showCardStatusIconsInPdf !== undefined) dbUpdates.show_card_status_icons_in_pdf = updates.showCardStatusIconsInPdf;
+  
+  // --- Feature Flags ---
+  if (updates.settingsAccessEnabled !== undefined) dbUpdates.settings_access_enabled = updates.settingsAccessEnabled;
+  if (updates.editFunctionalityEnabled !== undefined) dbUpdates.edit_functionality_enabled = updates.editFunctionalityEnabled;
+  if (updates.childModeEnabled !== undefined) dbUpdates.child_mode_enabled = updates.childModeEnabled;
   
   return dbUpdates;
 };
@@ -262,6 +277,11 @@ const transformDbSettingsToSettings = (dbSettings: DbSettings | null): Settings 
             // Kid-friendly SRS tuning (loaded from DB if present)
             firstReviewBaseDays: dbSettings.first_review_base_days ?? DEFAULT_SETTINGS.firstReviewBaseDays,
             earlyReviewMaxDays: dbSettings.early_review_max_days ?? DEFAULT_SETTINGS.earlyReviewMaxDays,
+
+            // --- Feature Flags ---
+            settingsAccessEnabled: dbSettings.settings_access_enabled ?? DEFAULT_SETTINGS.settingsAccessEnabled,
+            editFunctionalityEnabled: dbSettings.edit_functionality_enabled ?? DEFAULT_SETTINGS.editFunctionalityEnabled,
+            childModeEnabled: dbSettings.child_mode_enabled ?? DEFAULT_SETTINGS.childModeEnabled,
         };
         debug('transformDbSettingsToSettings: Transformation result:', transformed);
         return transformed;

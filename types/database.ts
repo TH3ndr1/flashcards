@@ -226,6 +226,9 @@ export type Database = {
           word_palette_config: Json | null
           first_review_base_days: number
           early_review_max_days: number
+          settings_access_enabled: boolean
+          edit_functionality_enabled: boolean
+          child_mode_enabled: boolean
         }
         Insert: {
           app_language?: string
@@ -270,6 +273,9 @@ export type Database = {
           word_palette_config?: Json | null
           first_review_base_days?: number
           early_review_max_days?: number
+          settings_access_enabled?: boolean
+          edit_functionality_enabled?: boolean
+          child_mode_enabled?: boolean
         }
         Update: {
           app_language?: string
@@ -314,6 +320,9 @@ export type Database = {
           word_palette_config?: Json | null
           first_review_base_days?: number
           early_review_max_days?: number
+          settings_access_enabled?: boolean
+          edit_functionality_enabled?: boolean
+          child_mode_enabled?: boolean
         }
         Relationships: [
           {

@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Palette, RotateCcw } from "lucide-react";
+import { Palette, RotateCcw, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 // --- Adjust imports for Palette ---
 import { useSettings, DEFAULT_SETTINGS as PROVIDER_DEFAULT_SETTINGS } from "@/providers/settings-provider";
 import type { Settings, FontOption, ThemePreference } from "@/providers/settings-provider"; // Now includes wordPaletteConfig
@@ -46,6 +47,7 @@ export default function SettingsPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const { settings, updateSettings, loading: settingsLoading } = useSettings();
+  const { canAccessSettings, isChildMode } = useFeatureFlags();
   const { setTheme } = useTheme(); // Get setTheme function
 
   // State initialization (Keep all existing state variables)
@@ -351,12 +353,67 @@ export default function SettingsPage() {
   if (settingsLoading || authLoading) { return <div className="container mx-auto p-8">Loading Settings...</div>; }
   if (!user) { return <div className="container mx-auto p-8">Redirecting to login...</div>; }
 
+  // Feature flag protection - Block access if settings are disabled
+  if (!canAccessSettings) {
+    return (
+      <div className="container mx-auto py-8">
+        <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6">
+          <div className="w-16 h-16 text-muted-foreground">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="w-full h-full"
+            >
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              <path d="M8 11l2 2 4-4" />
+            </svg>
+          </div>
+          <Card className="w-full max-w-md text-center">
+            <CardHeader>
+              <CardTitle>Settings Access Restricted</CardTitle>
+              <CardDescription>
+                {isChildMode 
+                  ? "Child Mode is active. Settings access is disabled for safety."
+                  : "Settings access is currently disabled."
+                }
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
+                <p className="text-sm text-orange-800 dark:text-orange-200">
+                  {isChildMode 
+                    ? "To access settings, please disable Child Mode from your Profile page."
+                    : "This feature has been disabled by an administrator."
+                  }
+                </p>
+              </div>
+              <div className="flex gap-2 justify-center">
+                <Button variant="outline" onClick={() => router.back()}>
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Go Back
+                </Button>
+                {isChildMode && (
+                  <Button onClick={() => router.push('/profile')}>
+                    Go to Profile
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   // --- Render ---
   return (
     <div className="container mx-auto py-8"> {/* Keep Original Container */}
-      <div className="flex items-center justify-between mb-8"> {/* Keep Original Header */}
+      <div className="mb-8">
         <h1 className="text-3xl font-bold">Settings</h1>
-        <Button variant="outline" onClick={() => router.back()}> <ArrowLeft className="mr-2 h-4 w-4" /> Back </Button>
       </div>
       <Tabs defaultValue="appearance" className="w-full">
         <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 h-auto">
@@ -848,8 +905,8 @@ export default function SettingsPage() {
                 </div>
                 <p className="text-sm text-muted-foreground pl-4">
                   When learning a brand new card, these are the waiting times between repetitions. 
-                  <strong>Step 1:</strong> How long to wait after seeing the card for the first time. 
-                  <strong>Step 2:</strong> How long to wait after getting Step 1 right. 
+                  <br></br><strong>Step 1:</strong> How long to wait after seeing the card for the first time. 
+                  <br></br><strong>Step 2:</strong> How long to wait after getting Step 1 right. 
                   Example: "1, 10" = see again in 1 minute, then 10 minutes if both are correct.
                 </p>
               </div>

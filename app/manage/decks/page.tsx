@@ -2,7 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Edit, PlusCircle } from 'lucide-react';
+import { Edit, PlusCircle } from 'lucide-react';
 import { createServerClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { getDecks } from '@/lib/actions/deckActions';
@@ -63,12 +63,6 @@ export default async function ManageDecksPage() {
     <div className="container mx-auto py-6 px-4 md:px-6">
       <div className="mb-6 flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center">
-          <Button asChild variant="ghost" size="icon" className="mr-2">
-            {/* Consider linking to a main /manage dashboard if it exists */}
-            <Link href="/"> 
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          </Button>
           <h1 className="text-2xl font-semibold">Manage Your Decks</h1>
         </div>
         <Button asChild>

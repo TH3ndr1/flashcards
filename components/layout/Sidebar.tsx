@@ -2,12 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 import {
   Sheet,
   SheetContent,
   SheetOverlay,
-  SheetClose,
   SheetTitle,
   SheetDescription,
 } from '@/components/ui/sheet';
@@ -23,18 +22,17 @@ import {
   BookOpen,
   BarChart,
   User,
+  Baby,
   Archive,
   Tags,
   Settings,
   LayoutDashboard,
   List,
   PlusCircle,
-  LogOut,
   PanelLeftClose,
   PanelLeftOpen,
   ClipboardCheck,
 } from 'lucide-react';
-import { CreateDeckDialog } from '@/components/create-deck-dialog';
 import { type LucideProps } from 'lucide-react'; // Changed import for LucideProps
 import React from 'react';
 
@@ -107,6 +105,7 @@ const navItems: NavGroupDefinition[] = [
 // Memoize NavigationContent as it primarily depends on isCollapsed and navItems (which is constant)
 const NavigationContentInternal = ({ isCollapsed, onClose }: { isCollapsed: boolean; onClose?: () => void }) => {
   const pathname = usePathname();
+  const { canAccessSettings, isChildMode } = useFeatureFlags();
 
   return (
     <>
@@ -119,7 +118,15 @@ const NavigationContentInternal = ({ isCollapsed, onClose }: { isCollapsed: bool
               </h4>
             )}
             <div className="space-y-1">
-              {group.items.map((item: NavItemUnion) => { // Added NavItemUnion type for item
+              {group.items
+                .filter((item: NavItemUnion) => {
+                  // Filter out settings link when child mode is active
+                  if ('href' in item && item.href === '/settings') {
+                    return canAccessSettings;
+                  }
+                  return true;
+                })
+                .map((item: NavItemUnion) => { // Added NavItemUnion type for item
                 if ('href' in item && typeof item.href === 'string') {
                   // This is a NavLink item
                   return (
@@ -135,14 +142,21 @@ const NavigationContentInternal = ({ isCollapsed, onClose }: { isCollapsed: bool
                           onClick={onClose} // onClose for closing mobile sheet
                         >
                           <Link href={item.href} aria-label={item.label}>
-                            <item.icon className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
-                            <span className={cn(isCollapsed && "hidden")}>{item.label}</span>
+                            {/* Use child icon for profile when child mode is active */}
+                            {item.href === '/profile' && isChildMode ? (
+                              <Baby className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
+                            ) : (
+                              <item.icon className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
+                            )}
+                            <span className={cn(isCollapsed && "hidden")}>
+                              {item.href === '/profile' && isChildMode ? 'Child Profile' : item.label}
+                            </span>
                           </Link>
                         </Button>
                       </TooltipTrigger>
                       {isCollapsed && (
                         <TooltipContent side="right">
-                          <p>{item.label}</p>
+                          <p>{item.href === '/profile' && isChildMode ? 'Child Profile' : item.label}</p>
                         </TooltipContent>
                       )}
                     </Tooltip>

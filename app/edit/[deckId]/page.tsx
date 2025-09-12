@@ -1,7 +1,7 @@
 // app/edit/[deckId]/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useParams, useRouter } from "next/navigation"; // Keep useRouter if needed for back button etc.
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -15,12 +15,13 @@ import { TableViewTabContent } from "./TableViewTabContent";
 import { DeckDangerZone } from "./DeckDangerZone";
 import { DeckTagEditor } from '@/components/deck-tag-editor';
 import type { Tables, Database } from "@/types/database"; // Keep type import
-import { appLogger, statusLogger } from '@/lib/logger';
+import { appLogger } from '@/lib/logger';
 import { createBrowserClient } from '@supabase/ssr'; // For client-side Supabase access
 import { toast } from 'sonner'; // For notifications
 import { useSettings, DEFAULT_SETTINGS } from "@/providers/settings-provider"; // <-- Import useSettings
-import { useTheme } from "next-themes"; // <-- Import useTheme
-import type { FontOption } from "@/providers/settings-provider"; // <-- Optional: type for cardFont
+import { useFeatureFlags } from "@/hooks/useFeatureFlags";
+// useTheme import removed as it's not used
+// FontOption type import removed as it's not used
 
 type DbCard = Tables<'cards'>;
 
@@ -40,7 +41,8 @@ export default function EditDeckPage() {
     );
 
     const { settings: userSettings, loading: settingsLoading } = useSettings();
-    const { theme, resolvedTheme } = useTheme(); // <-- Get theme and resolvedTheme
+    const { canUseEditFunctionality, isChildMode } = useFeatureFlags();
+    // Theme hooks removed as they're not used in this component
 
     // Use the custom hook to manage state and actions
     const {
@@ -101,6 +103,58 @@ export default function EditDeckPage() {
         );
     }
 
+    // --- Feature Flag Protection ---
+    if (!canUseEditFunctionality) {
+        return (
+            <div className="container mx-auto py-8">
+                <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6">
+                    <div className="w-16 h-16 text-muted-foreground">
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="w-full h-full"
+                        >
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                            <path d="M8 11l2 2 4-4" />
+                        </svg>
+                    </div>
+                    <div className="w-full max-w-md text-center">
+                        <h2 className="text-xl font-semibold mb-2">Edit Access Restricted</h2>
+                        <p className="text-muted-foreground mb-6">
+                            {isChildMode 
+                                ? "Child Mode is active. Deck editing is disabled for safety."
+                                : "Deck editing functionality is currently disabled."
+                            }
+                        </p>
+                        <div className="p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg mb-6">
+                            <p className="text-sm text-orange-800 dark:text-orange-200">
+                                {isChildMode 
+                                    ? "To edit decks, please disable Child Mode from your Profile page."
+                                    : "This feature has been disabled by an administrator."
+                                }
+                            </p>
+                        </div>
+                        <div className="flex gap-2 justify-center">
+                            <Button variant="outline" onClick={() => router.back()}>
+                                <ArrowLeft className="mr-2 h-4 w-4" />
+                                Go Back
+                            </Button>
+                            {isChildMode && (
+                                <Button onClick={() => router.push('/profile')}>
+                                    Go to Profile
+                                </Button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     // --- Main Render ---
     return (
         <div className="container mx-auto py-6 md:py-8 px-4">
@@ -119,8 +173,8 @@ export default function EditDeckPage() {
                                 toast.success(`Swapped Q/A for ${res.data?.updatedCards ?? 0} cards.`, { id: toastId });
                                 // Soft refresh: reload deck data without a full page reload to avoid auth race
                                 await loadDeckData(deckId);
-                            } catch (e: any) {
-                                toast.error('Swap failed', { id: toastId, description: e.message || 'Unknown error' });
+                            } catch (e: unknown) {
+                                toast.error('Swap failed', { id: toastId, description: (e as Error).message || 'Unknown error' });
                             }
                         }}
                         title="Swap all cards' Question/Answer and deck languages"
@@ -201,10 +255,10 @@ export default function EditDeckPage() {
                                 a.remove();
                                 toast.success("PDF generated and download started.");
 
-                            } catch (err: any) {
+                            } catch (err: unknown) {
                                 console.error("Error generating PDF:", err);
                                 appLogger.error("[EditDeckPage - PDF] Error:", err);
-                                toast.error(`PDF Generation Failed: ${err.message}`);
+                                toast.error(`PDF Generation Failed: ${(err as Error).message}`);
                             } finally {
                                 setIsGeneratingPdf(false);
                             }
@@ -217,10 +271,6 @@ export default function EditDeckPage() {
                             <FileDown className="mr-2 h-4 w-4" />
                         )}
                         Save to PDF
-                    </Button>
-                    <Button variant="outline" onClick={() => router.back()}>
-                        <ArrowLeft className="mr-2 h-4 w-4" />
-                        Back
                     </Button>
                 </div>
             </div>

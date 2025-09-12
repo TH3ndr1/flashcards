@@ -6,6 +6,7 @@ import { Menu, Settings, Volume2 } from 'lucide-react';
 import Image from 'next/image';
 import { UserNavButton } from '@/components/user-nav';
 import { TTSToggleButton } from '@/components/tts-toggle-button';
+import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 import React from 'react';
 
 interface HeaderProps {
@@ -13,6 +14,8 @@ interface HeaderProps {
 }
 
 const HeaderInternal = ({ onToggleMobileSidebar }: HeaderProps) => {
+  const { canAccessSettings } = useFeatureFlags();
+
   return (
     <header className="fixed top-0 left-0 right-0 z-40 flex h-16 items-center justify-between border-b bg-background px-4 md:px-6">
       {/* Hamburger Menu for Mobile */}
@@ -45,12 +48,14 @@ const HeaderInternal = ({ onToggleMobileSidebar }: HeaderProps) => {
 
       {/* Right-side icons */}
       <div className="flex items-center gap-3">
-         {/* Settings Button - Hidden on mobile */}
-        <Link href="/settings" className="hidden md:inline-flex"> {/* Hide Link on mobile */}
-          <Button variant="ghost" size="icon" aria-label="Settings">
-            <Settings className="h-5 w-5" />
-          </Button>
-        </Link>
+         {/* Settings Button - Hidden on mobile and when child mode is active */}
+        {canAccessSettings && (
+          <Link href="/settings" className="hidden md:inline-flex"> {/* Hide Link on mobile */}
+            <Button variant="ghost" size="icon" aria-label="Settings">
+              <Settings className="h-5 w-5" />
+            </Button>
+          </Link>
+        )}
         {/* Use the actual TTSToggleButton component */}
         <div className="hidden md:inline-flex"> {/* Wrapper to maintain layout */} 
           <TTSToggleButton />

@@ -4,19 +4,11 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, FilePlus, BotMessageSquare, PencilLine } from 'lucide-react'; // Added PencilLine
-import { useRouter } from 'next/navigation';
-
+import { FilePlus, BotMessageSquare, PencilLine } from 'lucide-react'; // Added PencilLine
 export default function CreateChoicePage() {
-    const router = useRouter();
 
     return (
         <div className="container mx-auto max-w-lg px-4 py-8">
-            <Button variant="outline" size="sm" onClick={() => router.back()} className="mb-6">
-                 <ArrowLeft className="mr-2 h-4 w-4" />
-                 Back
-            </Button>
-
             <h1 className="text-2xl font-bold mb-6 text-center">How would you like to create a deck?</h1>
 
             <div className="grid grid-cols-1 gap-6">

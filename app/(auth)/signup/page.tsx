@@ -8,6 +8,11 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Separator } from "@/components/ui/separator"
+import { LegalDocumentModal } from "@/components/legal/LegalDocumentModal"
+import { TermsOfServiceContent } from "@/app/legal/terms-of-service/page"
+import { PrivacyPolicyContent } from "@/app/legal/privacy-policy/page"
 import { useAuth } from "@/hooks/use-auth"
 import { toast } from "sonner"
 import type { AuthError } from '@supabase/supabase-js'
@@ -50,6 +55,10 @@ function SignupContent() {
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [termsConsent, setTermsConsent] = useState(false)
+  const [ageConsent, setAgeConsent] = useState(false)
+  const [showTermsModal, setShowTermsModal] = useState(false)
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false)
   const { signUp, user, loading: authLoading } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -82,6 +91,13 @@ function SignupContent() {
     if (!email || !password || !confirmPassword) {
       toast.error("Missing Information", {
         description: "Please fill in all fields."
+      })
+      return
+    }
+
+    if (!termsConsent || !ageConsent) {
+      toast.error("Legal Consent Required", {
+        description: "Please agree to the Terms of Service and confirm your age to continue."
       })
       return
     }
@@ -184,9 +200,74 @@ function SignupContent() {
                 disabled={isLoading}
               />
             </div>
+
+            <Separator />
+
+            {/* Legal Consent Section */}
+            <div className="space-y-4">
+              <div className="space-y-3">
+                <h4 className="font-medium text-sm">Legal Requirements</h4>
+                <div className="space-y-3">
+                  <div className="flex items-start space-x-3">
+                    <Checkbox
+                      id="terms-consent-signup"
+                      checked={termsConsent}
+                      onCheckedChange={(checked) => setTermsConsent(checked as boolean)}
+                      disabled={isLoading}
+                    />
+                    <div className="space-y-1">
+                      <Label 
+                        htmlFor="terms-consent-signup" 
+                        className="text-sm leading-5 cursor-pointer"
+                      >
+                        I agree to the{" "}
+                        <button
+                          type="button"
+                          onClick={() => setShowTermsModal(true)}
+                          className="text-primary hover:underline focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded"
+                          disabled={isLoading}
+                        >
+                          Terms of Service
+                        </button>
+                        {" "}and{" "}
+                        <button
+                          type="button"
+                          onClick={() => setShowPrivacyModal(true)}
+                          className="text-primary hover:underline focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded"
+                          disabled={isLoading}
+                        >
+                          Privacy Policy
+                        </button>.
+                      </Label>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start space-x-3">
+                    <Checkbox
+                      id="age-consent-signup"
+                      checked={ageConsent}
+                      onCheckedChange={(checked) => setAgeConsent(checked as boolean)}
+                      disabled={isLoading}
+                    />
+                    <div className="space-y-1">
+                      <Label 
+                        htmlFor="age-consent-signup" 
+                        className="text-sm leading-5 cursor-pointer"
+                      >
+                        I confirm that I am at least 16 years old. If this account will be used by a child under 16, I am the parent or legal guardian and I give consent on their behalf.
+                      </Label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </CardContent>
           <CardFooter>
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button 
+              type="submit" 
+              className="w-full" 
+              disabled={isLoading || !termsConsent || !ageConsent}
+            >
               {isLoading ? "Creating account..." : "Sign up"}
             </Button>
           </CardFooter>
@@ -200,6 +281,23 @@ function SignupContent() {
           </div>
         </CardFooter>
       </Card>
+
+      {/* Legal Document Modals */}
+      <LegalDocumentModal
+        isOpen={showTermsModal}
+        onClose={() => setShowTermsModal(false)}
+        title="Terms of Service"
+      >
+        <TermsOfServiceContent />
+      </LegalDocumentModal>
+
+      <LegalDocumentModal
+        isOpen={showPrivacyModal}
+        onClose={() => setShowPrivacyModal(false)}
+        title="Privacy Policy"
+      >
+        <PrivacyPolicyContent />
+      </LegalDocumentModal>
     </div>
   )
 }

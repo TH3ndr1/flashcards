@@ -1,12 +1,14 @@
 "use client"
 
-import { User } from "lucide-react"
+import { User, Baby } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { useFeatureFlags } from "@/hooks/useFeatureFlags"
 
 export function UserNavButton() {
   const router = useRouter()
+  const { isChildMode } = useFeatureFlags()
 
   return (
     <TooltipProvider>
@@ -17,11 +19,15 @@ export function UserNavButton() {
             size="icon"
             onClick={() => router.push("/profile")}
           >
-            <User className="h-5 w-5" />
+            {isChildMode ? (
+              <Baby className="h-5 w-5" />
+            ) : (
+              <User className="h-5 w-5" />
+            )}
           </Button>
         </TooltipTrigger>
         <TooltipContent>
-          <p>Profile</p>
+          <p>{isChildMode ? "Child Profile" : "Profile"}</p>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
