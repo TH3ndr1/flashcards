@@ -1,7 +1,7 @@
 // lib/srs.ts
-import { addDays, addMinutes, startOfDay, isAfter } from 'date-fns';
+import { addDays, addMinutes, startOfDay } from 'date-fns';
 import type { Settings } from "@/providers/settings-provider"; // Import the correct Settings type
-import { appLogger, statusLogger } from '@/lib/logger';
+import { appLogger } from '@/lib/logger';
 
 
 
@@ -130,7 +130,7 @@ export function calculateSm2State(
   // Calculate next interval based on Anki's SM-2 interpretation for review phase (level >= 1 -> next level >= 2)
   let intervalBase: number;
   if (current.srsLevel === 1) { // Transitioning from level 1 to 2 (first successful review to second)
-       intervalBase = 6; // This is I(2) in Anki, based on I(1)=1. Interval is fixed.
+       intervalBase = settings.firstReviewBaseDays ?? 6; // Kid-friendly override (default 4 in Settings)
   } else { // Transitioning from level >= 2 to >= 3 (standard review growth)
       intervalBase = previousIntervalDays; // Base interval is the previous interval
   }
@@ -138,6 +138,11 @@ export function calculateSm2State(
   const multiplier = (grade === 2) ? 1.2 : newEasinessFactor; // Anki Hard multiplier (1.2), otherwise use the new EF
 
   newIntervalDays = Math.round(intervalBase * multiplier);
+
+  // Kid-friendly cap for early stages (levels up to 3)
+  if ((current.srsLevel + 1) <= 3 && typeof settings.earlyReviewMaxDays === 'number') {
+      newIntervalDays = Math.min(newIntervalDays, settings.earlyReviewMaxDays);
+  }
 
 
   // Ensure interval is at least 1 day for Review phase

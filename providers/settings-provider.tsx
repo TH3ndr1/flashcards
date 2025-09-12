@@ -5,13 +5,13 @@ import { useAuth } from "@/hooks/use-auth";
 // Alias the imported server action to avoid naming conflict
 import { updateUserSettings as updateUserSettingsServerAction, getUserSettings } from "@/lib/actions/settingsActions";
 import { toast } from "sonner";
-import type { Database, Tables, Json, TablesUpdate } from "@/types/database";
+import type { Tables, Json, TablesUpdate } from "@/types/database";
 import type { ActionResult } from '@/lib/actions/types';
 import { DEFAULT_PALETTE_CONFIG } from "@/lib/palettes";
 import { appLogger } from '@/lib/logger'; // Removed statusLogger as it wasn't used here
 
 const DEBUG = true;
-const debug = (...args: any[]) => {
+const debug = (...args: unknown[]) => {
   if (DEBUG && process.env.NODE_ENV !== 'production') {
     appLogger.info('[Settings Provider Debug]:', ...args);
   }
@@ -62,6 +62,10 @@ export interface Settings {
   enablePdfWordColorCoding: boolean;
   pdfCardContentFontSize: number;
   showCardStatusIconsInPdf: boolean;
+
+  // --- Kid-friendly SRS tuning ---
+  firstReviewBaseDays: number; // Base for first review interval (level 1 -> 2)
+  earlyReviewMaxDays: number;  // Cap for intervals while srs_level <= 3
 }
 
 type DbSettings = Tables<'settings'>;
@@ -97,8 +101,8 @@ export const DEFAULT_SETTINGS: Settings = {
   lapsedEfPenalty: 0.2,
   learnAgainPenalty: 0.2,
   learnHardPenalty: 0.05,
-  minEasinessFactor: 1.3,
-  defaultEasinessFactor: 2.5,
+  minEasinessFactor: 1.5,
+  defaultEasinessFactor: 2.3,
   enableStudyTimer: false,
   studyTimerDurationMinutes: 25,
   uiLanguage: 'en',
@@ -111,6 +115,10 @@ export const DEFAULT_SETTINGS: Settings = {
   enablePdfWordColorCoding: true,
   pdfCardContentFontSize: 10,
   showCardStatusIconsInPdf: true,
+
+  // --- Kid-friendly SRS tuning defaults ---
+  firstReviewBaseDays: 4,
+  earlyReviewMaxDays: 14,
 };
 
 const transformSettingsToDbUpdates = (updates: Partial<Settings>): DbSettingsUpdate => {
@@ -149,6 +157,7 @@ const transformSettingsToDbUpdates = (updates: Partial<Settings>): DbSettingsUpd
   if (updates.learnHardPenalty !== undefined) dbUpdates.learn_hard_penalty = updates.learnHardPenalty;
   if (updates.minEasinessFactor !== undefined) dbUpdates.min_easiness_factor = updates.minEasinessFactor;
   if (updates.defaultEasinessFactor !== undefined) dbUpdates.default_easiness_factor = updates.defaultEasinessFactor;
+  // firstReviewBaseDays and earlyReviewMaxDays are client-only settings for now
 
   if (updates.enableStudyTimer !== undefined) dbUpdates.enable_study_timer = updates.enableStudyTimer;
   if (updates.studyTimerDurationMinutes !== undefined) dbUpdates.study_timer_duration_minutes = updates.studyTimerDurationMinutes;
@@ -236,6 +245,10 @@ const transformDbSettingsToSettings = (dbSettings: DbSettings | null): Settings 
             enablePdfWordColorCoding: dbSettings.enable_pdf_word_color_coding ?? DEFAULT_SETTINGS.enablePdfWordColorCoding,
             pdfCardContentFontSize: dbSettings.pdf_card_content_font_size ?? DEFAULT_SETTINGS.pdfCardContentFontSize,
             showCardStatusIconsInPdf: dbSettings.show_card_status_icons_in_pdf ?? DEFAULT_SETTINGS.showCardStatusIconsInPdf,
+
+            // Kid-friendly SRS tuning (client-only for now)
+            firstReviewBaseDays: DEFAULT_SETTINGS.firstReviewBaseDays,
+            earlyReviewMaxDays: DEFAULT_SETTINGS.earlyReviewMaxDays,
         };
         debug('transformDbSettingsToSettings: Transformation result:', transformed);
         return transformed;
@@ -362,7 +375,7 @@ const updateSettings = useCallback(async (
   setSettings(previousSettings); 
   return { data: null, error: "Failed to update settings: action returned no data." };
 
-}, [user, settings, updateUserSettingsServerAction]); // updateUserSettingsServerAction is the imported action
+}, [user, settings]);
 
   const contextValue = useMemo(() => ({
     settings,
