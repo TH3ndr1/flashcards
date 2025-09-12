@@ -152,7 +152,7 @@ export function StudySetListClient({ initialData = [] }: StudySetListClientProps
     
     const sessionType: SessionType = 'unified';
     clearStudyParameters(); 
-    setStudyParameters(studyInput, sessionType);
+    setStudyParameters(studyInput, sessionType, undefined, true);
     router.push('/study/session');
   };
 

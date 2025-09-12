@@ -198,6 +198,14 @@ const transformDbSettingsToSettings = (dbSettings: DbSettings | null): Settings 
             ? 'dedicated-learn'
             : 'standard-sm2';
 
+        // Validate step arrays from DB; fall back to defaults if empty/invalid
+        const relearnStepsFinal = Array.isArray(dbSettings.relearning_steps_minutes)
+            ? (dbSettings.relearning_steps_minutes.filter((n: unknown) => typeof n === 'number' && (n as number) > 0) as number[])
+            : [];
+        const initialStepsFinal = Array.isArray(dbSettings.initial_learning_steps_minutes)
+            ? (dbSettings.initial_learning_steps_minutes.filter((n: unknown) => typeof n === 'number' && (n as number) > 0) as number[])
+            : [];
+
         const transformed: Settings = {
             appLanguage: dbSettings.app_language ?? DEFAULT_SETTINGS.appLanguage,
             languageDialects: languageDialectsFinal,
@@ -216,8 +224,8 @@ const transformDbSettingsToSettings = (dbSettings: DbSettings | null): Settings 
             customLearnRequeueGap: dbSettings.custom_learn_requeue_gap ?? DEFAULT_SETTINGS.customLearnRequeueGap,
             graduatingIntervalDays: dbSettings.graduating_interval_days ?? DEFAULT_SETTINGS.graduatingIntervalDays,
             easyIntervalDays: dbSettings.easy_interval_days ?? DEFAULT_SETTINGS.easyIntervalDays,
-            relearningStepsMinutes: Array.isArray(dbSettings.relearning_steps_minutes) ? dbSettings.relearning_steps_minutes : DEFAULT_SETTINGS.relearningStepsMinutes,
-            initialLearningStepsMinutes: Array.isArray(dbSettings.initial_learning_steps_minutes) ? dbSettings.initial_learning_steps_minutes : DEFAULT_SETTINGS.initialLearningStepsMinutes,
+            relearningStepsMinutes: relearnStepsFinal.length > 0 ? relearnStepsFinal : DEFAULT_SETTINGS.relearningStepsMinutes,
+            initialLearningStepsMinutes: initialStepsFinal.length > 0 ? initialStepsFinal : DEFAULT_SETTINGS.initialLearningStepsMinutes,
             lapsedEfPenalty: typeof dbSettings.lapsed_ef_penalty === 'number' ? dbSettings.lapsed_ef_penalty : DEFAULT_SETTINGS.lapsedEfPenalty,
             learnAgainPenalty: typeof dbSettings.learn_again_penalty === 'number' ? dbSettings.learn_again_penalty : DEFAULT_SETTINGS.learnAgainPenalty,
             learnHardPenalty: typeof dbSettings.learn_hard_penalty === 'number' ? dbSettings.learn_hard_penalty : DEFAULT_SETTINGS.learnHardPenalty,

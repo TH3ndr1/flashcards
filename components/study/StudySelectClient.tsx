@@ -40,11 +40,11 @@ export function StudySelectClient({
   const [error] = useState<string | null>(hasErrors ? 'There was an issue loading some data' : null);
 
   // onStartStudying now expects SessionType from StudySetSelector
-  const handleStartStudying = async (input: StudySessionInput, sessionType: SessionType) => {
+  const handleStartStudying = async (input: StudySessionInput, sessionType: SessionType, srsEnabled: boolean = true) => {
     try {
-      console.log(`[StudySelectClient] Setting params for ${sessionType} session:`, input);
+      console.log(`[StudySelectClient] Setting params for ${sessionType} session (srsEnabled=${srsEnabled}):`, input);
       clearStudyParameters();
-      setStudyParameters(input, sessionType); // Pass SessionType to store
+      setStudyParameters(input, sessionType, undefined, srsEnabled); // Pass SessionType and srsEnabled to store
       router.push('/study/session');
     } catch (error) {
       console.error('Error starting study session:', error);

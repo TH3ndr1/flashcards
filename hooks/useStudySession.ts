@@ -64,11 +64,13 @@ export interface UseStudySessionReturn {
 interface UseStudySessionProps {
     initialInput: StudySessionInput | null;
     sessionType: SessionType | null;
+    srsEnabled?: boolean;
 }
 
 export function useStudySession({
     initialInput,
-    sessionType
+    sessionType,
+    srsEnabled = true
 }: UseStudySessionProps): UseStudySessionReturn {
     const { settings, loading: isLoadingSettings } = useSettings();
 
@@ -235,7 +237,7 @@ export function useStudySession({
                 if (cardsResult.error || !cardsResult.data) throw new Error(cardsResult.error || 'Failed to fetch card data.');
                 const fetchedDbCards = cardsResult.data as StudyCardDb[];
                 appLogger.info(`${logPrefix} Fetched ${fetchedDbCards.length} card data objects.`);
-                const newQueue = initializeQueue(fetchedDbCards, sessionType, settings);
+                const newQueue = initializeQueue(fetchedDbCards, sessionType, settings, { srsEnabled });
                 if (!isMounted) return;
                 appLogger.info(`${logPrefix} Queue initialized. Length: ${newQueue.length}`);
                 if (newQueue.length === 0) {
@@ -293,7 +295,7 @@ export function useStudySession({
             if (dueCheckTimerRef.current) clearTimeout(dueCheckTimerRef.current);
             appLogger.info(`${logPrefix} CLEANUP.`);
         };
-    }, [initialInput, sessionType, settings, isLoadingSettings]); // Dependencies of the main initialization effect
+    }, [initialInput, sessionType, settings, isLoadingSettings, srsEnabled]); // Dependencies of the main initialization effect
 
     // ... (useEffect for currentCardIndex and timer - no changes from previous) ...
     useEffect(() => {

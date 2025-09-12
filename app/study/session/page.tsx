@@ -43,6 +43,7 @@ export default function StudySessionPage() {
 
   const currentInputFromStore = useStudySessionStore((state) => state.currentInput);
   const sessionTypeFromStore = useStudySessionStore((state) => state.currentSessionType);
+  const srsEnabledFromStore = useStudySessionStore((state) => state.srsEnabledForSession);
 
   const [isPageInitialized, setIsPageInitialized] = useState(false);
 
@@ -68,7 +69,8 @@ export default function StudySessionPage() {
     unifiedSessionPhase // Destructure this new property
   }: UseStudySessionReturn = useStudySession({
     initialInput: currentInputFromStore,
-    sessionType: sessionTypeFromStore
+    sessionType: sessionTypeFromStore,
+    srsEnabled: srsEnabledFromStore
   });
 
   const [isTransitioningVisual, setIsTransitioningVisual] = useState(false);

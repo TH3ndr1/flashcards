@@ -159,7 +159,7 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
     const studyInput: StudySessionInput = { deckId: deckId };
     const sessionTypeForStore: SessionType = 'unified';
     clearStudyParameters();
-    setStudyParameters(studyInput, sessionTypeForStore);
+    setStudyParameters(studyInput, sessionTypeForStore, undefined, true);
     router.push('/study/session');
   };
 

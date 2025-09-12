@@ -14,6 +14,9 @@ import { appLogger } from '@/lib/logger';
 import { ItemInfoBadges } from '@/components/ItemInfoBadges';
 import { DeckProgressLegend } from '@/components/deck/DeckProgressLegend';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // Type for deck data including SRS counts, similar to EnhancedDeck in DeckListClient
 interface ManageDeckItem {
   id: string;

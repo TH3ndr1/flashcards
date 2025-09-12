@@ -78,16 +78,28 @@ export function CardEditor({ card, onUpdate, onDelete, onCreate }: CardEditorPro
   };
 
   const handleQuestionBlur = () => {
-    if (isExistingCard && card?.id && internalQuestion !== card?.question) {
+    const trimmed = internalQuestion.trim();
+    if (!isExistingCard && onCreate && trimmed && internalAnswer.trim()) {
+      // Autosave for new card when both fields are filled
+      if (!isSavingNew) handleCreate();
+      return;
+    }
+    if (isExistingCard && card?.id && trimmed !== (card?.question ?? '')) {
       appLogger.info('[CardEditor] Question blur update for ID:', card.id);
-      onUpdate(card.id, { question: internalQuestion });
+      onUpdate(card.id, { question: trimmed });
     }
   };
 
   const handleAnswerBlur = () => {
-    if (isExistingCard && card?.id && internalAnswer !== card?.answer) {
+    const trimmed = internalAnswer.trim();
+    if (!isExistingCard && onCreate && trimmed && internalQuestion.trim()) {
+      // Autosave for new card when both fields are filled
+      if (!isSavingNew) handleCreate();
+      return;
+    }
+    if (isExistingCard && card?.id && trimmed !== (card?.answer ?? '')) {
       appLogger.info('[CardEditor] Answer blur update for ID:', card.id);
-      onUpdate(card.id, { answer: internalAnswer });
+      onUpdate(card.id, { answer: trimmed });
     }
   };
 
@@ -291,13 +303,8 @@ export function CardEditor({ card, onUpdate, onDelete, onCreate }: CardEditorPro
         </div>
       </CardContent>
 
-      {!isExistingCard && onCreate && (
-        <CardFooter className="flex justify-end p-3 bg-muted/50 border-t">
-           <Button onClick={handleCreate} disabled={isSavingNew || !internalQuestion.trim() || !internalAnswer.trim()} size="sm">
-              {isSavingNew ? <IconLoader className="h-4 w-4 animate-spin mr-2"/> : <Save className="h-4 w-4 mr-2" />} Save New Card
-           </Button>
-        </CardFooter>
-      )}
+      {/* Footer with explicit save is no longer required for new cards since autosave on blur is enabled.
+          Keeping it hidden to avoid UX confusion. */}
     </Card>
   )
 }

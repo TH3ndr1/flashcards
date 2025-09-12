@@ -8,7 +8,8 @@ interface StudySessionState {
   currentInput: StudySessionInput | null;
   currentSessionType: SessionType | null; // Changed from currentMode to currentSessionType
   sessionOriginUrl: string | null; // Added to store the origin URL
-  setStudyParameters: (input: StudySessionInput, sessionType: SessionType, originUrl?: string) => void; // Parameter changed, added originUrl
+  srsEnabledForSession: boolean; // Whether SRS scheduling is enabled for the upcoming session
+  setStudyParameters: (input: StudySessionInput, sessionType: SessionType, originUrl?: string, srsEnabled?: boolean) => void; // Added optional srsEnabled
   clearStudyParameters: () => void;
   // Removed setSessionOriginUrl as it's integrated into setStudyParameters
 }
@@ -22,12 +23,18 @@ export const useStudySessionStore = create<StudySessionState>((set) => ({
   currentInput: null,
   currentSessionType: null, // Initialize currentSessionType
   sessionOriginUrl: null, // Initialize sessionOriginUrl
-  setStudyParameters: (input, sessionType, originUrl) => {
-      appLogger.info("[StudySessionStore] Setting parameters:", { input, sessionType, originUrl });
-      set({ currentInput: input, currentSessionType: sessionType, sessionOriginUrl: originUrl ?? null }); // Store sessionType and originUrl
+  srsEnabledForSession: true,
+  setStudyParameters: (input, sessionType, originUrl, srsEnabled) => {
+      appLogger.info("[StudySessionStore] Setting parameters:", { input, sessionType, originUrl, srsEnabled });
+      set({ 
+        currentInput: input, 
+        currentSessionType: sessionType, 
+        sessionOriginUrl: originUrl ?? null,
+        srsEnabledForSession: srsEnabled === undefined ? true : !!srsEnabled
+      }); // Store sessionType, originUrl, and SRS toggle
   },
   clearStudyParameters: () => {
       appLogger.info("[StudySessionStore] Clearing parameters.");
-      set({ currentInput: null, currentSessionType: null, sessionOriginUrl: null }); // Clear sessionType and originUrl
+      set({ currentInput: null, currentSessionType: null, sessionOriginUrl: null, srsEnabledForSession: true }); // Clear and reset SRS flag
   },
 }));

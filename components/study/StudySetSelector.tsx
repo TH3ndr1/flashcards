@@ -8,16 +8,17 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { StudySessionInput, SessionType } from '@/types/study';
 import { toast } from 'sonner';
-import { Loader2 as IconLoader, GraduationCap, Play, Info } from 'lucide-react';
+import { GraduationCap, Play, Info } from 'lucide-react';
 import type { Tables } from "@/types/database";
 import type { StudyQueryCriteria } from "@/lib/schema/study-query.schema";
 import { appLogger } from '@/lib/logger';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { getLearnNewCardCountForSource, getReviewDueCardCountForSource, getStudySetCardCountByCriteria } from '@/lib/actions/studyQueryActions';
+import { getStudySetCardCountByCriteria } from '@/lib/actions/studyQueryActions';
 import type { ResolveStudyQueryInput } from '@/lib/actions/studyQueryActions';
 import { getBaseCriteria } from '@/lib/actions/studyQueryActions';
 import type { UserGlobalSrsSummary } from '@/lib/actions/studyQueryActions';
+import { Checkbox } from '@/components/ui/checkbox';
 
 
 type DeckWithTotalCount = Pick<Tables<'decks'>, 'id' | 'name'> & {
@@ -33,7 +34,7 @@ interface StudySetSelectorProps {
   studySets?: StudySetWithTotalCount[];
   globalSrsSummary: UserGlobalSrsSummary;
   isLoadingStudySets?: boolean;
-  onStartStudying: (input: StudySessionInput, sessionType: SessionType) => void;
+  onStartStudying: (input: StudySessionInput, sessionType: SessionType, srsEnabled?: boolean) => void;
 }
 
 type SelectionSourceType = 'all' | 'deck' | 'studySet';
@@ -57,7 +58,18 @@ export function StudySetSelector({
   const [learnNewCount, setLearnNewCount] = useState<number | null>(null);
   const [reviewDueCount, setReviewDueCount] = useState<number | null>(null);
   const [unifiedCount, setUnifiedCount] = useState<number | null>(null);
-  const [isLoadingCounts, setIsLoadingCounts] = useState(false);
+  // Removed local counts loading flag; counts render is instantaneous relative to page
+  const [srsEnabled, setSrsEnabled] = useState<boolean>(true);
+
+  // Compute how many cards are eligible to start right now, respecting the SRS toggle
+  const startEligibleCount = useMemo(() => {
+    const total = selectedSourceTotalCount ?? 0;
+    if (!srsEnabled) return total; // When SRS is disabled, treat all cards as eligible
+    if (selectedSessionType === 'unified') return unifiedCount ?? 0;
+    if (selectedSessionType === 'learn') return learnNewCount ?? 0;
+    if (selectedSessionType === 'review') return reviewDueCount ?? 0;
+    return 0;
+  }, [srsEnabled, selectedSessionType, unifiedCount, learnNewCount, reviewDueCount, selectedSourceTotalCount]);
 
   // Effect to update selectedSourceTotalCount when the source or specific ID changes
   useEffect(() => {
@@ -89,7 +101,6 @@ export function StudySetSelector({
 
   useEffect(() => {
     const fetchSpecificCounts = async () => {
-      setIsLoadingCounts(true);
       setLearnNewCount(null);
       setReviewDueCount(null);
       setUnifiedCount(null);
@@ -98,7 +109,6 @@ export function StudySetSelector({
         setLearnNewCount(globalSrsSummary.new_cards);
         setReviewDueCount(globalSrsSummary.due_cards);
         setUnifiedCount(globalSrsSummary.new_review_cards);
-        setIsLoadingCounts(false);
         return;
       }
 
@@ -108,7 +118,6 @@ export function StudySetSelector({
         setLearnNewCount(0);
         setReviewDueCount(0);
         setUnifiedCount(0);
-        setIsLoadingCounts(false);
         return;
       }
 
@@ -145,26 +154,13 @@ export function StudySetSelector({
         setLearnNewCount(0);
         setReviewDueCount(0);
         setUnifiedCount(0);
-      } finally {
-        setIsLoadingCounts(false);
-      }
+      } finally {}
     };
 
     fetchSpecificCounts();
   }, [selectionSource, selectedDeckId, selectedStudySetId, getCurrentStudyInput, globalSrsSummary]);
 
-  const currentSelectionTotalCardCount = useMemo(() => {
-    if (selectionSource === 'all') {
-      return globalSrsSummary.total_cards;
-    } else if (selectionSource === 'deck' && selectedDeckId) {
-      const selectedDeck = decks.find(d => d.id === selectedDeckId);
-      return selectedDeck?.totalCardCount ?? 0;
-    } else if (selectionSource === 'studySet' && selectedStudySetId) {
-      const selectedSet = studySets.find(s => s.id === selectedStudySetId);
-      return selectedSet?.totalCardCount ?? 0;
-    }
-    return 0;
-  }, [selectionSource, selectedDeckId, selectedStudySetId, globalSrsSummary, decks, studySets]);
+  // Removed unused currentSelectionTotalCardCount
 
   const handleInitiateStudy = () => {
     const currentInput = getCurrentStudyInput();
@@ -192,19 +188,19 @@ export function StudySetSelector({
         return;
     }
 
-    if (selectedSourceTotalCount === 0) {
+    if ((startEligibleCount ?? 0) === 0) {
       toast.info("No cards available to study in this selection.");
       return;
     }
     
-    appLogger.info(`[StudySetSelector] Initiating ${actualSessionTypeForStore} session for ${selectionSource} (${selectedDeckId || selectedStudySetId || 'all'})`);
-    onStartStudying(currentInput, actualSessionTypeForStore);
+    appLogger.info(`[StudySetSelector] Initiating ${actualSessionTypeForStore} session for ${selectionSource} (${selectedDeckId || selectedStudySetId || 'all'}) with srsEnabled=${srsEnabled}`);
+    onStartStudying(currentInput, actualSessionTypeForStore, srsEnabled);
   };
 
   const isStartButtonDisabled =
     (selectionSource === 'deck' && !selectedDeckId) ||
     (selectionSource === 'studySet' && !selectedStudySetId) ||
-    selectedSourceTotalCount === 0; // Use selectedSourceTotalCount for disabling start button
+    (startEligibleCount === 0);
 
   const renderCountBadge = (count: number) => {
     return <Badge variant="secondary" className="ml-2">{count} card{count === 1 ? '' : 's'}</Badge>;
@@ -351,6 +347,12 @@ export function StudySetSelector({
             </SelectContent>
         </Select>
       </div>
+
+      {/* SRS toggle */}
+      <div className="mt-2 flex items-center gap-2">
+        <Checkbox id="srs-enabled" checked={srsEnabled} onCheckedChange={(v) => setSrsEnabled(!!v)} />
+        <Label htmlFor="srs-enabled" className="cursor-pointer">Use SRS scheduling (recommended)</Label>
+      </div>
       
       <Button 
         onClick={handleInitiateStudy} 
@@ -358,21 +360,7 @@ export function StudySetSelector({
         className="w-full sm:w-auto mt-6"
         size="lg"
       >
-        Start Studying ({
-          (() => {
-            let countToShow = 0;
-            if (selectedSessionType === 'unified') {
-              countToShow = unifiedCount ?? 0;
-            } else if (selectedSessionType === 'learn') {
-              countToShow = learnNewCount ?? 0;
-            } else if (selectedSessionType === 'review') {
-              countToShow = reviewDueCount ?? 0;
-            } else {
-              countToShow = selectedSourceTotalCount ?? 0; // Fallback for any other unhandled session type
-            }
-            return `${countToShow} card${countToShow === 1 ? '' : 's'}`;
-          })()
-        })
+        Start Studying ({`${startEligibleCount} card${startEligibleCount === 1 ? '' : 's'}`})
       </Button>
     </div>
     </TooltipProvider>

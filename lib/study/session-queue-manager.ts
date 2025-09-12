@@ -35,12 +35,15 @@ type DbCard = Tables<'cards'>;
 export function initializeQueue(
     fetchedCards: StudyCardDb[],
     sessionType: SessionType,
-    settings: Settings
+    settings: Settings,
+    options?: { srsEnabled?: boolean }
 ): SessionCard[] {
     console.log(`[QueueManager] Initializing queue. Type: ${sessionType}, Fetched cards: ${fetchedCards.length}`);
     const now = new Date();
     const dueCutoff = endOfDay(now); // Treat all cards due today as available now
     let eligibleCards: StudyCardDb[] = [];
+
+    const isSrsEnabled = options?.srsEnabled !== false; // default true
 
     // 1. Filter cards based on sessionType and their current state
     if (sessionType === 'learn-only') {
@@ -52,7 +55,9 @@ export function initializeQueue(
         eligibleCards = fetchedCards.filter(card => {
             const isReviewState = card.srs_level !== null && card.srs_level >= 1 && card.learning_state === null;
             const isRelearningState = card.srs_level === 0 && card.learning_state === 'relearning';
-            const isDue = card.next_review_due && isValidDate(parseISO(card.next_review_due)) && parseISO(card.next_review_due) <= dueCutoff;
+            const isDue = isSrsEnabled
+                ? (card.next_review_due && isValidDate(parseISO(card.next_review_due)) && parseISO(card.next_review_due) <= dueCutoff)
+                : true; // when SRS disabled, ignore due date
             return (isReviewState || isRelearningState) && isDue;
         });
         console.log(`[QueueManager] Filtered for 'review-only' (due): ${eligibleCards.length} cards.`);
@@ -64,7 +69,11 @@ export function initializeQueue(
             const isReviewEligible = (
                 (card.srs_level !== null && card.srs_level >= 1 && card.learning_state === null) ||
                 (card.srs_level === 0 && card.learning_state === 'relearning')
-            ) && card.next_review_due && isValidDate(parseISO(card.next_review_due)) && parseISO(card.next_review_due) <= dueCutoff;
+            ) && (
+                isSrsEnabled
+                    ? (card.next_review_due && isValidDate(parseISO(card.next_review_due)) && parseISO(card.next_review_due) <= dueCutoff)
+                    : true // ignore due filter when SRS disabled
+            );
             return isLearnEligible || isReviewEligible;
         });
         console.log(`[QueueManager] Filtered for 'unified' (learn or due review): ${eligibleCards.length} cards.`);
@@ -90,7 +99,7 @@ export function initializeQueue(
         // make it immediately available by setting dueTime to now.
         let computedDueTime: Date;
         const hasReviewState = (card.srs_level !== null && card.srs_level >= 1) || (card.srs_level === 0 && card.learning_state === 'relearning');
-        if (hasReviewState && card.next_review_due && isValidDate(parseISO(card.next_review_due))) {
+        if (hasReviewState && isSrsEnabled && card.next_review_due && isValidDate(parseISO(card.next_review_due))) {
             const dueDate = parseISO(card.next_review_due);
             computedDueTime = (dueDate <= dueCutoff) ? now : dueDate;
         } else {

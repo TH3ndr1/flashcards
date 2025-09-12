@@ -157,7 +157,7 @@ export function StudyModeButtons({
     }
 
     clearStudyParameters();
-    setStudyParameters(studyInputForStore, sessionTypeToStart, pathname);
+    setStudyParameters(studyInputForStore, sessionTypeToStart, pathname, true);
     router.push('/study/session');
   };
 
