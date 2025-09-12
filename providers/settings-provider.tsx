@@ -68,7 +68,10 @@ export interface Settings {
   earlyReviewMaxDays: number;  // Cap for intervals while srs_level <= 3
 }
 
-type DbSettings = Tables<'settings'>;
+type DbSettings = Tables<'settings'> & {
+  first_review_base_days?: number;
+  early_review_max_days?: number;
+};
 type DbSettingsUpdate = TablesUpdate<'settings'>; // For partial updates
 
 interface SettingsContextType {
@@ -157,7 +160,9 @@ const transformSettingsToDbUpdates = (updates: Partial<Settings>): DbSettingsUpd
   if (updates.learnHardPenalty !== undefined) dbUpdates.learn_hard_penalty = updates.learnHardPenalty;
   if (updates.minEasinessFactor !== undefined) dbUpdates.min_easiness_factor = updates.minEasinessFactor;
   if (updates.defaultEasinessFactor !== undefined) dbUpdates.default_easiness_factor = updates.defaultEasinessFactor;
-  // firstReviewBaseDays and earlyReviewMaxDays are client-only settings for now
+  // firstReviewBaseDays and earlyReviewMaxDays are now persisted
+  if (updates.firstReviewBaseDays !== undefined) dbUpdates.first_review_base_days = updates.firstReviewBaseDays as unknown as never;
+  if (updates.earlyReviewMaxDays !== undefined) dbUpdates.early_review_max_days = updates.earlyReviewMaxDays as unknown as never;
 
   if (updates.enableStudyTimer !== undefined) dbUpdates.enable_study_timer = updates.enableStudyTimer;
   if (updates.studyTimerDurationMinutes !== undefined) dbUpdates.study_timer_duration_minutes = updates.studyTimerDurationMinutes;
@@ -254,9 +259,9 @@ const transformDbSettingsToSettings = (dbSettings: DbSettings | null): Settings 
             pdfCardContentFontSize: dbSettings.pdf_card_content_font_size ?? DEFAULT_SETTINGS.pdfCardContentFontSize,
             showCardStatusIconsInPdf: dbSettings.show_card_status_icons_in_pdf ?? DEFAULT_SETTINGS.showCardStatusIconsInPdf,
 
-            // Kid-friendly SRS tuning (client-only for now)
-            firstReviewBaseDays: DEFAULT_SETTINGS.firstReviewBaseDays,
-            earlyReviewMaxDays: DEFAULT_SETTINGS.earlyReviewMaxDays,
+            // Kid-friendly SRS tuning (loaded from DB if present)
+            firstReviewBaseDays: dbSettings.first_review_base_days ?? DEFAULT_SETTINGS.firstReviewBaseDays,
+            earlyReviewMaxDays: dbSettings.early_review_max_days ?? DEFAULT_SETTINGS.earlyReviewMaxDays,
         };
         debug('transformDbSettingsToSettings: Transformation result:', transformed);
         return transformed;

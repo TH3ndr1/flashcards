@@ -82,12 +82,9 @@ const navItems: NavGroupDefinition[] = [
   {
     group: 'Test', // New top-level section for examinations
     items: [
-      // Option 1: Single entry point to a test selection page
-      { href: '/test', label: 'Examination', icon: ClipboardCheck },
-      { href: '/test/scoring', label: 'Scores', icon: BarChart },
-      // Option 2: Direct links if /test is just a container route
-      // { href: '/test/decks', label: 'Test from Deck', icon: FileText },
-      // { href: '/test/playlists', label: 'Test from Playlist', icon: ListChecks },
+      // Direct links to the placeholder pages
+      { href: '/test/examination', label: 'Examination', icon: ClipboardCheck },
+      { href: '/test/scores', label: 'Scores', icon: BarChart },
     ],
   },
   {

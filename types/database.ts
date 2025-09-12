@@ -224,6 +224,8 @@ export type Database = {
           updated_at: string | null
           user_id: string
           word_palette_config: Json | null
+          first_review_base_days: number
+          early_review_max_days: number
         }
         Insert: {
           app_language?: string
@@ -266,6 +268,8 @@ export type Database = {
           updated_at?: string | null
           user_id: string
           word_palette_config?: Json | null
+          first_review_base_days?: number
+          early_review_max_days?: number
         }
         Update: {
           app_language?: string
@@ -308,6 +312,8 @@ export type Database = {
           updated_at?: string | null
           user_id?: string
           word_palette_config?: Json | null
+          first_review_base_days?: number
+          early_review_max_days?: number
         }
         Relationships: [
           {

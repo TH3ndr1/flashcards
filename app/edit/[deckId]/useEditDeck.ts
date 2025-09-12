@@ -71,6 +71,7 @@ export function useEditDeck(deckId: string | undefined) {
 
     // --- Refs for Internal Logic ---
     const isMountedRef = useRef(false); // Track initial load completion
+    const authRetryRef = useRef(0); // Retry counter for transient auth timing
     // Ref to store the last *successfully saved* or initially loaded metadata state
     const previousSavedMetadataRef = useRef<MetadataState>({});
 
@@ -83,7 +84,20 @@ export function useEditDeck(deckId: string | undefined) {
         previousSavedMetadataRef.current = {}; // Reset saved state ref
         try {
             const result = await getDeck(id);
-            if (result.error) throw new Error(result.error);
+            if (result.error) {
+                // Gracefully handle transient auth timing issues after redirects/refresh
+                if (/auth/i.test(result.error)) {
+                    const retries = authRetryRef.current;
+                    if (retries < 3) {
+                        authRetryRef.current = retries + 1;
+                        appLogger.warn(`[useEditDeck] Auth not ready, retrying load (${authRetryRef.current}/3) ...`);
+                        setTimeout(() => { loadDeckData(id); }, 300);
+                        return; // Exit early, keep loading state
+                    }
+                    appLogger.error('[useEditDeck] Authentication failed after retries.');
+                }
+                throw new Error(result.error);
+            }
             if (result.data) {
                 // Store in the state with cards explicitly as Partial<DbCard>[]
                 const fetchedDeckForState: DeckEditState = {
@@ -92,6 +106,7 @@ export function useEditDeck(deckId: string | undefined) {
                 };
                 appLogger.info("[useEditDeck] Fetched Deck Data for State:", fetchedDeckForState);
                 setDeck(fetchedDeckForState); 
+                authRetryRef.current = 0; // reset on success
                 // Null check before accessing properties
                 if (fetchedDeckForState) { 
                     previousSavedMetadataRef.current = {

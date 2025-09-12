@@ -5,9 +5,10 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation"; // Keep useRouter if needed for back button etc.
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Loader2 as IconLoader, FileDown } from "lucide-react";
+import { ArrowLeft, Loader2 as IconLoader, FileDown, SwitchCamera } from "lucide-react";
 // Import the new hook and components
 import { useEditDeck } from "./useEditDeck";
+import { swapDeckQA } from '@/lib/actions/deckActions';
 import { DeckMetadataEditor } from "./DeckMetadataEditor";
 import { CardViewTabContent } from "./CardViewTabContent";
 import { TableViewTabContent } from "./TableViewTabContent";
@@ -49,7 +50,7 @@ export default function EditDeckPage() {
         error,
         isSavingMetadata,
         isDeletingDeck,
-        // loadDeckData, // Can be called directly if needed (e.g., manual refresh button)
+        loadDeckData, // Can be called directly if needed (e.g., manual refresh button)
         handleDeckMetadataChange,
         handleAddCardOptimistic,
         handleCreateCard,
@@ -107,6 +108,25 @@ export default function EditDeckPage() {
             <div className="flex items-center justify-between mb-6 gap-2 flex-wrap">
                 <h1 className="text-2xl font-bold truncate pr-2" title={deck.name}>Edit Deck: {deck.name}</h1>
                 <div className="flex items-center gap-2">
+                    <Button
+                        variant="secondary"
+                        onClick={async () => {
+                            if (!deckId) { toast.error('Deck ID missing.'); return; }
+                            const toastId = toast.loading('Swapping Q/A...');
+                            try {
+                                const res = await swapDeckQA(deckId);
+                                if (res.error) throw new Error(res.error);
+                                toast.success(`Swapped Q/A for ${res.data?.updatedCards ?? 0} cards.`, { id: toastId });
+                                // Soft refresh: reload deck data without a full page reload to avoid auth race
+                                await loadDeckData(deckId);
+                            } catch (e: any) {
+                                toast.error('Swap failed', { id: toastId, description: e.message || 'Unknown error' });
+                            }
+                        }}
+                        title="Swap all cards' Question/Answer and deck languages"
+                    >
+                        <SwitchCamera className="mr-2 h-4 w-4" /> Swap Q/A for Deck
+                    </Button>
                     <Button 
                         variant="outline" 
                         onClick={async () => {

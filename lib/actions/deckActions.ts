@@ -284,6 +284,103 @@ export async function deleteDeck(
     }
 }
 
+// Swap Q/A for an entire deck: swaps deck languages and, for every card in the deck,
+// swaps question<->answer and related classification fields.
+export async function swapDeckQA(
+    deckId: string
+): Promise<ActionResult<{ updatedCards: number }>> {
+    appLogger.info(`[deckActions - swapDeckQA] Start for deckId: ${deckId}`);
+    if (!deckId) return { data: null, error: 'Deck ID is required.' };
+    try {
+        const supabase = createActionClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+            appLogger.error('[deckActions - swapDeckQA] Auth error:', authError);
+            return { data: null, error: authError?.message || 'Not authenticated' };
+        }
+
+        // 1) Load deck to confirm ownership and fetch languages
+        const { data: deckRow, error: deckErr } = await supabase
+            .from('decks')
+            .select('id, primary_language, secondary_language, is_bilingual, user_id')
+            .eq('id', deckId)
+            .eq('user_id', user.id)
+            .maybeSingle();
+        if (deckErr) {
+            appLogger.error('[deckActions - swapDeckQA] Deck fetch error:', deckErr);
+            return { data: null, error: deckErr.message || 'Failed to fetch deck.' };
+        }
+        if (!deckRow) {
+            return { data: null, error: 'Deck not found or access denied.' };
+        }
+
+        // 2) Fetch cards (only needed fields)
+        const { data: cards, error: cardsErr } = await supabase
+            .from('cards')
+            .select('id, question, answer, question_part_of_speech, question_gender, answer_part_of_speech, answer_gender')
+            .eq('deck_id', deckId)
+            .eq('user_id', user.id);
+        if (cardsErr) {
+            appLogger.error('[deckActions - swapDeckQA] Fetch cards error:', cardsErr);
+            return { data: null, error: cardsErr.message || 'Failed to fetch cards.' };
+        }
+
+        const updatedCardsPayload = (cards || []).map((c) => ({
+            id: c.id,
+            question: c.answer,
+            answer: c.question,
+            question_part_of_speech: c.answer_part_of_speech,
+            question_gender: c.answer_gender,
+            answer_part_of_speech: c.question_part_of_speech,
+            answer_gender: c.question_gender,
+        }));
+
+        // 3) Update cards individually to comply with RLS (avoid UPSERT INSERT path)
+        let updatedCount = 0;
+        for (const payload of updatedCardsPayload) {
+            const { error: updErr } = await supabase
+                .from('cards')
+                .update({
+                    question: payload.question,
+                    answer: payload.answer,
+                    question_part_of_speech: payload.question_part_of_speech,
+                    question_gender: payload.question_gender,
+                    answer_part_of_speech: payload.answer_part_of_speech,
+                    answer_gender: payload.answer_gender,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq('id', payload.id)
+                .eq('user_id', user.id);
+            if (updErr) {
+                appLogger.error('[deckActions - swapDeckQA] Update card error:', { id: payload.id, error: updErr });
+                return { data: null, error: updErr.message || 'Failed to update a card.' };
+            }
+            updatedCount += 1;
+        }
+
+        // 4) Swap deck languages
+        const { error: deckUpdateErr } = await supabase
+            .from('decks')
+            .update({
+                primary_language: deckRow.secondary_language ?? deckRow.primary_language,
+                secondary_language: deckRow.primary_language ?? deckRow.secondary_language,
+            })
+            .eq('id', deckId)
+            .eq('user_id', user.id);
+        if (deckUpdateErr) {
+            appLogger.error('[deckActions - swapDeckQA] Deck language update error:', deckUpdateErr);
+            return { data: null, error: deckUpdateErr.message || 'Failed to update deck languages.' };
+        }
+
+        appLogger.info(`[deckActions - swapDeckQA] Success. Updated ${updatedCount} cards.`);
+        revalidatePath(`/edit/${deckId}`);
+        return { data: { updatedCards: updatedCount }, error: null };
+    } catch (error) {
+        appLogger.error('[deckActions - swapDeckQA] Unexpected error:', error);
+        return { data: null, error: error instanceof Error ? error.message : 'Unknown error during swap' };
+    }
+}
+
 /**
  * @deprecated Prefer using the main `getDecks()` function which now uses the new RPC.
  */
