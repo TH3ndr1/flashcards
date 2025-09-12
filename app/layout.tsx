@@ -1,5 +1,6 @@
 import { Atkinson_Hyperlegible } from "next/font/google";
 import type React from "react";
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { Inter as FontSans } from "next/font/google";
 // --- 1. Import custom font objects and cn utility ---
@@ -66,9 +67,11 @@ export default function RootLayout({
       >
       {/* --- End of body className changes --- */}
         <ClientProviders>
-          <ConditionalLayout>
-            {children}
-          </ConditionalLayout>
+          <Suspense fallback={null}>
+            <ConditionalLayout>
+              {children}
+            </ConditionalLayout>
+          </Suspense>
         </ClientProviders>
         <LayoutScript />
         <SpeedInsights />
