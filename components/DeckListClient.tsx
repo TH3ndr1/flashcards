@@ -16,8 +16,8 @@ import { DeckProgressBar } from "@/components/deck/DeckProgressBar";
 import { useSettings, DEFAULT_SETTINGS } from "@/providers/settings-provider";
 import { Separator } from "@/components/ui/separator";
 import { toast } from 'sonner';
-import { useDecks as useDecksHook } from "@/hooks/use-decks"; // Renamed to avoid conflict if 'decks' is used as variable
-import type { DeckListItemWithCounts } from "@/hooks/use-decks"; // Import this type
+import { useDecksRealtime as useDecksHook } from "@/hooks/useDecksRealtime"; // Use real-time hook for cross-device sync
+import type { DeckListItemWithCounts } from "@/lib/actions/deckActions"; // Import from actions instead
 import { parseISO } from 'date-fns'; // For sorting by date
 import { ItemInfoBadges } from '@/components/ItemInfoBadges';
 import { DeckProgressLegend } from '@/components/deck/DeckProgressLegend';
@@ -105,9 +105,9 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
     decksToProcess.sort((a, b) => {
       let valA, valB;
       if (sortField === 'created_at') {
-        // Use updated_at if created_at is not directly available or if it makes more sense for "Last Modified"
-        valA = a.updated_at ? parseISO(a.updated_at).getTime() : (a.created_at ? parseISO(a.created_at).getTime() : 0);
-        valB = b.updated_at ? parseISO(b.updated_at).getTime() : (b.created_at ? parseISO(b.created_at).getTime() : 0);
+        // Use updated_at since created_at is not available in DeckListItemWithCounts type
+        valA = a.updated_at ? parseISO(a.updated_at).getTime() : 0;
+        valB = b.updated_at ? parseISO(b.updated_at).getTime() : 0;
       } else { // 'name'
         valA = a.name.toLowerCase();
         valB = b.name.toLowerCase();

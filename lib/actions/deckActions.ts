@@ -241,8 +241,13 @@ export async function createDeck(
             return { data: null, error: insertError.message || 'Failed to create deck.' };
         }
         appLogger.info(`[deckActions - createDeck] Success, ID: ${newDeck?.id}`);
+        
+        // Enhanced cache invalidation for cross-device sync
         revalidatePath('/');
+        revalidatePath('/practice/decks');
+        revalidatePath('/manage/decks');
         revalidatePath('/study/select');
+        
         return { data: newDeck, error: null };
     } catch (error) {
         appLogger.error('[deckActions - createDeck] Caught unexpected error:', error);
@@ -315,9 +320,14 @@ export async function updateDeck(
              return { data: null, error: 'Deck not found or update failed.' };
         }
         appLogger.info(`[deckActions - updateDeck] Success, ID: ${updatedDeck.id}`);
+        
+        // Enhanced cache invalidation for cross-device sync
         // Skip revalidatePath for edit page to prevent page refresh during editing
         revalidatePath('/');
+        revalidatePath('/practice/decks');
+        revalidatePath('/manage/decks');
         revalidatePath('/study/select');
+        
         return { data: updatedDeck, error: null };
     } catch (error) {
         appLogger.error('[deckActions - updateDeck] Caught unexpected error:', error);
@@ -352,8 +362,13 @@ export async function deleteDeck(
              appLogger.warn("[deckActions - deleteDeck] Delete affected 0 rows for ID:", deckId);
         }
         appLogger.info(`[deckActions - deleteDeck] Success for ID: ${deckId}`);
+        
+        // Enhanced cache invalidation for cross-device sync
         revalidatePath('/');
+        revalidatePath('/practice/decks');
+        revalidatePath('/manage/decks');
         revalidatePath('/study/select');
+        
         return { data: null, error: null };
     } catch (error) {
         appLogger.error('[deckActions - deleteDeck] Caught unexpected error:', error);
@@ -397,10 +412,11 @@ export async function deleteDecks(
         const deletedCount = count || 0;
         appLogger.info(`[deckActions - deleteDecks] Successfully deleted ${deletedCount} decks`);
         
-        // Revalidate paths
+        // Enhanced cache invalidation for cross-device sync
         revalidatePath('/');
-        revalidatePath('/study/select');
+        revalidatePath('/practice/decks');
         revalidatePath('/manage/decks');
+        revalidatePath('/study/select');
         
         return { data: { deletedCount }, error: null };
         

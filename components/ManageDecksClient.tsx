@@ -13,6 +13,7 @@ import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { deleteDecks, mergeDecks, getDecksForManagement, archiveMultipleDecks, activateMultipleDecks, type DeckListItemWithCountsAndStatus } from '@/lib/actions/deckActions';
 import type { Tables } from '@/types/database';
+import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -51,6 +52,7 @@ interface ManageDecksClientProps {
 
 export function ManageDecksClient({ initialDecks, fetchError }: ManageDecksClientProps) {
   const [decks, setDecks] = useState<ManageDeckItem[]>(initialDecks);
+  const { isChildMode } = useFeatureFlags();
   const [isMultiEditMode, setIsMultiEditMode] = useState(false);
   const [selectedDeckIds, setSelectedDeckIds] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
@@ -59,7 +61,7 @@ export function ManageDecksClient({ initialDecks, fetchError }: ManageDecksClien
   const [showMergeDialog, setShowMergeDialog] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const [isActivating, setIsActivating] = useState(false);
-  const [openSections, setOpenSections] = useState<string[]>(["activeDecks", "archivedDecks"]);
+  const [openSections, setOpenSections] = useState<string[]>(["activeDecks"]);
   const [mergeFormData, setMergeFormData] = useState({
     name: '',
     is_bilingual: false,
@@ -330,16 +332,18 @@ export function ManageDecksClient({ initialDecks, fetchError }: ManageDecksClien
           <h1 className="text-2xl font-semibold">Manage Your Decks</h1>
         </div>
         <div className="flex items-center gap-4">
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="multi-edit-mode"
-              checked={isMultiEditMode}
-              onCheckedChange={setIsMultiEditMode}
-            />
-            <Label htmlFor="multi-edit-mode" className="text-sm font-medium">
-              Edit Multiple Decks
-            </Label>
-          </div>
+          {!isChildMode && (
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="multi-edit-mode"
+                checked={isMultiEditMode}
+                onCheckedChange={setIsMultiEditMode}
+              />
+              <Label htmlFor="multi-edit-mode" className="text-sm font-medium">
+                Edit Multiple Decks
+              </Label>
+            </div>
+          )}
           <Button asChild>
             <Link href="/manage/decks/new">
               <PlusCircle className="mr-2 h-4 w-4" />
