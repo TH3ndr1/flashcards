@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { debounce } from "@/lib/utils";
 // --- Import NEW Deck Tag actions --- 
 import { addTagToDeck, removeTagFromDeck } from '@/lib/actions/tagActions';
+import { archiveDeck, activateDeck } from '@/lib/actions/deckActions';
 // Import useTags to get tag data for optimistic updates
 import { useTags } from '@/hooks/useTags';
 // --- Update state type to include tags --- 
@@ -72,6 +73,7 @@ export function useEditDeck(deckId: string | undefined) {
     const [error, setError] = useState<string | null>(null);
     const [isSavingMetadata, setIsSavingMetadata] = useState(false);
     const [isDeletingDeck, setIsDeletingDeck] = useState(false);
+    const [isArchiving, setIsArchiving] = useState(false);
 
     // --- Refs for Internal Logic ---
     const isMountedRef = useRef(false); // Track initial load completion
@@ -432,6 +434,41 @@ export function useEditDeck(deckId: string | undefined) {
     }, [deckId, deleteCardAction]); // Dependencies: stable deckId and server action
 
 
+    // --- Deck Archiving ---
+    const handleArchiveDeck = useCallback(async (): Promise<void> => {
+        if (!deck || !deck.id) { toast.error("Cannot archive deck: data missing."); return; }
+        setIsArchiving(true);
+        const deckName = deck.name;
+        try {
+            const result = await archiveDeck(deck.id);
+            if (result.error) throw new Error(result.error);
+            toast.success(`Deck "${deckName}" archived successfully!`);
+            // Update local state to reflect the new status
+            setDeck(prevDeck => prevDeck ? { ...prevDeck, status: 'archived' } : prevDeck);
+        } catch (error: any) {
+            toast.error(`Failed to archive deck "${deckName}"`, { description: error.message || "Unknown error." });
+        } finally {
+            setIsArchiving(false);
+        }
+    }, [deck]);
+
+    const handleActivateDeck = useCallback(async (): Promise<void> => {
+        if (!deck || !deck.id) { toast.error("Cannot activate deck: data missing."); return; }
+        setIsArchiving(true);
+        const deckName = deck.name;
+        try {
+            const result = await activateDeck(deck.id);
+            if (result.error) throw new Error(result.error);
+            toast.success(`Deck "${deckName}" activated successfully!`);
+            // Update local state to reflect the new status
+            setDeck(prevDeck => prevDeck ? { ...prevDeck, status: 'active' } : prevDeck);
+        } catch (error: any) {
+            toast.error(`Failed to activate deck "${deckName}"`, { description: error.message || "Unknown error." });
+        } finally {
+            setIsArchiving(false);
+        }
+    }, [deck]);
+
     // --- Deck Deletion ---
     const handleDeleteDeckConfirm = useCallback(async (): Promise<void> => {
         if (!deck || !deck.id) { toast.error("Cannot delete deck: data missing."); return; }
@@ -516,6 +553,7 @@ export function useEditDeck(deckId: string | undefined) {
         error,
         isSavingMetadata,
         isDeletingDeck,
+        isArchiving,
         loadDeckData,
         handleDeckMetadataChange, // Expose the handler that triggers the save
         handleAddCardOptimistic,
@@ -524,6 +562,8 @@ export function useEditDeck(deckId: string | undefined) {
         handleDeleteCard,
         handleAddTagToDeck, // Expose new handler
         handleRemoveTagFromDeck, // Expose new handler
+        handleArchiveDeck,
+        handleActivateDeck,
         handleDeleteDeckConfirm,
     };
 }

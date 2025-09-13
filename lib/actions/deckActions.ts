@@ -25,6 +25,30 @@ export type DeckListItemWithCounts = {
     tags?: Array<{ id: string; name: string; }>;
 };
 
+// Extended type for management interface that includes status
+export type DeckListItemWithCountsAndStatus = DeckListItemWithCounts & {
+    status: 'active' | 'archived' | 'deleted';
+};
+
+// Type for the RPC response from get_decks_for_management
+interface GetDecksForManagementRpcResponse {
+    id: string;
+    name: string;
+    primary_language: string;
+    secondary_language: string;
+    is_bilingual: boolean;
+    updated_at: string;
+    status: 'active' | 'archived' | 'deleted';
+    new_count: number;
+    learning_count: number;
+    young_count: number;
+    mature_count: number;
+    relearning_count: number;
+    learn_eligible_count: number;
+    review_eligible_count: number;
+    deck_tags_json: Json;
+}
+
 type DeckWithTags = Tables<'decks'> & { tags: Tables<'tags'>[] };
 export type DeckWithCardsAndTags = DeckWithTags & { cards: Tables<'cards'>[] };
 
@@ -83,6 +107,60 @@ export async function getDecks(): Promise<ActionResult<DeckListItemWithCounts[]>
     } catch (err: unknown) {
         appLogger.error('[deckActions - getDecks] Caught unexpected error:', err);
         return { data: null, error: err instanceof Error ? err.message : 'An unexpected error occurred while fetching decks.' };
+    }
+}
+
+export async function getDecksForManagement(): Promise<ActionResult<DeckListItemWithCountsAndStatus[]>> {
+    appLogger.info("[deckActions - getDecksForManagement] Action started - fetching via RPC get_decks_for_management");
+    try {
+        const supabase = createActionClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+        if (authError || !user) {
+            appLogger.error('[deckActions - getDecksForManagement] Auth error or no user:', authError);
+            return { data: null, error: authError?.message || 'Not authenticated' };
+        }
+
+        appLogger.info(`[deckActions - getDecksForManagement] User authenticated: ${user.id}, calling RPC get_decks_for_management`);
+
+        const { data: rpcData, error: rpcError } = await supabase.rpc(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            'get_decks_for_management' as any, // New RPC function not yet in generated types
+            { p_user_id: user.id }
+        ) as { data: GetDecksForManagementRpcResponse[] | null, error: { message?: string } | null };
+
+        if (rpcData && Array.isArray(rpcData) && rpcData.length > 0) {
+            appLogger.info('[deckActions - getDecksForManagement] First item from rpcData:', JSON.stringify(rpcData[0], null, 2));
+        }
+
+        if (rpcError) {
+            appLogger.error('[deckActions - getDecksForManagement] Supabase RPC failed:', rpcError);
+            return { data: null, error: rpcError.message || 'Failed to fetch decks for management via RPC.' };
+        }
+
+        const processedData = (rpcData || []).map((deck: GetDecksForManagementRpcResponse) => ({
+            ...deck,
+            new_count: Number(deck.new_count ?? 0),
+            learning_count: Number(deck.learning_count ?? 0),
+            relearning_count: Number(deck.relearning_count ?? 0),
+            young_count: Number(deck.young_count ?? 0),
+            mature_count: Number(deck.mature_count ?? 0),
+            learn_eligible_count: Number(deck.learn_eligible_count ?? 0),
+            review_eligible_count: Number(deck.review_eligible_count ?? 0),
+            primary_language: deck.primary_language,
+            secondary_language: deck.secondary_language,
+            is_bilingual: deck.is_bilingual,
+            updated_at: deck.updated_at,
+            deck_tags_json: deck.deck_tags_json,
+            status: deck.status, // Include status for management interface
+        }));
+
+        appLogger.info(`[deckActions - getDecksForManagement] Successfully fetched and processed ${processedData.length} decks (including archived) via RPC.`);
+        return { data: processedData as DeckListItemWithCountsAndStatus[], error: null };
+
+    } catch (err: unknown) {
+        appLogger.error('[deckActions - getDecksForManagement] Caught unexpected error:', err);
+        return { data: null, error: err instanceof Error ? err.message : 'An unexpected error occurred while fetching decks for management.' };
     }
 }
 
@@ -364,6 +442,27 @@ export async function mergeDecks(
 
         appLogger.info(`[deckActions - mergeDecks] User: ${user.id}, Merging ${deckIds.length} decks`);
         
+        // First, get the status of all decks being merged to determine the result status
+        const { data: sourceDecks, error: fetchDecksError } = await supabase
+            .from('decks')
+            .select('id, status')
+            .in('id', deckIds)
+            .eq('user_id', user.id);
+
+        if (fetchDecksError || !sourceDecks || sourceDecks.length !== deckIds.length) {
+            appLogger.error('[deckActions - mergeDecks] Error fetching source decks:', fetchDecksError);
+            return { data: null, error: 'Failed to verify source decks.' };
+        }
+
+        // Determine the status logic:
+        // - If ANY deck is active, result is active (and all cards become active)
+        // - If ALL decks are archived, result is archived (and all cards remain archived)
+        const hasActiveDeck = sourceDecks.some(deck => deck.status === 'active');
+        const resultDeckStatus: 'active' | 'archived' = hasActiveDeck ? 'active' : 'archived';
+        const resultCardStatus: 'active' | 'archived' = hasActiveDeck ? 'active' : 'archived';
+
+        appLogger.info(`[deckActions - mergeDecks] Merge status logic: hasActiveDeck=${hasActiveDeck}, resultDeckStatus=${resultDeckStatus}, resultCardStatus=${resultCardStatus}`);
+        
         // 1. Create the new merged deck
         const newDeckData: Database['public']['Tables']['decks']['Insert'] = {
             user_id: user.id,
@@ -371,6 +470,7 @@ export async function mergeDecks(
             primary_language: mergeData.primary_language.trim(),
             secondary_language: mergeData.is_bilingual ? mergeData.secondary_language.trim() : undefined,
             is_bilingual: mergeData.is_bilingual,
+            status: resultDeckStatus,
         };
 
         const { data: newDeck, error: createError } = await supabase
@@ -386,10 +486,13 @@ export async function mergeDecks(
 
         appLogger.info(`[deckActions - mergeDecks] Created new deck with ID: ${newDeck.id}`);
 
-        // 2. Move all cards from source decks to the new deck
+        // 2. Move all cards from source decks to the new deck and set their status
         const { error: moveCardsError } = await supabase
             .from('cards')
-            .update({ deck_id: newDeck.id })
+            .update({ 
+                deck_id: newDeck.id,
+                status: resultCardStatus
+            })
             .in('deck_id', deckIds)
             .eq('user_id', user.id);
 
@@ -524,6 +627,302 @@ export async function swapDeckQA(
     } catch (error) {
         appLogger.error('[deckActions - swapDeckQA] Unexpected error:', error);
         return { data: null, error: error instanceof Error ? error.message : 'Unknown error during swap' };
+    }
+}
+
+export async function archiveDeck(
+    deckId: string
+): Promise<ActionResult<null>> {
+    appLogger.info(`[deckActions - archiveDeck] Action started for deckId: ${deckId}`);
+    if (!deckId) return { data: null, error: 'Deck ID is required.' };
+    
+    try {
+        const supabase = createActionClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        
+        if (authError || !user) {
+            appLogger.error('[deckActions - archiveDeck] Auth error:', authError);
+            return { data: null, error: authError?.message || 'Not authenticated' };
+        }
+
+        appLogger.info(`[deckActions - archiveDeck] User: ${user.id}, Archiving deck ${deckId}`);
+        
+        // First, update the deck status to archived
+        const { error: deckUpdateError } = await supabase
+            .from('decks')
+            .update({ status: 'archived' })
+            .eq('id', deckId)
+            .eq('user_id', user.id);
+
+        if (deckUpdateError) {
+            appLogger.error('[deckActions - archiveDeck] Error updating deck status:', deckUpdateError);
+            return { data: null, error: deckUpdateError.message || 'Failed to archive deck.' };
+        }
+
+        // Then, update all cards in the deck to archived status
+        const { error: cardsUpdateError } = await supabase
+            .from('cards')
+            .update({ status: 'archived' })
+            .eq('deck_id', deckId)
+            .eq('user_id', user.id);
+
+        if (cardsUpdateError) {
+            appLogger.error('[deckActions - archiveDeck] Error updating cards status:', cardsUpdateError);
+            // Rollback deck status change
+            await supabase
+                .from('decks')
+                .update({ status: 'active' })
+                .eq('id', deckId)
+                .eq('user_id', user.id);
+            return { data: null, error: cardsUpdateError.message || 'Failed to archive deck cards.' };
+        }
+
+        appLogger.info(`[deckActions - archiveDeck] Successfully archived deck ${deckId} and all its cards`);
+        
+        // Revalidate paths
+        revalidatePath('/');
+        revalidatePath('/practice/decks');
+        revalidatePath('/manage/decks');
+        revalidatePath(`/edit/${deckId}`);
+        
+        return { data: null, error: null };
+        
+    } catch (error) {
+        appLogger.error('[deckActions - archiveDeck] Caught unexpected error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error archiving deck';
+        return { data: null, error: errorMessage };
+    }
+}
+
+export async function activateDeck(
+    deckId: string
+): Promise<ActionResult<null>> {
+    appLogger.info(`[deckActions - activateDeck] Action started for deckId: ${deckId}`);
+    if (!deckId) return { data: null, error: 'Deck ID is required.' };
+    
+    try {
+        const supabase = createActionClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        
+        if (authError || !user) {
+            appLogger.error('[deckActions - activateDeck] Auth error:', authError);
+            return { data: null, error: authError?.message || 'Not authenticated' };
+        }
+
+        appLogger.info(`[deckActions - activateDeck] User: ${user.id}, Activating deck ${deckId}`);
+        
+        // First, update the deck status to active
+        const { error: deckUpdateError } = await supabase
+            .from('decks')
+            .update({ status: 'active' })
+            .eq('id', deckId)
+            .eq('user_id', user.id);
+
+        if (deckUpdateError) {
+            appLogger.error('[deckActions - activateDeck] Error updating deck status:', deckUpdateError);
+            return { data: null, error: deckUpdateError.message || 'Failed to activate deck.' };
+        }
+
+        // Then, update all cards in the deck to active status
+        const { error: cardsUpdateError } = await supabase
+            .from('cards')
+            .update({ status: 'active' })
+            .eq('deck_id', deckId)
+            .eq('user_id', user.id);
+
+        if (cardsUpdateError) {
+            appLogger.error('[deckActions - activateDeck] Error updating cards status:', cardsUpdateError);
+            // Rollback deck status change
+            await supabase
+                .from('decks')
+                .update({ status: 'archived' })
+                .eq('id', deckId)
+                .eq('user_id', user.id);
+            return { data: null, error: cardsUpdateError.message || 'Failed to activate deck cards.' };
+        }
+
+        appLogger.info(`[deckActions - activateDeck] Successfully activated deck ${deckId} and all its cards`);
+        
+        // Revalidate paths
+        revalidatePath('/');
+        revalidatePath('/practice/decks');
+        revalidatePath('/manage/decks');
+        revalidatePath(`/edit/${deckId}`);
+        
+        return { data: null, error: null };
+        
+    } catch (error) {
+        appLogger.error('[deckActions - activateDeck] Caught unexpected error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error activating deck';
+        return { data: null, error: errorMessage };
+    }
+}
+
+export async function archiveMultipleDecks(deckIds: string[]): Promise<ActionResult<{ archivedCount: number }>> {
+    appLogger.info(`[deckActions - archiveMultipleDecks] Action started for ${deckIds.length} decks`);
+    
+    if (!deckIds || deckIds.length === 0) {
+        return { data: null, error: 'At least one deck ID is required.' };
+    }
+
+    try {
+        const supabase = createActionClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        
+        if (authError || !user) {
+            appLogger.error('[deckActions - archiveMultipleDecks] Auth error:', authError);
+            return { data: null, error: authError?.message || 'Not authenticated' };
+        }
+
+        appLogger.info(`[deckActions - archiveMultipleDecks] User: ${user.id}, Archiving ${deckIds.length} decks`);
+        
+        // First check which decks are actually active (only archive active decks)
+        const { data: activeDecks, error: fetchError } = await supabase
+            .from('decks')
+            .select('id')
+            .in('id', deckIds)
+            .eq('user_id', user.id)
+            .eq('status', 'active');
+
+        if (fetchError) {
+            appLogger.error('[deckActions - archiveMultipleDecks] Error fetching active decks:', fetchError);
+            return { data: null, error: 'Failed to verify deck statuses.' };
+        }
+
+        const activeDeckIds = activeDecks?.map(deck => deck.id) || [];
+        
+        if (activeDeckIds.length === 0) {
+            return { data: { archivedCount: 0 }, error: null };
+        }
+        
+        // Update multiple decks to archived status
+        const { error: deckError } = await supabase
+            .from('decks')
+            .update({ status: 'archived' })
+            .in('id', activeDeckIds)
+            .eq('user_id', user.id);
+
+        if (deckError) {
+            appLogger.error('[deckActions - archiveMultipleDecks] Error updating decks:', deckError);
+            return { data: null, error: deckError.message || 'Failed to archive decks.' };
+        }
+
+        // Update all cards in these decks to archived status
+        const { error: cardsError } = await supabase
+            .from('cards')
+            .update({ status: 'archived' })
+            .in('deck_id', activeDeckIds)
+            .eq('user_id', user.id);
+
+        if (cardsError) {
+            appLogger.error('[deckActions - archiveMultipleDecks] Error updating cards:', cardsError);
+            // Rollback deck statuses
+            await supabase
+                .from('decks')
+                .update({ status: 'active' })
+                .in('id', activeDeckIds)
+                .eq('user_id', user.id);
+            return { data: null, error: 'Failed to archive cards. Deck statuses rolled back.' };
+        }
+
+        const archivedCount = activeDeckIds.length;
+        appLogger.info(`[deckActions - archiveMultipleDecks] Successfully archived ${archivedCount} decks`);
+        
+        // Revalidate paths
+        revalidatePath('/');
+        revalidatePath('/manage/decks');
+        revalidatePath('/practice/decks');
+        
+        return { data: { archivedCount }, error: null };
+        
+    } catch (error) {
+        appLogger.error('[deckActions - archiveMultipleDecks] Caught unexpected error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error archiving decks';
+        return { data: null, error: errorMessage };
+    }
+}
+
+export async function activateMultipleDecks(deckIds: string[]): Promise<ActionResult<{ activatedCount: number }>> {
+    appLogger.info(`[deckActions - activateMultipleDecks] Action started for ${deckIds.length} decks`);
+    
+    if (!deckIds || deckIds.length === 0) {
+        return { data: null, error: 'At least one deck ID is required.' };
+    }
+
+    try {
+        const supabase = createActionClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        
+        if (authError || !user) {
+            appLogger.error('[deckActions - activateMultipleDecks] Auth error:', authError);
+            return { data: null, error: authError?.message || 'Not authenticated' };
+        }
+
+        appLogger.info(`[deckActions - activateMultipleDecks] User: ${user.id}, Activating ${deckIds.length} decks`);
+        
+        // First check which decks are actually archived (only activate archived decks)
+        const { data: archivedDecks, error: fetchError } = await supabase
+            .from('decks')
+            .select('id')
+            .in('id', deckIds)
+            .eq('user_id', user.id)
+            .eq('status', 'archived');
+
+        if (fetchError) {
+            appLogger.error('[deckActions - activateMultipleDecks] Error fetching archived decks:', fetchError);
+            return { data: null, error: 'Failed to verify deck statuses.' };
+        }
+
+        const archivedDeckIds = archivedDecks?.map(deck => deck.id) || [];
+        
+        if (archivedDeckIds.length === 0) {
+            return { data: { activatedCount: 0 }, error: null };
+        }
+        
+        // Update multiple decks to active status
+        const { error: deckError } = await supabase
+            .from('decks')
+            .update({ status: 'active' })
+            .in('id', archivedDeckIds)
+            .eq('user_id', user.id);
+
+        if (deckError) {
+            appLogger.error('[deckActions - activateMultipleDecks] Error updating decks:', deckError);
+            return { data: null, error: deckError.message || 'Failed to activate decks.' };
+        }
+
+        // Update all cards in these decks to active status
+        const { error: cardsError } = await supabase
+            .from('cards')
+            .update({ status: 'active' })
+            .in('deck_id', archivedDeckIds)
+            .eq('user_id', user.id);
+
+        if (cardsError) {
+            appLogger.error('[deckActions - activateMultipleDecks] Error updating cards:', cardsError);
+            // Rollback deck statuses
+            await supabase
+                .from('decks')
+                .update({ status: 'archived' })
+                .in('id', archivedDeckIds)
+                .eq('user_id', user.id);
+            return { data: null, error: 'Failed to activate cards. Deck statuses rolled back.' };
+        }
+
+        const activatedCount = archivedDeckIds.length;
+        appLogger.info(`[deckActions - activateMultipleDecks] Successfully activated ${activatedCount} decks`);
+        
+        // Revalidate paths
+        revalidatePath('/');
+        revalidatePath('/manage/decks');
+        revalidatePath('/practice/decks');
+        
+        return { data: { activatedCount }, error: null };
+        
+    } catch (error) {
+        appLogger.error('[deckActions - activateMultipleDecks] Caught unexpected error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error activating decks';
+        return { data: null, error: errorMessage };
     }
 }
 

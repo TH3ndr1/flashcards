@@ -108,30 +108,44 @@ export default function StudySessionPage() {
         setIsTransitioningVisual(false);
         speakInitiatedForQuestionRef.current = false;
         speakInitiatedForAnswerRef.current = false;
-        prevCardIdRef.current = currentCard?.id;
+        // Don't update prevCardIdRef here - let the TTS effects handle it
+        // This ensures the first card TTS can detect it's a new card
     }
   }, [currentCard?.id]);
+
+  // Reset TTS refs when flip state changes to allow TTS on subsequent flips
+  useEffect(() => {
+    if (isFlipped !== prevIsFlippedRef.current) {
+        speakInitiatedForQuestionRef.current = false;
+        speakInitiatedForAnswerRef.current = false;
+    }
+  }, [isFlipped]);
 
   useEffect(() => {
     const cardForTTS = currentCard as StudyCardDb | null;
     if (!settings?.ttsEnabled || !cardForTTS || ttsState === 'loading' || isLoadingPage || isFlipped || speakInitiatedForQuestionRef.current) {
       return;
     }
-    const textToSpeak = cardForTTS.question;
-    const langToUse = cardForTTS.decks?.primary_language ?? 'en';
-    if (textToSpeak && langToUse) {
-      appLogger.info(`[SessionPage TTS - Question] Requesting speak for card ${cardForTTS.id}`);
-      speakInitiatedForQuestionRef.current = true;
-      stop();
-      speak(textToSpeak, langToUse)
-        .catch(ttsError => {
-          appLogger.error("[SessionPage TTS - Question] Failed to speak text:", ttsError);
-          if (typeof window !== 'undefined' && !window.ttsErrorShown) {
-            toast.error("Text-to-speech error", { description: "TTS for question failed." });
-            window.ttsErrorShown = true;
-          }
-          speakInitiatedForQuestionRef.current = false;
-        });
+    // Trigger TTS when showing question side (on flip state change OR first time showing)
+    if (!isFlipped && (isFlipped !== prevIsFlippedRef.current || currentCard?.id !== prevCardIdRef.current)) {
+        const textToSpeak = cardForTTS.question;
+        const langToUse = cardForTTS.decks?.primary_language ?? 'en';
+        if (textToSpeak && langToUse) {
+          appLogger.info(`[SessionPage TTS - Question] Requesting speak for card ${cardForTTS.id}`);
+          speakInitiatedForQuestionRef.current = true;
+          // Update the card ID ref to track that we've processed this card
+          prevCardIdRef.current = currentCard?.id;
+          stop();
+          speak(textToSpeak, langToUse)
+            .catch(ttsError => {
+              appLogger.error("[SessionPage TTS - Question] Failed to speak text:", ttsError);
+              if (typeof window !== 'undefined' && !window.ttsErrorShown) {
+                toast.error("Text-to-speech error", { description: "TTS for question failed." });
+                window.ttsErrorShown = true;
+              }
+              speakInitiatedForQuestionRef.current = false;
+            });
+        }
     }
   }, [currentCard, isFlipped, settings?.ttsEnabled, isLoadingPage, speak, stop, ttsState]);
 
@@ -140,7 +154,8 @@ export default function StudySessionPage() {
     if (!settings?.ttsEnabled || !cardForTTS || ttsState === 'loading' || isLoadingPage || !isFlipped || speakInitiatedForAnswerRef.current) {
       return;
     }
-    if (isFlipped && !prevIsFlippedRef.current) {
+    // Trigger TTS when showing answer side (whenever flip state changes to show answer)
+    if (isFlipped && isFlipped !== prevIsFlippedRef.current) {
         const textToSpeak = cardForTTS.answer;
         const langToUse = cardForTTS.decks?.secondary_language ?? cardForTTS.decks?.primary_language ?? 'en';
         if (textToSpeak && langToUse) {

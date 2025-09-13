@@ -39,7 +39,7 @@ export default async function Home() {
   
   return (
     <div className="grid gap-4">
-      <DeckListClient initialData={decksWithCounts || []} />
+      <DeckListClient />
     </div>
   );
 }

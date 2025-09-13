@@ -52,6 +52,7 @@ export default function EditDeckPage() {
         error,
         isSavingMetadata,
         isDeletingDeck,
+        isArchiving,
         loadDeckData, // Can be called directly if needed (e.g., manual refresh button)
         handleDeckMetadataChange,
         handleAddCardOptimistic,
@@ -60,6 +61,8 @@ export default function EditDeckPage() {
         handleDeleteCard,
         handleAddTagToDeck,
         handleRemoveTagFromDeck,
+        handleArchiveDeck,
+        handleActivateDeck,
         handleDeleteDeckConfirm,
     } = useEditDeck(deckId);
 
@@ -329,11 +332,15 @@ export default function EditDeckPage() {
                  </TabsContent>
             </Tabs>
 
-            {/* Danger Zone */}
+            {/* Deck Actions */}
             <DeckDangerZone
                 deckName={deck.name}
+                deckStatus={deck.status}
                 onDelete={handleDeleteDeckConfirm}
+                onArchive={handleArchiveDeck}
+                onActivate={handleActivateDeck}
                 isDeleting={isDeletingDeck}
+                isArchiving={isArchiving}
             />
 
         </div>

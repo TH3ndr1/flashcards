@@ -4,14 +4,15 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { PlusCircle, Trash2, Merge } from 'lucide-react';
+import { PlusCircle, Trash2, Merge, Archive, ArchiveRestore } from 'lucide-react';
 import { DeckProgressBar } from '@/components/deck/DeckProgressBar';
 import { ItemInfoBadges } from '@/components/ItemInfoBadges';
 import { DeckProgressLegend } from '@/components/deck/DeckProgressLegend';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { deleteDecks, mergeDecks, getDecks } from '@/lib/actions/deckActions';
+import { deleteDecks, mergeDecks, getDecksForManagement, archiveMultipleDecks, activateMultipleDecks, type DeckListItemWithCountsAndStatus } from '@/lib/actions/deckActions';
+import type { Tables } from '@/types/database';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,22 +34,15 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
-// Type for deck data including SRS counts, similar to EnhancedDeck in DeckListClient
-interface ManageDeckItem {
-  id: string;
-  name: string;
-  primary_language: string | null;
-  secondary_language: string | null;
-  is_bilingual: boolean;
-  updated_at: string | null; 
-  new_count: number;
-  learning_count: number;
-  young_count: number;
-  mature_count: number;
-  relearning_count: number;
-  deck_tags_json?: unknown;
-}
+// Use the proper type from deckActions instead of defining our own
+type ManageDeckItem = DeckListItemWithCountsAndStatus;
 
 interface ManageDecksClientProps {
   initialDecks: ManageDeckItem[];
@@ -63,6 +57,9 @@ export function ManageDecksClient({ initialDecks, fetchError }: ManageDecksClien
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isMerging, setIsMerging] = useState(false);
   const [showMergeDialog, setShowMergeDialog] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
+  const [isActivating, setIsActivating] = useState(false);
+  const [openSections, setOpenSections] = useState<string[]>(["activeDecks", "archivedDecks"]);
   const [mergeFormData, setMergeFormData] = useState({
     name: '',
     is_bilingual: false,
@@ -79,6 +76,10 @@ export function ManageDecksClient({ initialDecks, fetchError }: ManageDecksClien
     { name: 'Young', startColor: '#6055DA', endColor: '#5386DD' },
     { name: 'Mature', startColor: '#55A9DA', endColor: '#53DDDD' },
   ];
+
+  // Group decks by status
+  const activeDecks = decks.filter(deck => deck.status === 'active');
+  const archivedDecks = decks.filter(deck => deck.status === 'archived');
 
   // Clear selected decks when exiting multi-edit mode
   React.useEffect(() => {
@@ -139,6 +140,86 @@ export function ManageDecksClient({ initialDecks, fetchError }: ManageDecksClien
     setShowMergeDialog(true);
   };
 
+  const handleArchiveSelected = async () => {
+    if (!hasSelectedActiveDecks) {
+      toast.error("Please select at least one active deck to archive.");
+      return;
+    }
+
+    setIsArchiving(true);
+    const deckIdsArray = Array.from(selectedDeckIds);
+    
+    try {
+      const result = await archiveMultipleDecks(deckIdsArray);
+      
+      if (result.error || !result.data) {
+        toast.error("Failed to archive decks", { 
+          description: result.error || "Unknown error occurred"
+        });
+      } else {
+        // Refresh deck list
+        const refreshResult = await getDecksForManagement();
+        if (refreshResult.data) {
+          setDecks(refreshResult.data);
+        }
+        
+        setSelectedDeckIds(new Set());
+        setIsMultiEditMode(false);
+        
+        if (result.data.archivedCount === 0) {
+          toast.info("No active decks were selected for archiving.");
+        } else {
+          toast.success(`Successfully archived ${result.data.archivedCount} deck${result.data.archivedCount === 1 ? '' : 's'}`);
+        }
+      }
+    } catch (error) {
+      console.error('Error archiving decks:', error);
+      toast.error("An unexpected error occurred while archiving decks.");
+    } finally {
+      setIsArchiving(false);
+    }
+  };
+
+  const handleActivateSelected = async () => {
+    if (!hasSelectedArchivedDecks) {
+      toast.error("Please select at least one archived deck to activate.");
+      return;
+    }
+
+    setIsActivating(true);
+    const deckIdsArray = Array.from(selectedDeckIds);
+    
+    try {
+      const result = await activateMultipleDecks(deckIdsArray);
+      
+      if (result.error || !result.data) {
+        toast.error("Failed to activate decks", { 
+          description: result.error || "Unknown error occurred"
+        });
+      } else {
+        // Refresh deck list
+        const refreshResult = await getDecksForManagement();
+        if (refreshResult.data) {
+          setDecks(refreshResult.data);
+        }
+        
+        setSelectedDeckIds(new Set());
+        setIsMultiEditMode(false);
+        
+        if (result.data.activatedCount === 0) {
+          toast.info("No archived decks were selected for activation.");
+        } else {
+          toast.success(`Successfully activated ${result.data.activatedCount} deck${result.data.activatedCount === 1 ? '' : 's'}`);
+        }
+      }
+    } catch (error) {
+      console.error('Error activating decks:', error);
+      toast.error("An unexpected error occurred while activating decks.");
+    } finally {
+      setIsActivating(false);
+    }
+  };
+
   const confirmDelete = async () => {
     if (selectedDeckIds.size === 0) return;
     
@@ -192,9 +273,9 @@ export function ManageDecksClient({ initialDecks, fetchError }: ManageDecksClien
         });
       } else {
         // Refetch all decks to get accurate card counts and display the merged deck correctly
-        const refreshResult = await getDecks();
+        const refreshResult = await getDecksForManagement();
         if (refreshResult.data) {
-          setDecks(refreshResult.data as ManageDeckItem[]);
+          setDecks(refreshResult.data);
         } else {
           // Fallback: remove merged decks and add new merged deck with estimated data
           setDecks(prevDecks => {
@@ -205,12 +286,15 @@ export function ManageDecksClient({ initialDecks, fetchError }: ManageDecksClien
               primary_language: result.data!.primary_language,
               secondary_language: result.data!.secondary_language,
               is_bilingual: result.data!.is_bilingual,
-              updated_at: result.data!.updated_at,
+              updated_at: result.data!.updated_at || new Date().toISOString(),
+              status: (result.data as Tables<'decks'>).status || 'active', // Use actual status from merge result
               new_count: 0,
               learning_count: 0,
+              relearning_count: 0,
               young_count: 0,
               mature_count: 0,
-              relearning_count: 0,
+              learn_eligible_count: 0,
+              review_eligible_count: 0,
               deck_tags_json: mergeFormData.tags
             };
             return [...remainingDecks, newDeckItem];
@@ -233,6 +317,11 @@ export function ManageDecksClient({ initialDecks, fetchError }: ManageDecksClien
 
   const allSelected = decks.length > 0 && selectedDeckIds.size === decks.length;
   const someSelected = selectedDeckIds.size > 0 && selectedDeckIds.size < decks.length;
+  
+  // Smart button enabling logic
+  const selectedDecks = decks.filter(deck => selectedDeckIds.has(deck.id));
+  const hasSelectedActiveDecks = selectedDecks.some(deck => deck.status === 'active');
+  const hasSelectedArchivedDecks = selectedDecks.some(deck => deck.status === 'archived');
 
   return (
     <div className="container mx-auto py-6 px-4 md:px-6">
@@ -285,7 +374,7 @@ export function ManageDecksClient({ initialDecks, fetchError }: ManageDecksClien
                 </label>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <Button
                 variant="outline"
                 onClick={handleMergeSelected}
@@ -293,6 +382,24 @@ export function ManageDecksClient({ initialDecks, fetchError }: ManageDecksClien
               >
                 <Merge className="mr-2 h-4 w-4" />
                 Merge Selected ({selectedDeckIds.size})
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleArchiveSelected}
+                disabled={!hasSelectedActiveDecks || isArchiving}
+                title={!hasSelectedActiveDecks ? "Select at least one active deck to archive" : ""}
+              >
+                <Archive className="mr-2 h-4 w-4" />
+                Archive Selected ({selectedDeckIds.size})
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleActivateSelected}
+                disabled={!hasSelectedArchivedDecks || isActivating}
+                title={!hasSelectedArchivedDecks ? "Select at least one archived deck to activate" : ""}
+              >
+                <ArchiveRestore className="mr-2 h-4 w-4" />
+                Activate Selected ({selectedDeckIds.size})
               </Button>
               <Button
                 variant="destructive"
@@ -328,90 +435,209 @@ export function ManageDecksClient({ initialDecks, fetchError }: ManageDecksClien
 
       {!fetchError && decks.length > 0 && (
         <>
-          <div className="space-y-4">
-            {decks.map((deck) => {
-              const totalCardsForDisplay = (deck.new_count ?? 0) +
-                                   (deck.learning_count ?? 0) +
-                                   (deck.relearning_count ?? 0) +
-                                   (deck.young_count ?? 0) +
-                                   (deck.mature_count ?? 0);
+          <Accordion 
+            type="multiple" 
+            className="w-full space-y-4"
+            value={openSections}
+            onValueChange={setOpenSections}
+          >
+            {/* Active Decks Section */}
+            <AccordionItem value="activeDecks" className="border-none">
+              <AccordionTrigger className="text-lg font-medium font-atkinson hover:no-underline p-3 bg-muted/50 rounded-md flex items-center">
+                <span>Active Decks ({activeDecks.length})</span>
+              </AccordionTrigger>
+              <AccordionContent className="pt-4">
+                {activeDecks.length > 0 ? (
+                  <div className="space-y-4">
+                    {activeDecks.map((deck) => {
+                      const totalCardsForDisplay = (deck.new_count ?? 0) +
+                                           (deck.learning_count ?? 0) +
+                                           (deck.relearning_count ?? 0) +
+                                           (deck.young_count ?? 0) +
+                                           (deck.mature_count ?? 0);
 
-              let tagsToDisplay: Array<{ id: string; name: string; }> = [];
-              if (deck.deck_tags_json && Array.isArray(deck.deck_tags_json)) {
-                tagsToDisplay = (deck.deck_tags_json as unknown as Array<{ id: string; name: string; }>).filter(tag => tag && typeof tag.name === 'string');
-              }
-
-              const isSelected = selectedDeckIds.has(deck.id);
-
-              return (
-                <div key={deck.id} className="flex items-center gap-3">
-                  {isMultiEditMode && (
-                    <Checkbox
-                      checked={isSelected}
-                      onCheckedChange={(checked) => handleDeckSelect(deck.id, checked as boolean)}
-                    />
-                  )}
-                  <Link 
-                    href={isMultiEditMode ? '#' : `/edit/${deck.id}`} 
-                    className={`flex-1 block bg-card border rounded-lg p-4 transition-shadow duration-200 group ${
-                      isMultiEditMode 
-                        ? 'cursor-default' 
-                        : 'hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50'
-                    }`}
-                    onClick={(e) => {
-                      if (isMultiEditMode) {
-                        e.preventDefault();
+                      let tagsToDisplay: Array<{ id: string; name: string; }> = [];
+                      if (deck.deck_tags_json && Array.isArray(deck.deck_tags_json)) {
+                        tagsToDisplay = (deck.deck_tags_json as unknown as Array<{ id: string; name: string; }>).filter(tag => tag && typeof tag.name === 'string');
                       }
-                    }}
-                  >
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                      <div className="flex-grow md:w-3/5">
-                        <div className="flex flex-col sm:flex-row sm:items-baseline sm:flex-wrap gap-x-2 gap-y-1">
-                          <div className="flex items-baseline flex-wrap gap-x-2 gap-y-1">
-                            <h3 className={`text-lg font-semibold truncate mr-1 transition-colors ${
-                              !isMultiEditMode ? 'group-hover:text-primary' : ''
-                            }`} title={deck.name}>
-                              {deck.name}
-                            </h3>
-                          </div>
-                          <ItemInfoBadges 
-                            primaryLanguage={deck.primary_language}
-                            secondaryLanguage={deck.secondary_language}
-                            isBilingual={deck.is_bilingual}
-                            cardCount={totalCardsForDisplay}
-                            tags={tagsToDisplay}
-                          />
-                        </div>
-                      </div>
 
-                      <div className="w-full md:w-2/5 mt-3 md:mt-0">
-                        {totalCardsForDisplay > 0 ? (
-                          <>
-                            <DeckProgressBar
-                              newCount={deck.new_count ?? 0}
-                              learningCount={deck.learning_count ?? 0}
-                              relearningCount={deck.relearning_count ?? 0}
-                              youngCount={deck.young_count ?? 0}
-                              matureCount={deck.mature_count ?? 0}
+                      const isSelected = selectedDeckIds.has(deck.id);
+
+                      return (
+                        <div key={deck.id} className="flex items-center gap-3">
+                          {isMultiEditMode && (
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={(checked) => handleDeckSelect(deck.id, checked as boolean)}
                             />
-                            <DeckProgressLegend 
-                              newCount={deck.new_count ?? 0}
-                              learningCount={deck.learning_count ?? 0}
-                              relearningCount={deck.relearning_count ?? 0}
-                              youngCount={deck.young_count ?? 0}
-                              matureCount={deck.mature_count ?? 0}
+                          )}
+                          <Link 
+                            href={isMultiEditMode ? '#' : `/edit/${deck.id}`} 
+                            className={`flex-1 block bg-card border rounded-lg p-4 transition-shadow duration-200 group ${
+                              isMultiEditMode 
+                                ? 'cursor-default' 
+                                : 'hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50'
+                            }`}
+                            onClick={(e) => {
+                              if (isMultiEditMode) {
+                                e.preventDefault();
+                              }
+                            }}
+                          >
+                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                              <div className="flex-grow md:w-3/5">
+                                <div className="flex flex-col sm:flex-row sm:items-baseline sm:flex-wrap gap-x-2 gap-y-1">
+                                  <div className="flex items-baseline flex-wrap gap-x-2 gap-y-1">
+                                    <h3 className={`text-lg font-semibold truncate mr-1 transition-colors ${
+                                      !isMultiEditMode ? 'group-hover:text-primary' : ''
+                                    }`} title={deck.name}>
+                                      {deck.name}
+                                    </h3>
+                                  </div>
+                                  <ItemInfoBadges 
+                                    primaryLanguage={deck.primary_language}
+                                    secondaryLanguage={deck.secondary_language}
+                                    isBilingual={deck.is_bilingual}
+                                    cardCount={totalCardsForDisplay}
+                                    tags={tagsToDisplay}
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="w-full md:w-2/5 mt-3 md:mt-0">
+                                {totalCardsForDisplay > 0 ? (
+                                  <>
+                                    <DeckProgressBar
+                                      newCount={deck.new_count ?? 0}
+                                      learningCount={deck.learning_count ?? 0}
+                                      relearningCount={deck.relearning_count ?? 0}
+                                      youngCount={deck.young_count ?? 0}
+                                      matureCount={deck.mature_count ?? 0}
+                                    />
+                                    <DeckProgressLegend 
+                                      newCount={deck.new_count ?? 0}
+                                      learningCount={deck.learning_count ?? 0}
+                                      relearningCount={deck.relearning_count ?? 0}
+                                      youngCount={deck.young_count ?? 0}
+                                      matureCount={deck.mature_count ?? 0}
+                                    />
+                                  </>
+                                ) : (
+                                  <p className="text-sm text-muted-foreground text-center py-2 md:py-0">Deck is empty</p>
+                                )}
+                              </div>
+                            </div>
+                          </Link>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground text-center py-4">No active decks to display.</p>
+                )}
+              </AccordionContent>
+            </AccordionItem>
+
+            {/* Archived Decks Section */}
+            <AccordionItem value="archivedDecks" className="border-none">
+              <AccordionTrigger className="text-lg font-medium font-atkinson hover:no-underline p-3 bg-muted/50 rounded-md flex items-center">
+                <span>Archived Decks ({archivedDecks.length})</span>
+              </AccordionTrigger>
+              <AccordionContent className="pt-4">
+                {archivedDecks.length > 0 ? (
+                  <div className="space-y-4">
+                    {archivedDecks.map((deck) => {
+                      const totalCardsForDisplay = (deck.new_count ?? 0) +
+                                           (deck.learning_count ?? 0) +
+                                           (deck.relearning_count ?? 0) +
+                                           (deck.young_count ?? 0) +
+                                           (deck.mature_count ?? 0);
+
+                      let tagsToDisplay: Array<{ id: string; name: string; }> = [];
+                      if (deck.deck_tags_json && Array.isArray(deck.deck_tags_json)) {
+                        tagsToDisplay = (deck.deck_tags_json as unknown as Array<{ id: string; name: string; }>).filter(tag => tag && typeof tag.name === 'string');
+                      }
+
+                      const isSelected = selectedDeckIds.has(deck.id);
+
+                      return (
+                        <div key={deck.id} className="flex items-center gap-3">
+                          {isMultiEditMode && (
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={(checked) => handleDeckSelect(deck.id, checked as boolean)}
                             />
-                          </>
-                        ) : (
-                          <p className="text-sm text-muted-foreground text-center py-2 md:py-0">Deck is empty</p>
-                        )}
-                      </div>
-                    </div>
-                  </Link>
-                </div>
-              );
-            })}
-          </div>
+                          )}
+                          <Link 
+                            href={isMultiEditMode ? '#' : `/edit/${deck.id}`} 
+                            className={`flex-1 block bg-card border rounded-lg p-4 transition-shadow duration-200 group ${
+                              isMultiEditMode 
+                                ? 'cursor-default' 
+                                : 'hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50'
+                            }`}
+                            onClick={(e) => {
+                              if (isMultiEditMode) {
+                                e.preventDefault();
+                              }
+                            }}
+                          >
+                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                              <div className="flex-grow md:w-3/5">
+                                <div className="flex flex-col sm:flex-row sm:items-baseline sm:flex-wrap gap-x-2 gap-y-1">
+                                  <div className="flex items-baseline flex-wrap gap-x-2 gap-y-1">
+                                    <h3 className={`text-lg font-semibold truncate mr-1 transition-colors ${
+                                      !isMultiEditMode ? 'group-hover:text-primary' : ''
+                                    }`} title={deck.name}>
+                                      {deck.name}
+                                    </h3>
+                                    <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                                      Archived
+                                    </Badge>
+                                  </div>
+                                  <ItemInfoBadges 
+                                    primaryLanguage={deck.primary_language}
+                                    secondaryLanguage={deck.secondary_language}
+                                    isBilingual={deck.is_bilingual}
+                                    cardCount={totalCardsForDisplay}
+                                    tags={tagsToDisplay}
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="w-full md:w-2/5 mt-3 md:mt-0">
+                                {totalCardsForDisplay > 0 ? (
+                                  <>
+                                    <DeckProgressBar
+                                      newCount={deck.new_count ?? 0}
+                                      learningCount={deck.learning_count ?? 0}
+                                      relearningCount={deck.relearning_count ?? 0}
+                                      youngCount={deck.young_count ?? 0}
+                                      matureCount={deck.mature_count ?? 0}
+                                    />
+                                    <DeckProgressLegend 
+                                      newCount={deck.new_count ?? 0}
+                                      learningCount={deck.learning_count ?? 0}
+                                      relearningCount={deck.relearning_count ?? 0}
+                                      youngCount={deck.young_count ?? 0}
+                                      matureCount={deck.mature_count ?? 0}
+                                    />
+                                  </>
+                                ) : (
+                                  <p className="text-sm text-muted-foreground text-center py-2 md:py-0">Deck is empty</p>
+                                )}
+                              </div>
+                            </div>
+                          </Link>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground text-center py-4">No archived decks to display.</p>
+                )}
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
           
           {decks.some(d => (d.new_count + d.learning_count + d.relearning_count + d.young_count + d.mature_count) > 0) && (
             <div className="mt-8 flex justify-center sm:justify-end">

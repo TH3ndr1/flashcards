@@ -49,10 +49,12 @@ export async function getCardsByIds(
                 question_gender,
                 answer_part_of_speech,
                 answer_gender,
-                decks ( primary_language, secondary_language )
+                decks!inner ( primary_language, secondary_language, status )
             `)
             .in('id', validCardIds)
-            .eq('user_id', user.id);
+            .eq('user_id', user.id)
+            .eq('status', 'active')
+            .eq('decks.status', 'active');
 
         if (dbError) {
             appLogger.error('[getCardsByIds] Database error:', dbError);
@@ -190,7 +192,8 @@ export async function createCard(
             .from('decks')
             .select('id', { count: 'exact', head: true })
             .eq('id', deckId)
-            .eq('user_id', user.id);
+            .eq('user_id', user.id)
+            .eq('status', 'active');
 
         if (deckCheckError || deckCount === 0) {
              appLogger.error('[createCard - Single] Deck ownership check failed:', deckCheckError);
@@ -361,7 +364,8 @@ export async function createCardsBatch(
             .from('decks')
             .select('id', { count: 'exact', head: true })
             .eq('id', deckId)
-            .eq('user_id', user.id);
+            .eq('user_id', user.id)
+            .eq('status', 'active');
 
         if (deckCheckError || deckCount === 0) {
              appLogger.error('[createCardsBatch] Deck ownership check failed:', deckCheckError);
@@ -452,7 +456,7 @@ export async function getCardsByDeckId(deckId: string): Promise<ActionResult<Tab
         return { data: null, error: authError?.message || 'Not authenticated' };
     }
 
-    const { data, error } = await supabase
+        const { data, error } = await supabase
         .from('cards')
         .select(`
             *,
@@ -462,7 +466,8 @@ export async function getCardsByDeckId(deckId: string): Promise<ActionResult<Tab
             answer_gender
         `)
         .eq('deck_id', deckId)
-        .eq('user_id', user.id);
+        .eq('user_id', user.id)
+        .eq('status', 'active');
 
     if (error) {
         appLogger.error(`[getCardsByDeckId] Error fetching cards for deck ${deckId}:`, error);

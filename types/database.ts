@@ -37,6 +37,7 @@ export type Database = {
           question_part_of_speech: string | null
           srs_level: number
           stability: number | null
+          status: Database["public"]["Enums"]["status_type"]
           updated_at: string | null
           user_id: string | null
         }
@@ -67,6 +68,7 @@ export type Database = {
           question_part_of_speech?: string | null
           srs_level?: number
           stability?: number | null
+          status?: Database["public"]["Enums"]["status_type"]
           updated_at?: string | null
           user_id?: string | null
         }
@@ -97,6 +99,7 @@ export type Database = {
           question_part_of_speech?: string | null
           srs_level?: number
           stability?: number | null
+          status?: Database["public"]["Enums"]["status_type"]
           updated_at?: string | null
           user_id?: string | null
         }
@@ -155,6 +158,7 @@ export type Database = {
           primary_language: string
           progress: Json
           secondary_language: string
+          status: Database["public"]["Enums"]["status_type"]
           updated_at: string | null
           user_id: string
         }
@@ -166,6 +170,7 @@ export type Database = {
           primary_language?: string
           progress?: Json
           secondary_language?: string
+          status?: Database["public"]["Enums"]["status_type"]
           updated_at?: string | null
           user_id: string
         }
@@ -177,6 +182,7 @@ export type Database = {
           primary_language?: string
           progress?: Json
           secondary_language?: string
+          status?: Database["public"]["Enums"]["status_type"]
           updated_at?: string | null
           user_id?: string
         }
@@ -477,6 +483,7 @@ export type Database = {
     }
     Enums: {
       font_option: "default" | "opendyslexic" | "atkinson"
+      status_type: "active" | "archived" | "deleted"
     }
     CompositeTypes: {
       srs_distribution_counts: {
@@ -616,6 +623,7 @@ export const Constants = {
   public: {
     Enums: {
       font_option: ["default", "opendyslexic", "atkinson"],
+      status_type: ["active", "archived", "deleted"],
     },
   },
 } as const
