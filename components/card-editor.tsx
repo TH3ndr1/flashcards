@@ -2,13 +2,13 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, useCallback } from "react"
-import { Card, CardContent, CardFooter } from "@/components/ui/card"
+import { useState, useEffect } from "react"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2, Save, Loader2 as IconLoader, SwitchCamera } from "lucide-react"
+import { Trash2, SwitchCamera } from "lucide-react"
 import type { Tables } from "@/types/database" // Use generated DB types
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
@@ -180,45 +180,6 @@ export function CardEditor({ card, onUpdate, onDelete, onCreate }: CardEditorPro
       "relative",
       !isExistingCard && card?.id?.startsWith('new-') ? "border-primary border-2 shadow-lg shadow-primary/20" : ""
     )}>
-      {/* Swap Q/A button */}
-      <div className="absolute left-2 top-2 z-10">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => {
-            // Local swap of fields
-            const newQ = internalAnswer;
-            const newA = internalQuestion;
-            const newQPos = internalAnswerPos;
-            const newAPos = internalQuestionPos;
-            const newQGender = internalAnswerGender;
-            const newAGender = internalQuestionGender;
-            setInternalQuestion(newQ);
-            setInternalAnswer(newA);
-            setInternalQuestionPos(newQPos);
-            setInternalAnswerPos(newAPos);
-            setInternalQuestionGender(newQGender);
-            setInternalAnswerGender(newAGender);
-
-            if (isExistingCard && card?.id) {
-              onUpdate(card.id, {
-                question: newQ,
-                answer: newA,
-                question_part_of_speech: newQPos === 'N/A' ? null : newQPos,
-                question_gender: newQGender === 'Default' ? null : newQGender,
-                answer_part_of_speech: newAPos === 'N/A' ? null : newAPos,
-                answer_gender: newAGender === 'Default' ? null : newAGender,
-              });
-            } else if (onCreate && newQ.trim() && newA.trim()) {
-              // If new and both fields filled, autosave after swap
-              handleCreate();
-            }
-          }}
-          aria-label="Swap Q/A for this card"
-        >
-          <SwitchCamera className="h-4 w-4" />
-        </Button>
-      </div>
        {(isExistingCard || card?.id?.startsWith('new-')) && card?.id && (
           <Button
             variant="ghost"
@@ -236,7 +197,48 @@ export function CardEditor({ card, onUpdate, onDelete, onCreate }: CardEditorPro
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Question Section */}
           <div className="space-y-2">
-            <Label htmlFor={`question-${cardIdSuffix}`} className="block text-sm font-medium">Question</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor={`question-${cardIdSuffix}`} className="text-sm font-medium">Question</Label>
+              {/* Swap button moved to right side of question header */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  // Local swap of fields
+                  const newQ = internalAnswer;
+                  const newA = internalQuestion;
+                  const newQPos = internalAnswerPos;
+                  const newAPos = internalQuestionPos;
+                  const newQGender = internalAnswerGender;
+                  const newAGender = internalQuestionGender;
+                  setInternalQuestion(newQ);
+                  setInternalAnswer(newA);
+                  setInternalQuestionPos(newQPos);
+                  setInternalAnswerPos(newAPos);
+                  setInternalQuestionGender(newQGender);
+                  setInternalAnswerGender(newAGender);
+
+                  if (isExistingCard && card?.id) {
+                    onUpdate(card.id, {
+                      question: newQ,
+                      answer: newA,
+                      question_part_of_speech: newQPos === 'N/A' ? null : newQPos,
+                      question_gender: newQGender === 'Default' ? null : newQGender,
+                      answer_part_of_speech: newAPos === 'N/A' ? null : newAPos,
+                      answer_gender: newAGender === 'Default' ? null : newAGender,
+                    });
+                  } else if (onCreate && newQ.trim() && newA.trim()) {
+                    // If new and both fields filled, autosave after swap
+                    handleCreate();
+                  }
+                }}
+                aria-label="Swap Q/A for this card"
+                className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <SwitchCamera className="h-3 w-3 mr-1" />
+                Swap
+              </Button>
+            </div>
             <Textarea
               id={`question-${cardIdSuffix}`}
               placeholder="Enter question..."

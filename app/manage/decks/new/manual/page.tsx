@@ -2,7 +2,7 @@
 "use client";
 
 import type React from "react"; // Import React type if needed for specific typings
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSettings } from "@/providers/settings-provider"; // To get default language
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { ArrowLeft, Loader2 as IconLoader } from "lucide-react"; // For loading state
-import { appLogger, statusLogger } from '@/lib/logger';
+import { appLogger } from '@/lib/logger';
 
 /**
  * Page component for manually creating a new deck's metadata.
@@ -27,22 +27,23 @@ export default function NewDeckPage() {
     // State for form inputs
     const [name, setName] = useState("");
     const [isBilingual, setIsBilingual] = useState(false);
-    const [primaryLanguage, setPrimaryLanguage] = useState(""); // Renamed for clarity
-    const [secondaryLanguage, setSecondaryLanguage] = useState(""); // Renamed for clarity
+    const [primaryLanguage, setPrimaryLanguage] = useState(settings?.appLanguage || "en"); // Initialize with settings or fallback
+    const [secondaryLanguage, setSecondaryLanguage] = useState(settings?.appLanguage || "en"); // Initialize with settings or fallback
     const [loading, setLoading] = useState(false);
 
-    // Set default languages based on user settings when component mounts
+    // Set default languages based on user settings when component mounts or settings load
     useEffect(() => {
         if (settings?.appLanguage) {
             appLogger.info("[NewDeckPage] Setting default language from settings:", settings.appLanguage);
             setPrimaryLanguage(settings.appLanguage);
             setSecondaryLanguage(settings.appLanguage); // Default secondary to same as primary
-        } else {
-            // Fallback if settings not loaded or no language set
-             appLogger.info("[NewDeckPage] No default language in settings, using 'en'.");
+        } else if (settings !== null) {
+            // Settings are loaded but no language is set, use fallback
+             appLogger.info("[NewDeckPage] Settings loaded but no default language set, using 'en'.");
              setPrimaryLanguage("en");
              setSecondaryLanguage("en");
         }
+        // If settings is null, it means settings are still loading, so we don't change the state
     }, [settings]); // Re-run if settings change
 
     // Handler for language change when NOT bilingual
@@ -111,11 +112,11 @@ export default function NewDeckPage() {
                  throw new Error("API succeeded but did not return a deck ID.");
             }
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             appLogger.error("[NewDeckPage] Error creating deck:", error);
             toast.error("Failed to create deck", {
                 id: toastId,
-                description: error.message || "An unexpected error occurred.",
+                description: (error as Error).message || "An unexpected error occurred.",
             });
             setLoading(false); // Stop loading on error
         }

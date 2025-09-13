@@ -5,7 +5,7 @@ import { createActionClient } from "@/lib/supabase/server";
 import type { Database, Tables, Json, TablesUpdate } from "@/types/database"; // Import TablesUpdate
 import type { ActionResult } from "@/lib/actions/types";
 import { revalidatePath } from 'next/cache';
-import { appLogger, statusLogger } from '@/lib/logger';
+import { appLogger } from '@/lib/logger';
 
 export type DeckListItemWithCounts = {
     id: string;
@@ -80,9 +80,9 @@ export async function getDecks(): Promise<ActionResult<DeckListItemWithCounts[]>
         appLogger.info(`[deckActions - getDecks] Successfully fetched and processed ${processedData.length} decks via RPC.`);
         return { data: processedData as DeckListItemWithCounts[], error: null };
 
-    } catch (err: any) {
+    } catch (err: unknown) {
         appLogger.error('[deckActions - getDecks] Caught unexpected error:', err);
-        return { data: null, error: err.message || 'An unexpected error occurred while fetching decks.' };
+        return { data: null, error: err instanceof Error ? err.message : 'An unexpected error occurred while fetching decks.' };
     }
 }
 
@@ -237,9 +237,9 @@ export async function updateDeck(
              return { data: null, error: 'Deck not found or update failed.' };
         }
         appLogger.info(`[deckActions - updateDeck] Success, ID: ${updatedDeck.id}`);
+        // Skip revalidatePath for edit page to prevent page refresh during editing
         revalidatePath('/');
         revalidatePath('/study/select');
-        revalidatePath(`/edit/${deckId}`);
         return { data: updatedDeck, error: null };
     } catch (error) {
         appLogger.error('[deckActions - updateDeck] Caught unexpected error:', error);
@@ -280,6 +280,152 @@ export async function deleteDeck(
     } catch (error) {
         appLogger.error('[deckActions - deleteDeck] Caught unexpected error:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error deleting deck';
+        return { data: null, error: errorMessage };
+    }
+}
+
+export async function deleteDecks(
+    deckIds: string[]
+): Promise<ActionResult<{ deletedCount: number }>> {
+    appLogger.info(`[deckActions - deleteDecks] Action started for ${deckIds.length} decks`);
+    
+    if (!deckIds || deckIds.length === 0) {
+        return { data: null, error: 'At least one deck ID is required.' };
+    }
+
+    try {
+        const supabase = createActionClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        
+        if (authError || !user) {
+            appLogger.error('[deckActions - deleteDecks] Auth error:', authError);
+            return { data: null, error: authError?.message || 'Not authenticated' };
+        }
+
+        appLogger.info(`[deckActions - deleteDecks] User: ${user.id}, Deleting ${deckIds.length} decks`);
+        
+        // Delete multiple decks in a single query
+        const { error: deleteError, count } = await supabase
+            .from('decks')
+            .delete()
+            .in('id', deckIds)
+            .eq('user_id', user.id);
+
+        if (deleteError) {
+            appLogger.error('[deckActions - deleteDecks] Delete error:', deleteError);
+            return { data: null, error: deleteError.message || 'Failed to delete decks.' };
+        }
+
+        const deletedCount = count || 0;
+        appLogger.info(`[deckActions - deleteDecks] Successfully deleted ${deletedCount} decks`);
+        
+        // Revalidate paths
+        revalidatePath('/');
+        revalidatePath('/study/select');
+        revalidatePath('/manage/decks');
+        
+        return { data: { deletedCount }, error: null };
+        
+    } catch (error) {
+        appLogger.error('[deckActions - deleteDecks] Caught unexpected error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error deleting decks';
+        return { data: null, error: errorMessage };
+    }
+}
+
+export async function mergeDecks(
+    deckIds: string[],
+    mergeData: {
+        name: string;
+        is_bilingual: boolean;
+        primary_language: string;
+        secondary_language: string;
+        tags: Array<{ id: string; name: string; }>;
+    }
+): Promise<ActionResult<Tables<'decks'>>> {
+    appLogger.info(`[deckActions - mergeDecks] Action started for ${deckIds.length} decks`);
+    
+    if (!deckIds || deckIds.length < 2) {
+        return { data: null, error: 'At least two deck IDs are required for merging.' };
+    }
+
+    if (!mergeData.name.trim() || !mergeData.primary_language.trim()) {
+        return { data: null, error: 'Deck name and primary language are required.' };
+    }
+
+    try {
+        const supabase = createActionClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        
+        if (authError || !user) {
+            appLogger.error('[deckActions - mergeDecks] Auth error:', authError);
+            return { data: null, error: authError?.message || 'Not authenticated' };
+        }
+
+        appLogger.info(`[deckActions - mergeDecks] User: ${user.id}, Merging ${deckIds.length} decks`);
+        
+        // 1. Create the new merged deck
+        const newDeckData: Database['public']['Tables']['decks']['Insert'] = {
+            user_id: user.id,
+            name: mergeData.name.trim(),
+            primary_language: mergeData.primary_language.trim(),
+            secondary_language: mergeData.is_bilingual ? mergeData.secondary_language.trim() : undefined,
+            is_bilingual: mergeData.is_bilingual,
+        };
+
+        const { data: newDeck, error: createError } = await supabase
+            .from('decks')
+            .insert(newDeckData)
+            .select()
+            .single();
+
+        if (createError || !newDeck) {
+            appLogger.error('[deckActions - mergeDecks] Error creating new deck:', createError);
+            return { data: null, error: createError?.message || 'Failed to create merged deck.' };
+        }
+
+        appLogger.info(`[deckActions - mergeDecks] Created new deck with ID: ${newDeck.id}`);
+
+        // 2. Move all cards from source decks to the new deck
+        const { error: moveCardsError } = await supabase
+            .from('cards')
+            .update({ deck_id: newDeck.id })
+            .in('deck_id', deckIds)
+            .eq('user_id', user.id);
+
+        if (moveCardsError) {
+            appLogger.error('[deckActions - mergeDecks] Error moving cards:', moveCardsError);
+            // Rollback: delete the created deck
+            await supabase.from('decks').delete().eq('id', newDeck.id);
+            return { data: null, error: 'Failed to move cards to merged deck.' };
+        }
+
+        // 3. Delete the original decks
+        const { error: deleteError } = await supabase
+            .from('decks')
+            .delete()
+            .in('id', deckIds)
+            .eq('user_id', user.id);
+
+        if (deleteError) {
+            appLogger.error('[deckActions - mergeDecks] Error deleting original decks:', deleteError);
+            // Note: Cards have already been moved, so we don't rollback completely
+            // but we log this as a warning
+            appLogger.warn('[deckActions - mergeDecks] Cards were moved successfully, but original decks could not be deleted');
+        }
+
+        appLogger.info(`[deckActions - mergeDecks] Successfully merged ${deckIds.length} decks into ${newDeck.id}`);
+        
+        // Revalidate paths
+        revalidatePath('/');
+        revalidatePath('/study/select');
+        revalidatePath('/manage/decks');
+        
+        return { data: newDeck, error: null };
+        
+    } catch (error) {
+        appLogger.error('[deckActions - mergeDecks] Caught unexpected error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error merging decks';
         return { data: null, error: errorMessage };
     }
 }

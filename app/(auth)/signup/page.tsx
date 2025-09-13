@@ -129,12 +129,17 @@ function SignupContent() {
           toast.error((error as any).message || "Sign up failed. Please try again.")
         }
       } else if (data?.user) {
-        if (data.user.identities && data.user.identities.length > 0 && !data.user.email_confirmed_at) {
+        if (data?.session) {
+          // User has a session (email confirmation disabled), redirect immediately
+          toast.success("Sign up successful! Redirecting...")
+          // Add a small delay to ensure auth state has propagated
+          setTimeout(() => {
+            router.push("/")
+          }, 100)
+        } else {
+          // No session means email confirmation is required
           toast.info("Sign up successful! Please check your email to confirm your account.")
           router.push("/login?message=check_email")
-        } else {
-          toast.success("Sign up successful! Redirecting...")
-          router.push("/")
         }
       } else {
         toast.error("An unexpected issue occurred during sign up. Please try again.")

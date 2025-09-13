@@ -170,14 +170,15 @@ export function useDecks(): UseDecksReturn {
     const result = await updateDeckAction(id, params);
     if (!result.error && result.data) {
       logDecks("Update action successful for ID:", id);
-      toast.success(`Deck "${result.data.name}" updated.`);
-      await fetchDeckList();
+      // Skip toast and fetchDeckList for edit page to prevent page refresh during editing
+      // toast.success(`Deck "${result.data.name}" updated.`);
+      // await fetchDeckList();
     } else if (result.error) {
       logDecksError("Update action failed for ID:", id, "Error:", result.error);
       toast.error("Failed to update deck", { description: result.error });
     }
     return result;
-  }, [user, fetchDeckList]);
+  }, [user]); // Removed fetchDeckList dependency since we're not calling it
 
   const deleteDeck = useCallback(async (id: string): Promise<ActionResult<null>> => {
     if (!user) return { data: null, error: "User not authenticated" };

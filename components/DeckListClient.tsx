@@ -1,28 +1,24 @@
 // components/DeckListClient.tsx
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react"; // Added useMemo, useCallback
+import React, { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { PlusCircle, Edit, Play, Loader2 } from "lucide-react"; // Added Loader2
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PlusCircle, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useStudySessionStore } from '@/store/studySessionStore';
 import type { StudySessionInput, SessionType } from '@/types/study';
 import {
-  Tooltip,
-  TooltipContent,
   TooltipProvider,
-  TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { DeckProgressBar } from "@/components/deck/DeckProgressBar";
 // Import useSettings and DEFAULT_SETTINGS
-import { useSettings, DEFAULT_SETTINGS, Settings } from "@/providers/settings-provider";
+import { useSettings, DEFAULT_SETTINGS } from "@/providers/settings-provider";
 import { Separator } from "@/components/ui/separator";
 import { toast } from 'sonner';
 import { useDecks as useDecksHook } from "@/hooks/use-decks"; // Renamed to avoid conflict if 'decks' is used as variable
 import type { DeckListItemWithCounts } from "@/hooks/use-decks"; // Import this type
-import { parseISO, format } from 'date-fns'; // For sorting by date
-import { Badge } from "@/components/ui/badge";
+import { parseISO } from 'date-fns'; // For sorting by date
 import { ItemInfoBadges } from '@/components/ItemInfoBadges';
 import { DeckProgressLegend } from '@/components/deck/DeckProgressLegend';
 import { cn } from "@/lib/utils";
@@ -31,7 +27,7 @@ import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from "@/components/ui/accordion"; // Added Accordion imports
+} from "@/components/ui/accordion";
 
 // Type for TagInfo (if not already globally defined)
 interface TagInfo {
@@ -56,8 +52,7 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
   const { 
     decks: rawDecksFromHook, // Renamed to avoid conflict
     loading: decksLoading, 
-    error: decksError, 
-    refetchDecks 
+    error: decksError
   } = useDecksHook();
 
   const { settings, loading: settingsLoading } = useSettings();
@@ -75,14 +70,6 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
   // State for accordion sections - default to open
   const [openSections, setOpenSections] = useState<string[]>(["dueDecks", "otherDecks"]);
 
-  const legendStages = [ /* ... as before ... */
-    { name: 'New', startColor: '#EC4899', endColor: '#EF4444' },
-    { name: 'Learning', startColor: '#DA55C6', endColor: '#9353DD' },
-    { name: 'Relearning', startColor: '#F59E0B', endColor: '#F97316' },
-    { name: 'Young', startColor: '#6055DA', endColor: '#5386DD' },
-    { name: 'Mature', startColor: '#55A9DA', endColor: '#53DDDD' },
-  ];
-
   // Memoized and processed decks (this will be expanded in Task X.3.3 for grouping)
   const processedAndSortedDecks = useMemo(() => {
     if (!rawDecksFromHook) return [];
@@ -97,7 +84,7 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
       let tags: TagInfo[] = [];
       if (deck.deck_tags_json && Array.isArray(deck.deck_tags_json)) {
          try {
-            tags = (deck.deck_tags_json as any[]).filter(tag => tag && typeof tag.name === 'string') as TagInfo[];
+            tags = (deck.deck_tags_json as unknown as TagInfo[]).filter(tag => tag && typeof tag.name === 'string');
          } catch (e) { console.error("Error parsing tags for deck " + deck.id, e); }
       }
 
@@ -164,9 +151,8 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
   };
 
   const handleCreateDeckClick = () => {
-    // Link to the choice page, then to new, or directly to new.
-    // Assuming /decks/new is the unified entry point as per previous plans.
-    router.push('/decks/new'); 
+    // Link to the deck creation page
+    router.push('/manage/decks/new'); 
   };
 
   if (isOverallLoading) {

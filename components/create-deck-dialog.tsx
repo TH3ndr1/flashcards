@@ -28,14 +28,15 @@ interface CreateDeckDialogProps {
 }
 
 export function CreateDeckDialog({ open, onOpenChange }: CreateDeckDialogProps) {
-  const [name, setName] = useState("")
-  const [isBilingual, setIsBilingual] = useState(false)
-  const [questionLanguage, setQuestionLanguage] = useState("")
-  const [answerLanguage, setAnswerLanguage] = useState("")
-  const [loading, setLoading] = useState(false)
   const { createDeck } = useDecks()
   const { settings } = useSettings()
   const router = useRouter()
+  
+  const [name, setName] = useState("")
+  const [isBilingual, setIsBilingual] = useState(false)
+  const [questionLanguage, setQuestionLanguage] = useState(settings?.appLanguage || "en")
+  const [answerLanguage, setAnswerLanguage] = useState(settings?.appLanguage || "en")
+  const [loading, setLoading] = useState(false)
 
   // Set default languages from settings
   useEffect(() => {

@@ -17,6 +17,8 @@ import { toast } from "sonner";
 import { debounce } from "@/lib/utils";
 // --- Import NEW Deck Tag actions --- 
 import { addTagToDeck, removeTagFromDeck } from '@/lib/actions/tagActions';
+// Import useTags to get tag data for optimistic updates
+import { useTags } from '@/hooks/useTags';
 // --- Update state type to include tags --- 
 // Use the DeckWithCardsAndTags type which includes the tags array
 // Assuming useDecks.getDeck returns this structure now
@@ -41,7 +43,7 @@ type UpdateCardInput = Partial<CreateCardInput>;
 export type DeckEditState = (Omit<DeckWithCardsAndTags, 'cards'> & { cards: Array<Partial<DbCard>> }) | null;
 
 // Debounce time for auto-saving metadata (in milliseconds)
-const DECK_UPDATE_DEBOUNCE_MS = 1500;
+const DECK_UPDATE_DEBOUNCE_MS = 800;
 
 // Interface for storing previous/initial metadata state for comparison logic
 interface MetadataState {
@@ -61,6 +63,8 @@ export function useEditDeck(deckId: string | undefined) {
     const router = useRouter();
     // Get deck-related actions and loading state from the dedicated useDecks hook
     const { getDeck, updateDeck, deleteDeck, loading: useDecksLoading } = useDecks();
+    // Get all tags for optimistic updates
+    const { allTags } = useTags();
 
     // --- State Definitions ---
     const [deck, setDeck] = useState<DeckEditState>(null);
@@ -458,13 +462,22 @@ export function useEditDeck(deckId: string | undefined) {
                 throw new Error(result.error);
             }
             toast.success("Tag added to deck", { id: toastId });
-            // Refetch deck data to get the updated tag list
-            await loadDeckData(deck.id);
+            
+            // Optimistically update the deck tags in state instead of full reload
+            const addedTag = allTags.find(tag => tag.id === tagId);
+            if (addedTag) {
+                setDeck((prevDeckState: DeckEditState): DeckEditState => {
+                    if (!prevDeckState) return null;
+                    const updatedTags = [...(prevDeckState.tags || []), addedTag];
+                    return { ...prevDeckState, tags: updatedTags };
+                });
+                appLogger.info(`[useEditDeck] Optimistically added tag ${addedTag.name} to deck state`);
+            }
         } catch (error: any) {
             appLogger.error("[useEditDeck] Error adding tag to deck:", error);
             toast.error("Failed to add tag", { id: toastId, description: error.message });
         }
-    }, [deck, loadDeckData]); // Depend on deck and loadDeckData
+    }, [deck, allTags]); // Include allTags for optimistic updates
 
     const handleRemoveTagFromDeck = useCallback(async (tagId: string) => {
         if (!deck || !deck.id) {
@@ -479,13 +492,19 @@ export function useEditDeck(deckId: string | undefined) {
                 throw new Error(result.error);
             }
             toast.success("Tag removed from deck", { id: toastId });
-            // Refetch deck data to get the updated tag list
-            await loadDeckData(deck.id);
+            
+            // Optimistically update the deck tags in state instead of full reload
+            setDeck((prevDeckState: DeckEditState): DeckEditState => {
+                if (!prevDeckState) return null;
+                const updatedTags = (prevDeckState.tags || []).filter(tag => tag.id !== tagId);
+                return { ...prevDeckState, tags: updatedTags };
+            });
+            appLogger.info(`[useEditDeck] Optimistically removed tag ${tagId} from deck state`);
         } catch (error: any) {
             appLogger.error("[useEditDeck] Error removing tag from deck:", error);
             toast.error("Failed to remove tag", { id: toastId, description: error.message });
         }
-    }, [deck, loadDeckData]); // Depend on deck and loadDeckData
+    }, [deck]); // No need for allTags dependency for removal
     // --------------------------------
 
     // --- Return Values ---

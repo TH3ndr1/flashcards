@@ -2,10 +2,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createActionClient } from '@/lib/supabase/server';
 import type { ApiFlashcard } from '../extract-pdf/types';
-import type { Database, Tables, Json } from '@/types/database';
+import type { Database, Tables } from '@/types/database';
 // --- Import the NEW batch action ---
 import { createCardsBatch, type CreateCardInput } from '@/lib/actions/cardActions'; // Adjust path if needed
-import { appLogger, statusLogger } from '@/lib/logger';
+import { appLogger } from '@/lib/logger';
 
 // Define the expected request body structure (remains the same)
 interface CreateDeckRequestBody {
@@ -33,9 +33,9 @@ export async function POST(request: NextRequest) {
         let body: CreateDeckRequestBody;
         try {
              body = await request.json();
-        } catch (jsonError: any) {
+        } catch (jsonError: unknown) {
              appLogger.error("[API POST /api/decks] Error parsing JSON body:", jsonError);
-             return NextResponse.json({ success: false, message: `Invalid JSON format in request body: ${jsonError.message}` }, { status: 400 });
+             return NextResponse.json({ success: false, message: `Invalid JSON format in request body: ${jsonError instanceof Error ? jsonError.message : 'Unknown error'}` }, { status: 400 });
         }
 
         const { name, questionLanguage, answerLanguage, isBilingual, flashcards } = body;
@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
                 try {
                      await supabase.from('decks').delete().eq('id', newDeckId);
                      appLogger.info(`[API POST /api/decks] Rolled back deck creation (ID: ${newDeckId}) due to card batch error.`);
-                } catch (rollbackError: any) {
+                } catch (rollbackError: unknown) {
                     appLogger.error(`[API POST /api/decks] CRITICAL: Failed to rollback deck ${newDeckId} after card batch failure:`, rollbackError);
                     cardCreationError += ' Rollback also failed.'; // Append rollback failure info
                 }
@@ -144,12 +144,12 @@ export async function POST(request: NextRequest) {
             deck: deckData as Tables<'decks'>
         }, { status: 201 });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         appLogger.error("[API POST /api/decks] Unhandled error in POST handler:", error);
         // Keep generic error handlers
         if (error instanceof SyntaxError) {
              return NextResponse.json({ success: false, message: 'Invalid JSON in request body' }, { status: 400 });
         }
-        return NextResponse.json({ success: false, message: `Internal server error: ${error.message}` }, { status: 500 });
+        return NextResponse.json({ success: false, message: `Internal server error: ${error instanceof Error ? error.message : 'Unknown error'}` }, { status: 500 });
     }
 }

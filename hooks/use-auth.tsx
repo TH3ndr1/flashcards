@@ -150,8 +150,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         errorResult = error
         if (errorResult) {
           logAuthError("Sign in error:", errorResult)
+          // Reset loading state on authentication errors (wrong password, etc.)
+          setLoading(false)
         } else {
           logAuth("Sign in successful (state update via listener)")
+          // Note: loading state will be managed by the auth state change listener
         }
       } catch (err) {
         logAuthError("Unexpected error during sign in API call:", err)
@@ -190,6 +193,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           logAuthError("Error during sign up:", errorResult)
         } else {
           logAuth("Sign up successful (pending confirmation)", data)
+          
+          // If user has a session (email confirmation disabled), update auth state immediately
+          if (data?.user && data?.session) {
+            logAuth("User signed up successfully with session, updating auth state immediately")
+            setUser(data.user)
+            setSession(data.session)
+          }
         }
         setLoading(false)
         return { data, error: errorResult }

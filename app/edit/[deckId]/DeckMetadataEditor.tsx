@@ -69,15 +69,21 @@ export const DeckMetadataEditor = memo(({
             {/* Deck Name Input */}
             <div>
                 <Label htmlFor="deckNameInput">Deck Name</Label>
-                <Input
-                    id="deckNameInput"
-                    value={name}
-                    onChange={(e) => onChange({ name: e.target.value })}
-                    className="mt-1"
-                    placeholder="Enter deck name"
-                    disabled={isSaving}
-                />
-                 {isSaving && <p className="text-sm text-muted-foreground mt-1">Saving...</p>}
+                <div className="relative">
+                    <Input
+                        id="deckNameInput"
+                        value={name}
+                        onChange={(e) => onChange({ name: e.target.value })}
+                        className="mt-1"
+                        placeholder="Enter deck name"
+                        disabled={false} // Don't disable input during save
+                    />
+                    {isSaving && (
+                        <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-xs text-muted-foreground">
+                            Saving...
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Language Settings Section */}
@@ -92,7 +98,7 @@ export const DeckMetadataEditor = memo(({
                     <Switch
                         checked={isBilingual}
                         onCheckedChange={handleBilingualChange}
-                        disabled={isSaving}
+                        disabled={false} // Don't disable during save
                     />
                 </div>
 
@@ -103,7 +109,7 @@ export const DeckMetadataEditor = memo(({
                             <Select
                                 value={primaryLanguage ?? undefined} // Pass undefined to Select if null
                                 onValueChange={handlePrimaryLangChange}
-                                disabled={isSaving}
+                                disabled={false} // Don't disable during save
                             >
                                 <SelectTrigger id="primaryLanguage"><SelectValue placeholder="Select language" /></SelectTrigger>
                                 <SelectContent> <SelectItem value="en">English</SelectItem> <SelectItem value="nl">Dutch</SelectItem> <SelectItem value="fr">French</SelectItem> <SelectItem value="de">German</SelectItem> <SelectItem value="es">Spanish</SelectItem> <SelectItem value="it">Italian</SelectItem> </SelectContent>
@@ -114,7 +120,7 @@ export const DeckMetadataEditor = memo(({
                             <Select
                                 value={secondaryLanguage ?? undefined} // Pass undefined to Select if null
                                 onValueChange={handleSecondaryLangChange} // Use dedicated handler
-                                disabled={isSaving}
+                                disabled={false} // Don't disable during save
                             >
                                 <SelectTrigger id="secondaryLanguage"><SelectValue placeholder="Select language" /></SelectTrigger>
                                 <SelectContent> <SelectItem value="en">English</SelectItem> <SelectItem value="nl">Dutch</SelectItem> <SelectItem value="fr">French</SelectItem> <SelectItem value="de">German</SelectItem> <SelectItem value="es">Spanish</SelectItem> <SelectItem value="it">Italian</SelectItem> </SelectContent>
@@ -127,7 +133,7 @@ export const DeckMetadataEditor = memo(({
                         <Select
                             value={primaryLanguage ?? undefined} // Pass undefined to Select if null
                             onValueChange={handlePrimaryLangChange} // This handler updates both if not bilingual
-                            disabled={isSaving}
+                            disabled={false} // Don't disable during save
                         >
                             <SelectTrigger id="language"><SelectValue placeholder="Select language" /></SelectTrigger>
                             <SelectContent> <SelectItem value="en">English</SelectItem> <SelectItem value="nl">Dutch</SelectItem> <SelectItem value="fr">French</SelectItem> <SelectItem value="de">German</SelectItem> <SelectItem value="es">Spanish</SelectItem> <SelectItem value="it">Italian</SelectItem> </SelectContent>

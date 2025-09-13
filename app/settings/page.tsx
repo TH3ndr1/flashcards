@@ -51,7 +51,6 @@ export default function SettingsPage() {
   const { setTheme } = useTheme(); // Get setTheme function
 
   // State initialization (Keep all existing state variables)
-  const [appLanguage, setAppLanguage] = useState<string>(LOCAL_DEFAULT_SETTINGS.appLanguage);
   const [cardFont, setCardFont] = useState<FontOption>(LOCAL_DEFAULT_SETTINGS.cardFont);
   const [masteryThreshold, setMasteryThreshold] = useState<number>(LOCAL_DEFAULT_SETTINGS.masteryThreshold);
   const [languageDialects, setLanguageDialects] = useState<NonNullable<Settings['languageDialects']>>(
@@ -102,7 +101,6 @@ export default function SettingsPage() {
   useEffect(() => { /* Load Settings */
      if (!settingsLoading && user) {
          const currentSettings = settings ?? LOCAL_DEFAULT_SETTINGS;
-         setAppLanguage(currentSettings.appLanguage);
          setCardFont(currentSettings.cardFont);
          setMasteryThreshold(currentSettings.masteryThreshold);
          setShowDifficulty(currentSettings.showDifficulty);
@@ -154,7 +152,6 @@ export default function SettingsPage() {
    }, [user, updateSettings]); // Keep dependencies
 
   // Keep simple handlers wrapped in useCallback
-  const handleLanguageChange = useCallback(async (value: string) => { setAppLanguage(value); await handleSettingChange({ appLanguage: value }); }, [handleSettingChange]);
   const handleFontChange = useCallback(async (value: FontOption) => { setCardFont(value); await handleSettingChange({ cardFont: value }); }, [handleSettingChange]);
   const handleMasteryThresholdChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
       const value = parseInt(e.target.value);
@@ -433,21 +430,6 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent className="space-y-6">
                 <div className="grid gap-4">
-                    {/* Language */}
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="appLanguage" className="text-right">Native Language</Label>
-                        <Select value={appLanguage} onValueChange={handleLanguageChange}>
-                            <SelectTrigger id="appLanguage" className="col-span-3"><SelectValue placeholder="Select language" /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="en">English</SelectItem>
-                                <SelectItem value="nl">Dutch</SelectItem>
-                                <SelectItem value="fr">French</SelectItem>
-                                <SelectItem value="de">German</SelectItem>
-                                <SelectItem value="es">Spanish</SelectItem>
-                                <SelectItem value="it">Italian</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
                     {/* Font Selection */}
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="cardFont" className="text-right">Card Font</Label>
@@ -669,7 +651,7 @@ export default function SettingsPage() {
                           <div>
                               <h3 className="font-medium">Apply Only to Non-Native Language</h3>
                               <p className="text-sm text-muted-foreground">
-                                  Only color words not matching your app language ('{settings?.appLanguage || 'N/A'}').
+                                  Only color words not matching your native language ('{settings?.appLanguage || 'N/A'}').
                               </p>
                           </div>
                           <Switch

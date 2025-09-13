@@ -8,7 +8,8 @@ import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
-import { LogOut, Shield, FileText, ExternalLink, AlertTriangle, Trash2 } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { LogOut, Shield, FileText, ExternalLink, AlertTriangle, Trash2, User } from "lucide-react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -31,6 +32,7 @@ export default function ProfilePage() {
   const searchParams = useSearchParams()
   const [termsConsent, setTermsConsent] = useState(true) // Default to true for existing users
   const [ageConsent, setAgeConsent] = useState(true) // Default to true for existing users
+  const [nativeLanguage, setNativeLanguage] = useState<string>(settings?.appLanguage || 'en')
 
   useEffect(() => {
     if (!authLoading) {
@@ -41,6 +43,13 @@ export default function ProfilePage() {
       }
     }
   }, [authLoading, user, router]);
+
+  // Sync native language state with settings
+  useEffect(() => {
+    if (settings?.appLanguage) {
+      setNativeLanguage(settings.appLanguage);
+    }
+  }, [settings?.appLanguage]);
 
   const handleSignOut = async () => {
     setSignOutLoading(true)
@@ -111,6 +120,28 @@ export default function ProfilePage() {
     }
   }
 
+  const handleNativeLanguageChange = async (value: string) => {
+    setNativeLanguage(value)
+    try {
+      const { error } = await updateSettings({ appLanguage: value })
+      
+      if (error) {
+        appLogger.error("Error updating native language:", error)
+        toast.error("Failed to update native language", { description: error })
+        // Revert the local state on error
+        setNativeLanguage(settings?.appLanguage || 'en')
+      } else {
+        toast.success("Native language updated successfully")
+        appLogger.info(`Native language updated to ${value} for user ${user?.id}`)
+      }
+    } catch (error) {
+      appLogger.error("Unexpected error updating native language:", error)
+      toast.error("Failed to update native language", { description: "An unexpected error occurred." })
+      // Revert the local state on error
+      setNativeLanguage(settings?.appLanguage || 'en')
+    }
+  }
+
   // Loading/User checks (matching settings page style)
   if (authLoading) { return <div className="container mx-auto p-8">Loading Profile...</div>; }
   if (!user) { return <div className="container mx-auto p-8">Redirecting to login...</div>; }
@@ -134,11 +165,46 @@ export default function ProfilePage() {
         </TabsList>
 
         <TabsContent value="account" className="space-y-6 mt-6">
-          {/* User Information Card */}
+          {/* Personal Information Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <User className="mr-2 h-5 w-5" />
+                Personal Information
+              </CardTitle>
+              <CardDescription>Your personal preferences and settings</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Native Language */}
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="nativeLanguage" className="text-right font-medium">Native Language</Label>
+                <div className="col-span-3">
+                  <Select value={nativeLanguage} onValueChange={handleNativeLanguageChange}>
+                    <SelectTrigger id="nativeLanguage">
+                      <SelectValue placeholder="Select your native language" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="en">English</SelectItem>
+                      <SelectItem value="nl">Dutch</SelectItem>
+                      <SelectItem value="fr">French</SelectItem>
+                      <SelectItem value="de">German</SelectItem>
+                      <SelectItem value="es">Spanish</SelectItem>
+                      <SelectItem value="it">Italian</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    This will be used as the default language for new decks
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Account Information Card */}
           <Card>
           <CardHeader>
               <CardTitle>Account Information</CardTitle>
-              <CardDescription>Your account details and preferences</CardDescription>
+              <CardDescription>Your account details</CardDescription>
           </CardHeader>
             <CardContent className="space-y-6">
               {/* Email */}

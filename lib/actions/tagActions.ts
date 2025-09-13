@@ -109,7 +109,7 @@ export async function createTag(name: string): Promise<ActionResult<Tables<'tags
 
     // Revalidate paths where tags might be displayed
     revalidatePath('/tags'); // Example path, adjust as needed
-    revalidatePath('/edit'); // Example path
+    // Skip revalidatePath for /edit to prevent page refresh during editing
 
     return { data: tag, error: null };
 
@@ -153,7 +153,7 @@ export async function deleteTag(tagId: string): Promise<TagActionResponse<null>>
 
     // Revalidate relevant paths
     revalidatePath('/tags');
-    revalidatePath('/edit');
+    // Skip revalidatePath for /edit to prevent page refresh during editing
 
     return { data: null, error: null }; // Success
 
@@ -201,9 +201,9 @@ export async function addTagToDeck(
       return { data: null, error: 'Failed to add tag to deck.' };
     }
 
-    // Revalidate paths where deck tags might be displayed
-    revalidatePath(`/edit/${deckId}`);
-    revalidatePath('/'); // Revalidate dashboard/deck list if tags are shown there
+    // Skip revalidatePath for edit page to prevent page refresh during editing
+    // Only revalidate dashboard/deck list if tags are shown there
+    revalidatePath('/'); 
 
     return { data: null, error: null }; // Success
 
@@ -246,8 +246,8 @@ export async function removeTagFromDeck(
     // Check if any row was actually deleted? Supabase delete doesn't return count easily
     // If the row didn't exist, it's still effectively a success.
 
-    // Revalidate relevant paths
-    revalidatePath(`/edit/${deckId}`);
+    // Skip revalidatePath for edit page to prevent page refresh during editing  
+    // Only revalidate dashboard/deck list if tags are shown there
     revalidatePath('/');
 
     return { data: null, error: null }; // Success
