@@ -335,6 +335,11 @@ export default function StudySessionPage() {
         <h1 className="text-xl font-semibold capitalize">
             {displaySessionTitle}
         </h1>
+        {!srsEnabledFromStore && (
+            <p className="text-sm text-orange-600 dark:text-orange-400 mt-1 font-medium">
+              SRS disabled, including all cards
+            </p>
+        )}
         {totalCardsInSession > 0 && (
             <div className="flex items-center gap-2 mt-2">
                 <Progress value={progressValue} className="w-full h-2" />

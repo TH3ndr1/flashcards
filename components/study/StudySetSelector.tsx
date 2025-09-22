@@ -18,7 +18,7 @@ import { getStudySetCardCountByCriteria } from '@/lib/actions/studyQueryActions'
 import type { ResolveStudyQueryInput } from '@/lib/actions/studyQueryActions';
 import { getBaseCriteria } from '@/lib/actions/studyQueryActions';
 import type { UserGlobalSrsSummary } from '@/lib/actions/studyQueryActions';
-import { Checkbox } from '@/components/ui/checkbox';
+import { SrsToggle } from '@/components/ui/srs-toggle';
 
 
 type DeckWithTotalCount = Pick<Tables<'decks'>, 'id' | 'name'> & {
@@ -349,10 +349,11 @@ export function StudySetSelector({
       </div>
 
       {/* SRS toggle */}
-      <div className="mt-2 flex items-center gap-2">
-        <Checkbox id="srs-enabled" checked={srsEnabled} onCheckedChange={(v) => setSrsEnabled(!!v)} />
-        <Label htmlFor="srs-enabled" className="cursor-pointer">Use SRS scheduling (recommended)</Label>
-      </div>
+      <SrsToggle 
+        checked={srsEnabled} 
+        onCheckedChange={setSrsEnabled}
+        className="mt-2"
+      />
       
       <Button 
         onClick={handleInitiateStudy} 

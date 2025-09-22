@@ -28,6 +28,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { SrsToggle } from "@/components/ui/srs-toggle";
 
 // Type for TagInfo (if not already globally defined)
 interface TagInfo {
@@ -69,6 +70,9 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
 
   // State for accordion sections - default to open
   const [openSections, setOpenSections] = useState<string[]>(["dueDecks", "otherDecks"]);
+  
+  // State for SRS toggle - default to enabled (same as practice/select)
+  const [srsEnabled, setSrsEnabled] = useState<boolean>(true);
 
   // Memoized and processed decks (this will be expanded in Task X.3.3 for grouping)
   const processedAndSortedDecks = useMemo(() => {
@@ -139,14 +143,15 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
   // console.log("DeckListClient - Settings read:", { groupingMode, activeTagGroupId, sortField, sortDirection });
 
   const handlePracticeDeck = (deckId: string, learnCount: number, reviewCount: number) => {
-    if (learnCount === 0 && reviewCount === 0) {
+    // When SRS is disabled, skip the eligibility check and allow all cards
+    if (srsEnabled && learnCount === 0 && reviewCount === 0) {
         toast.info("No cards available to practice in this deck right now.");
         return;
     }
     const studyInput: StudySessionInput = { deckId: deckId };
     const sessionTypeForStore: SessionType = 'unified';
     clearStudyParameters();
-    setStudyParameters(studyInput, sessionTypeForStore, undefined, true);
+    setStudyParameters(studyInput, sessionTypeForStore, undefined, srsEnabled);
     router.push('/study/session');
   };
 
@@ -228,6 +233,11 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
       <div className="space-y-6 py-4 px-4 md:p-6">
         <div className="flex justify-between items-center flex-wrap gap-4 mb-6">
           <h2 className="text-2xl font-semibold">Practice Your Decks</h2>
+          <SrsToggle 
+            checked={srsEnabled} 
+            onCheckedChange={setSrsEnabled}
+            id="deck-list-srs-toggle"
+          />
         </div>
 
         {/* UI Controls for grouping/sorting will be added to Settings page (Task X.S1) */}
