@@ -489,9 +489,9 @@ export function ManageDecksClient({ initialDecks, fetchError }: ManageDecksClien
                             }}
                           >
                             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                              <div className="flex-grow md:w-3/5">
+                              <div className="flex-grow md:w-3/5 min-w-0">
                                 <div className="flex flex-col sm:flex-row sm:items-baseline sm:flex-wrap gap-x-2 gap-y-1">
-                                  <div className="flex items-baseline flex-wrap gap-x-2 gap-y-1">
+                                  <div className="flex items-baseline flex-wrap gap-x-2 gap-y-1 min-w-0 flex-shrink overflow-hidden">
                                     <h3 className={`text-lg font-semibold truncate mr-1 transition-colors ${
                                       !isMultiEditMode ? 'group-hover:text-primary' : ''
                                     }`} title={deck.name}>
@@ -586,9 +586,9 @@ export function ManageDecksClient({ initialDecks, fetchError }: ManageDecksClien
                             }}
                           >
                             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                              <div className="flex-grow md:w-3/5">
+                              <div className="flex-grow md:w-3/5 min-w-0">
                                 <div className="flex flex-col sm:flex-row sm:items-baseline sm:flex-wrap gap-x-2 gap-y-1">
-                                  <div className="flex items-baseline flex-wrap gap-x-2 gap-y-1">
+                                  <div className="flex items-baseline flex-wrap gap-x-2 gap-y-1 min-w-0 flex-shrink overflow-hidden">
                                     <h3 className={`text-lg font-semibold truncate mr-1 transition-colors ${
                                       !isMultiEditMode ? 'group-hover:text-primary' : ''
                                     }`} title={deck.name}>
