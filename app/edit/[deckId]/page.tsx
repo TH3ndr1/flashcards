@@ -162,9 +162,14 @@ export default function EditDeckPage() {
     return (
         <div className="container mx-auto py-6 md:py-8 px-4">
             {/* Header */}
-            <div className="flex items-center justify-between mb-6 gap-2 flex-wrap">
-                <h1 className="text-2xl font-bold truncate pr-2" title={deck.name}>Edit Deck: {deck.name}</h1>
-                <div className="flex items-center gap-2">
+            <div className="mb-6 space-y-3">
+                {/* Title - full width on mobile, with proper text overflow handling */}
+                <h1 className="text-xl sm:text-2xl font-bold overflow-hidden text-ellipsis line-clamp-2">
+                    <span className="block sm:inline">Edit Deck:</span>{' '}
+                    <span className="break-words">{deck.name}</span>
+                </h1>
+                {/* Action buttons */}
+                <div className="flex items-center gap-2 flex-wrap">
                     <Button
                         variant="secondary"
                         onClick={async () => {
