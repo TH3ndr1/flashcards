@@ -31,6 +31,7 @@ export default function AiGeneratePage() {
         handleSubmit, // This is now the async function to call
         handleConfirmTranslation,
         handleForceKnowledge,
+        handleSkipConfirmation, // New handler for skipping grammar details
         handleSaveDeck,
         handleClearAll,
         handleSaveFlashcards, // For JSON download
@@ -70,7 +71,6 @@ export default function AiGeneratePage() {
                         flashcards={displayFlashcards}
                         extractedTextPreview={extractedTextPreview}
                         processingSummary={processingSummary}
-                        deckName={deckName}
                         savedDeckId={savedDeckId}
                         needsModeConfirmationSource={needsModeConfirmationSource}
                         isProcessingStep2={isProcessingStep2}
@@ -78,6 +78,7 @@ export default function AiGeneratePage() {
                         onSwapSource={handleSwapSourceCards}
                         onConfirmTranslation={handleConfirmTranslation}
                         onForceKnowledge={handleForceKnowledge}
+                        onSkipConfirmation={handleSkipConfirmation}
                     />
 
                     <AiGenerateSaveDeckCard

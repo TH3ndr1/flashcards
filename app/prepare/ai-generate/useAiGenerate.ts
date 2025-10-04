@@ -207,13 +207,13 @@ export function useAiGenerate() {
         setFinalFlashcards(initialFinalCards);
         setExtractedTextPreview(data?.extractedTextPreview || null);
 
-        // --- Handle Mode Confirmation ---
+        // --- Show Optional Enhancements for Translation Mode ---
         setNeedsModeConfirmationSource(firstTranslationSource);
         if (firstTranslationSource) {
-            appLogger.info(`[useAiGenerate] Mode confirmation needed for source: ${firstTranslationSource}`);
-            toast.info("Mode Confirmation Needed", { description: "Please confirm or change the detected mode for one or more files." });
+            appLogger.info(`[useAiGenerate] Translation mode detected for source: ${firstTranslationSource}. Optional enhancements available.`);
+            toast.info("Translation list detected", { description: "Optional: You can add grammar details or convert to knowledge mode before saving." });
         } else {
-             appLogger.info("[useAiGenerate] No mode confirmation needed.");
+             appLogger.info("[useAiGenerate] Knowledge mode detected - ready to save.");
         }
         // -------------------------------
 
@@ -397,6 +397,18 @@ export function useAiGenerate() {
     }, [files, supabase, user, resetGenerationState, handleStep1ApiResponse, startProgressIndicator]);
 
 
+    // Helper function to detect if flashcards contain mostly numbers
+    const areFlashcardsNumeric = (cards: BasicFlashcardData[]): boolean => {
+        if (cards.length === 0) return false;
+        const numericCount = cards.filter(card => {
+            const questionIsNumber = /^\d+$/.test(card.question.trim());
+            const answerIsNumber = /^\d+$/.test(card.answer.trim());
+            return questionIsNumber || answerIsNumber;
+        }).length;
+        // If more than 80% are numeric, consider it a numeric list
+        return (numericCount / cards.length) > 0.8;
+    };
+
     // --- NEW: handleConfirmTranslation (Step 2 - Classify) --- 
     const handleConfirmTranslation = useCallback(async () => {
         if (!needsModeConfirmationSource) return;
@@ -405,6 +417,14 @@ export function useAiGenerate() {
         if (!basicCards || basicCards.length === 0) {
             toast.error("Cannot classify: No basic flashcards found for this source.");
             setNeedsModeConfirmationSource(null); // Clear flag even on error
+            return;
+        }
+
+        // Check if cards are mostly numbers
+        if (areFlashcardsNumeric(basicCards)) {
+            toast.error("Cannot add grammar details to number lists", {
+                description: "Numbers don't have grammatical properties like part of speech or gender. Please skip or use Knowledge Mode instead."
+            });
             return;
         }
 
@@ -555,17 +575,21 @@ export function useAiGenerate() {
         }
     }, [needsModeConfirmationSource, serverExtractedTextMap, basicFlashcardsBySource]);
 
-    // --- handleSaveDeck (Cleaned up error handling comments) --- 
+    // --- handleSkipConfirmation - Dismiss the optional enhancement prompt --- 
+    const handleSkipConfirmation = useCallback(() => {
+        appLogger.info(`[useAiGenerate] User dismissed optional enhancements for source: ${needsModeConfirmationSource}`);
+        setNeedsModeConfirmationSource(null); // Clear the prompt
+        toast.success("You can save your deck as-is anytime!");
+    }, [needsModeConfirmationSource]);
+
+    // --- handleSaveDeck (Fixed language bug and removed confirmation blocking) --- 
     const handleSaveDeck = useCallback(async () => {
         const cardsToSave = finalFlashcards; 
         if (!cardsToSave || cardsToSave.length === 0) { 
             toast.error("No flashcards to save."); 
             return; 
         }
-        if (needsModeConfirmationSource) {
-             toast.error("Please resolve the mode confirmation before saving.");
-             return;
-        }
+        // Removed the needsModeConfirmationSource check - users can now save without confirming
         if (!deckName.trim()) {
             toast.error("Please enter a deck name.");
             return;
@@ -576,8 +600,10 @@ export function useAiGenerate() {
 
         try {
             const firstCard = cardsToSave[0]; 
-            const qLangCode = getLanguageCode(firstCard?.questionLanguage);
-            const aLangCode = getLanguageCode(firstCard?.answerLanguage);
+            // FIX: questionLanguage and answerLanguage are already language codes (e.g., 'en', 'fr')
+            // Don't call getLanguageCode() again, as it expects language names not codes
+            const qLangCode = firstCard?.questionLanguage || 'en';
+            const aLangCode = firstCard?.answerLanguage || 'en';
             const isBilingualFlag = !!firstCard?.isBilingual;
             const payload = { name: deckName.trim(), questionLanguage: qLangCode, answerLanguage: aLangCode, isBilingual: isBilingualFlag, flashcards: cardsToSave };
 
@@ -608,7 +634,7 @@ export function useAiGenerate() {
         } finally {
             setIsSavingDeck(false);
         }
-    }, [deckName, finalFlashcards, router, needsModeConfirmationSource]); 
+    }, [deckName, finalFlashcards, router]); 
 
 
     // handleClearAll (Needs to reset new state)
@@ -708,6 +734,7 @@ export function useAiGenerate() {
         handleSubmit, // Renamed Step 1 trigger
         handleConfirmTranslation, // New Step 2 handler
         handleForceKnowledge, // New Step 2 handler
+        handleSkipConfirmation, // New handler - allows skipping grammar details
         handleSaveDeck, 
         handleClearAll,
         handleSaveFlashcards, 

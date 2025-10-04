@@ -5,7 +5,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Download, Eye, Languages, Repeat, Tag, Loader2, AlertTriangle, HelpCircle, Sparkles, BookOpen } from 'lucide-react'; // Updated Icons
+import { Download, Eye, Languages, Repeat, Loader2, Sparkles, BookOpen } from 'lucide-react'; // Updated Icons
 import type { ApiFlashcard } from '@/app/api/extract-pdf/types';
 // Import the basic type as well
 import type { BasicFlashcardData } from './useAiGenerate';
@@ -17,14 +17,14 @@ interface AiGenerateResultsCardProps {
     flashcards: FlashcardData[]; // Use the union type
     extractedTextPreview: string | null;
     processingSummary: string | null;
-    deckName: string;
     savedDeckId: string | null;
-    needsModeConfirmationSource: string | null; // New prop
+    needsModeConfirmationSource: string | null; // Shows optional enhancements for translation mode
     isProcessingStep2: boolean; // New prop
     onSaveJson: () => void;
     onSwapSource: (source: string) => void;
-    onConfirmTranslation: () => void; // New prop
-    onForceKnowledge: () => void; // New prop
+    onConfirmTranslation: () => void; // Optional enhancement
+    onForceKnowledge: () => void; // Optional enhancement
+    onSkipConfirmation: () => void; // Dismiss the enhancement options
 }
 
 // Helper to group cards (needs to handle union type)
@@ -42,18 +42,18 @@ export function AiGenerateResultsCard({
     flashcards,
     extractedTextPreview,
     processingSummary,
-    deckName,
     savedDeckId,
     needsModeConfirmationSource,
     isProcessingStep2,
     onSaveJson,
     onSwapSource,
     onConfirmTranslation,
-    onForceKnowledge
+    onForceKnowledge,
+    onSkipConfirmation
 }: AiGenerateResultsCardProps) {
     const hasFlashcards = flashcards.length > 0;
-    // Disable JSON download if confirmation is needed
-    const showJsonDownload = hasFlashcards && !savedDeckId && !needsModeConfirmationSource;
+    // JSON download is always available when there are flashcards
+    const showJsonDownload = hasFlashcards && !savedDeckId;
 
     // Helper to display classification info (check for existence of properties)
     const renderClassification = (
@@ -81,16 +81,27 @@ export function AiGenerateResultsCard({
         );
     };
 
-    // Confirmation UI Component
-    const renderConfirmationPrompt = (source: string) => {
+    // Optional Enhancement UI Component
+    const renderOptionalEnhancements = (source: string) => {
         return (
             <div className="border-l-4 border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20 p-4 rounded-md mb-4">
-                <div className="flex items-center mb-2">
-                    <HelpCircle className="h-5 w-5 text-blue-600 dark:text-blue-400 mr-2" />
-                    <h4 className="font-semibold text-blue-800 dark:text-blue-200">We detected this as a 'Translation' list. How would you like to proceed?</h4>
+                <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center">
+                        <Sparkles className="h-5 w-5 text-blue-600 dark:text-blue-400 mr-2" />
+                        <h4 className="font-semibold text-blue-800 dark:text-blue-200">Translation list detected - Optional enhancements</h4>
+                    </div>
+                    <Button 
+                        onClick={onSkipConfirmation}
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-6 w-6 p-0 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200"
+                        title="Dismiss this message"
+                    >
+                        ✕
+                    </Button>
                 </div>
                 <p className="text-sm text-blue-700 dark:text-blue-300 mb-3">
-                    Mode Confirmation for '{source}'
+                    You can save as-is, or enhance '{source}' with:
                 </p>
                 <div className="flex flex-col sm:flex-row gap-2">
                     <Button 
@@ -111,7 +122,7 @@ export function AiGenerateResultsCard({
                         className="dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700 dark:hover:text-white w-full"
                     >
                         {isProcessingStep2 ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BookOpen className="mr-2 h-4 w-4"/>}
-                        Change to Knowledge Mode
+                        Convert to Knowledge Mode
                     </Button>
                 </div>
             </div>
@@ -147,8 +158,8 @@ export function AiGenerateResultsCard({
                 ) : hasFlashcards ? (
                     // Grouped Flashcard Display
                     <div className="space-y-6 pr-2">
-                        {/* Render Confirmation Prompt if needed */}
-                        {needsModeConfirmationSource && renderConfirmationPrompt(needsModeConfirmationSource)}
+                        {/* Render Optional Enhancements if it's a translation list */}
+                        {needsModeConfirmationSource && renderOptionalEnhancements(needsModeConfirmationSource)}
 
                         {Object.entries(getFlashcardsBySource(flashcards)).map(([source, cards]) => {
                             const firstCard = cards[0]; // Use first card for group info
@@ -171,8 +182,7 @@ export function AiGenerateResultsCard({
                                     </div>
                                 </div>
                                 <div className="mb-3 -mt-2 flex justify-end">
-                                    {/* Disable swap button if confirmation needed */}
-                                    <Button variant="outline" size="sm" onClick={() => onSwapSource(source)} disabled={!!needsModeConfirmationSource}>
+                                    <Button variant="outline" size="sm" onClick={() => onSwapSource(source)}>
                                         <Repeat className="h-4 w-4 mr-2"/>
                                         Swap Q/A for this Source
                                     </Button>
