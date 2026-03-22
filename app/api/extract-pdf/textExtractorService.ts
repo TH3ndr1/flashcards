@@ -4,9 +4,9 @@
  * using appropriate GCP services or libraries.
  */
 import { PDFDocument } from 'pdf-lib';
-import { docAIClient, visionClient } from './gcpClients';
+import { docAIClient, visionClient, vertexAI } from './gcpClients';
 // --- FIX: Import PAGE_LIMIT and add DOCAI_OCR_PAGE_LIMIT ---
-import { PAGE_LIMIT, DOCAI_OCR_PAGE_LIMIT, DOCAI_PROCESSOR_ID, GCP_PROJECT_ID, DOCAI_LOCATION } from './config'; // Assume DOCAI_OCR_PAGE_LIMIT=15 is added
+import { PAGE_LIMIT, DOCAI_OCR_PAGE_LIMIT, DOCAI_PROCESSOR_ID, GCP_PROJECT_ID, DOCAI_LOCATION, VERTEX_MODEL_NAME } from './config'; // Assume DOCAI_OCR_PAGE_LIMIT=15 is added
 import { SupportedFileType, getMimeTypeFromFilename } from './fileUtils';
 import { ExtractionResult, PageLimitExceededError, ExtractionApiError } from './types';
 import { appLogger, statusLogger } from '@/lib/logger';
@@ -106,8 +106,13 @@ async function extractTextFromImageVisionAI(fileBuffer: ArrayBuffer, filename: s
             }
         };
     } catch (error: any) {
-        appLogger.error(`[Text Extractor] Vision AI extraction error for IMAGE ${filename}:`, error.message);
-        throw new ExtractionApiError(`Vision AI failed for ${filename}: ${error.message}`);
+        appLogger.error(`[Text Extractor] Vision AI extraction error for IMAGE ${filename}:`, {
+            message: error.message,
+            code: error.code,
+            details: error.details,
+            stack: error.stack
+        });
+        throw new ExtractionApiError(`Vision AI failed for ${filename}: ${error.message} (Code: ${error.code || 'N/A'})`);
     }
 }
 
@@ -203,7 +208,13 @@ async function extractTextFromPdfDocAI(fileBuffer: ArrayBuffer, filename: string
         };
     } catch (error: any) {
         // Error handling (remains largely the same)
-        appLogger.error(`[Text Extractor] Document AI extraction error (${mode} mode) for PDF ${filename}:`, JSON.stringify(error, null, 2));
+        appLogger.error(`[Text Extractor] Document AI extraction error (${mode} mode) for PDF ${filename}:`, {
+            message: error.message,
+            code: error.code,
+            details: error.details,
+            metadata: error.metadata,
+            stack: error.stack
+        });
 
          // --- ADD Specific Check for Google API Page Limit Error ---
          // Google API uses code 3 (INVALID_ARGUMENT) for various issues,
@@ -246,20 +257,110 @@ async function extractTextFromPdfDocAI(fileBuffer: ArrayBuffer, filename: string
 }
 
 
-// extractText (main service function - no changes needed here)
+/**
+ * Uses Gemini (Vertex AI Multimodal) to extract text from a file.
+ * This is often more robust than Vision AI or Document AI for scanned content.
+ */
+async function extractTextUsingGemini(
+    fileBuffer: ArrayBuffer,
+    filename: string,
+    fileType: SupportedFileType
+): Promise<ExtractionResult> {
+    if (!vertexAI) {
+        throw new ExtractionApiError("Vertex AI client is not initialized.");
+    }
+
+    const mimeType = getMimeTypeFromFilename(filename) || (fileType === 'pdf' ? 'application/pdf' : 'image/jpeg');
+    const base64Data = Buffer.from(fileBuffer).toString('base64');
+
+    appLogger.info(`[Text Extractor] Starting Gemini multimodal extraction for ${filename} (${fileType})...`);
+
+    try {
+        const model = vertexAI.getGenerativeModel({
+            model: VERTEX_MODEL_NAME,
+        });
+
+        const prompt = "Extract all text from this document accurately. Maintain the reading order. Do not add any commentary, just return the extracted text.";
+
+        const request = {
+            contents: [
+                {
+                    role: 'user',
+                    parts: [
+                        { text: prompt },
+                        {
+                            inlineData: {
+                                mimeType: mimeType,
+                                data: base64Data
+                            }
+                        }
+                    ]
+                }
+            ]
+        };
+
+        const result = await model.generateContent(request);
+        const response = result.response;
+        const extractedText = response.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+        if (!extractedText) {
+            appLogger.warn(`[Text Extractor] Gemini returned no text for ${filename}`);
+        }
+
+        const characterCount = extractedText.length;
+        appLogger.info(`[Text Extractor] Gemini extraction complete for ${filename}, extracted ${characterCount} characters.`);
+
+        return {
+            text: extractedText,
+            info: {
+                pages: 1, // Gemini doesn't easily return page count in this mode
+                metadata: {
+                    source: `Gemini (${VERTEX_MODEL_NAME})`,
+                    characters: characterCount,
+                }
+            }
+        };
+    } catch (error: any) {
+        appLogger.error(`[Text Extractor] Gemini extraction error for ${filename}:`, error.message);
+        throw new ExtractionApiError(`Gemini extraction failed for ${filename}: ${error.message}`);
+    }
+}
+
+// extractText (main service function - UPDATED to handle fallbacks)
 export async function extractText(
     fileBuffer: ArrayBuffer,
     filename: string,
     fileType: SupportedFileType
 ): Promise<ExtractionResult> {
-    if (fileType === 'pdf') {
-        const pageCount = await checkPdfPageCount(fileBuffer, filename); // Now only throws if > PAGE_LIMIT
-        // Pass pageCount to DocAI function to determine mode
-        return await extractTextFromPdfDocAI(fileBuffer, filename, pageCount);
-    } else if (fileType === 'image') {
-        return await extractTextFromImageVisionAI(fileBuffer, filename);
-    } else {
-        appLogger.error(`[Text Extractor] Called with unsupported file type for filename: ${filename}`);
-        throw new ExtractionApiError(`Unsupported file type provided to extraction service for ${filename}.`);
+    appLogger.info(`[Text Extractor] extractText called for ${filename} (${fileType})`);
+
+    try {
+        if (fileType === 'pdf') {
+            const pageCount = await checkPdfPageCount(fileBuffer, filename);
+            try {
+                return await extractTextFromPdfDocAI(fileBuffer, filename, pageCount);
+            } catch (docAiError: any) {
+                appLogger.warn(`[Text Extractor] Document AI failed for ${filename}, attempting Gemini fallback...`, docAiError.message);
+                return await extractTextUsingGemini(fileBuffer, filename, fileType);
+            }
+        } else if (fileType === 'image') {
+            try {
+                return await extractTextFromImageVisionAI(fileBuffer, filename);
+            } catch (visionAiError: any) {
+                appLogger.warn(`[Text Extractor] Vision AI failed for ${filename}, attempting Gemini fallback...`, visionAiError.message);
+                return await extractTextUsingGemini(fileBuffer, filename, fileType);
+            }
+        } else {
+            appLogger.error(`[Text Extractor] Called with unsupported file type for filename: ${filename}`);
+            throw new ExtractionApiError(`Unsupported file type provided to extraction service for ${filename}.`);
+        }
+    } catch (error: any) {
+        // Final catch-all for errors that might have bypassed the inner try-catches (like checkPdfPageCount)
+        // or if both the primary and fallback failed.
+        if (error instanceof PageLimitExceededError || error instanceof ExtractionApiError) {
+            throw error;
+        }
+        appLogger.error(`[Text Extractor] Unexpected error in extractText for ${filename}:`, error.message);
+        throw new ExtractionApiError(`Text extraction failed for ${filename}: ${error.message}`);
     }
 }

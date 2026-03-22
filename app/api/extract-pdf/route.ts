@@ -281,7 +281,11 @@ export async function POST(request: NextRequest) {
     // Global Error Handler (No changes needed)
     const endTime = Date.now();
     const duration = endTime - startTime;
-    appLogger.error(`[API Route POST] UNHANDLED ERROR after ${duration}ms:`, error);
+    appLogger.error(`[API Route POST] UNHANDLED ERROR after ${duration}ms:`, {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+    });
     let message = 'An unexpected server error occurred.';
     let code = 'INTERNAL_SERVER_ERROR';
     if (error instanceof SyntaxError && error.message.includes('JSON')) {
@@ -290,9 +294,18 @@ export async function POST(request: NextRequest) {
     } else if (error.message) {
         message = `Unhandled server error: ${error.message}`;
     }
-    return NextResponse.json({
-        success: false, message: message, code: code, processingTimeMs: duration,
+
+    // --- ENHANCEMENT: Always return JSON even on 500/503 ---
+    // This prevents the "Server returned invalid response (503)" HTML error on the client
+    return new NextResponse(JSON.stringify({
+        success: false,
+        message: message,
+        code: code,
+        processingTimeMs: duration,
         skippedFiles: skippedFiles.length > 0 ? skippedFiles : undefined,
-    }, { status: 500 });
+    }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+    });
   }
 }
