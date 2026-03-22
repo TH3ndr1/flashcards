@@ -13,19 +13,18 @@ import { appLogger, statusLogger } from '@/lib/logger'
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  // The `next` parameter might be used if you want to redirect to a specific page after login
-  // const next = searchParams.get('next') ?? '/'
+  const next = searchParams.get('next') ?? '/'
 
   if (code) {
     const supabase = createServerClient()
     try {
       const { error, data } = await supabase.auth.exchangeCodeForSession(code)
-      
+
       if (!error && data.session) {
         // Email confirmed, session created successfully.
-        // Redirect to the main application page or a specified 'next' page.
-        appLogger.info('Auth callback successful, redirecting to /');
-        return NextResponse.redirect(`${origin}/`) // Redirect to home page
+        // Redirect to the `next` page or home page.
+        appLogger.info(`Auth callback successful, redirecting to ${next}`);
+        return NextResponse.redirect(`${origin}${next}`) // Redirect to next page
       } else {
         // Handle errors during code exchange
         appLogger.error('Auth callback error during code exchange:', error?.message);

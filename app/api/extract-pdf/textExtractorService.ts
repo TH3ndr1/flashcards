@@ -4,9 +4,9 @@
  * using appropriate GCP services or libraries.
  */
 import { PDFDocument } from 'pdf-lib';
-import { docAIClient, visionClient } from './gcpClients';
+import { docAIClient, vertexAI } from './gcpClients';
 // --- FIX: Import PAGE_LIMIT and add DOCAI_OCR_PAGE_LIMIT ---
-import { PAGE_LIMIT, DOCAI_OCR_PAGE_LIMIT, DOCAI_PROCESSOR_ID, GCP_PROJECT_ID, DOCAI_LOCATION } from './config'; // Assume DOCAI_OCR_PAGE_LIMIT=15 is added
+import { PAGE_LIMIT, DOCAI_OCR_PAGE_LIMIT, DOCAI_PROCESSOR_ID, GCP_PROJECT_ID, DOCAI_LOCATION, VERTEX_MODEL_NAME } from './config'; // Assume DOCAI_OCR_PAGE_LIMIT=15 is added
 import { SupportedFileType, getMimeTypeFromFilename } from './fileUtils';
 import { ExtractionResult, PageLimitExceededError, ExtractionApiError } from './types';
 import { appLogger, statusLogger } from '@/lib/logger';
@@ -49,65 +49,46 @@ async function checkPdfPageCount(fileBuffer: ArrayBuffer, filename: string): Pro
     }
 }
 
-// extractTextFromImageVisionAI (No changes needed here)
-async function extractTextFromImageVisionAI(fileBuffer: ArrayBuffer, filename: string): Promise<ExtractionResult> {
-    if (!visionClient) {
-        throw new ExtractionApiError("Vision AI client is not initialized. Check configuration.");
+// extractTextFromImageGemini — uses Gemini multimodal instead of Vision AI
+// Vision AI was replaced due to reliability issues (503s) in March 2026.
+async function extractTextFromImageGemini(fileBuffer: ArrayBuffer, filename: string): Promise<ExtractionResult> {
+    if (!vertexAI) {
+        throw new ExtractionApiError("Vertex AI client is not initialized. Check configuration.");
     }
+    const mimeType = getMimeTypeFromFilename(filename);
     const buffer = Buffer.from(fileBuffer);
-    appLogger.info(`[Text Extractor] Starting Vision AI extraction for IMAGE: ${filename}...`);
+    appLogger.info(`[Text Extractor] Starting Gemini multimodal extraction for IMAGE: ${filename} (${mimeType})...`);
     try {
-        const [result] = await visionClient.documentTextDetection({
-            image: { content: buffer.toString('base64') }
+        const model = vertexAI.getGenerativeModel({ model: VERTEX_MODEL_NAME });
+        const result = await model.generateContent({
+            contents: [{
+                role: 'user',
+                parts: [
+                    { inlineData: { mimeType, data: buffer.toString('base64') } },
+                    { text: 'Extract all text from this image exactly as it appears. Return only the raw text content, preserving line breaks and structure. Do not add commentary or explanations.' }
+                ]
+            }],
         });
-        const extractedText = result.fullTextAnnotation?.text || '';
-        if (!extractedText && result.error?.message) {
-             appLogger.warn(`[Text Extractor] Vision AI returned error for IMAGE ${filename}: ${result.error.message}`);
-             throw new ExtractionApiError(`Vision AI error: ${result.error.message}`);
-        }
-         if (!extractedText) {
-            appLogger.warn(`[Text Extractor] Vision AI returned no text detections for IMAGE ${filename}`);
+        const extractedText = result.response?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        if (!extractedText) {
+            appLogger.warn(`[Text Extractor] Gemini returned no text for IMAGE ${filename}`);
             return {
-                 text: "",
-                 info: { pages: 0, metadata: { source: 'Vision AI', characters: 0, note: 'No text detected.' } }
-             };
+                text: "",
+                info: { pages: 1, metadata: { source: 'Gemini Multimodal', characters: 0, note: 'No text detected.' } }
+            };
         }
-
-        const detectedLanguageCodes = new Set<string>();
-        if (result.fullTextAnnotation?.pages) {
-            for (const page of result.fullTextAnnotation.pages) {
-                if (page.property?.detectedLanguages) {
-                    for (const lang of page.property.detectedLanguages) {
-                        if (lang.languageCode) detectedLanguageCodes.add(lang.languageCode);
-                    }
-                }
-            }
-        }
-        if (detectedLanguageCodes.size === 0 && result.textAnnotations && result.textAnnotations.length > 0) {
-            for (const annotation of result.textAnnotations) {
-                if (annotation.locale) detectedLanguageCodes.add(annotation.locale);
-            }
-        }
-
-        appLogger.info(`[Text Extractor] Vision AI detected language codes for ${filename}:`, Array.from(detectedLanguageCodes));
         const characterCount = extractedText.length;
-        const pageCount = result.fullTextAnnotation?.pages?.length || 1;
-        appLogger.info(`[Text Extractor] Vision AI extraction complete for IMAGE ${filename}, extracted ${characterCount} characters from ${pageCount} page(s).`);
-
+        appLogger.info(`[Text Extractor] Gemini multimodal extraction complete for IMAGE ${filename}, extracted ${characterCount} characters.`);
         return {
             text: extractedText,
             info: {
-                pages: pageCount,
-                metadata: {
-                    source: 'Vision AI',
-                    characters: characterCount,
-                    detectedLanguages: Array.from(detectedLanguageCodes)
-                }
+                pages: 1,
+                metadata: { source: 'Gemini Multimodal', characters: characterCount }
             }
         };
     } catch (error: any) {
-        appLogger.error(`[Text Extractor] Vision AI extraction error for IMAGE ${filename}:`, error.message);
-        throw new ExtractionApiError(`Vision AI failed for ${filename}: ${error.message}`);
+        appLogger.error(`[Text Extractor] Gemini multimodal extraction error for IMAGE ${filename}:`, error.message);
+        throw new ExtractionApiError(`Gemini multimodal OCR failed for ${filename}: ${error.message}`);
     }
 }
 
@@ -257,7 +238,7 @@ export async function extractText(
         // Pass pageCount to DocAI function to determine mode
         return await extractTextFromPdfDocAI(fileBuffer, filename, pageCount);
     } else if (fileType === 'image') {
-        return await extractTextFromImageVisionAI(fileBuffer, filename);
+        return await extractTextFromImageGemini(fileBuffer, filename);
     } else {
         appLogger.error(`[Text Extractor] Called with unsupported file type for filename: ${filename}`);
         throw new ExtractionApiError(`Unsupported file type provided to extraction service for ${filename}.`);

@@ -254,7 +254,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       let errorResult: AuthError | Error | null = null;
       try {
-        const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/auth/update-password` : undefined
+        const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/auth/callback?next=/auth/update-password` : undefined
         const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })
         errorResult = error
         if (errorResult) {
