@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect, Suspense } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -24,31 +24,23 @@ function UpdatePasswordContent() {
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isExchanging, setIsExchanging] = useState(true)
+  const [isCheckingSession, setIsCheckingSession] = useState(true)
   const [sessionReady, setSessionReady] = useState(false)
   const { supabase } = useSupabase()
   const router = useRouter()
-  const searchParams = useSearchParams()
 
-  // Exchange the one-time code from the reset email link for a session
+  // Check for an existing session established by the server-side /auth/callback route
   useEffect(() => {
     if (!supabase) return
-    const code = searchParams.get('code')
-    if (!code) {
-      toast.error("Invalid reset link", { description: "No reset code found. Please request a new link." })
-      setIsExchanging(false)
-      return
-    }
-    supabase.auth.exchangeCodeForSession(code)
-      .then(({ error }) => {
-        if (error) {
-          toast.error("Invalid or expired link", { description: "Please request a new password reset link." })
-        } else {
-          setSessionReady(true)
-        }
-      })
-      .finally(() => setIsExchanging(false))
-  }, [supabase, searchParams])
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setSessionReady(true)
+      } else {
+        toast.error("Invalid reset link", { description: "Please request a new password reset link." })
+      }
+      setIsCheckingSession(false)
+    })
+  }, [supabase])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -77,7 +69,7 @@ function UpdatePasswordContent() {
     }
   }
 
-  if (isExchanging || !supabase) {
+  if (isCheckingSession || !supabase) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <IconLoader className="h-12 w-12 animate-spin text-primary" />
