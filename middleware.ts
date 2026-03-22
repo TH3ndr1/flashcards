@@ -88,8 +88,10 @@ export async function middleware(request: NextRequest) {
     },
   })
   
-  // Refresh session if expired
-  await supabase.auth.getSession()
+  // Validate and refresh the session server-side.
+  // getUser() calls the Supabase server to verify the token (unlike getSession()
+  // which only reads from the cookie without server validation — causing phantom sessions).
+  await supabase.auth.getUser()
   
   return response
 }
