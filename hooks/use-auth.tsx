@@ -231,13 +231,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       errorResult = signOutError
       if (errorResult) {
         logAuthError("Error during sign out:", errorResult)
+        // Clear local auth state even if the server-side signOut failed
+        // (e.g. session was already expired). This ensures the user is never
+        // stuck in a phantom-session state where they can't log out.
+        setSession(null)
+        setUser(null)
       } else {
         logAuth("Sign out successful - redirecting")
-        router.push("/login")
       }
     } catch (err) {
       logAuthError("Unexpected error during sign out:", err)
       errorResult = err instanceof Error ? err : new Error("An unexpected error occurred during sign out")
+      setSession(null)
+      setUser(null)
+    } finally {
+      setLoading(false)
+      router.push("/login")
     }
     return { error: errorResult }
   }, [supabase, router])
