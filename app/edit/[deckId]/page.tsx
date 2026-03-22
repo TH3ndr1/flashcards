@@ -5,10 +5,10 @@ import { useState } from "react";
 import { useParams, useRouter } from "next/navigation"; // Keep useRouter if needed for back button etc.
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Loader2 as IconLoader, FileDown, SwitchCamera } from "lucide-react";
+import { ArrowLeft, Loader2 as IconLoader, FileDown, SwitchCamera, CopyPlus } from "lucide-react";
 // Import the new hook and components
 import { useEditDeck } from "./useEditDeck";
-import { swapDeckQA } from '@/lib/actions/deckActions';
+import { swapDeckQA, duplicateDeckReversed } from '@/lib/actions/deckActions';
 import { DeckMetadataEditor } from "./DeckMetadataEditor";
 import { CardViewTabContent } from "./CardViewTabContent";
 import { TableViewTabContent } from "./TableViewTabContent";
@@ -189,8 +189,28 @@ export default function EditDeckPage() {
                     >
                         <SwitchCamera className="mr-2 h-4 w-4" /> Swap Q/A for Deck
                     </Button>
-                    <Button 
-                        variant="outline" 
+                    <Button
+                        variant="secondary"
+                        onClick={async () => {
+                            if (!deckId) { toast.error('Deck ID missing.'); return; }
+                            const toastId = toast.loading('Creating reversed deck…');
+                            try {
+                                const res = await duplicateDeckReversed(deckId);
+                                if (res.error) throw new Error(res.error);
+                                toast.success(
+                                    `Reversed deck created with ${res.data?.cardCount ?? 0} cards.`,
+                                    { id: toastId, action: { label: 'Open', onClick: () => router.push(`/edit/${res.data?.newDeckId}`) } }
+                                );
+                            } catch (e: unknown) {
+                                toast.error('Failed to create reversed deck', { id: toastId, description: (e as Error).message || 'Unknown error' });
+                            }
+                        }}
+                        title="Create a new deck with all questions and answers swapped"
+                    >
+                        <CopyPlus className="mr-2 h-4 w-4" /> Create Reversed Deck
+                    </Button>
+                    <Button
+                        variant="outline"
                         onClick={async () => {
                             if (!deckId) {
                                 toast.error("Deck ID is missing.");
