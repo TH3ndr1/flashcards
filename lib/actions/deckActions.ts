@@ -646,6 +646,112 @@ export async function swapDeckQA(
     }
 }
 
+export async function duplicateDeckReversed(
+    deckId: string
+): Promise<ActionResult<{ newDeckId: string; cardCount: number }>> {
+    appLogger.info(`[deckActions - duplicateDeckReversed] Start for deckId: ${deckId}`);
+    if (!deckId) return { data: null, error: 'Deck ID is required.' };
+    try {
+        const supabase = createActionClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+            appLogger.error('[deckActions - duplicateDeckReversed] Auth error:', authError);
+            return { data: null, error: authError?.message || 'Not authenticated' };
+        }
+
+        // 1) Load source deck (ownership check)
+        const { data: sourceDeck, error: deckErr } = await supabase
+            .from('decks')
+            .select('id, name, primary_language, secondary_language, is_bilingual, user_id')
+            .eq('id', deckId)
+            .eq('user_id', user.id)
+            .maybeSingle();
+        if (deckErr) return { data: null, error: deckErr.message || 'Failed to fetch deck.' };
+        if (!sourceDeck) return { data: null, error: 'Deck not found or access denied.' };
+
+        // 2) Load source cards
+        const { data: sourceCards, error: cardsErr } = await supabase
+            .from('cards')
+            .select('question, answer, question_part_of_speech, question_gender, answer_part_of_speech, answer_gender')
+            .eq('deck_id', deckId)
+            .eq('user_id', user.id)
+            .neq('status', 'deleted');
+        if (cardsErr) return { data: null, error: cardsErr.message || 'Failed to fetch cards.' };
+
+        // 3) Load source tags
+        const { data: sourceTags, error: tagsErr } = await supabase
+            .from('deck_tags')
+            .select('tag_id')
+            .eq('deck_id', deckId)
+            .eq('user_id', user.id);
+        if (tagsErr) return { data: null, error: tagsErr.message || 'Failed to fetch tags.' };
+
+        // 4) Create the new reversed deck (languages swapped)
+        const { data: newDeck, error: createErr } = await supabase
+            .from('decks')
+            .insert({
+                user_id: user.id,
+                name: `${sourceDeck.name} - Reversed`,
+                primary_language: sourceDeck.secondary_language ?? sourceDeck.primary_language,
+                secondary_language: sourceDeck.primary_language ?? sourceDeck.secondary_language,
+                is_bilingual: sourceDeck.is_bilingual,
+                status: 'active',
+            })
+            .select('id')
+            .single();
+        if (createErr || !newDeck) {
+            appLogger.error('[deckActions - duplicateDeckReversed] Create deck error:', createErr);
+            return { data: null, error: createErr?.message || 'Failed to create reversed deck.' };
+        }
+        const newDeckId = newDeck.id;
+        appLogger.info(`[deckActions - duplicateDeckReversed] Created new deck: ${newDeckId}`);
+
+        // 5) Insert reversed cards (SRS fields intentionally omitted — fresh start)
+        if (sourceCards && sourceCards.length > 0) {
+            const reversedCards = sourceCards.map((c) => ({
+                deck_id: newDeckId,
+                user_id: user.id,
+                question: c.answer,
+                answer: c.question,
+                question_part_of_speech: c.answer_part_of_speech,
+                question_gender: c.answer_gender,
+                answer_part_of_speech: c.question_part_of_speech,
+                answer_gender: c.question_gender,
+                status: 'active' as const,
+            }));
+            const { error: insertCardsErr } = await supabase.from('cards').insert(reversedCards);
+            if (insertCardsErr) {
+                appLogger.error('[deckActions - duplicateDeckReversed] Insert cards error:', insertCardsErr);
+                // Best-effort cleanup: delete the orphaned deck
+                await supabase.from('decks').delete().eq('id', newDeckId).eq('user_id', user.id);
+                return { data: null, error: insertCardsErr.message || 'Failed to insert reversed cards.' };
+            }
+        }
+
+        // 6) Copy tag associations
+        if (sourceTags && sourceTags.length > 0) {
+            const tagInserts = sourceTags.map((t) => ({
+                deck_id: newDeckId,
+                tag_id: t.tag_id,
+                user_id: user.id,
+            }));
+            const { error: tagsInsertErr } = await supabase.from('deck_tags').insert(tagInserts);
+            if (tagsInsertErr) {
+                // Tags failing is non-fatal — deck and cards are already created
+                appLogger.warn('[deckActions - duplicateDeckReversed] Tag copy warning:', tagsInsertErr);
+            }
+        }
+
+        appLogger.info(`[deckActions - duplicateDeckReversed] Success. ${sourceCards?.length ?? 0} cards reversed.`);
+        revalidatePath('/manage/decks');
+        revalidatePath('/');
+        return { data: { newDeckId, cardCount: sourceCards?.length ?? 0 }, error: null };
+    } catch (error) {
+        appLogger.error('[deckActions - duplicateDeckReversed] Unexpected error:', error);
+        return { data: null, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+}
+
 export async function archiveDeck(
     deckId: string
 ): Promise<ActionResult<null>> {
