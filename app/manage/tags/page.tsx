@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 // ArrowLeft import removed as back button was removed
 import { cookies } from 'next/headers';
 import { createServerClient } from '@/lib/supabase/server';
+
+export const dynamic = 'force-dynamic';
 import { redirect } from 'next/navigation';
 import { getTags } from '@/lib/actions/tagActions';
 import { TagManagerClient } from '@/components/tags/TagManagerClient';

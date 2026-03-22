@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 // import { cookies } from 'next/headers'; // Not strictly needed if createServerClient handles it
 import { createServerClient } from '@/lib/supabase/server';
+
+export const dynamic = 'force-dynamic';
 import { redirect } from 'next/navigation';
 import { getUserStudySets } from '@/lib/actions/studySetActions';
 import { getDecks as getDecksAction } from '@/lib/actions/deckActions'; // Import deck action

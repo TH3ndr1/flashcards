@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation';
 import { createServerClient } from '@/lib/supabase/server'; // Assuming this exists
 
+export const dynamic = 'force-dynamic';
+
 export default async function RootPage() {
   // Optional: Check auth and redirect to /login if not authenticated,
   // or let middleware handle that.

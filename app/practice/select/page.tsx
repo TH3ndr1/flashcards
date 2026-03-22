@@ -1,5 +1,7 @@
 import { cookies } from 'next/headers';
 import { createServerClient } from '@/lib/supabase/server';
+
+export const dynamic = 'force-dynamic';
 import { redirect } from 'next/navigation';
 import { getDecks } from '@/lib/actions/deckActions';
 import { getUserStudySetsWithCounts, type StudySetWithTotalCount as FetchedStudySetWithTotalCount } from '@/lib/actions/studySetActions';
