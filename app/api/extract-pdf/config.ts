@@ -34,7 +34,7 @@ export const DOCAI_API_ENDPOINT = `${DOCAI_LOCATION}-documentai.googleapis.com`;
 
 // --- Vertex AI Configuration ---
 export const VERTEX_LOCATION = getEnvVariable('VERTEX_LOCATION') || 'us-central1'; // Default if not set
-export const VERTEX_MODEL_NAME = getEnvVariable('VERTEX_MODEL_NAME') || 'gemini-2.0-flash-lite-001'; // Default model
+export const VERTEX_MODEL_NAME = getEnvVariable('VERTEX_MODEL_NAME') || 'gemini-2.5-flash-lite'; // gemini-2.0-flash-lite-001 retired June 1 2026
 
 // --- Processing Limits ---
 export const PAGE_LIMIT = 30;

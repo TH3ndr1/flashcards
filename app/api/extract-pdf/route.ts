@@ -15,6 +15,9 @@ import { generateInitialFlashcards, InitialGenerationResult } from './flashcardG
 import { /* ApiFlashcard, */ SkippedFile, PageLimitExceededError, ExtractionApiError, GenerationApiError } from './types'; 
 import { appLogger, statusLogger } from '@/lib/logger';
 
+// Prevent Vercel's CDN from caching error responses for this route
+export const dynamic = 'force-dynamic';
+
 // --- Runtime Configuration (Vercel specific) ---
 export const config = {
   runtime: 'nodejs',
