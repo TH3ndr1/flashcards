@@ -131,7 +131,7 @@ export default function StoryPage() {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto px-4 py-6 max-w-2xl">
+      <div className="container mx-auto px-4 py-6 max-w-4xl">
         <div className="flex items-center gap-3 mb-6">
           <Skeleton className="h-9 w-16" />
           <Skeleton className="h-6 w-48" />
@@ -164,7 +164,7 @@ export default function StoryPage() {
   });
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-2xl">
+    <div className="container mx-auto px-4 py-6 max-w-4xl">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <Button variant="ghost" size="sm" onClick={handleBack} className="gap-1">
@@ -178,7 +178,7 @@ export default function StoryPage() {
           variant="ghost"
           size="sm"
           onClick={handleTtsToggle}
-          disabled={ttsState === 'loading'}
+          disabled={ttsState === 'loading' && !ttsActive}
           title={ttsActive ? 'Stop reading' : 'Read aloud'}
           className="gap-1"
         >

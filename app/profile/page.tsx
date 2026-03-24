@@ -35,7 +35,6 @@ export default function ProfilePage() {
   const [ageConsent, setAgeConsent] = useState(true) // Default to true for existing users
   const [nativeLanguage, setNativeLanguage] = useState<string>(settings?.appLanguage || 'en')
   const [dateOfBirth, setDateOfBirth] = useState<string>(settings?.dateOfBirth || '')
-  const [dobSaving, setDobSaving] = useState(false)
 
   useEffect(() => {
     if (!authLoading) {
@@ -130,21 +129,16 @@ export default function ProfilePage() {
     }
   }
 
-  const handleDobSave = async () => {
+  const handleDobBlur = async () => {
     if (!dateOfBirth) return;
-    setDobSaving(true);
     try {
       const { error } = await updateSettings({ dateOfBirth });
       if (error) {
         toast.error("Failed to save date of birth", { description: error });
-      } else {
-        toast.success("Date of birth saved.");
       }
     } catch (err) {
       appLogger.error("Unexpected error saving DOB:", err);
       toast.error("Failed to save date of birth");
-    } finally {
-      setDobSaving(false);
     }
   };
 
@@ -232,23 +226,14 @@ export default function ProfilePage() {
               <div className="grid grid-cols-4 items-start gap-4">
                 <Label htmlFor="dateOfBirth" className="text-right font-medium pt-2">Date of Birth</Label>
                 <div className="col-span-3 space-y-2">
-                  <div className="flex gap-2">
-                    <Input
-                      id="dateOfBirth"
-                      type="date"
-                      value={dateOfBirth}
-                      onChange={(e) => setDateOfBirth(e.target.value)}
-                      className="max-w-[200px]"
-                    />
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={handleDobSave}
-                      disabled={dobSaving || !dateOfBirth}
-                    >
-                      {dobSaving ? "Saving..." : "Save"}
-                    </Button>
-                  </div>
+                  <Input
+                    id="dateOfBirth"
+                    type="date"
+                    value={dateOfBirth}
+                    onChange={(e) => setDateOfBirth(e.target.value)}
+                    onBlur={handleDobBlur}
+                    className="max-w-[200px]"
+                  />
                   <p className="text-xs text-muted-foreground">
                     Used to personalise the complexity of AI-generated stories
                   </p>

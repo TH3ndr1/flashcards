@@ -160,11 +160,25 @@ export function useTTS({ onAudioStart, onAudioEnd }: UseTTSProps): UseTTSResult 
                 throw new Error(ttsError || 'TTS Action returned no audio content.');
             }
 
-            // --- Play the audio --- 
+            // --- Play the audio and wait until it finishes ---
             if (audioRef.current) {
                 const audioSrc = `data:audio/mp3;base64,${audioContent}`;
                 audioRef.current.src = audioSrc;
                 await audioRef.current.play();
+                // Wait for playback to end, be stopped/paused, or error out
+                await new Promise<void>((resolve) => {
+                    const audio = audioRef.current;
+                    if (!audio) { resolve(); return; }
+                    const cleanup = () => {
+                        audio.removeEventListener('ended', cleanup);
+                        audio.removeEventListener('pause', cleanup);
+                        audio.removeEventListener('error', cleanup);
+                        resolve();
+                    };
+                    audio.addEventListener('ended', cleanup, { once: true });
+                    audio.addEventListener('pause', cleanup, { once: true });
+                    audio.addEventListener('error', cleanup, { once: true });
+                });
             } else {
                 throw new Error("Audio element not available.");
             }
