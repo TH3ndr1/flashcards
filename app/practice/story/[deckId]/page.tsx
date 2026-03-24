@@ -34,7 +34,7 @@ function renderInlineMarkdown(text: string): React.ReactNode {
     <>
       {parts.map((part, i) => {
         if (part.startsWith('**') && part.endsWith('**')) {
-          return <strong key={i} className="font-semibold">{part.slice(2, -2)}</strong>;
+          return <strong key={i} className="font-bold text-primary">{part.slice(2, -2)}</strong>;
         }
         if (part.startsWith('*') && part.endsWith('*')) {
           return <em key={i}>{part.slice(1, -1)}</em>;
@@ -54,10 +54,16 @@ function splitIntoSentences(text: string): string[] {
 
 // ─── Topic heading detection (all modes) ──────────────────────────────────────
 
-/** Returns the title text if the paragraph is a standalone [TOPIC: ...] heading, else null */
-function parseTopicLine(text: string): string | null {
-  const match = text.trim().match(/^\[TOPIC:\s*(.+?)\]$/i);
-  return match ? match[1] : null;
+/**
+ * Detects a [TOPIC: ...] prefix at the start of a paragraph.
+ * The AI sometimes outputs it as a standalone paragraph, sometimes inline.
+ * Returns { title, rest } where rest is any text after the marker (trimmed).
+ * Returns null if no topic marker found.
+ */
+function parseTopicPrefix(text: string): { title: string; rest: string } | null {
+  const match = text.trim().match(/^\[TOPIC:\s*(.+?)\]\s*([\s\S]*)/i);
+  if (!match) return null;
+  return { title: match[1].trim(), rest: match[2].trim() };
 }
 
 // ─── Topic heading renderer ────────────────────────────────────────────────────
@@ -274,9 +280,11 @@ export default function StoryPage() {
     const isDialogue = story.story_format === 'dialogue';
 
     return story.paragraphs.flatMap((para, pIdx) => {
-      // Skip standalone topic heading paragraphs — nothing to speak
-      if (parseTopicLine(para.primary)) return [];
-      const raw = isDialogue ? stripDialogueMarkers(para.primary) : para.primary;
+      const topicParsed = parseTopicPrefix(para.primary);
+      // Use only the content after the topic marker (or the full text if no marker)
+      const contentText = topicParsed ? topicParsed.rest : para.primary;
+      if (!contentText) return []; // heading-only paragraph — nothing to speak
+      const raw = isDialogue ? stripDialogueMarkers(contentText) : contentText;
       const text = stripMarkdown(raw);
       return splitIntoSentences(text).map((sentence, sIdx) => ({
         key: `${pIdx}-${sIdx}`,
@@ -386,35 +394,38 @@ export default function StoryPage() {
       {/* Story body */}
       <article className={cn('space-y-4', fontClass)}>
         {story.paragraphs.map((para, pIdx) => {
-          // ── Standalone topic heading paragraph (all formats) ──
-          const topicTitle = parseTopicLine(para.primary);
-          if (topicTitle) {
-            return <TopicHeading key={pIdx} title={topicTitle} />;
-          }
+          // ── Extract [TOPIC: ...] prefix if present (standalone or inline) ──
+          const topicParsed = parseTopicPrefix(para.primary);
+          const primaryContent = topicParsed ? topicParsed.rest : para.primary;
+
+          // Also strip topic prefix from secondary (translation) for display
+          const secondaryTopicParsed = para.secondary ? parseTopicPrefix(para.secondary) : null;
+          const secondaryContent = secondaryTopicParsed ? secondaryTopicParsed.rest : para.secondary;
 
           // ── Dialogue paragraph ──
           if (isDialogue) {
-            const lines = parseDialogueParagraph(para.primary);
+            const lines = primaryContent ? parseDialogueParagraph(primaryContent) : null;
             return (
               <div key={pIdx}>
-                {lines ? (
+                {topicParsed && <TopicHeading title={topicParsed.title} />}
+                {primaryContent && (lines ? (
                   <DialogueParagraphView
                     lines={lines}
                     currentSentenceKey={currentSentenceKey}
                     paraIdx={pIdx}
                   />
                 ) : (
-                  <p className="leading-relaxed text-base">{renderInlineMarkdown(para.primary)}</p>
-                )}
-                {story.deck_mode === 'translation' && para.secondary && (
+                  <p className="leading-relaxed text-base">{renderInlineMarkdown(primaryContent)}</p>
+                ))}
+                {story.deck_mode === 'translation' && secondaryContent && (
                   <div className="mt-2 text-sm text-muted-foreground italic border-l-2 border-muted pl-3 leading-relaxed space-y-1">
-                    {parseDialogueParagraph(para.secondary)
-                      ? parseDialogueParagraph(para.secondary)!.map((line, i) =>
+                    {parseDialogueParagraph(secondaryContent)
+                      ? parseDialogueParagraph(secondaryContent)!.map((line, i) =>
                           line.speaker === 'topic' ? null : (
                             <p key={i}>{renderInlineMarkdown(line.text)}</p>
                           )
                         )
-                      : renderInlineMarkdown(para.secondary)}
+                      : renderInlineMarkdown(secondaryContent)}
                   </div>
                 )}
               </div>
@@ -422,12 +433,18 @@ export default function StoryPage() {
           }
 
           // ── Regular narrative / summary / analogy paragraph ──
-          const sentences = splitIntoSentences(para.primary).map((s, sIdx) => ({
+          if (!primaryContent) {
+            // Heading-only paragraph (no content after the topic marker)
+            return topicParsed ? <TopicHeading key={pIdx} title={topicParsed.title} /> : null;
+          }
+
+          const sentences = splitIntoSentences(primaryContent).map((s, sIdx) => ({
             key: `${pIdx}-${sIdx}`,
             text: s,
           }));
           return (
             <div key={pIdx}>
+              {topicParsed && <TopicHeading title={topicParsed.title} />}
               <p className="leading-relaxed text-base">
                 {sentences.map(({ key, text }) => (
                   <span
@@ -441,9 +458,9 @@ export default function StoryPage() {
                   </span>
                 ))}
               </p>
-              {story.deck_mode === 'translation' && para.secondary && (
+              {story.deck_mode === 'translation' && secondaryContent && (
                 <p className="mt-2 text-sm text-muted-foreground italic border-l-2 border-muted pl-3 leading-relaxed">
-                  {renderInlineMarkdown(para.secondary)}
+                  {renderInlineMarkdown(secondaryContent)}
                 </p>
               )}
             </div>
