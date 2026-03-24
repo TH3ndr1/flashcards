@@ -70,7 +70,7 @@ export function StoryGenerateModal({ deckId, deckName, isOpen, onClose }: StoryG
   const { settings, updateSettings } = useSettings();
   const setCurrentStory = useStoryStore((s) => s.setCurrentStory);
 
-  const [readingTime, setReadingTime] = useState<ReadingTimeMin>(10);
+  const [readingTime, setReadingTime] = useState<ReadingTimeMin>('minimal');
   const [storyFormat, setStoryFormat] = useState<StoryFormat>('narrative');
   const [dobInput, setDobInput] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
