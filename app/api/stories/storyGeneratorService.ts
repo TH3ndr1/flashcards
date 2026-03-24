@@ -134,12 +134,16 @@ function buildKnowledgeNarrativePrompt(cards: { question: string; answer: string
 **Requirements:**
 - Write in ${language}
 - Target length: approximately ${wordCount} words
-- Choose a narrative format (adventure, case study, dialogue, etc.) appropriate for a ${age}-year-old
+- Choose a narrative format (adventure, case study, etc.) appropriate for a ${age}-year-old
 - Every concept must appear naturally woven into the story — not as a list
 - Help the reader understand how concepts connect to each other
-- Make it memorable and enjoyable
 
-**Output:** JSON with "paragraphs" array. Each element: "primary" = paragraph text, "secondary" = ""
+**Formatting rules:**
+- Group the story into 3–6 thematic sections; open each section with a STANDALONE topic paragraph containing ONLY: [TOPIC: theme name in ${language}]  (nothing else in that paragraph)
+- Bold key vocabulary terms the first time they appear using **double asterisks**: e.g. **fotosynthese**
+- "secondary" field is always ""
+
+**Output:** JSON "paragraphs" array. Alternate between [TOPIC: ...] heading paragraphs and story paragraphs.
 
 **Flashcards:**
 ${cardList}
@@ -149,17 +153,21 @@ Output only the JSON.`;
 
 function buildKnowledgeSummaryPrompt(cards: { question: string; answer: string }[], language: string, age: number, wordCount: number): string {
   const cardList = cards.map((c, i) => `${i + 1}. Q: ${c.question}\n   A: ${c.answer}`).join('\n');
-  return `You are an expert educator creating a structured audio overview for a ${age}-year-old student. Write a clear, engaging concept summary — like a podcast episode — that covers all the key concepts from the flashcards below. This is NOT a story; it is a direct, well-structured explanation of what each concept means, why it matters, and how concepts connect.
+  return `You are an expert educator creating a structured audio overview for a ${age}-year-old student. Write a clear, engaging concept summary — like a podcast episode — that covers all the key concepts from the flashcards below.
 
 **Requirements:**
 - Write in ${language}
 - Target length: approximately ${wordCount} words
 - Structured but engaging — suitable for listening/reading as a pre-exam review
 - Cover every concept; explain it in plain language with examples where useful
-- Group related concepts naturally; build understanding progressively
-- Appropriate vocabulary and depth for a ${age}-year-old
+- Group related concepts into clear sections; build understanding progressively
 
-**Output:** JSON with "paragraphs" array. Each element: "primary" = paragraph text, "secondary" = ""
+**Formatting rules:**
+- Open each section with a STANDALONE topic paragraph containing ONLY: [TOPIC: section title in ${language}]  (nothing else in that paragraph)
+- Bold key concept terms using **double asterisks**: e.g. **osmose**
+- "secondary" field is always ""
+
+**Output:** JSON "paragraphs" array. Alternate between [TOPIC: ...] heading paragraphs and content paragraphs.
 
 **Flashcards:**
 ${cardList}
@@ -201,16 +209,20 @@ Output only the JSON.`;
 
 function buildKnowledgeAnalogyPrompt(cards: { question: string; answer: string }[], language: string, age: number, wordCount: number): string {
   const cardList = cards.map((c, i) => `${i + 1}. Q: ${c.question}\n   A: ${c.answer}`).join('\n');
-  return `You are a creative educator. For each concept from the flashcards below, write a vivid, memorable real-world analogy or scenario that makes the concept instantly understandable for a ${age}-year-old. Good analogies stick — choose comparisons that are familiar to the age group and truly illuminate the concept.
+  return `You are a creative educator. For each concept from the flashcards below, write a vivid, memorable real-world analogy or scenario that makes the concept instantly understandable for a ${age}-year-old.
 
 **Requirements:**
 - Write in ${language}
 - Target length: approximately ${wordCount} words total
-- Cover every concept with its own analogy paragraph
-- Each paragraph: introduce the concept, then explain it via analogy/scenario
-- Make analogies concrete and relatable for a ${age}-year-old
+- Cover every concept; choose comparisons that are familiar to a ${age}-year-old
+- Each analogy: introduce the concept, then explain it through the analogy
 
-**Output:** JSON with "paragraphs" array. Each element: "primary" = analogy paragraph for one concept, "secondary" = ""
+**Formatting rules:**
+- Precede each analogy with a STANDALONE concept-title paragraph containing ONLY: [TOPIC: concept name in ${language}]  (nothing else in that paragraph)
+- Bold the key term using **double asterisks** when it first appears in the analogy paragraph
+- "secondary" field is always ""
+
+**Output:** JSON "paragraphs" array. For each concept: one [TOPIC: ...] heading paragraph followed by one analogy paragraph.
 
 **Flashcards:**
 ${cardList}
@@ -227,11 +239,14 @@ function buildTranslationNarrativePrompt(cards: { question: string; answer: stri
 **Requirements:**
 - Story written in ${secondaryLanguage}; translation in ${primaryLanguage}
 - Target length: approximately ${wordCount} words in the story
-- Every vocabulary word must appear naturally in the story
+- Every vocabulary word must appear naturally
 - Narrative format appropriate for a ${age}-year-old
-- Translation must be accurate and natural
 
-**Output:** JSON "paragraphs" array. Each element: "primary" = ${secondaryLanguage} paragraph, "secondary" = ${primaryLanguage} translation
+**Formatting rules:**
+- Group the story into 3–6 thematic sections; open each with a STANDALONE heading paragraph: "primary" = [TOPIC: theme in ${secondaryLanguage}], "secondary" = [TOPIC: theme in ${primaryLanguage}]  (nothing else in that paragraph)
+- Bold vocabulary words using **double asterisks** when they first appear in both "primary" and "secondary"
+
+**Output:** JSON "paragraphs" array. Alternate [TOPIC: ...] heading paragraphs and story paragraphs.
 
 **Vocabulary (${primaryLanguage} = ${secondaryLanguage}):**
 ${vocabList}
@@ -241,16 +256,19 @@ Output only the JSON.`;
 
 function buildTranslationSummaryPrompt(cards: { question: string; answer: string }[], primaryLanguage: string, secondaryLanguage: string, age: number, wordCount: number): string {
   const vocabList = cards.map((c, i) => `${i + 1}. ${c.question} = ${c.answer}`).join('\n');
-  return `You are a language educator. Write a structured overview in ${secondaryLanguage} that uses all the vocabulary words below and explains them in context, suitable for a ${age}-year-old learner. For each paragraph, provide a faithful ${primaryLanguage} translation.
+  return `You are a language educator. Write a structured vocabulary overview in ${secondaryLanguage} for a ${age}-year-old that uses all the words below in context. For each paragraph, provide a faithful ${primaryLanguage} translation.
 
 **Requirements:**
-- Written in ${secondaryLanguage}; each paragraph followed by its ${primaryLanguage} translation
+- Written in ${secondaryLanguage}; translation in ${primaryLanguage}
 - Target length: approximately ${wordCount} words
 - Every vocabulary word must appear in context with clear meaning
-- Organized, clear, and educational — like an audio vocabulary guide
-- Appropriate for a ${age}-year-old
+- Organized, clear — like an audio vocabulary guide
 
-**Output:** JSON "paragraphs" array. Each element: "primary" = ${secondaryLanguage} paragraph, "secondary" = ${primaryLanguage} translation
+**Formatting rules:**
+- Group related vocabulary into clear sections; open each with a STANDALONE heading paragraph: "primary" = [TOPIC: section title in ${secondaryLanguage}], "secondary" = [TOPIC: section title in ${primaryLanguage}]
+- Bold vocabulary words using **double asterisks** in both "primary" and "secondary"
+
+**Output:** JSON "paragraphs" array. Alternate [TOPIC: ...] heading paragraphs and content paragraphs.
 
 **Vocabulary:**
 ${vocabList}
@@ -290,11 +308,14 @@ function buildTranslationAnalogyPrompt(cards: { question: string; answer: string
 
 **Requirements:**
 - Written in ${secondaryLanguage}; translation in ${primaryLanguage}
-- Cover every vocabulary word
-- Each paragraph: use the word in a memorable analogy/scenario
+- Cover every vocabulary word with its own analogy
 - Appropriate for a ${age}-year-old
 
-**Output:** JSON "paragraphs" array. Each element: "primary" = ${secondaryLanguage} analogy paragraph, "secondary" = ${primaryLanguage} translation
+**Formatting rules:**
+- Precede each analogy with a STANDALONE vocabulary-title paragraph: "primary" = [TOPIC: word in ${secondaryLanguage}], "secondary" = [TOPIC: word in ${primaryLanguage}]
+- Bold the vocabulary word using **double asterisks** in both "primary" and "secondary"
+
+**Output:** JSON "paragraphs" array. For each word: one [TOPIC: ...] heading paragraph followed by one analogy paragraph.
 
 **Vocabulary:**
 ${vocabList}
