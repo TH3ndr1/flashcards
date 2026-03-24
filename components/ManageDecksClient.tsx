@@ -90,6 +90,7 @@ export function ManageDecksClient({ initialDecks, fetchError }: ManageDecksClien
   // Filter state
   const [filterLanguages, setFilterLanguages] = useState<string[]>([]);
   const [filterTags, setFilterTags] = useState<string[]>([]);
+  const [filterName, setFilterName] = useState('');
 
   const [mergeFormData, setMergeFormData] = useState({
     name: '',
@@ -133,6 +134,9 @@ export function ManageDecksClient({ initialDecks, fetchError }: ManageDecksClien
 
   // Apply filters to each section
   const filterDeck = (deck: ManageDeckItem): boolean => {
+    if (filterName.trim()) {
+      if (!deck.name.toLowerCase().includes(filterName.trim().toLowerCase())) return false;
+    }
     if (filterLanguages.length > 0) {
       const matchesLang =
         (deck.primary_language   && filterLanguages.includes(deck.primary_language))  ||
@@ -146,8 +150,8 @@ export function ManageDecksClient({ initialDecks, fetchError }: ManageDecksClien
     return true;
   };
 
-  const filteredActiveDecks   = useMemo(() => activeDecks.filter(filterDeck),   [activeDecks,   filterLanguages, filterTags]);
-  const filteredArchivedDecks = useMemo(() => archivedDecks.filter(filterDeck), [archivedDecks, filterLanguages, filterTags]);
+  const filteredActiveDecks   = useMemo(() => activeDecks.filter(filterDeck),   [activeDecks,   filterLanguages, filterTags, filterName]);
+  const filteredArchivedDecks = useMemo(() => archivedDecks.filter(filterDeck), [archivedDecks, filterLanguages, filterTags, filterName]);
 
   // Tags on currently-selected decks (for "Remove Tag" dialog)
   const tagsOnSelectedDecks = useMemo(() => {
@@ -439,8 +443,10 @@ export function ManageDecksClient({ initialDecks, fetchError }: ManageDecksClien
             availableTags={availableTags}
             selectedLanguages={filterLanguages}
             selectedTags={filterTags}
+            deckNameFilter={filterName}
             onLanguagesChange={setFilterLanguages}
             onTagsChange={setFilterTags}
+            onDeckNameChange={setFilterName}
           />
         </div>
       )}

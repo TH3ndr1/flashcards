@@ -75,6 +75,7 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
   // Filter state
   const [filterLanguages, setFilterLanguages] = useState<string[]>([]);
   const [filterTags, setFilterTags] = useState<string[]>([]);
+  const [filterName, setFilterName] = useState('');
 
   // State for SRS toggle - default to enabled (same as practice/select)
   const [srsEnabled, setSrsEnabled] = useState<boolean>(true);
@@ -110,7 +111,12 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
       );
     }
 
-    // --- User-selected language/tag filters ---
+    // --- User-selected filters ---
+    if (filterName.trim()) {
+      decksToProcess = decksToProcess.filter(deck =>
+        deck.name.toLowerCase().includes(filterName.trim().toLowerCase())
+      );
+    }
     if (filterLanguages.length > 0) {
       decksToProcess = decksToProcess.filter(deck =>
         (deck.primary_language   && filterLanguages.includes(deck.primary_language))  ||
@@ -141,7 +147,7 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
     
     return decksToProcess;
 
-  }, [rawDecksFromHook, groupingMode, activeTagGroupId, sortField, sortDirection, filterLanguages, filterTags]);
+  }, [rawDecksFromHook, groupingMode, activeTagGroupId, sortField, sortDirection, filterLanguages, filterTags, filterName]);
 
   // Segregate decks into 'due' and 'other' based on practiceable count
   const dueDecks = useMemo(() => 
@@ -283,16 +289,16 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
         </div>
 
         {/* Filter bar */}
-        {(availableFilterLanguages.length > 0 || availableFilterTags.length > 0) && (
-          <DeckFilterBar
-            availableLanguages={availableFilterLanguages}
-            availableTags={availableFilterTags}
-            selectedLanguages={filterLanguages}
-            selectedTags={filterTags}
-            onLanguagesChange={setFilterLanguages}
-            onTagsChange={setFilterTags}
-          />
-        )}
+        <DeckFilterBar
+          availableLanguages={availableFilterLanguages}
+          availableTags={availableFilterTags}
+          selectedLanguages={filterLanguages}
+          selectedTags={filterTags}
+          deckNameFilter={filterName}
+          onLanguagesChange={setFilterLanguages}
+          onTagsChange={setFilterTags}
+          onDeckNameChange={setFilterName}
+        />
 
         {/* UI Controls for grouping/sorting will be added to Settings page (Task X.S1) */}
         {/* This component now just reads and applies them. */}
