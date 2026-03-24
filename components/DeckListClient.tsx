@@ -21,6 +21,7 @@ import type { DeckListItemWithCounts } from "@/lib/actions/deckActions"; // Impo
 import { parseISO } from 'date-fns'; // For sorting by date
 import { ItemInfoBadges } from '@/components/ItemInfoBadges';
 import { DeckProgressLegend } from '@/components/deck/DeckProgressLegend';
+import { DeckFilterBar } from '@/components/DeckFilterBar';
 import { cn } from "@/lib/utils";
 import {
   Accordion,
@@ -70,7 +71,11 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
 
   // State for accordion sections - default to open
   const [openSections, setOpenSections] = useState<string[]>(["dueDecks", "otherDecks"]);
-  
+
+  // Filter state
+  const [filterLanguages, setFilterLanguages] = useState<string[]>([]);
+  const [filterTags, setFilterTags] = useState<string[]>([]);
+
   // State for SRS toggle - default to enabled (same as practice/select)
   const [srsEnabled, setSrsEnabled] = useState<boolean>(true);
 
@@ -100,8 +105,21 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
 
     // --- Filtering based on 'tag_id' groupingMode (from settings) ---
     if (groupingMode === 'tag_id' && activeTagGroupId) {
-      decksToProcess = decksToProcess.filter(deck => 
+      decksToProcess = decksToProcess.filter(deck =>
         deck.tags?.some(tag => tag.id === activeTagGroupId)
+      );
+    }
+
+    // --- User-selected language/tag filters ---
+    if (filterLanguages.length > 0) {
+      decksToProcess = decksToProcess.filter(deck =>
+        (deck.primary_language   && filterLanguages.includes(deck.primary_language))  ||
+        (deck.secondary_language && filterLanguages.includes(deck.secondary_language))
+      );
+    }
+    if (filterTags.length > 0) {
+      decksToProcess = decksToProcess.filter(deck =>
+        deck.tags?.some(tag => filterTags.includes(tag.id))
       );
     }
 
@@ -123,7 +141,7 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
     
     return decksToProcess;
 
-  }, [rawDecksFromHook, groupingMode, activeTagGroupId, sortField, sortDirection]);
+  }, [rawDecksFromHook, groupingMode, activeTagGroupId, sortField, sortDirection, filterLanguages, filterTags]);
 
   // Segregate decks into 'due' and 'other' based on practiceable count
   const dueDecks = useMemo(() => 
@@ -141,6 +159,30 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
   // The actual rendering of groups (Accordion, etc.) will be in Task X.3.3
   // For this task, we just confirm settings are read.
   // console.log("DeckListClient - Settings read:", { groupingMode, activeTagGroupId, sortField, sortDirection });
+
+  // Derive available filter options from the raw (unfiltered) deck list
+  const availableFilterLanguages = useMemo(() => {
+    const langs = new Set<string>();
+    (rawDecksFromHook || []).forEach(d => {
+      if (d.primary_language)   langs.add(d.primary_language);
+      if (d.secondary_language) langs.add(d.secondary_language);
+    });
+    return Array.from(langs).sort();
+  }, [rawDecksFromHook]);
+
+  const availableFilterTags = useMemo(() => {
+    const tagMap = new Map<string, string>();
+    (rawDecksFromHook || []).forEach(d => {
+      if (d.deck_tags_json && Array.isArray(d.deck_tags_json)) {
+        (d.deck_tags_json as Array<{ id: string; name: string }>)
+          .filter(t => t && typeof t.name === 'string')
+          .forEach(t => tagMap.set(t.id, t.name));
+      }
+    });
+    return Array.from(tagMap.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [rawDecksFromHook]);
 
   const handlePracticeDeck = (deckId: string, learnCount: number, reviewCount: number) => {
     // When SRS is disabled, skip the eligibility check and allow all cards
@@ -233,12 +275,24 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
       <div className="space-y-6 py-4 px-4 md:p-6">
         <div className="flex justify-between items-center flex-wrap gap-4 mb-6">
           <h2 className="text-2xl font-semibold">Practice Your Decks</h2>
-          <SrsToggle 
-            checked={srsEnabled} 
+            <SrsToggle
+            checked={srsEnabled}
             onCheckedChange={setSrsEnabled}
             id="deck-list-srs-toggle"
           />
         </div>
+
+        {/* Filter bar */}
+        {(availableFilterLanguages.length > 0 || availableFilterTags.length > 0) && (
+          <DeckFilterBar
+            availableLanguages={availableFilterLanguages}
+            availableTags={availableFilterTags}
+            selectedLanguages={filterLanguages}
+            selectedTags={filterTags}
+            onLanguagesChange={setFilterLanguages}
+            onTagsChange={setFilterTags}
+          />
+        )}
 
         {/* UI Controls for grouping/sorting will be added to Settings page (Task X.S1) */}
         {/* This component now just reads and applies them. */}

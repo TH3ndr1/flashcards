@@ -342,5 +342,65 @@ export async function getCardTags(cardId: string): Promise<ActionResult<Tables<'
 }
 
 /**
+ * Adds a tag to multiple decks at once (batch operation).
+ * Silently skips decks that already have the tag.
+ */
+export async function addTagToDecks(deckIds: string[], tagId: string): Promise<ActionResult<{ addedCount: number }>> {
+  const { supabase, user, error: authError } = await getSupabaseAndUser();
+  if (authError || !supabase || !user) return { data: null, error: authError };
+  if (!deckIds.length || !tagId) return { data: null, error: 'Deck IDs and Tag ID are required.' };
+
+  try {
+    const rows = deckIds.map(deckId => ({ deck_id: deckId, tag_id: tagId, user_id: user.id }));
+    const { error: insertError } = await supabase
+      .from('deck_tags')
+      .upsert(rows, { onConflict: 'deck_id,tag_id', ignoreDuplicates: true });
+
+    if (insertError) {
+      appLogger.error('Error bulk-adding tag to decks:', insertError);
+      return { data: null, error: 'Failed to add tag to decks.' };
+    }
+
+    revalidatePath('/manage/decks');
+    revalidatePath('/practice/decks');
+    return { data: { addedCount: deckIds.length }, error: null };
+  } catch (error) {
+    appLogger.error('Unexpected error in addTagToDecks:', error);
+    return { data: null, error: 'An unexpected error occurred.' };
+  }
+}
+
+/**
+ * Removes a tag from multiple decks at once (batch operation).
+ * Only affects decks that actually have the tag; others are silently skipped.
+ */
+export async function removeTagFromDecks(deckIds: string[], tagId: string): Promise<ActionResult<{ removedCount: number }>> {
+  const { supabase, user, error: authError } = await getSupabaseAndUser();
+  if (authError || !supabase || !user) return { data: null, error: authError };
+  if (!deckIds.length || !tagId) return { data: null, error: 'Deck IDs and Tag ID are required.' };
+
+  try {
+    const { error: deleteError } = await supabase
+      .from('deck_tags')
+      .delete()
+      .in('deck_id', deckIds)
+      .eq('tag_id', tagId)
+      .eq('user_id', user.id);
+
+    if (deleteError) {
+      appLogger.error('Error bulk-removing tag from decks:', deleteError);
+      return { data: null, error: 'Failed to remove tag from decks.' };
+    }
+
+    revalidatePath('/manage/decks');
+    revalidatePath('/practice/decks');
+    return { data: { removedCount: deckIds.length }, error: null };
+  } catch (error) {
+    appLogger.error('Unexpected error in removeTagFromDecks:', error);
+    return { data: null, error: 'An unexpected error occurred.' };
+  }
+}
+
+/**
  * Creates a new study set for the user.
  */

@@ -71,8 +71,8 @@ export function ItemInfoBadges({
         </span>
       )}
 
-      {/* Tags Badges */}
-      {tags && tags.map(tag => (
+      {/* Tags Badges — sorted alphabetically */}
+      {tags && [...tags].sort((a, b) => a.name.localeCompare(b.name)).map(tag => (
         <span key={tag.id} className="inline-flex items-center text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full whitespace-nowrap dark:bg-slate-700 dark:text-slate-100 border-2 border-transparent">
           <TagIcon className="h-3 w-3 mr-1" />
           {tag.name}
