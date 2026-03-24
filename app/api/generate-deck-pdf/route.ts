@@ -361,6 +361,36 @@ async function drawColumnTitlesAndRule(
 }
 // --- END NEW HELPER ---
 
+// --- BEGIN HELPER: Draw header row for knowledge-mode (row layout) ---
+async function drawKnowledgeHeaderAndRule(
+    page: any,
+    yPos: number,
+    pageMargin: number,
+    pageWidth: number,
+    contentWidth: number,
+    stageColumnWidth: number,
+    gapBetweenAnswerAndStage: number,
+    headerLineHeight: number,
+    font: PDFFont,
+    headerFontSize: number,
+    color: RGB
+): Promise<number> {
+    const stageX = pageMargin + contentWidth + gapBetweenAnswerAndStage;
+    await drawTextWithWrapping('Question / Answer', pageMargin, yPos, contentWidth, headerLineHeight, page, font, headerFontSize, color);
+    await drawTextWithWrapping('Stage', stageX, yPos, stageColumnWidth, headerLineHeight, page, font, headerFontSize, color);
+
+    const lineY = yPos - headerFontSize * 0.4;
+    page.drawLine({
+        start: { x: pageMargin, y: lineY },
+        end: { x: pageWidth - pageMargin, y: lineY },
+        thickness: 0.5,
+        color: rgb(0.7, 0.7, 0.7),
+    });
+
+    return lineY - headerLineHeight * 1.3;
+}
+// --- END HELPER ---
+
 export async function POST(req: NextRequest) {
   try {
     const supabase = createActionClient();
@@ -523,6 +553,15 @@ export async function POST(req: NextRequest) {
     const questionAnswerContentWidth = width - 2 * margin - stageColumnWidth - columnGap - gapBetweenAnswerAndStage; 
     const questionColumnWidth = (questionAnswerContentWidth) / 2;
     const answerColumnWidth = (questionAnswerContentWidth) / 2;
+
+    // Knowledge mode: non-bilingual decks use a row layout (Q on top, A below)
+    // instead of the two-column translation layout.
+    const isKnowledgeMode = !deckData.is_bilingual;
+    // Full content width for knowledge rows (reuse both columns + the gap between them)
+    const knowledgeRowWidth = questionAnswerContentWidth + columnGap;
+    // Vertical space between question and answer blocks in row layout
+    const qaVerticalGap = qaLineHeight * 0.8;
+
     let currentY = height - margin;
 
     // Calculate stageHeaderX once, as it depends on fixed layout parameters
@@ -531,7 +570,9 @@ export async function POST(req: NextRequest) {
     // Capture the Y-coordinate for the deck title's baseline
     const deckTitleBaselineY = currentY; 
 
-    const titleAndTagMaxWidth = margin + questionColumnWidth + columnGap + answerColumnWidth; // Max width before the gap to stage column
+    const titleAndTagMaxWidth = isKnowledgeMode
+        ? knowledgeRowWidth          // full content width for knowledge layout
+        : questionColumnWidth + columnGap + answerColumnWidth; // up to stage column gap
     currentY = await drawTextWithWrapping(deckData.name || 'Untitled Deck', margin, deckTitleBaselineY, titleAndTagMaxWidth, lineHeightTitle, page, standardFontBold, fontSizeTitle, rgb(0,0,0));
     currentY -= lineHeightTitle * 0.5;
     if (deckData.tags && deckData.tags.length > 0) {
@@ -540,22 +581,21 @@ export async function POST(req: NextRequest) {
       currentY -= lineHeightRegular;
     }
 
-    // Draw Column Headers and Rule for the first page
-    currentY = await drawColumnTitlesAndRule(
-        page,
-        currentY,
-        margin,
-        width,
-        questionColumnWidth,
-        answerColumnWidth,
-        stageColumnWidth,
-        columnGap,
-        gapBetweenAnswerAndStage,
-        lineHeightRegular, // Using lineHeightRegular for headers
-        standardFontBold,
-        defaultFontSizeRegular,
-        rgb(0.1,0.1,0.1)
-    );
+    // Draw column/row headers and rule for the first page
+    if (isKnowledgeMode) {
+        currentY = await drawKnowledgeHeaderAndRule(
+            page, currentY, margin, width, knowledgeRowWidth,
+            stageColumnWidth, gapBetweenAnswerAndStage,
+            lineHeightRegular, standardFontBold, defaultFontSizeRegular, rgb(0.1, 0.1, 0.1)
+        );
+    } else {
+        currentY = await drawColumnTitlesAndRule(
+            page, currentY, margin, width,
+            questionColumnWidth, answerColumnWidth,
+            stageColumnWidth, columnGap, gapBetweenAnswerAndStage,
+            lineHeightRegular, standardFontBold, defaultFontSizeRegular, rgb(0.1, 0.1, 0.1)
+        );
+    }
 
     const defaultTextColor = rgb(0,0,0);
     const footerColor = rgb(0.5, 0.5, 0.5);
@@ -632,55 +672,78 @@ export async function POST(req: NextRequest) {
             appLogger.debug("[API /generate-deck-pdf] PDF word color coding globally disabled. Card ID: " + card.id + " will use default text color.");
         }
 
-        // --- Calculate text heights and manage pagination --- 
+        // --- Calculate text heights and manage pagination ---
         const tempPdfDocForCalc = await PDFDocument.create();
         tempPdfDocForCalc.registerFontkit(fontkit);
         const tempFontForCalc = await loadFont(tempPdfDocForCalc, fontChoiceConfig.regular);
-        const tempPageForHeightCalc = tempPdfDocForCalc.addPage([width, height]); 
-        const qHeight = height - (await drawTextWithWrapping(questionText, 0, height, questionColumnWidth, qaLineHeight, tempPageForHeightCalc, tempFontForCalc, pdfCardContentFontSize, questionColor));
-        const aHeight = height - (await drawTextWithWrapping(answerText, 0, height, answerColumnWidth, qaLineHeight, tempPageForHeightCalc, tempFontForCalc, pdfCardContentFontSize, answerColor));
+        const tempPageForHeightCalc = tempPdfDocForCalc.addPage([width, height]);
         const cardBottomPadding = fixedReferenceLineHeight * 0.5;
-        const cardRowHeight = Math.max(qHeight, aHeight) + cardBottomPadding;
 
-        if (currentY - cardRowHeight < margin + footerLineHeight * 2) { // Check space for content + potential single footer line (page num/legend)
-            // DO NOT DRAW FOOTERS/HEADERS HERE ANYMORE
-            // const creationDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-            // page.drawText('Created by StudyCards on ' + creationDate, { x: margin, y: margin / 2, size: fontSizeSmall, font: standardFont, color: footerColor });
-            // page.drawText(String(pdfDoc.getPageCount()), { x: width - margin - standardFont.widthOfTextAtSize(String(pdfDoc.getPageCount()), fontSizeSmall), y: margin / 2, size: fontSizeSmall, font: standardFont, color: footerColor });
-            
-            // DO NOT DRAW LEGEND HERE ANYMORE
-            // await drawFooterLegend(page, pdfDoc, width, margin, margin / 2, footerLineHeight, iconFont, standardFont, fontSizeSmall);
+        let cardRowHeight: number;
+        let qHeightForDraw: number;
 
+        if (isKnowledgeMode) {
+            // Row layout: Q on top, A below — measure against full row width
+            const qH = height - (await drawTextWithWrapping(questionText, 0, height, knowledgeRowWidth, qaLineHeight, tempPageForHeightCalc, tempFontForCalc, pdfCardContentFontSize, questionColor));
+            const aH = height - (await drawTextWithWrapping(answerText, 0, height, knowledgeRowWidth, qaLineHeight, tempPageForHeightCalc, tempFontForCalc, pdfCardContentFontSize, answerColor));
+            qHeightForDraw = qH;
+            cardRowHeight = qH + qaVerticalGap + aH + cardBottomPadding;
+        } else {
+            // Column layout: Q and A side-by-side — measure against half-width columns
+            const qH = height - (await drawTextWithWrapping(questionText, 0, height, questionColumnWidth, qaLineHeight, tempPageForHeightCalc, tempFontForCalc, pdfCardContentFontSize, questionColor));
+            const aH = height - (await drawTextWithWrapping(answerText, 0, height, answerColumnWidth, qaLineHeight, tempPageForHeightCalc, tempFontForCalc, pdfCardContentFontSize, answerColor));
+            qHeightForDraw = qH;
+            cardRowHeight = Math.max(qH, aH) + cardBottomPadding;
+        }
+
+        if (currentY - cardRowHeight < margin + footerLineHeight * 2) {
             page = pdfDoc.addPage(PageSizes.A4);
-            currentY = height - margin; // Reset Y for new page
-            // Draw Column Headers and Rule for the new page
-            currentY = await drawColumnTitlesAndRule(
-                page,
-                currentY,
-                margin,
-                width, // Assuming width is same for new page, which it is with PageSizes.A4
-                questionColumnWidth,
-                answerColumnWidth,
-                stageColumnWidth,
-                columnGap,
-                gapBetweenAnswerAndStage, // This now correctly uses the global stageHeaderX
-                lineHeightRegular, // Using lineHeightRegular for headers
-                standardFontBold,
-                defaultFontSizeRegular,
-                rgb(0.1,0.1,0.1)
-            );
-            // Removed old column header drawing + currentY adjustment below for new page
+            currentY = height - margin;
+            // Draw headers for the new page (matching the layout mode)
+            if (isKnowledgeMode) {
+                currentY = await drawKnowledgeHeaderAndRule(
+                    page, currentY, margin, width, knowledgeRowWidth,
+                    stageColumnWidth, gapBetweenAnswerAndStage,
+                    lineHeightRegular, standardFontBold, defaultFontSizeRegular, rgb(0.1, 0.1, 0.1)
+                );
+            } else {
+                currentY = await drawColumnTitlesAndRule(
+                    page, currentY, margin, width,
+                    questionColumnWidth, answerColumnWidth,
+                    stageColumnWidth, columnGap, gapBetweenAnswerAndStage,
+                    lineHeightRegular, standardFontBold, defaultFontSizeRegular, rgb(0.1, 0.1, 0.1)
+                );
+            }
         }
 
         const startYForRow = currentY;
-        await drawTextWithWrapping(questionText, margin, startYForRow, questionColumnWidth, qaLineHeight, page, mainContentFont, pdfCardContentFontSize, questionColor);
-        await drawTextWithWrapping(answerText, margin + questionColumnWidth + columnGap, startYForRow, answerColumnWidth, qaLineHeight, page, mainContentFont, pdfCardContentFontSize, answerColor);
-        
+
+        if (isKnowledgeMode) {
+            // Draw question full-width, then a subtle separator, then answer full-width
+            const qEndY = await drawTextWithWrapping(questionText, margin, startYForRow, knowledgeRowWidth, qaLineHeight, page, mainContentFont, pdfCardContentFontSize, questionColor);
+            // Subtle dotted line between question and answer
+            const sepY = qEndY - qaVerticalGap * 0.45;
+            page.drawLine({
+                start: { x: margin, y: sepY },
+                end:   { x: margin + knowledgeRowWidth, y: sepY },
+                thickness: 0.4,
+                color: rgb(0.82, 0.82, 0.82),
+                dashArray: [2, 3],
+                dashPhase: 0,
+            });
+            const answerStartY = startYForRow - qHeightForDraw - qaVerticalGap;
+            await drawTextWithWrapping(answerText, margin, answerStartY, knowledgeRowWidth, qaLineHeight, page, mainContentFont, pdfCardContentFontSize, answerColor);
+        } else {
+            // Draw question and answer in parallel columns
+            await drawTextWithWrapping(questionText, margin, startYForRow, questionColumnWidth, qaLineHeight, page, mainContentFont, pdfCardContentFontSize, questionColor);
+            await drawTextWithWrapping(answerText, margin + questionColumnWidth + columnGap, startYForRow, answerColumnWidth, qaLineHeight, page, mainContentFont, pdfCardContentFontSize, answerColor);
+        }
+
         if (showCardStatusIconsInPdf && iconColorToUse) {
             page.drawText(STATUS_ICON_CHAR, {
                 x: statusIconColumnCenterX,
-                y: startYForRow - iconYAdjustment, 
-                font: iconFont, 
+                y: startYForRow - iconYAdjustment,
+                font: iconFont,
                 size: iconSize,
                 color: iconColorToUse,
             });
