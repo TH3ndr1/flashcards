@@ -677,7 +677,10 @@ export async function POST(req: NextRequest) {
         tempPdfDocForCalc.registerFontkit(fontkit);
         const tempFontForCalc = await loadFont(tempPdfDocForCalc, fontChoiceConfig.regular);
         const tempPageForHeightCalc = tempPdfDocForCalc.addPage([width, height]);
-        const cardBottomPadding = fixedReferenceLineHeight * 0.5;
+        // Knowledge mode uses more generous spacing so cards breathe
+        const cardBottomPadding = isKnowledgeMode
+            ? qaLineHeight * 1.8
+            : fixedReferenceLineHeight * 0.5;
 
         let cardRowHeight: number;
         let qHeightForDraw: number;
@@ -686,8 +689,11 @@ export async function POST(req: NextRequest) {
             // Row layout: Q on top, A below — measure against full row width
             const qH = height - (await drawTextWithWrapping(questionText, 0, height, knowledgeRowWidth, qaLineHeight, tempPageForHeightCalc, tempFontForCalc, pdfCardContentFontSize, questionColor));
             const aH = height - (await drawTextWithWrapping(answerText, 0, height, knowledgeRowWidth, qaLineHeight, tempPageForHeightCalc, tempFontForCalc, pdfCardContentFontSize, answerColor));
-            qHeightForDraw = qH;
-            cardRowHeight = qH + qaVerticalGap + aH + cardBottomPadding;
+            // Add the question background padding to the measured height
+            const qBgPadTop = pdfCardContentFontSize * 0.75;
+            const qBgPadBottom = pdfCardContentFontSize * 0.3;
+            qHeightForDraw = qH + qBgPadTop + qBgPadBottom;
+            cardRowHeight = qHeightForDraw + qaVerticalGap + aH + cardBottomPadding;
         } else {
             // Column layout: Q and A side-by-side — measure against half-width columns
             const qH = height - (await drawTextWithWrapping(questionText, 0, height, questionColumnWidth, qaLineHeight, tempPageForHeightCalc, tempFontForCalc, pdfCardContentFontSize, questionColor));
@@ -719,18 +725,27 @@ export async function POST(req: NextRequest) {
         const startYForRow = currentY;
 
         if (isKnowledgeMode) {
-            // Draw question full-width, then a subtle separator, then answer full-width
-            const qEndY = await drawTextWithWrapping(questionText, margin, startYForRow, knowledgeRowWidth, qaLineHeight, page, mainContentFont, pdfCardContentFontSize, questionColor);
-            // Subtle dotted line between question and answer
-            const sepY = qEndY - qaVerticalGap * 0.45;
-            page.drawLine({
-                start: { x: margin, y: sepY },
-                end:   { x: margin + knowledgeRowWidth, y: sepY },
-                thickness: 0.4,
-                color: rgb(0.82, 0.82, 0.82),
-                dashArray: [2, 3],
-                dashPhase: 0,
+            // --- Question block: highlighted background + bold text ---
+            const qBgPadH    = 5;                           // horizontal padding
+            const qBgPadTop  = pdfCardContentFontSize * 0.75; // space above baseline
+            const qBgPadBot  = pdfCardContentFontSize * 0.3;  // space below last line
+            const rawQHeight = qHeightForDraw - qBgPadTop - qBgPadBot; // text-only height
+            const qTextStartY = startYForRow - qBgPadTop;   // baseline for first Q line
+
+            // Draw light background rect behind the question
+            page.drawRectangle({
+                x:      margin - qBgPadH,
+                y:      qTextStartY - rawQHeight - qBgPadBot,
+                width:  knowledgeRowWidth + qBgPadH * 2,
+                height: rawQHeight + qBgPadTop + qBgPadBot,
+                color:  rgb(0.93, 0.94, 0.98), // soft blue-grey tint
+                borderWidth: 0,
             });
+
+            // Draw question in bold so it stands out against the answer
+            await drawTextWithWrapping(questionText, margin, qTextStartY, knowledgeRowWidth, qaLineHeight, page, mainContentFontBold, pdfCardContentFontSize, questionColor);
+
+            // --- Answer block: indented label + regular text ---
             const answerStartY = startYForRow - qHeightForDraw - qaVerticalGap;
             await drawTextWithWrapping(answerText, margin, answerStartY, knowledgeRowWidth, qaLineHeight, page, mainContentFont, pdfCardContentFontSize, answerColor);
         } else {
@@ -751,16 +766,28 @@ export async function POST(req: NextRequest) {
 
         currentY -= cardRowHeight;
 
-        if (deckData.cards.indexOf(card) < deckData.cards.length -1 ) {
-            const lineY = currentY + (qaLineHeight);
-            page.drawLine({
-                start: { x: margin, y: lineY },
-                end: { x: width - margin, y: lineY },
-                thickness: 0.5,
-                color: rgb(0.75, 0.75, 0.75),
-                dashArray: [2, 2],
-                dashPhase: 0,
-            });
+        if (deckData.cards.indexOf(card) < deckData.cards.length - 1) {
+            if (isKnowledgeMode) {
+                // Solid, mid-grey line centred in the generous bottom padding
+                const lineY = currentY + cardBottomPadding * 0.55;
+                page.drawLine({
+                    start: { x: margin, y: lineY },
+                    end:   { x: width - margin, y: lineY },
+                    thickness: 0.75,
+                    color: rgb(0.55, 0.55, 0.55),
+                });
+            } else {
+                // Original light dashed line for translation cards
+                const lineY = currentY + qaLineHeight;
+                page.drawLine({
+                    start: { x: margin, y: lineY },
+                    end:   { x: width - margin, y: lineY },
+                    thickness: 0.5,
+                    color: rgb(0.75, 0.75, 0.75),
+                    dashArray: [2, 2],
+                    dashPhase: 0,
+                });
+            }
         }
       }
     }
