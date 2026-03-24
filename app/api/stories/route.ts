@@ -16,7 +16,7 @@ import type { Json } from '@/types/database';
 
 // App Router: top-level exports for runtime and max function duration
 export const runtime = 'nodejs';
-export const maxDuration = 120;
+export const maxDuration = 60;
 
 // --- POST: Generate or return cached story ---
 
