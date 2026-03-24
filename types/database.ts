@@ -218,6 +218,7 @@ export type Database = {
           mature_interval_threshold: number
           min_easiness_factor: number
           pdf_card_content_font_size: number
+          pdf_font: string
           preferred_voices: Json
           relearning_steps_minutes: number[]
           show_card_status_icons_in_pdf: boolean
@@ -265,6 +266,7 @@ export type Database = {
           mature_interval_threshold?: number
           min_easiness_factor?: number
           pdf_card_content_font_size?: number
+          pdf_font?: string
           preferred_voices?: Json
           relearning_steps_minutes?: number[]
           show_card_status_icons_in_pdf?: boolean
@@ -312,6 +314,7 @@ export type Database = {
           mature_interval_threshold?: number
           min_easiness_factor?: number
           pdf_card_content_font_size?: number
+          pdf_font?: string
           preferred_voices?: Json
           relearning_steps_minutes?: number[]
           show_card_status_icons_in_pdf?: boolean

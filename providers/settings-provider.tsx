@@ -62,6 +62,7 @@ export interface Settings {
   enablePdfWordColorCoding: boolean;
   pdfCardContentFontSize: number;
   showCardStatusIconsInPdf: boolean;
+  pdfFont: FontOption;
 
   // --- Kid-friendly SRS tuning ---
   firstReviewBaseDays: number; // Base for first review interval (level 1 -> 2)
@@ -123,6 +124,7 @@ export const DEFAULT_SETTINGS: Settings = {
   enablePdfWordColorCoding: true,
   pdfCardContentFontSize: 10,
   showCardStatusIconsInPdf: true,
+  pdfFont: 'default',
 
   // --- Kid-friendly SRS tuning defaults ---
   firstReviewBaseDays: 4,
@@ -186,6 +188,7 @@ const transformSettingsToDbUpdates = (updates: Partial<Settings>): DbSettingsUpd
   if (updates.enablePdfWordColorCoding !== undefined) dbUpdates.enable_pdf_word_color_coding = updates.enablePdfWordColorCoding;
   if (updates.pdfCardContentFontSize !== undefined) dbUpdates.pdf_card_content_font_size = updates.pdfCardContentFontSize;
   if (updates.showCardStatusIconsInPdf !== undefined) dbUpdates.show_card_status_icons_in_pdf = updates.showCardStatusIconsInPdf;
+  if (updates.pdfFont !== undefined) dbUpdates.pdf_font = updates.pdfFont;
   
   // --- Feature Flags ---
   if (updates.settingsAccessEnabled !== undefined) dbUpdates.settings_access_enabled = updates.settingsAccessEnabled;
@@ -273,6 +276,9 @@ const transformDbSettingsToSettings = (dbSettings: DbSettings | null): Settings 
             enablePdfWordColorCoding: dbSettings.enable_pdf_word_color_coding ?? DEFAULT_SETTINGS.enablePdfWordColorCoding,
             pdfCardContentFontSize: dbSettings.pdf_card_content_font_size ?? DEFAULT_SETTINGS.pdfCardContentFontSize,
             showCardStatusIconsInPdf: dbSettings.show_card_status_icons_in_pdf ?? DEFAULT_SETTINGS.showCardStatusIconsInPdf,
+            pdfFont: (['default', 'opendyslexic', 'atkinson'].includes(dbSettings.pdf_font ?? ''))
+                ? (dbSettings.pdf_font as FontOption)
+                : DEFAULT_SETTINGS.pdfFont,
 
             // Kid-friendly SRS tuning (loaded from DB if present)
             firstReviewBaseDays: dbSettings.first_review_base_days ?? DEFAULT_SETTINGS.firstReviewBaseDays,
