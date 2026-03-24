@@ -32,9 +32,12 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   ClipboardCheck,
+  LogOut,
 } from 'lucide-react';
 import { type LucideProps } from 'lucide-react'; // Changed import for LucideProps
 import React from 'react';
+import { useAuth } from '@/hooks/use-auth';
+import { toast } from 'sonner';
 
 // Define explicit types for navigation items
 type LucideIconComponent = React.ComponentType<LucideProps>; // Defined LucideIconComponent type
@@ -102,6 +105,44 @@ const navItems: NavGroupDefinition[] = [
   },
 ];
 
+// Sign-out button — always visible so users can log out even in a phantom session
+const SignOutButton = ({ isCollapsed, onClick }: { isCollapsed: boolean; onClick?: () => void }) => {
+  const { signOut } = useAuth();
+
+  const handleSignOut = async () => {
+    onClick?.(); // close mobile sheet first
+    try {
+      await signOut();
+    } catch {
+      toast.error('Failed to sign out. Please try again.');
+    }
+  };
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          className={cn(
+            'w-full justify-start text-muted-foreground hover:text-destructive hover:bg-destructive/10',
+            isCollapsed && 'justify-center h-10',
+          )}
+          onClick={handleSignOut}
+          aria-label="Sign out"
+        >
+          <LogOut className={cn('h-4 w-4', !isCollapsed && 'mr-2')} />
+          <span className={cn(isCollapsed && 'hidden')}>Sign Out</span>
+        </Button>
+      </TooltipTrigger>
+      {isCollapsed && (
+        <TooltipContent side="right">
+          <p>Sign Out</p>
+        </TooltipContent>
+      )}
+    </Tooltip>
+  );
+};
+
 // Memoize NavigationContent as it primarily depends on isCollapsed and navItems (which is constant)
 const NavigationContentInternal = ({ isCollapsed, onClose }: { isCollapsed: boolean; onClose?: () => void }) => {
   const pathname = usePathname();
@@ -168,6 +209,11 @@ const NavigationContentInternal = ({ isCollapsed, onClose }: { isCollapsed: bool
           </div>
         ))}
       </nav>
+
+      {/* Sign-out always at the bottom of the nav list */}
+      <div className={cn('px-3 pb-2', isCollapsed && 'px-1')}>
+        <SignOutButton isCollapsed={isCollapsed} onClick={onClose} />
+      </div>
     </>
   );
 };
