@@ -11,7 +11,7 @@ import {
 import {
   Popover, PopoverContent, PopoverTrigger,
 } from '@/components/ui/popover';
-import { Check, ChevronDown, Search, X } from 'lucide-react';
+import { Check, ChevronDown, Search, SlidersHorizontal, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const LANGUAGE_NAMES: Record<string, string> = {
@@ -129,6 +129,8 @@ export function DeckFilterBar({
   onTagsChange,
   onDeckNameChange,
 }: DeckFilterBarProps) {
+  const [isOpen, setIsOpen] = useState(false);
+
   const languageOptions = availableLanguages.map(l => ({
     value: l,
     label: LANGUAGE_NAMES[l] || l,
@@ -138,6 +140,8 @@ export function DeckFilterBar({
 
   const hasActiveFilters =
     selectedLanguages.length > 0 || selectedTags.length > 0 || deckNameFilter.length > 0;
+  const activeFilterCount =
+    selectedLanguages.length + selectedTags.length + (deckNameFilter ? 1 : 0);
 
   const clearAll = () => {
     onLanguagesChange([]);
@@ -152,97 +156,119 @@ export function DeckFilterBar({
     onTagsChange(selectedTags.filter(t => t !== tagId));
 
   return (
-    <div className="space-y-2">
-      {/* Filter controls row */}
-      <div className="flex flex-wrap items-center gap-2">
-        {/* Deck name search */}
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            placeholder="Search deck name…"
-            value={deckNameFilter}
-            onChange={e => onDeckNameChange(e.target.value)}
-            className="h-9 pl-8 w-44 text-sm"
-          />
-          {deckNameFilter && (
-            <button
-              onClick={() => onDeckNameChange('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              aria-label="Clear name search"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
-
-        {/* Language multi-select */}
-        {languageOptions.length > 0 && (
-          <MultiSelectDropdown
-            label="Language"
-            options={languageOptions}
-            selected={selectedLanguages}
-            onChange={onLanguagesChange}
-            searchPlaceholder="Search languages…"
-            emptyText="No matching language."
-          />
-        )}
-
-        {/* Tag multi-select */}
-        {tagOptions.length > 0 && (
-          <MultiSelectDropdown
-            label="Tags"
-            options={tagOptions}
-            selected={selectedTags}
-            onChange={onTagsChange}
-            searchPlaceholder="Search tags…"
-            emptyText="No matching tag."
-          />
-        )}
-
-        {/* Clear all */}
-        {hasActiveFilters && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-9 px-2 text-xs text-muted-foreground"
-            onClick={clearAll}
-          >
-            <X className="h-3.5 w-3.5 mr-1" />
-            Clear all
-          </Button>
-        )}
-      </div>
-
-      {/* Active filter chips */}
-      {hasActiveFilters && (
-        <div className="flex flex-wrap gap-1.5">
-          {selectedLanguages.map(lang => (
-            <Badge key={lang} variant="secondary" className="text-xs h-6 pl-2 pr-1 gap-1">
-              {LANGUAGE_NAMES[lang] || lang}
-              <button
-                onClick={() => removeLanguage(lang)}
-                className="ml-0.5 rounded-full hover:bg-muted-foreground/20 p-0.5"
-                aria-label={`Remove ${LANGUAGE_NAMES[lang] || lang} filter`}
-              >
-                <X className="h-3 w-3" />
-              </button>
+    <div>
+      {/* Toggle button — always visible, zero extra vertical space when closed */}
+      <div className="flex items-center gap-2">
+        <Button
+          variant={hasActiveFilters ? 'secondary' : 'outline'}
+          size="sm"
+          className="h-8 gap-1.5 text-sm"
+          onClick={() => setIsOpen(o => !o)}
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5" />
+          Filter
+          {activeFilterCount > 0 && (
+            <Badge variant="default" className="h-5 min-w-5 rounded-full px-1 text-xs">
+              {activeFilterCount}
             </Badge>
-          ))}
-          {selectedTags.map(tagId => {
-            const tag = availableTags.find(t => t.id === tagId);
-            return tag ? (
-              <Badge key={tagId} variant="secondary" className="text-xs h-6 pl-2 pr-1 gap-1">
-                {tag.name}
-                <button
-                  onClick={() => removeTag(tagId)}
-                  className="ml-0.5 rounded-full hover:bg-muted-foreground/20 p-0.5"
-                  aria-label={`Remove ${tag.name} filter`}
-                >
+          )}
+        </Button>
+
+        {/* Active chips inline with toggle so they don't take extra rows when panel is closed */}
+        {!isOpen && hasActiveFilters && (
+          <div className="flex flex-wrap gap-1.5">
+            {selectedLanguages.map(lang => (
+              <Badge key={lang} variant="secondary" className="text-xs h-6 pl-2 pr-1 gap-1">
+                {LANGUAGE_NAMES[lang] || lang}
+                <button onClick={() => removeLanguage(lang)}
+                  className="ml-0.5 rounded-full hover:bg-muted-foreground/20 p-0.5">
                   <X className="h-3 w-3" />
                 </button>
               </Badge>
-            ) : null;
-          })}
+            ))}
+            {selectedTags.map(tagId => {
+              const tag = availableTags.find(t => t.id === tagId);
+              return tag ? (
+                <Badge key={tagId} variant="secondary" className="text-xs h-6 pl-2 pr-1 gap-1">
+                  {tag.name}
+                  <button onClick={() => removeTag(tagId)}
+                    className="ml-0.5 rounded-full hover:bg-muted-foreground/20 p-0.5">
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              ) : null;
+            })}
+            {deckNameFilter && (
+              <Badge variant="secondary" className="text-xs h-6 pl-2 pr-1 gap-1">
+                &ldquo;{deckNameFilter}&rdquo;
+                <button onClick={() => onDeckNameChange('')}
+                  className="ml-0.5 rounded-full hover:bg-muted-foreground/20 p-0.5">
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Expandable filter panel */}
+      {isOpen && (
+        <div className="mt-3 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Deck name search */}
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Search deck name…"
+                value={deckNameFilter}
+                onChange={e => onDeckNameChange(e.target.value)}
+                className="h-9 pl-8 w-44 text-sm"
+                autoFocus
+              />
+              {deckNameFilter && (
+                <button
+                  onClick={() => onDeckNameChange('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  aria-label="Clear name search"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Language multi-select */}
+            {languageOptions.length > 0 && (
+              <MultiSelectDropdown
+                label="Language"
+                options={languageOptions}
+                selected={selectedLanguages}
+                onChange={onLanguagesChange}
+                searchPlaceholder="Search languages…"
+                emptyText="No matching language."
+              />
+            )}
+
+            {/* Tag multi-select */}
+            {tagOptions.length > 0 && (
+              <MultiSelectDropdown
+                label="Tags"
+                options={tagOptions}
+                selected={selectedTags}
+                onChange={onTagsChange}
+                searchPlaceholder="Search tags…"
+                emptyText="No matching tag."
+              />
+            )}
+
+            {/* Clear all */}
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" className="h-9 px-2 text-xs text-muted-foreground"
+                onClick={clearAll}>
+                <X className="h-3.5 w-3.5 mr-1" />
+                Clear all
+              </Button>
+            )}
+          </div>
         </div>
       )}
     </div>
