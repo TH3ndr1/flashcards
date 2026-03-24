@@ -28,6 +28,7 @@ interface GeneratePayload {
   readingTimeMin: ReadingTimeMin;
   storyFormat: StoryFormat;
   age: number;
+  forceRegenerate?: boolean;
 }
 
 export async function POST(request: NextRequest) {
@@ -63,7 +64,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { deckId, readingTimeMin, storyFormat, age } = payload;
+    const { deckId, readingTimeMin, storyFormat, age, forceRegenerate } = payload;
     if (!deckId || !readingTimeMin || !age) {
       return NextResponse.json(
         { success: false, message: 'Missing required fields: deckId, readingTimeMin, age.', code: 'INVALID_PAYLOAD' },
@@ -117,19 +118,21 @@ export async function POST(request: NextRequest) {
     const deckMode = deck.is_bilingual ? 'translation' : 'knowledge';
     const cardsHash = computeCardsHash(cards);
 
-    // --- Check cache (keyed by deck, user, age, reading time, format, and card content) ---
-    const { data: existing } = await supabase
-      .from('stories')
-      .select('*')
-      .eq('deck_id', deckId)
-      .eq('user_id', user.id)
-      .eq('age_at_generation', age)
-      .eq('reading_time_min', readingTimeMin === 'minimal' ? 0 : readingTimeMin)
-      .eq('story_format', format)
-      .eq('cards_hash', cardsHash)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    // --- Check cache (skipped when forceRegenerate is true) ---
+    const { data: existing } = forceRegenerate
+      ? { data: null }
+      : await supabase
+          .from('stories')
+          .select('*')
+          .eq('deck_id', deckId)
+          .eq('user_id', user.id)
+          .eq('age_at_generation', age)
+          .eq('reading_time_min', readingTimeMin === 'minimal' ? 0 : readingTimeMin)
+          .eq('story_format', format)
+          .eq('cards_hash', cardsHash)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
     if (existing) {
       appLogger.info(`[API Stories POST] Cache hit for deck ${deckId}`);

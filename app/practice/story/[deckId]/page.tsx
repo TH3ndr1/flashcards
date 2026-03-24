@@ -16,6 +16,35 @@ import { toast } from 'sonner';
 import { appLogger } from '@/lib/logger';
 import type { Story } from '@/types/story';
 
+// ─── Markdown utilities ───────────────────────────────────────────────────────
+
+/** Strip markdown markers — used for TTS so "sterretje sterretje" isn't spoken */
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/_([^_]+)_/g, '$1');
+}
+
+/** Render inline markdown (bold, italic) as React nodes */
+function renderInlineMarkdown(text: string): React.ReactNode {
+  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
+  if (parts.length === 1) return text;
+  return (
+    <>
+      {parts.map((part, i) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+          return <strong key={i} className="font-semibold">{part.slice(2, -2)}</strong>;
+        }
+        if (part.startsWith('*') && part.endsWith('*')) {
+          return <em key={i}>{part.slice(1, -1)}</em>;
+        }
+        return part;
+      })}
+    </>
+  );
+}
+
 // ─── Sentence splitting ───────────────────────────────────────────────────────
 
 function splitIntoSentences(text: string): string[] {
@@ -31,11 +60,15 @@ interface DialogueLine {
 }
 
 /**
- * Parses a dialogue paragraph that uses [TOPIC: ...], [T]: and [S]: markers.
+ * Parses a dialogue paragraph.
+ * Supports new [T]:/[S]: markers and legacy "Teacher:"/"Student:" English format
+ * (for backwards compatibility with cached stories generated before the format change).
  * Falls back to rendering as plain text if no markers are found.
  */
 function parseDialogueParagraph(text: string): DialogueLine[] | null {
-  if (!text.includes('[T]:') && !text.includes('[S]:')) return null;
+  const hasNewMarkers = text.includes('[T]:') || text.includes('[S]:');
+  const hasLegacyMarkers = /^\s*(?:\*\*)?(?:Teacher|Student)(?:\*\*)?:/mi.test(text);
+  if (!hasNewMarkers && !hasLegacyMarkers) return null;
 
   const lines: DialogueLine[] = [];
   const raw = text.split('\n').map((l) => l.trim()).filter(Boolean);
@@ -44,6 +77,9 @@ function parseDialogueParagraph(text: string): DialogueLine[] | null {
     const topicMatch = line.match(/^\[TOPIC:\s*(.+?)\]$/i);
     const tMatch = line.match(/^\[T\]:\s*(.+)$/);
     const sMatch = line.match(/^\[S\]:\s*(.+)$/);
+    // Legacy fallback: "Teacher: ..." or "**Teacher:** ..."
+    const legacyTMatch = line.match(/^(?:\*\*)?Teacher(?:\*\*)?:\s*(.+)$/i);
+    const legacySMatch = line.match(/^(?:\*\*)?Student(?:\*\*)?:\s*(.+)$/i);
 
     if (topicMatch) {
       lines.push({ speaker: 'topic', text: topicMatch[1] });
@@ -51,6 +87,10 @@ function parseDialogueParagraph(text: string): DialogueLine[] | null {
       lines.push({ speaker: 'T', text: tMatch[1] });
     } else if (sMatch) {
       lines.push({ speaker: 'S', text: sMatch[1] });
+    } else if (legacyTMatch) {
+      lines.push({ speaker: 'T', text: legacyTMatch[1] });
+    } else if (legacySMatch) {
+      lines.push({ speaker: 'S', text: legacySMatch[1] });
     } else if (line.length > 0) {
       // Unrecognised line — append to last entry or create plain entry
       if (lines.length > 0 && lines[lines.length - 1].speaker !== 'topic') {
@@ -70,6 +110,8 @@ function stripDialogueMarkers(text: string): string {
     .replace(/^\[TOPIC:[^\]]*\]\s*/gm, '')
     .replace(/^\[T\]:\s*/gm, '')
     .replace(/^\[S\]:\s*/gm, '')
+    .replace(/^(?:\*\*)?Teacher(?:\*\*)?:\s*/gim, '')
+    .replace(/^(?:\*\*)?Student(?:\*\*)?:\s*/gim, '')
     .trim();
 }
 
@@ -135,7 +177,7 @@ function DialogueParagraphView({
                       currentSentenceKey === key && 'bg-primary/20 rounded px-0.5'
                     )}
                   >
-                    {sentence}{' '}
+                    {renderInlineMarkdown(sentence)}{' '}
                   </span>
                 );
               })}
@@ -208,13 +250,14 @@ export default function StoryPage() {
       : primaryLanguage;
   }, [story, primaryLanguage, secondaryLanguage]);
 
-  // Flatten all speakable sentences with unique keys
+  // Flatten all speakable sentences with unique keys (markers + markdown stripped for TTS)
   const allSentences = useMemo(() => {
     if (!story) return [];
     const isDialogue = story.story_format === 'dialogue';
 
     return story.paragraphs.flatMap((para, pIdx) => {
-      const text = isDialogue ? stripDialogueMarkers(para.primary) : para.primary;
+      const raw = isDialogue ? stripDialogueMarkers(para.primary) : para.primary;
+      const text = stripMarkdown(raw);
       return splitIntoSentences(text).map((sentence, sIdx) => ({
         key: `${pIdx}-${sIdx}`,
         text: sentence,
@@ -370,13 +413,13 @@ export default function StoryPage() {
                         currentSentenceKey === key && 'bg-primary/20 rounded px-0.5'
                       )}
                     >
-                      {text}{' '}
+                      {renderInlineMarkdown(text)}{' '}
                     </span>
                   ))}
                 </p>
                 {story.deck_mode === 'translation' && secondary && (
                   <p className="mt-2 text-sm text-muted-foreground italic border-l-2 border-muted pl-3 leading-relaxed">
-                    {secondary}
+                    {renderInlineMarkdown(secondary)}
                   </p>
                 )}
               </div>

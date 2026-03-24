@@ -40,6 +40,7 @@ export function StoryTabContent({ deckId, deckName }: StoryTabContentProps) {
   const [editedParagraphs, setEditedParagraphs] = useState<StoryParagraph[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [showGenerateModal, setShowGenerateModal] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
   const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
 
   const loadStory = useCallback(async () => {
@@ -86,14 +87,21 @@ export function StoryTabContent({ deckId, deckName }: StoryTabContentProps) {
     if (story?.is_manually_edited) {
       setShowRegenerateConfirm(true);
     } else {
+      setIsRegenerating(true);
       setShowGenerateModal(true);
     }
   };
 
-  const handleModalClose = () => {
+  const handleModalClose = async () => {
     setShowGenerateModal(false);
-    // Reload story after generation
-    loadStory();
+    setIsRegenerating(false);
+    // Reload story from DB and sync the store so "View Story" and deck list show the new story
+    const { data: refreshed } = await getStoryForDeck(deckId);
+    if (refreshed) {
+      setStory(refreshed);
+      setEditedParagraphs(refreshed.paragraphs);
+      setCurrentStory(refreshed, deckName, deckId, `/edit/${deckId}?tab=story`);
+    }
   };
 
   if (isLoading) {
@@ -218,6 +226,7 @@ export function StoryTabContent({ deckId, deckName }: StoryTabContentProps) {
         deckName={deckName}
         isOpen={showGenerateModal}
         onClose={handleModalClose}
+        forceRegenerate={isRegenerating}
       />
 
       {/* Regenerate confirmation (when manually edited) */}
@@ -234,6 +243,7 @@ export function StoryTabContent({ deckId, deckName }: StoryTabContentProps) {
             <AlertDialogAction
               onClick={() => {
                 setShowRegenerateConfirm(false);
+                setIsRegenerating(true);
                 setShowGenerateModal(true);
               }}
             >

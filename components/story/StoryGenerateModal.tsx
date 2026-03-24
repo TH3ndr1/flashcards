@@ -27,6 +27,7 @@ interface StoryGenerateModalProps {
   deckName: string;
   isOpen: boolean;
   onClose: () => void;
+  forceRegenerate?: boolean;
 }
 
 function calculateAge(dob: string): number {
@@ -65,7 +66,7 @@ const FORMAT_OPTIONS: { value: StoryFormat; label: string; description: string; 
   },
 ];
 
-export function StoryGenerateModal({ deckId, deckName, isOpen, onClose }: StoryGenerateModalProps) {
+export function StoryGenerateModal({ deckId, deckName, isOpen, onClose, forceRegenerate }: StoryGenerateModalProps) {
   const router = useRouter();
   const { settings, updateSettings } = useSettings();
   const setCurrentStory = useStoryStore((s) => s.setCurrentStory);
@@ -102,7 +103,7 @@ export function StoryGenerateModal({ deckId, deckName, isOpen, onClose }: StoryG
       const res = await fetch('/api/stories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deckId, readingTimeMin: readingTime, storyFormat, age }),
+        body: JSON.stringify({ deckId, readingTimeMin: readingTime, storyFormat, age, forceRegenerate: forceRegenerate ?? false }),
       });
 
       const json = await res.json();
