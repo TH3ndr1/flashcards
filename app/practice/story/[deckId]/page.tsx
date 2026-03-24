@@ -52,6 +52,27 @@ function splitIntoSentences(text: string): string[] {
   return raw.map((s) => s.trim()).filter(Boolean);
 }
 
+// ─── Topic heading detection (all modes) ──────────────────────────────────────
+
+/** Returns the title text if the paragraph is a standalone [TOPIC: ...] heading, else null */
+function parseTopicLine(text: string): string | null {
+  const match = text.trim().match(/^\[TOPIC:\s*(.+?)\]$/i);
+  return match ? match[1] : null;
+}
+
+// ─── Topic heading renderer ────────────────────────────────────────────────────
+
+function TopicHeading({ title }: { title: string }) {
+  return (
+    <div className="flex items-center gap-1.5 mt-6 mb-2 px-2.5 py-1.5 rounded-md bg-primary/8 border border-primary/20 first:mt-0">
+      <Hash className="h-3 w-3 text-primary/70 flex-shrink-0" />
+      <span className="text-xs font-semibold uppercase tracking-wide text-primary/80">
+        {title}
+      </span>
+    </div>
+  );
+}
+
 // ─── Dialogue parsing ─────────────────────────────────────────────────────────
 
 interface DialogueLine {
@@ -253,6 +274,8 @@ export default function StoryPage() {
     const isDialogue = story.story_format === 'dialogue';
 
     return story.paragraphs.flatMap((para, pIdx) => {
+      // Skip standalone topic heading paragraphs — nothing to speak
+      if (parseTopicLine(para.primary)) return [];
       const raw = isDialogue ? stripDialogueMarkers(para.primary) : para.primary;
       const text = stripMarkdown(raw);
       return splitIntoSentences(text).map((sentence, sIdx) => ({
@@ -327,15 +350,6 @@ export default function StoryPage() {
 
   const isDialogue = story.story_format === 'dialogue';
 
-  // For non-dialogue modes: annotate sentences with highlight keys
-  const annotatedParagraphs = story.paragraphs.map((para, pIdx) => {
-    const sentences = splitIntoSentences(para.primary).map((s, sIdx) => ({
-      key: `${pIdx}-${sIdx}`,
-      text: s,
-    }));
-    return { primary: sentences, secondary: para.secondary, raw: para.primary };
-  });
-
   return (
     <div className="container mx-auto px-4 py-6 max-w-4xl">
       {/* Header */}
@@ -370,57 +384,71 @@ export default function StoryPage() {
       </div>
 
       {/* Story body */}
-      <article className={cn('space-y-6', fontClass)}>
-        {isDialogue
-          ? story.paragraphs.map((para, pIdx) => {
-              const lines = parseDialogueParagraph(para.primary);
-              return (
-                <div key={pIdx}>
-                  {lines ? (
-                    <DialogueParagraphView
-                      lines={lines}
-                      currentSentenceKey={currentSentenceKey}
-                      paraIdx={pIdx}
-                    />
-                  ) : (
-                    <p className="leading-relaxed text-base">{para.primary}</p>
-                  )}
-                  {story.deck_mode === 'translation' && para.secondary && (
-                    <div className="mt-2 text-sm text-muted-foreground italic border-l-2 border-muted pl-3 leading-relaxed space-y-1">
-                      {parseDialogueParagraph(para.secondary)
-                        ? parseDialogueParagraph(para.secondary)!.map((line, i) =>
-                            line.speaker === 'topic' ? null : (
-                              <p key={i}>{line.text}</p>
-                            )
-                          )
-                        : para.secondary}
-                    </div>
-                  )}
-                </div>
-              );
-            })
-          : annotatedParagraphs.map(({ primary, secondary }, pIdx) => (
+      <article className={cn('space-y-4', fontClass)}>
+        {story.paragraphs.map((para, pIdx) => {
+          // ── Standalone topic heading paragraph (all formats) ──
+          const topicTitle = parseTopicLine(para.primary);
+          if (topicTitle) {
+            return <TopicHeading key={pIdx} title={topicTitle} />;
+          }
+
+          // ── Dialogue paragraph ──
+          if (isDialogue) {
+            const lines = parseDialogueParagraph(para.primary);
+            return (
               <div key={pIdx}>
-                <p className="leading-relaxed text-base">
-                  {primary.map(({ key, text }) => (
-                    <span
-                      key={key}
-                      className={cn(
-                        'transition-colors duration-200',
-                        currentSentenceKey === key && 'bg-primary/20 rounded px-0.5'
-                      )}
-                    >
-                      {renderInlineMarkdown(text)}{' '}
-                    </span>
-                  ))}
-                </p>
-                {story.deck_mode === 'translation' && secondary && (
-                  <p className="mt-2 text-sm text-muted-foreground italic border-l-2 border-muted pl-3 leading-relaxed">
-                    {renderInlineMarkdown(secondary)}
-                  </p>
+                {lines ? (
+                  <DialogueParagraphView
+                    lines={lines}
+                    currentSentenceKey={currentSentenceKey}
+                    paraIdx={pIdx}
+                  />
+                ) : (
+                  <p className="leading-relaxed text-base">{renderInlineMarkdown(para.primary)}</p>
+                )}
+                {story.deck_mode === 'translation' && para.secondary && (
+                  <div className="mt-2 text-sm text-muted-foreground italic border-l-2 border-muted pl-3 leading-relaxed space-y-1">
+                    {parseDialogueParagraph(para.secondary)
+                      ? parseDialogueParagraph(para.secondary)!.map((line, i) =>
+                          line.speaker === 'topic' ? null : (
+                            <p key={i}>{renderInlineMarkdown(line.text)}</p>
+                          )
+                        )
+                      : renderInlineMarkdown(para.secondary)}
+                  </div>
                 )}
               </div>
-            ))}
+            );
+          }
+
+          // ── Regular narrative / summary / analogy paragraph ──
+          const sentences = splitIntoSentences(para.primary).map((s, sIdx) => ({
+            key: `${pIdx}-${sIdx}`,
+            text: s,
+          }));
+          return (
+            <div key={pIdx}>
+              <p className="leading-relaxed text-base">
+                {sentences.map(({ key, text }) => (
+                  <span
+                    key={key}
+                    className={cn(
+                      'transition-colors duration-200',
+                      currentSentenceKey === key && 'bg-primary/20 rounded px-0.5'
+                    )}
+                  >
+                    {renderInlineMarkdown(text)}{' '}
+                  </span>
+                ))}
+              </p>
+              {story.deck_mode === 'translation' && para.secondary && (
+                <p className="mt-2 text-sm text-muted-foreground italic border-l-2 border-muted pl-3 leading-relaxed">
+                  {renderInlineMarkdown(para.secondary)}
+                </p>
+              )}
+            </div>
+          );
+        })}
       </article>
     </div>
   );
