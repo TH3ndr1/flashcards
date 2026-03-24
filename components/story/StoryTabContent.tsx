@@ -164,8 +164,9 @@ export function StoryTabContent({ deckId, deckName }: StoryTabContentProps) {
 
       {/* Story metadata */}
       <p className="text-xs text-muted-foreground">
-        Generated for age {story.age_at_generation} · {story.reading_time_min} min read ·{' '}
-        {story.paragraphs.length} paragraphs
+        Generated for age {story.age_at_generation} ·{' '}
+        {story.reading_time_min === 0 ? 'Minimal' : `${story.reading_time_min} min`} read ·{' '}
+        {story.story_format ?? 'narrative'} · {story.paragraphs.length} paragraphs
         {story.is_manually_edited && ' · Manually edited'}
       </p>
 
