@@ -71,6 +71,9 @@ export interface Settings {
   settingsAccessEnabled: boolean;
   editFunctionalityEnabled: boolean;
   childModeEnabled: boolean;
+
+  // --- Personal ---
+  dateOfBirth: string | null; // ISO date string e.g. '1990-05-15', null if not set
 }
 
 type DbSettings = Tables<'settings'> & {
@@ -132,6 +135,9 @@ export const DEFAULT_SETTINGS: Settings = {
   settingsAccessEnabled: true,
   editFunctionalityEnabled: true,
   childModeEnabled: false,
+
+  // --- Personal ---
+  dateOfBirth: null,
 };
 
 const transformSettingsToDbUpdates = (updates: Partial<Settings>): DbSettingsUpdate => {
@@ -191,7 +197,8 @@ const transformSettingsToDbUpdates = (updates: Partial<Settings>): DbSettingsUpd
   if (updates.settingsAccessEnabled !== undefined) dbUpdates.settings_access_enabled = updates.settingsAccessEnabled;
   if (updates.editFunctionalityEnabled !== undefined) dbUpdates.edit_functionality_enabled = updates.editFunctionalityEnabled;
   if (updates.childModeEnabled !== undefined) dbUpdates.child_mode_enabled = updates.childModeEnabled;
-  
+  if (updates.dateOfBirth !== undefined) (dbUpdates as Record<string, unknown>).date_of_birth = updates.dateOfBirth;
+
   return dbUpdates;
 };
 
@@ -282,6 +289,9 @@ const transformDbSettingsToSettings = (dbSettings: DbSettings | null): Settings 
             settingsAccessEnabled: dbSettings.settings_access_enabled ?? DEFAULT_SETTINGS.settingsAccessEnabled,
             editFunctionalityEnabled: dbSettings.edit_functionality_enabled ?? DEFAULT_SETTINGS.editFunctionalityEnabled,
             childModeEnabled: dbSettings.child_mode_enabled ?? DEFAULT_SETTINGS.childModeEnabled,
+
+            // --- Personal ---
+            dateOfBirth: (dbSettings as Record<string, unknown>).date_of_birth as string | null ?? null,
         };
         debug('transformDbSettingsToSettings: Transformation result:', transformed);
         return transformed;

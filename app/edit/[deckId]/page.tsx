@@ -14,6 +14,7 @@ import { CardViewTabContent } from "./CardViewTabContent";
 import { TableViewTabContent } from "./TableViewTabContent";
 import { DeckDangerZone } from "./DeckDangerZone";
 import { DeckTagEditor } from '@/components/deck-tag-editor';
+import { StoryTabContent } from '@/components/story/StoryTabContent';
 import type { Tables, Database } from "@/types/database"; // Keep type import
 import { appLogger } from '@/lib/logger';
 import { createBrowserClient } from '@supabase/ssr'; // For client-side Supabase access
@@ -323,9 +324,10 @@ export default function EditDeckPage() {
 
             {/* Card Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
+                <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="cards">Card View</TabsTrigger>
                     <TabsTrigger value="table">Table View</TabsTrigger>
+                    <TabsTrigger value="story">Story</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="cards">
@@ -355,6 +357,10 @@ export default function EditDeckPage() {
                          onAddNewCardClick={handleAddCardOptimistic}
                      />
                  </TabsContent>
+
+                <TabsContent value="story">
+                  <StoryTabContent deckId={deck.id} deckName={deck.name} />
+                </TabsContent>
             </Tabs>
 
             {/* Deck Actions */}
