@@ -82,12 +82,12 @@ export async function updateStoryParagraphs(
 }
 
 /**
- * Fetches the primary and secondary language of a deck.
- * Used to determine the TTS language for the story reading view.
+ * Fetches the name and languages of a deck.
+ * Used to determine the TTS language and display name for the story reading view.
  */
 export async function getDeckLanguages(
   deckId: string
-): Promise<ActionResult<{ primary_language: string; secondary_language: string | null }>> {
+): Promise<ActionResult<{ name: string; primary_language: string; secondary_language: string | null }>> {
   try {
     const supabase = createActionClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -97,7 +97,7 @@ export async function getDeckLanguages(
 
     const { data, error } = await supabase
       .from('decks')
-      .select('primary_language, secondary_language')
+      .select('name, primary_language, secondary_language')
       .eq('id', deckId)
       .eq('user_id', user.id)
       .single();
@@ -108,6 +108,7 @@ export async function getDeckLanguages(
 
     return {
       data: {
+        name: data.name ?? '',
         primary_language: data.primary_language ?? 'en',
         secondary_language: data.secondary_language ?? null,
       },
