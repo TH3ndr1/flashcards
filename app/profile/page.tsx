@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
 import { LogOut, Shield, FileText, ExternalLink, AlertTriangle, Trash2, User } from "lucide-react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
@@ -33,6 +34,8 @@ export default function ProfilePage() {
   const [termsConsent, setTermsConsent] = useState(true) // Default to true for existing users
   const [ageConsent, setAgeConsent] = useState(true) // Default to true for existing users
   const [nativeLanguage, setNativeLanguage] = useState<string>(settings?.appLanguage || 'en')
+  const [dateOfBirth, setDateOfBirth] = useState<string>(settings?.dateOfBirth || '')
+  const [dobSaving, setDobSaving] = useState(false)
 
   useEffect(() => {
     if (!authLoading) {
@@ -50,6 +53,13 @@ export default function ProfilePage() {
       setNativeLanguage(settings.appLanguage);
     }
   }, [settings?.appLanguage]);
+
+  // Sync DOB state with settings
+  useEffect(() => {
+    if (settings?.dateOfBirth) {
+      setDateOfBirth(settings.dateOfBirth);
+    }
+  }, [settings?.dateOfBirth]);
 
   const handleSignOut = async () => {
     setSignOutLoading(true)
@@ -119,6 +129,24 @@ export default function ProfilePage() {
       setChildModeLoading(false)
     }
   }
+
+  const handleDobSave = async () => {
+    if (!dateOfBirth) return;
+    setDobSaving(true);
+    try {
+      const { error } = await updateSettings({ dateOfBirth });
+      if (error) {
+        toast.error("Failed to save date of birth", { description: error });
+      } else {
+        toast.success("Date of birth saved.");
+      }
+    } catch (err) {
+      appLogger.error("Unexpected error saving DOB:", err);
+      toast.error("Failed to save date of birth");
+    } finally {
+      setDobSaving(false);
+    }
+  };
 
   const handleNativeLanguageChange = async (value: string) => {
     setNativeLanguage(value)
@@ -194,6 +222,35 @@ export default function ProfilePage() {
                   </Select>
                   <p className="text-xs text-muted-foreground mt-1">
                     This will be used as the default language for new decks
+                  </p>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Date of Birth */}
+              <div className="grid grid-cols-4 items-start gap-4">
+                <Label htmlFor="dateOfBirth" className="text-right font-medium pt-2">Date of Birth</Label>
+                <div className="col-span-3 space-y-2">
+                  <div className="flex gap-2">
+                    <Input
+                      id="dateOfBirth"
+                      type="date"
+                      value={dateOfBirth}
+                      onChange={(e) => setDateOfBirth(e.target.value)}
+                      className="max-w-[200px]"
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleDobSave}
+                      disabled={dobSaving || !dateOfBirth}
+                    >
+                      {dobSaving ? "Saving..." : "Save"}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Used to personalise the complexity of AI-generated stories
                   </p>
                 </div>
               </div>

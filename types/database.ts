@@ -236,6 +236,7 @@ export type Database = {
           settings_access_enabled: boolean
           edit_functionality_enabled: boolean
           child_mode_enabled: boolean
+          date_of_birth: string | null
         }
         Insert: {
           app_language?: string
@@ -284,6 +285,7 @@ export type Database = {
           settings_access_enabled?: boolean
           edit_functionality_enabled?: boolean
           child_mode_enabled?: boolean
+          date_of_birth?: string | null
         }
         Update: {
           app_language?: string
@@ -332,6 +334,7 @@ export type Database = {
           settings_access_enabled?: boolean
           edit_functionality_enabled?: boolean
           child_mode_enabled?: boolean
+          date_of_birth?: string | null
         }
         Relationships: [
           {
@@ -372,6 +375,56 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      stories: {
+        Row: {
+          id: string
+          deck_id: string
+          user_id: string
+          age_at_generation: number
+          reading_time_min: number
+          cards_hash: string
+          deck_mode: string
+          paragraphs: Json
+          is_manually_edited: boolean
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          deck_id: string
+          user_id: string
+          age_at_generation: number
+          reading_time_min: number
+          cards_hash: string
+          deck_mode: string
+          paragraphs?: Json
+          is_manually_edited?: boolean
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          deck_id?: string
+          user_id?: string
+          age_at_generation?: number
+          reading_time_min?: number
+          cards_hash?: string
+          deck_mode?: string
+          paragraphs?: Json
+          is_manually_edited?: boolean
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stories_deck_id_fkey"
+            columns: ["deck_id"]
+            isOneToOne: false
+            referencedRelation: "decks"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tags: {
         Row: {

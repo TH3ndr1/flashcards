@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useStudySessionStore } from '@/store/studySessionStore';
 import { useStudySession, type UseStudySessionReturn } from '@/hooks/useStudySession';
-import { Loader2 as IconLoader } from 'lucide-react';
+import { Loader2 as IconLoader, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -293,7 +293,19 @@ export default function StudySessionPage() {
         <div className="container mx-auto p-4 flex flex-col items-center justify-center min-h-screen text-center">
             <h1 className="text-3xl font-bold mb-4">{title}</h1>
             <p className="text-lg text-muted-foreground mb-6">{description}</p>
-             <Button onClick={() => router.push('/study/select')} className="mt-4">Start New Session</Button>
+             <div className="flex flex-wrap gap-3 mt-4 justify-center">
+               <Button onClick={() => router.push('/study/select')}>Start New Session</Button>
+               {currentInputFromStore && 'deckId' in currentInputFromStore && currentInputFromStore.deckId && (
+                 <Button
+                   variant="outline"
+                   onClick={() => router.push(`/practice/story/${currentInputFromStore.deckId}`)}
+                   className="gap-2"
+                 >
+                   <BookOpen className="h-4 w-4" />
+                   Read the Story
+                 </Button>
+               )}
+             </div>
         </div>
     );
   }
