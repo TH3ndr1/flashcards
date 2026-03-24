@@ -385,6 +385,7 @@ export type Database = {
           reading_time_min: number
           cards_hash: string
           deck_mode: string
+          story_format: string
           paragraphs: Json
           is_manually_edited: boolean
           created_at: string | null
@@ -398,6 +399,7 @@ export type Database = {
           reading_time_min: number
           cards_hash: string
           deck_mode: string
+          story_format?: string
           paragraphs?: Json
           is_manually_edited?: boolean
           created_at?: string | null
@@ -411,6 +413,7 @@ export type Database = {
           reading_time_min?: number
           cards_hash?: string
           deck_mode?: string
+          story_format?: string
           paragraphs?: Json
           is_manually_edited?: boolean
           created_at?: string | null

@@ -11,19 +11,22 @@ import { generateStory } from './storyGeneratorService';
 import { GenerationApiError } from '../extract-pdf/types';
 import { computeCardsHash } from '@/lib/utils/storyHash';
 import { appLogger } from '@/lib/logger';
-import type { StoryParagraph, ReadingTimeMin } from '@/types/story';
+import type { StoryParagraph, ReadingTimeMin, StoryFormat } from '@/types/story';
 import type { Json } from '@/types/database';
 
-export const config = {
-  runtime: 'nodejs',
-  maxDuration: 120,
-};
+// App Router: top-level exports for runtime and max function duration
+export const runtime = 'nodejs';
+export const maxDuration = 120;
 
 // --- POST: Generate or return cached story ---
+
+const VALID_READING_TIMES = ['minimal', 5, 10, 20] as const;
+const VALID_FORMATS: StoryFormat[] = ['narrative', 'summary', 'dialogue', 'analogy'];
 
 interface GeneratePayload {
   deckId: string;
   readingTimeMin: ReadingTimeMin;
+  storyFormat: StoryFormat;
   age: number;
 }
 
@@ -60,19 +63,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { deckId, readingTimeMin, age } = payload;
+    const { deckId, readingTimeMin, storyFormat, age } = payload;
     if (!deckId || !readingTimeMin || !age) {
       return NextResponse.json(
         { success: false, message: 'Missing required fields: deckId, readingTimeMin, age.', code: 'INVALID_PAYLOAD' },
         { status: 400 }
       );
     }
-    if (![5, 10, 20].includes(readingTimeMin)) {
+    if (!(VALID_READING_TIMES as readonly unknown[]).includes(readingTimeMin)) {
       return NextResponse.json(
-        { success: false, message: 'readingTimeMin must be 5, 10, or 20.', code: 'INVALID_PAYLOAD' },
+        { success: false, message: 'readingTimeMin must be minimal, 5, 10, or 20.', code: 'INVALID_PAYLOAD' },
         { status: 400 }
       );
     }
+    const format: StoryFormat = VALID_FORMATS.includes(storyFormat) ? storyFormat : 'narrative';
 
     // --- Fetch deck ---
     const { data: deck, error: deckError } = await supabase
@@ -113,14 +117,15 @@ export async function POST(request: NextRequest) {
     const deckMode = deck.is_bilingual ? 'translation' : 'knowledge';
     const cardsHash = computeCardsHash(cards);
 
-    // --- Check cache ---
+    // --- Check cache (keyed by deck, user, age, reading time, format, and card content) ---
     const { data: existing } = await supabase
       .from('stories')
       .select('*')
       .eq('deck_id', deckId)
       .eq('user_id', user.id)
       .eq('age_at_generation', age)
-      .eq('reading_time_min', readingTimeMin)
+      .eq('reading_time_min', readingTimeMin === 'minimal' ? 0 : readingTimeMin)
+      .eq('story_format', format)
       .eq('cards_hash', cardsHash)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -141,7 +146,11 @@ export async function POST(request: NextRequest) {
       secondaryLanguage: deck.secondary_language,
       age,
       readingTimeMin,
+      storyFormat: format,
     });
+
+    // Store 'minimal' as 0 in the DB (integer column)
+    const readingTimeDb = readingTimeMin === 'minimal' ? 0 : readingTimeMin;
 
     // --- Save to DB ---
     const { data: saved, error: insertError } = await supabase
@@ -150,9 +159,10 @@ export async function POST(request: NextRequest) {
         deck_id: deckId,
         user_id: user.id,
         age_at_generation: age,
-        reading_time_min: readingTimeMin,
+        reading_time_min: readingTimeDb,
         cards_hash: cardsHash,
         deck_mode: deckMode,
+        story_format: format,
         paragraphs: generated.paragraphs as unknown as Json,
       })
       .select()

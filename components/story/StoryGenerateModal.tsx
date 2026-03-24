@@ -19,8 +19,8 @@ import { useSettings } from '@/providers/settings-provider';
 import { useStoryStore } from '@/store/storyStore';
 import { toast } from 'sonner';
 import { appLogger } from '@/lib/logger';
-import type { ReadingTimeMin, Story } from '@/types/story';
-import { BookOpen, Loader2 } from 'lucide-react';
+import type { ReadingTimeMin, StoryFormat, Story } from '@/types/story';
+import { BookOpen, Loader2, FileText, MessageSquare, Lightbulb, Zap } from 'lucide-react';
 
 interface StoryGenerateModalProps {
   deckId: string;
@@ -38,12 +38,40 @@ function calculateAge(dob: string): number {
   return age;
 }
 
+const FORMAT_OPTIONS: { value: StoryFormat; label: string; description: string; icon: React.ReactNode }[] = [
+  {
+    value: 'narrative',
+    label: 'Story',
+    description: 'An engaging narrative that weaves all concepts together',
+    icon: <BookOpen className="h-4 w-4" />,
+  },
+  {
+    value: 'summary',
+    label: 'Overview',
+    description: 'A structured audio-style recap — ideal for pre-exam review',
+    icon: <FileText className="h-4 w-4" />,
+  },
+  {
+    value: 'dialogue',
+    label: 'Dialogue',
+    description: 'A Socratic teacher-student conversation exploring all concepts',
+    icon: <MessageSquare className="h-4 w-4" />,
+  },
+  {
+    value: 'analogy',
+    label: 'Analogies',
+    description: 'Each concept explained through a vivid real-world analogy',
+    icon: <Lightbulb className="h-4 w-4" />,
+  },
+];
+
 export function StoryGenerateModal({ deckId, deckName, isOpen, onClose }: StoryGenerateModalProps) {
   const router = useRouter();
   const { settings, updateSettings } = useSettings();
   const setCurrentStory = useStoryStore((s) => s.setCurrentStory);
 
   const [readingTime, setReadingTime] = useState<ReadingTimeMin>(10);
+  const [storyFormat, setStoryFormat] = useState<StoryFormat>('narrative');
   const [dobInput, setDobInput] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -74,7 +102,7 @@ export function StoryGenerateModal({ deckId, deckName, isOpen, onClose }: StoryG
       const res = await fetch('/api/stories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deckId, readingTimeMin: readingTime, age }),
+        body: JSON.stringify({ deckId, readingTimeMin: readingTime, storyFormat, age }),
       });
 
       const json = await res.json();
@@ -100,31 +128,68 @@ export function StoryGenerateModal({ deckId, deckName, isOpen, onClose }: StoryG
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <BookOpen className="h-5 w-5" />
             Generate Story
           </DialogTitle>
           <DialogDescription>
-            Create an AI-generated story based on <strong>{deckName}</strong> to help you understand the material.
+            Create AI-generated content from <strong>{deckName}</strong> to help you understand the material.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-5 py-2">
+          {/* Format selector */}
+          <div className="space-y-2">
+            <Label>Format</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {FORMAT_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setStoryFormat(opt.value)}
+                  className={`flex flex-col items-start gap-1 rounded-lg border p-3 text-left text-sm transition-colors hover:bg-muted/50 ${
+                    storyFormat === opt.value
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border'
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5 font-medium">
+                    {opt.icon}
+                    {opt.label}
+                  </span>
+                  <span className="text-xs text-muted-foreground leading-snug">{opt.description}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Reading time selector */}
           <div className="space-y-2">
-            <Label>Reading time</Label>
+            <Label>Length</Label>
             <ToggleGroup
               type="single"
               value={String(readingTime)}
-              onValueChange={(v) => { if (v) setReadingTime(Number(v) as ReadingTimeMin); }}
-              className="justify-start"
+              onValueChange={(v) => {
+                if (!v) return;
+                setReadingTime(v === 'minimal' ? 'minimal' : (Number(v) as ReadingTimeMin));
+              }}
+              className="justify-start flex-wrap gap-1"
             >
+              <ToggleGroupItem value="minimal" className="gap-1 px-3">
+                <Zap className="h-3 w-3" />
+                Minimal
+              </ToggleGroupItem>
               <ToggleGroupItem value="5" className="px-4">5 min</ToggleGroupItem>
               <ToggleGroupItem value="10" className="px-4">10 min</ToggleGroupItem>
               <ToggleGroupItem value="20" className="px-4">20 min</ToggleGroupItem>
             </ToggleGroup>
+            <p className="text-xs text-muted-foreground">
+              {readingTime === 'minimal'
+                ? 'Minimal: shortest possible content that still conveys maximum learning impact (~2 min)'
+                : `~${readingTime} minutes of reading`}
+            </p>
           </div>
 
           {/* DOB section */}
@@ -132,7 +197,7 @@ export function StoryGenerateModal({ deckId, deckName, isOpen, onClose }: StoryG
             <div className="space-y-1">
               <Label>Age</Label>
               <p className="text-sm text-muted-foreground">
-                Story complexity tailored for age <strong>{age}</strong>
+                Content complexity tailored for age <strong>{age}</strong>
               </p>
             </div>
           ) : (
@@ -146,7 +211,7 @@ export function StoryGenerateModal({ deckId, deckName, isOpen, onClose }: StoryG
                 max={new Date().toISOString().split('T')[0]}
               />
               <p className="text-xs text-muted-foreground">
-                Your date of birth personalises the story&apos;s complexity. It will be saved to your profile.
+                Your date of birth personalises the content&apos;s complexity. It will be saved to your profile.
               </p>
             </div>
           )}
@@ -165,7 +230,7 @@ export function StoryGenerateModal({ deckId, deckName, isOpen, onClose }: StoryG
             ) : (
               <>
                 <BookOpen className="mr-2 h-4 w-4" />
-                Generate Story
+                Generate
               </>
             )}
           </Button>
