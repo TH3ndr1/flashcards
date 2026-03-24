@@ -92,6 +92,18 @@ interface DeckForPdf {
 }
 
 // Helper function for drawing text with wrapping (same as used in the Edge Function)
+/** Strip control characters that WinAnsi / standard PDF fonts cannot encode. */
+function sanitizePdfText(text: string): string {
+    // Replace \r\n and \r with \n (normalise line endings), then keep \n for
+    // paragraph splitting below; strip every other control character.
+    return text
+        .replace(/\r\n/g, '\n')
+        .replace(/\r/g, '\n')
+        // Remove control chars except \n (tab → space, rest → nothing)
+        .replace(/\t/g, ' ')
+        .replace(/[\x00-\x09\x0b-\x1f\x7f]/g, '');
+}
+
 async function drawTextWithWrapping(
     text: string,
     x: number,
@@ -103,33 +115,41 @@ async function drawTextWithWrapping(
     fontSize: number,
     color: any // pdf-lib Color object
 ): Promise<number> {
-    const words = text.split(' ');
-    let currentLine = '';
+    // Sanitize first, then split on explicit newlines so card content with
+    // line breaks renders as multiple paragraphs instead of crashing.
+    const paragraphs = sanitizePdfText(text).split('\n');
     let currentY = y;
 
-    for (const word of words) {
-        const testLine = currentLine ? `${currentLine} ${word}` : word;
-        const testWidth = font.widthOfTextAtSize(testLine, fontSize);
+    for (const paragraph of paragraphs) {
+        const words = paragraph.split(' ');
+        let currentLine = '';
 
-        if (testWidth <= maxWidth) {
-            currentLine = testLine;
-        } else {
+        for (const word of words) {
+            const testLine = currentLine ? `${currentLine} ${word}` : word;
+            const testWidth = font.widthOfTextAtSize(testLine, fontSize);
+
+            if (testWidth <= maxWidth) {
+                currentLine = testLine;
+            } else {
+                if (currentY < 0 + lineHeight) {
+                    console.warn("Content exceeds page boundary, stopping text draw.");
+                    return currentY;
+                }
+                if (currentLine) {
+                    page.drawText(currentLine, { x, y: currentY, font, size: fontSize, color });
+                    currentY -= lineHeight;
+                }
+                currentLine = word;
+            }
+        }
+        if (currentLine) {
             if (currentY < 0 + lineHeight) {
-                console.warn("Content exceeds page boundary, stopping text draw.");
+                console.warn("Content exceeds page boundary, stopping last line draw.");
                 return currentY;
             }
             page.drawText(currentLine, { x, y: currentY, font, size: fontSize, color });
             currentY -= lineHeight;
-            currentLine = word;
         }
-    }
-    if (currentLine) {
-        if (currentY < 0 + lineHeight) {
-            console.warn("Content exceeds page boundary, stopping last line draw.");
-            return currentY;
-        }
-        page.drawText(currentLine, { x, y: currentY, font, size: fontSize, color });
-        currentY -= lineHeight;
     }
     return currentY;
 }
