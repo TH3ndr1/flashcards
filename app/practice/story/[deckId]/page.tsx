@@ -11,7 +11,7 @@ import { getFontClass } from '@/lib/fonts';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft, Volume2, Square, GraduationCap, MessageCircle } from 'lucide-react';
+import { ArrowLeft, Volume2, Square, GraduationCap, MessageCircle, Hash } from 'lucide-react';
 import { toast } from 'sonner';
 import { appLogger } from '@/lib/logger';
 import type { Story } from '@/types/story';
@@ -135,9 +135,10 @@ function DialogueParagraphView({
           return (
             <div
               key={lineIdx}
-              className="flex items-center gap-2 pt-3 pb-1 border-t border-border/50 first:pt-0 first:border-t-0"
+              className="flex items-center gap-1.5 mt-4 mb-1 px-2.5 py-1.5 rounded-md bg-primary/8 border border-primary/20 first:mt-0"
             >
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <Hash className="h-3 w-3 text-primary/70 flex-shrink-0" />
+              <span className="text-xs font-semibold uppercase tracking-wide text-primary/80">
                 {line.text}
               </span>
             </div>
@@ -196,7 +197,7 @@ export default function StoryPage() {
   const deckId = params.deckId as string;
   const router = useRouter();
 
-  const { currentStory, currentDeckName, currentDeckId, originUrl, clearCurrentStory } = useStoryStore();
+  const { currentDeckName, currentDeckId, originUrl } = useStoryStore();
   const { settings } = useSettings();
   const { speak, stop, ttsState } = useTTS({});
 
@@ -210,37 +211,33 @@ export default function StoryPage() {
 
   const ttsAbortRef = useRef(false);
 
-  // Load story + deck languages
+  // Load story + deck info. Always fetch from DB to ensure we have the latest
+  // (avoids stale Zustand store showing old story after regeneration).
   useEffect(() => {
     const load = async () => {
-      let loadedStory: Story | null = null;
+      const [storyResult, deckResult] = await Promise.all([
+        getStoryForDeck(deckId),
+        getDeckLanguages(deckId),
+      ]);
 
-      if (currentStory && currentDeckId === deckId) {
-        loadedStory = currentStory;
-        setDeckName(currentDeckName ?? '');
-      } else {
-        const { data, error } = await getStoryForDeck(deckId);
-        if (error || !data) {
-          appLogger.warn('[StoryPage] No story found, redirecting to edit.');
-          router.replace(`/edit/${deckId}?tab=story`);
-          return;
-        }
-        loadedStory = data;
+      if (storyResult.error || !storyResult.data) {
+        appLogger.warn('[StoryPage] No story found, redirecting to edit.');
+        router.replace(`/edit/${deckId}?tab=story`);
+        return;
       }
 
-      setStory(loadedStory);
+      setStory(storyResult.data);
 
-      // Always fetch deck languages (needed for TTS)
-      const { data: langs } = await getDeckLanguages(deckId);
-      if (langs) {
-        setPrimaryLanguage(langs.primary_language);
-        setSecondaryLanguage(langs.secondary_language);
+      if (deckResult.data) {
+        setDeckName(deckResult.data.name || (currentDeckId === deckId ? currentDeckName ?? '' : ''));
+        setPrimaryLanguage(deckResult.data.primary_language);
+        setSecondaryLanguage(deckResult.data.secondary_language);
       }
 
       setIsLoading(false);
     };
     load();
-  }, [deckId, currentStory, currentDeckId, currentDeckName, router]);
+  }, [deckId, currentDeckId, currentDeckName, router]);
 
   // TTS language: knowledge → primary language; translation → secondary language (L2 is primary text)
   const ttsLanguage = useMemo(() => {
