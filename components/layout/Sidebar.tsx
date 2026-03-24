@@ -36,7 +36,6 @@ import {
 } from 'lucide-react';
 import { type LucideProps } from 'lucide-react'; // Changed import for LucideProps
 import React from 'react';
-import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 
 // Define explicit types for navigation items
@@ -105,17 +104,14 @@ const navItems: NavGroupDefinition[] = [
   },
 ];
 
-// Sign-out button — always visible so users can log out even in a phantom session
+// Sign-out button — always visible so users can log out even in a phantom session.
+// Uses a hard navigation to /api/auth/signout (server-side route) so it works
+// even when the client-side auth state is broken and signOut() silently fails.
 const SignOutButton = ({ isCollapsed, onClick }: { isCollapsed: boolean; onClick?: () => void }) => {
-  const { signOut } = useAuth();
-
-  const handleSignOut = async () => {
+  const handleSignOut = () => {
     onClick?.(); // close mobile sheet first
-    try {
-      await signOut();
-    } catch {
-      toast.error('Failed to sign out. Please try again.');
-    }
+    // Hard navigation bypasses broken React/auth state entirely
+    window.location.href = '/api/auth/signout';
   };
 
   return (
