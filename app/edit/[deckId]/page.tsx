@@ -228,6 +228,7 @@ export default function EditDeckPage() {
                                 // Consolidate settings access with fallbacks
                                 const settingsForPdf = {
                                     cardFont: userSettings?.cardFont || DEFAULT_SETTINGS.cardFont,
+                                    pdfFont: userSettings?.pdfFont || DEFAULT_SETTINGS.pdfFont,
                                     enablePdfWordColorCoding: userSettings?.enablePdfWordColorCoding ?? DEFAULT_SETTINGS.enablePdfWordColorCoding,
                                     pdfCardContentFontSize: userSettings?.pdfCardContentFontSize || DEFAULT_SETTINGS.pdfCardContentFontSize,
                                     showCardStatusIconsInPdf: userSettings?.showCardStatusIconsInPdf ?? DEFAULT_SETTINGS.showCardStatusIconsInPdf,
