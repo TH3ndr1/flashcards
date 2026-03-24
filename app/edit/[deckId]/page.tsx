@@ -241,7 +241,7 @@ export default function EditDeckPage() {
                                 // Construct the payload explicitly to log it accurately
                                 const payload = {
                                     deckId,
-                                    cardFont: settingsForPdf.cardFont,
+                                    cardFont: settingsForPdf.pdfFont ?? settingsForPdf.cardFont,
                                     enablePdfWordColorCoding: settingsForPdf.enablePdfWordColorCoding,
                                     pdfCardContentFontSize: settingsForPdf.pdfCardContentFontSize,
                                     showCardStatusIconsInPdf: settingsForPdf.showCardStatusIconsInPdf,

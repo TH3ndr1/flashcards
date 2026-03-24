@@ -72,6 +72,7 @@ export default function SettingsPage() {
   const [enablePdfWordColorCoding, setEnablePdfWordColorCoding] = useState<boolean>(LOCAL_DEFAULT_SETTINGS.enablePdfWordColorCoding);
   const [pdfCardContentFontSize, setPdfCardContentFontSize] = useState<number>(LOCAL_DEFAULT_SETTINGS.pdfCardContentFontSize);
   const [showCardStatusIconsInPdf, setShowCardStatusIconsInPdf] = useState<boolean>(LOCAL_DEFAULT_SETTINGS.showCardStatusIconsInPdf);
+  const [pdfFont, setPdfFont] = useState<FontOption>(LOCAL_DEFAULT_SETTINGS.pdfFont);
   // --------------------------------
 
   // --- SRS (Study Schedule) Settings ---
@@ -118,6 +119,7 @@ export default function SettingsPage() {
          setEnablePdfWordColorCoding(currentSettings.enablePdfWordColorCoding);
          setPdfCardContentFontSize(currentSettings.pdfCardContentFontSize);
          setShowCardStatusIconsInPdf(currentSettings.showCardStatusIconsInPdf);
+         setPdfFont(currentSettings.pdfFont);
          // --------------------------
 
          // --- Load SRS settings ---
@@ -243,6 +245,11 @@ export default function SettingsPage() {
   const handleShowCardStatusIconsInPdfChange = useCallback(async (checked: boolean) => {
     setShowCardStatusIconsInPdf(checked);
     await handleSettingChange({ showCardStatusIconsInPdf: checked });
+  }, [handleSettingChange]);
+
+  const handlePdfFontChange = useCallback(async (value: FontOption) => {
+    setPdfFont(value);
+    await handleSettingChange({ pdfFont: value });
   }, [handleSettingChange]);
 
   // const handlePdfCardContentFontSizeBlur = useCallback(async (e: React.FocusEvent<HTMLInputElement>) => {
@@ -687,6 +694,21 @@ export default function SettingsPage() {
                         onCheckedChange={handleEnablePdfWordColorCodingChange}
                         id="enablePdfWordColorCoding"
                     />
+                </div>
+
+                {/* PDF Font */}
+                <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="pdfFont" className="text-right col-span-1">PDF Font</Label>
+                    <Select value={pdfFont} onValueChange={handlePdfFontChange}>
+                        <SelectTrigger id="pdfFont" className="col-span-3">
+                            <SelectValue placeholder="Select font" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {(Object.entries(FONT_OPTIONS) as [FontOption, { name: string }][]).map(([key, font]) => (
+                                <SelectItem key={key} value={key}>{font.name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </div>
 
                 {/* PDF Card Content Font Size */}
