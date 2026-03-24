@@ -169,16 +169,29 @@ Output only the JSON.`;
 
 function buildKnowledgeDialoguePrompt(cards: { question: string; answer: string }[], language: string, age: number, wordCount: number): string {
   const cardList = cards.map((c, i) => `${i + 1}. Q: ${c.question}\n   A: ${c.answer}`).join('\n');
-  return `You are a creative educator. Write a Socratic dialogue between a knowledgeable Teacher and a curious Student for a ${age}-year-old. The conversation naturally explores and teaches all the concepts from the flashcards below. The dialogue should feel genuine — the student asks real questions, the teacher explains clearly with examples.
+  return `You are a creative educator. Write a Socratic dialogue between a knowledgeable Teacher and a curious Student for a ${age}-year-old. The conversation naturally explores and teaches all the concepts from the flashcards below.
 
 **Requirements:**
-- Write in ${language}
+- Write ALL dialogue text in ${language}
 - Target length: approximately ${wordCount} words
-- Every concept must be covered through the conversation
+- Every concept must be covered; group related concepts into natural topic blocks
 - Keep it engaging, age-appropriate (${age} years old), and educational
-- Format each paragraph as a few lines of dialogue (e.g. "Teacher: ... Student: ...")
 
-**Output:** JSON with "paragraphs" array. Each element: "primary" = a block of dialogue, "secondary" = ""
+**CRITICAL — Formatting rules (always use these exact markers, never localise them):**
+- Each paragraph = one topic block containing one or more exchanges
+- Start every paragraph that introduces a NEW concept/topic with: [TOPIC: concept name in ${language}]
+- Format every teacher line as: [T]: teacher's words here
+- Format every student line as: [S]: student's words here
+- Never write "Teacher:" or "Student:" — only [T]: and [S]:
+
+Example paragraph:
+[TOPIC: photosynthesis]
+[T]: Have you ever wondered how plants make their own food?
+[S]: I thought they just absorbed it from the soil?
+[T]: Actually, plants use sunlight, water and CO₂ to produce glucose — that process is called photosynthesis.
+[S]: Oh, so the leaves are like little solar panels!
+
+**Output:** JSON "paragraphs" array. Each element: "primary" = one topic block formatted as above, "secondary" = ""
 
 **Flashcards:**
 ${cardList}
@@ -247,16 +260,23 @@ Output only the JSON.`;
 
 function buildTranslationDialoguePrompt(cards: { question: string; answer: string }[], primaryLanguage: string, secondaryLanguage: string, age: number, wordCount: number): string {
   const vocabList = cards.map((c, i) => `${i + 1}. ${c.question} = ${c.answer}`).join('\n');
-  return `You are a language educator. Write an engaging dialogue in ${secondaryLanguage} between two characters for a ${age}-year-old learner. The dialogue uses all vocabulary words below naturally. For each paragraph (a block of dialogue), provide a faithful ${primaryLanguage} translation.
+  return `You are a language educator. Write an engaging dialogue in ${secondaryLanguage} for a ${age}-year-old learner that uses all vocabulary words below naturally. For each paragraph, provide a faithful ${primaryLanguage} translation.
 
 **Requirements:**
 - Dialogue written in ${secondaryLanguage}; translation in ${primaryLanguage}
 - Target length: approximately ${wordCount} words
-- Every vocabulary word must appear naturally in the conversation
-- Engaging and age-appropriate (${age} years old)
-- Format each paragraph as a few lines of dialogue
+- Every vocabulary word must appear naturally; group related vocabulary into topic blocks
 
-**Output:** JSON "paragraphs" array. Each element: "primary" = dialogue block in ${secondaryLanguage}, "secondary" = ${primaryLanguage} translation
+**CRITICAL — Formatting rules (always use these exact markers):**
+- Each paragraph = one topic block containing one or more exchanges
+- Start every paragraph that introduces a NEW vocabulary group with: [TOPIC: topic label in ${secondaryLanguage}]
+- Format every teacher line as: [T]: words here
+- Format every student line as: [S]: words here
+- Never write "Teacher:" or "Student:" — only [T]: and [S]:
+
+**Output:** JSON "paragraphs" array. Each element:
+- "primary" = topic block in ${secondaryLanguage} with [TOPIC:], [T]:, [S]: markers
+- "secondary" = faithful ${primaryLanguage} translation of the same block (keep [TOPIC:], [T]:, [S]: markers in the translation too)
 
 **Vocabulary:**
 ${vocabList}
