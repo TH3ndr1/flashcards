@@ -283,34 +283,34 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
         {/* thin divider */}
         <div className={cn('h-px mx-4', cfg.divider)} />
 
-        {/* ── Content: coloured bg, stats left + thumbnail bottom-right ── */}
-        {/* overflow-visible here so thumbnail can extend past card edge (clipped by Card overflow-hidden) */}
-        <div className={cn('relative px-4 pt-3 pb-3 min-h-[88px]', cfg.bgSection)}>
-          <div className="space-y-1.5 text-xs text-muted-foreground pr-12">
+        {/* ── Content: coloured bg, stats left + thumbnail right (flex, not absolute) ── */}
+        <div className={cn('px-4 py-3 flex items-center gap-3', cfg.bgSection)}>
+          <div className="flex-1 min-w-0 space-y-1.5">
             {languageDisplay && (
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Globe className="h-3 w-3 flex-shrink-0" />
                 <span className="truncate">{languageDisplay}</span>
               </div>
             )}
             {tagNames && (
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Tag className="h-3 w-3 flex-shrink-0" />
                 <span className="truncate">{tagNames}</span>
               </div>
             )}
             {deck.totalCards > 0 && (
-              <p className="text-xs font-semibold text-foreground/80">
+              <p className="text-sm font-semibold text-foreground">
                 {learnEligible + reviewEligible > 0
                   ? `${learnEligible + reviewEligible} of ${deck.totalCards} due`
                   : `${deck.totalCards} cards`}
               </p>
             )}
           </div>
-          {/* Thumbnail: absolute bottom-right, -right-4 pushes it 16px past the card edge
-              so Card overflow-hidden clips ~25% for the "cut off" effect */}
-          <div className="absolute bottom-0 -right-4 w-16 h-16">
-            <MethodThumbnail type="flashcard" />
+          {/* Thumbnail: -mr-6 pushes 24px past flex boundary → Card overflow-hidden clips the right edge */}
+          <div className="w-16 h-16 flex-shrink-0 relative -mr-6">
+            <div className="absolute right-0 top-0">
+              <MethodThumbnail type="flashcard" />
+            </div>
           </div>
         </div>
 

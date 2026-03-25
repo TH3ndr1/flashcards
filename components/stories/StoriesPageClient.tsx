@@ -149,11 +149,10 @@ function StoryCard({ item, onRead, onEdit, onDownloadPdf, isDownloadingPdf }: St
       {/* thin divider */}
       <div className={cn('h-px mx-4', cfg.divider)} />
 
-      {/* ── Content: purple bg, info left + book thumbnail bottom-right ── */}
-      {/* No overflow-hidden here — Card's own overflow-hidden clips the thumbnail */}
-      <div className={cn('relative px-4 pt-3 pb-3 min-h-[88px]', cfg.bgSection)}>
-        <div className="space-y-1.5 text-xs text-muted-foreground pr-12">
-          <div className="flex items-center gap-1.5">
+      {/* ── Content: purple bg, info left + book thumbnail right (flex layout) ── */}
+      <div className={cn('px-4 py-3 flex items-center gap-3', cfg.bgSection)}>
+        <div className="flex-1 min-w-0 space-y-1.5">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Globe className="h-3 w-3 flex-shrink-0" />
             <span>{formatLanguage(item.primary_language, item.secondary_language)}</span>
           </div>
@@ -164,9 +163,11 @@ function StoryCard({ item, onRead, onEdit, onDownloadPdf, isDownloadingPdf }: St
             <p className="text-xs line-clamp-2 leading-relaxed text-foreground/60">{excerpt}</p>
           )}
         </div>
-        {/* Book thumbnail: absolute bottom-right, -right-4 pushes 16px past card edge for clip effect */}
-        <div className="absolute bottom-0 -right-4 w-16 h-16">
-          <MethodThumbnail type="story" />
+        {/* Thumbnail: -mr-6 pushes past flex boundary → Card overflow-hidden clips right edge */}
+        <div className="w-16 h-16 flex-shrink-0 relative -mr-6">
+          <div className="absolute right-0 top-0">
+            <MethodThumbnail type="story" />
+          </div>
         </div>
       </div>
 
@@ -205,16 +206,18 @@ function EmptyDeckCard({ item, onGenerate }: { item: StoryWithDeck; onGenerate: 
       <div className="h-px mx-4 bg-muted" />
 
       {/* Content */}
-      <div className="relative px-4 pt-3 pb-3 min-h-[88px] bg-muted/20">
-        <div className="space-y-1.5 text-xs text-muted-foreground pr-12">
-          <div className="flex items-center gap-1.5">
+      <div className="px-4 py-3 flex items-center gap-3 bg-muted/20">
+        <div className="flex-1 min-w-0 space-y-1.5">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Globe className="h-3 w-3 flex-shrink-0" />
             <span>{formatLanguage(item.primary_language, item.secondary_language)}</span>
           </div>
           <p className="text-xs text-muted-foreground/70">No story generated yet</p>
         </div>
-        <div className="absolute bottom-0 -right-4 w-16 h-16 opacity-30">
-          <MethodThumbnail type="story" />
+        <div className="w-16 h-16 flex-shrink-0 relative -mr-6 opacity-30">
+          <div className="absolute right-0 top-0">
+            <MethodThumbnail type="story" />
+          </div>
         </div>
       </div>
 
