@@ -181,10 +181,17 @@ export default function EditDeckPage() {
                                 const res = await swapDeckQA(deckId);
                                 if (res.error) throw new Error(res.error);
                                 toast.success(`Swapped Q/A for ${res.data?.updatedCards ?? 0} cards.`, { id: toastId });
-                                // Soft refresh: reload deck data without a full page reload to avoid auth race
                                 await loadDeckData(deckId);
                             } catch (e: unknown) {
-                                toast.error('Swap failed', { id: toastId, description: (e as Error).message || 'Unknown error' });
+                                // The swap may have completed on the server even if the response
+                                // timed out (Vercel 10s limit). Refresh to show the actual state.
+                                const msg = (e as Error).message || '';
+                                const likelyTimeout = /timeout|timed out|network|fetch/i.test(msg);
+                                toast.warning(
+                                    likelyTimeout ? 'Swap timed out — refreshing to check result…' : 'Swap failed',
+                                    { id: toastId, description: likelyTimeout ? undefined : msg }
+                                );
+                                await loadDeckData(deckId);
                             }
                         }}
                         title="Swap all cards' Question/Answer and deck languages"

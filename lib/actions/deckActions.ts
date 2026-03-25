@@ -600,27 +600,39 @@ export async function swapDeckQA(
             answer_gender: c.question_gender,
         }));
 
-        // 3) Update cards individually to comply with RLS (avoid UPSERT INSERT path)
+        // 3) Update cards in parallel batches (uses .update() to stay on the UPDATE RLS path,
+        //    never touches the INSERT path, so RLS policies are fully respected).
+        //    Parallel execution drops wall-clock time from O(N × network-latency) to
+        //    O(ceil(N/CHUNK) × network-latency), keeping large decks well under 10 s.
+        const CHUNK_SIZE = 50;
         let updatedCount = 0;
-        for (const payload of updatedCardsPayload) {
-            const { error: updErr } = await supabase
-                .from('cards')
-                .update({
-                    question: payload.question,
-                    answer: payload.answer,
-                    question_part_of_speech: payload.question_part_of_speech,
-                    question_gender: payload.question_gender,
-                    answer_part_of_speech: payload.answer_part_of_speech,
-                    answer_gender: payload.answer_gender,
-                    updated_at: new Date().toISOString(),
-                })
-                .eq('id', payload.id)
-                .eq('user_id', user.id);
-            if (updErr) {
-                appLogger.error('[deckActions - swapDeckQA] Update card error:', { id: payload.id, error: updErr });
-                return { data: null, error: updErr.message || 'Failed to update a card.' };
+        const now = new Date().toISOString();
+        for (let i = 0; i < updatedCardsPayload.length; i += CHUNK_SIZE) {
+            const chunk = updatedCardsPayload.slice(i, i + CHUNK_SIZE);
+            const results = await Promise.all(
+                chunk.map(payload =>
+                    supabase
+                        .from('cards')
+                        .update({
+                            question: payload.question,
+                            answer: payload.answer,
+                            question_part_of_speech: payload.question_part_of_speech,
+                            question_gender: payload.question_gender,
+                            answer_part_of_speech: payload.answer_part_of_speech,
+                            answer_gender: payload.answer_gender,
+                            updated_at: now,
+                        })
+                        .eq('id', payload.id)
+                        .eq('user_id', user.id)
+                )
+            );
+            for (const { error: updErr } of results) {
+                if (updErr) {
+                    appLogger.error('[deckActions - swapDeckQA] Update card error:', updErr);
+                    return { data: null, error: updErr.message || 'Failed to update a card.' };
+                }
+                updatedCount += 1;
             }
-            updatedCount += 1;
         }
 
         // 4) Swap deck languages
