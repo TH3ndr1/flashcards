@@ -28,21 +28,21 @@ function PlaceholderCard({
   return (
     <Card className="overflow-hidden opacity-70 border-dashed">
       {/* Header */}
-      <div className="px-4 pt-3 pb-2">
-        <div className="flex items-start gap-2 min-h-[38px]">
-          <Icon className={cn('h-4 w-4 mt-0.5 flex-shrink-0', cfg.textColor)} />
-          <span className={cn('text-sm font-semibold leading-snug flex-1 min-w-0 line-clamp-2', cfg.textColor)}>
+      <div className="px-4 py-3">
+        <div className="flex items-center gap-2">
+          <Icon className={cn('h-4 w-4 flex-shrink-0', cfg.textColor)} />
+          <h3 className={cn('text-sm font-semibold truncate', cfg.textColor)}>
             {title}
-          </span>
+          </h3>
         </div>
       </div>
       <div className={cn('h-px mx-4', cfg.divider)} />
 
       {/* Colored content section */}
-      <div className={cn('px-4 py-3 flex items-center gap-3', cfg.bgSection)}>
+      <div className={cn('p-4 flex items-center gap-3', cfg.bgSection)}>
         <div className="flex-1 min-w-0 space-y-1.5">
-          <p className="text-xs text-muted-foreground/80">{description}</p>
-          <p className="text-xs text-muted-foreground/60">Coming soon</p>
+          <p className="text-xs text-gray-600 dark:text-slate-400">{description}</p>
+          <p className="text-xs text-gray-500 dark:text-slate-500">Coming soon</p>
         </div>
         <div className="w-16 h-16 flex-shrink-0 relative -mr-6 opacity-50">
           <div className="absolute right-0 top-0">
@@ -52,7 +52,7 @@ function PlaceholderCard({
       </div>
 
       {/* Footer */}
-      <div className="px-4 py-2.5">
+      <div className="px-4 pb-4 pt-3">
         <Badge variant="secondary" className="text-xs">
           <Sparkles className="h-3 w-3 mr-1" />
           Coming Soon

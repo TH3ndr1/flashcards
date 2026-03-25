@@ -77,8 +77,8 @@ function formatReadingTime(min: number | string): string {
 }
 
 function formatLanguage(primary: string, secondary: string | null): string {
-  if (secondary) return `${primary.toUpperCase()} / ${secondary.toUpperCase()}`;
-  return primary.toUpperCase();
+  if (secondary) return `${primary} / ${secondary}`;
+  return primary;
 }
 
 // ─── Story card ───────────────────────────────────────────────────────────────
@@ -108,19 +108,18 @@ function StoryCard({ item, onRead, onEdit, onDownloadPdf, isDownloadingPdf }: St
       onKeyDown={(e) => e.key === 'Enter' && onRead()}
       aria-label={`Read story: ${item.deck_name}`}
     >
-      {/* ── Header: white bg, story icon + purple title + ⋮ menu ── */}
-      <div className="px-4 pt-3 pb-2">
-        {/* min-h ensures uniform header height whether name is 1 or 2 lines */}
-        <div className="flex items-start gap-2 min-h-[38px]">
-          <StoryMethodIcon className={cn('h-4 w-4 mt-0.5 flex-shrink-0', cfg.textColor)} />
-          <span
-            className={cn('text-sm font-semibold leading-snug flex-1 min-w-0 line-clamp-2', cfg.textColor)}
+      {/* ── Header: white bg, story icon + purple title + ⋮ menu (single line, truncated) ── */}
+      <div className="px-4 py-3">
+        <div className="flex items-center gap-2">
+          <StoryMethodIcon className={cn('h-4 w-4 flex-shrink-0', cfg.textColor)} />
+          <h3
+            className={cn('text-sm font-semibold truncate flex-1 min-w-0', cfg.textColor)}
             title={item.deck_name}
           >
             {item.deck_name}
-          </span>
+          </h3>
           {/* ⋮ menu — stops card click */}
-          <div className="flex-shrink-0 -mt-0.5" onClick={(e) => e.stopPropagation()}>
+          <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -150,17 +149,17 @@ function StoryCard({ item, onRead, onEdit, onDownloadPdf, isDownloadingPdf }: St
       <div className={cn('h-px mx-4', cfg.divider)} />
 
       {/* ── Content: purple bg, info left + book thumbnail right (flex layout) ── */}
-      <div className={cn('px-4 py-3 flex items-center gap-3', cfg.bgSection)}>
+      <div className={cn('p-4 flex items-center gap-3', cfg.bgSection)}>
         <div className="flex-1 min-w-0 space-y-1.5">
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Globe className="h-3 w-3 flex-shrink-0" />
+          <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-slate-400">
+            <Globe className="h-3.5 w-3.5 flex-shrink-0" />
             <span>{formatLanguage(item.primary_language, item.secondary_language)}</span>
           </div>
           {story && (
-            <p className="text-xs text-muted-foreground/80">{formatReadingTime(story.reading_time_min)}</p>
+            <p className="text-xs text-gray-600 dark:text-slate-400">{formatReadingTime(story.reading_time_min)}</p>
           )}
           {excerpt && (
-            <p className="text-xs line-clamp-2 leading-relaxed text-foreground/60">{excerpt}</p>
+            <p className="text-xs line-clamp-2 leading-relaxed text-gray-500 dark:text-slate-500">{excerpt}</p>
           )}
         </div>
         {/* Thumbnail: -mr-6 pushes past flex boundary → Card overflow-hidden clips right edge */}
@@ -172,7 +171,7 @@ function StoryCard({ item, onRead, onEdit, onDownloadPdf, isDownloadingPdf }: St
       </div>
 
       {/* ── Footer: white bg, format icon + label ── */}
-      <div className="px-4 py-2.5 flex items-center gap-1.5">
+      <div className="px-4 pb-4 pt-3 flex items-center gap-1.5">
         <FormatIcon className={cn('h-3.5 w-3.5', cfg.textColor)} />
         <span className={cn('text-xs font-medium', cfg.textColor)}>{formatCfg.label}</span>
       </div>
@@ -195,21 +194,21 @@ function EmptyDeckCard({ item, onGenerate }: { item: StoryWithDeck; onGenerate: 
       aria-label={`Generate story for: ${item.deck_name}`}
     >
       {/* Header */}
-      <div className="px-4 pt-3 pb-2">
-        <div className="flex items-start gap-2 min-h-[38px]">
-          <StoryMethodIcon className="h-4 w-4 mt-0.5 flex-shrink-0 text-muted-foreground" />
-          <span className="text-sm font-semibold leading-snug flex-1 min-w-0 line-clamp-2 text-muted-foreground" title={item.deck_name}>
+      <div className="px-4 py-3">
+        <div className="flex items-center gap-2">
+          <StoryMethodIcon className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+          <h3 className="text-sm font-semibold truncate flex-1 min-w-0 text-muted-foreground" title={item.deck_name}>
             {item.deck_name}
-          </span>
+          </h3>
         </div>
       </div>
       <div className="h-px mx-4 bg-muted" />
 
       {/* Content */}
-      <div className="px-4 py-3 flex items-center gap-3 bg-muted/20">
+      <div className="p-4 flex items-center gap-3 bg-muted/20">
         <div className="flex-1 min-w-0 space-y-1.5">
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Globe className="h-3 w-3 flex-shrink-0" />
+          <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-slate-400">
+            <Globe className="h-3.5 w-3.5 flex-shrink-0" />
             <span>{formatLanguage(item.primary_language, item.secondary_language)}</span>
           </div>
           <p className="text-xs text-muted-foreground/70">No story generated yet</p>

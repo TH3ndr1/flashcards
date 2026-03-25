@@ -75,7 +75,7 @@ const DeckProgressBarInternal = ({
     return (
       <div
         ref={rootRef}
-        className="h-3 w-full bg-muted rounded-lg flex items-center justify-center px-2"
+        className="h-2 w-full bg-muted rounded-full flex items-center justify-center px-2"
       >
         <span className="text-xs text-muted-foreground">No cards yet</span>
       </div>
@@ -97,7 +97,7 @@ const DeckProgressBarInternal = ({
       tabIndex={0}
       aria-label={ariaLabel}
       className={cn(
-        "relative w-full h-3 rounded-lg overflow-hidden bg-muted",
+        "relative w-full h-2 rounded-full overflow-hidden bg-muted",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       )}
     >

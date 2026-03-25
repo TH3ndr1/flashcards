@@ -270,36 +270,35 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
           }
         }}
       >
-        {/* ── Header: white bg, icon + coloured title ── */}
-        <div className="px-4 pt-3 pb-2">
-          {/* min-h ensures uniform header height whether name is 1 or 2 lines */}
-          <div className="flex items-start gap-2 min-h-[38px]">
-            <FlashcardMethodIcon className={cn('h-4 w-4 mt-0.5 flex-shrink-0', cfg.textColor)} />
-            <span className={cn('text-sm font-semibold leading-snug flex-1 min-w-0 line-clamp-2', cfg.textColor)} title={deck.name}>
+        {/* ── Header: white bg, icon + coloured title (single line, truncated) ── */}
+        <div className="px-4 py-3">
+          <div className="flex items-center gap-2">
+            <FlashcardMethodIcon className={cn('h-4 w-4 flex-shrink-0', cfg.textColor)} />
+            <h3 className={cn('text-sm font-semibold truncate', cfg.textColor)} title={deck.name}>
               {deck.name}
-            </span>
+            </h3>
           </div>
         </div>
         {/* thin divider */}
         <div className={cn('h-px mx-4', cfg.divider)} />
 
-        {/* ── Content: coloured bg, stats left + thumbnail right (flex, not absolute) ── */}
-        <div className={cn('px-4 py-3 flex items-center gap-3', cfg.bgSection)}>
+        {/* ── Content: coloured bg, stats left + thumbnail right ── */}
+        <div className={cn('p-4 flex items-center gap-3', cfg.bgSection)}>
           <div className="flex-1 min-w-0 space-y-1.5">
             {languageDisplay && (
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Globe className="h-3 w-3 flex-shrink-0" />
+              <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-slate-400">
+                <Globe className="h-3.5 w-3.5 flex-shrink-0" />
                 <span className="truncate">{languageDisplay}</span>
               </div>
             )}
             {tagNames && (
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Tag className="h-3 w-3 flex-shrink-0" />
+              <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-slate-400">
+                <Tag className="h-3.5 w-3.5 flex-shrink-0" />
                 <span className="truncate">{tagNames}</span>
               </div>
             )}
             {deck.totalCards > 0 && (
-              <p className="text-sm font-semibold text-foreground">
+              <p className="text-xs font-medium text-gray-700 dark:text-slate-300">
                 {learnEligible + reviewEligible > 0
                   ? `${learnEligible + reviewEligible} of ${deck.totalCards} due`
                   : `${deck.totalCards} cards`}
@@ -316,7 +315,7 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
 
         {/* ── Footer: white bg, progress bar ── */}
         {showDeckProgressBars && deck.totalCards > 0 && (
-          <div className="px-4 py-2.5">
+          <div className="px-4 pb-4 pt-3">
             <DeckProgressBar
               newCount={deck.new_count ?? 0}
               learningCount={deck.learning_count ?? 0}
@@ -395,7 +394,7 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
               </AccordionTrigger>
               <AccordionContent className="pt-4">
                 {dueDecks.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {dueDecks.map(renderDeckItem)}
                   </div>
                 ) : (
@@ -411,7 +410,7 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
               </AccordionTrigger>
               <AccordionContent className="pt-4">
                 {otherDecks.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {otherDecks.map(renderDeckItem)}
                   </div>
                 ) : (
