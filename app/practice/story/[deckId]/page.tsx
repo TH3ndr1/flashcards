@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useStoryStore } from '@/store/storyStore';
 import { getStoryForDeck, getDeckLanguages } from '@/lib/actions/storyActions';
 import { useSettings } from '@/providers/settings-provider';
@@ -223,8 +223,13 @@ export default function StoryPage() {
   const params = useParams();
   const deckId = params.deckId as string;
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const { currentDeckName, currentDeckId, originUrl } = useStoryStore();
+  // ?from=stories overrides Zustand originUrl so back button returns to Stories page
+  const effectiveOriginUrl = searchParams.get('from') === 'stories'
+    ? '/practice/stories'
+    : originUrl;
   const { settings } = useSettings();
   const { speak, preload, stop, ttsState } = useTTS({});
 
@@ -357,12 +362,12 @@ export default function StoryPage() {
     stop();
     setTtsActive(false);
     ttsAbortRef.current = true;
-    if (originUrl) {
-      router.push(originUrl);
+    if (effectiveOriginUrl) {
+      router.push(effectiveOriginUrl);
     } else {
       router.back();
     }
-  }, [originUrl, router, stop]);
+  }, [effectiveOriginUrl, router, stop]);
 
   // Teacher = MALE voice, Student = FEMALE voice (both same language)
   const getGender = (speaker?: 'T' | 'S'): 'MALE' | 'FEMALE' | 'NEUTRAL' => {
