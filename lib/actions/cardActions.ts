@@ -513,6 +513,119 @@ export async function deleteCard(cardId: string): Promise<ActionResult<null>> {
 }
 
 /**
+ * Deletes multiple cards in a single operation.
+ */
+export async function deleteCardsBatch(cardIds: string[]): Promise<ActionResult<{ deletedCount: number }>> {
+    appLogger.info(`[deleteCardsBatch] Action started for ${cardIds.length} cards`);
+    if (!cardIds || cardIds.length === 0) return { data: { deletedCount: 0 }, error: null };
+
+    try {
+        const supabase = createActionClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) return { data: null, error: authError?.message || 'Not authenticated' };
+
+        const validIds = cardIds.filter(id => /^[0-9a-fA-F-]{36}$/.test(id));
+        if (validIds.length === 0) return { data: { deletedCount: 0 }, error: null };
+
+        const { error: deleteError, count } = await supabase
+            .from('cards')
+            .delete({ count: 'exact' })
+            .in('id', validIds)
+            .eq('user_id', user.id);
+
+        if (deleteError) {
+            appLogger.error('[deleteCardsBatch] Delete error:', deleteError);
+            return { data: null, error: deleteError.message || 'Failed to delete cards.' };
+        }
+
+        appLogger.info(`[deleteCardsBatch] Deleted ${count ?? validIds.length} cards`);
+        return { data: { deletedCount: count ?? validIds.length }, error: null };
+    } catch (error) {
+        appLogger.error('[deleteCardsBatch] Caught unexpected error:', error);
+        return { data: null, error: error instanceof Error ? error.message : 'Unknown error deleting cards' };
+    }
+}
+
+
+/**
+ * Moves multiple cards to a different deck by updating their deck_id.
+ * All card data (SRS state, classifications, etc.) is preserved.
+ */
+export async function moveCardsToDeck(
+    cardIds: string[],
+    targetDeckId: string
+): Promise<ActionResult<{ movedCount: number }>> {
+    appLogger.info(`[moveCardsToDeck] Moving ${cardIds.length} cards to deck ${targetDeckId}`);
+    if (!cardIds || cardIds.length === 0) return { data: { movedCount: 0 }, error: null };
+    if (!targetDeckId) return { data: null, error: 'Target deck ID is required.' };
+
+    try {
+        const supabase = createActionClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) return { data: null, error: authError?.message || 'Not authenticated' };
+
+        // Verify user owns the target deck
+        const { count: deckCount, error: deckCheckError } = await supabase
+            .from('decks')
+            .select('id', { count: 'exact', head: true })
+            .eq('id', targetDeckId)
+            .eq('user_id', user.id)
+            .eq('status', 'active');
+
+        if (deckCheckError || !deckCount) {
+            return { data: null, error: 'Target deck not found or access denied.' };
+        }
+
+        const validIds = cardIds.filter(id => /^[0-9a-fA-F-]{36}$/.test(id));
+        if (validIds.length === 0) return { data: { movedCount: 0 }, error: null };
+
+        const { error: updateError, count } = await supabase
+            .from('cards')
+            .update({ deck_id: targetDeckId, updated_at: new Date().toISOString() }, { count: 'exact' })
+            .in('id', validIds)
+            .eq('user_id', user.id);
+
+        if (updateError) {
+            appLogger.error('[moveCardsToDeck] Update error:', updateError);
+            return { data: null, error: updateError.message || 'Failed to move cards.' };
+        }
+
+        appLogger.info(`[moveCardsToDeck] Moved ${count ?? validIds.length} cards to deck ${targetDeckId}`);
+        revalidatePath(`/edit/${targetDeckId}`);
+        return { data: { movedCount: count ?? validIds.length }, error: null };
+    } catch (error) {
+        appLogger.error('[moveCardsToDeck] Caught unexpected error:', error);
+        return { data: null, error: error instanceof Error ? error.message : 'Unknown error moving cards' };
+    }
+}
+
+
+/**
+ * Returns a lightweight list of the user's active decks (id + name only).
+ * Used for deck-picker dropdowns.
+ */
+export async function getActiveDecksList(): Promise<ActionResult<Array<{ id: string; name: string }>>> {
+    try {
+        const supabase = createActionClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) return { data: null, error: authError?.message || 'Not authenticated' };
+
+        const { data, error } = await supabase
+            .from('decks')
+            .select('id, name')
+            .eq('user_id', user.id)
+            .eq('status', 'active')
+            .order('name');
+
+        if (error) return { data: null, error: error.message };
+        return { data: (data ?? []) as Array<{ id: string; name: string }>, error: null };
+    } catch (error) {
+        return { data: null, error: error instanceof Error ? error.message : 'Unknown error fetching decks' };
+    }
+}
+
+
+/**
  * Efficiently retrieves only SRS state information for a list of card IDs
  * Used for optimized card counting by SRS state without fetching full card data
  */

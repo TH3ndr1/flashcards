@@ -59,6 +59,8 @@ export default function EditDeckPage() {
         handleCreateCard,
         handleUpdateCard,
         handleDeleteCard,
+        handleCardDataUpdated,
+        handleCardsRemovedFromDeck,
         handleAddTagToDeck,
         handleRemoveTagFromDeck,
         handleArchiveDeck,
@@ -341,18 +343,10 @@ export default function EditDeckPage() {
 
                 <TabsContent value="table">
                      <TableViewTabContent
-                         // Filter out placeholder cards before passing to table
                          cards={deck.cards.filter(c => c.id && !c.id.startsWith('new-')) as DbCard[]}
                          deckId={deck.id}
-                         // Decide how table updates should reflect - refetch or update local state?
-                         // Option 1: Assume table handles its own saving and parent just needs to know
-                         onCardUpdated={(updatedCard) => {
-                              appLogger.info("Card updated via table:", updatedCard.id);
-                              // Option: Update local state directly (if needed)
-                              // setDeck(prev => ...)
-                              // Option: Or trigger a full refetch
-                              // loadDeckData(deck.id);
-                         }}
+                         onCardUpdated={handleCardDataUpdated}
+                         onCardsRemoved={handleCardsRemovedFromDeck}
                          onAddNewCardClick={handleAddCardOptimistic}
                      />
                  </TabsContent>
