@@ -11,7 +11,7 @@ import { getFontClass } from '@/lib/fonts';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft, Volume2, Square, GraduationCap, MessageCircle, Hash } from 'lucide-react';
+import { ArrowLeft, Headphones, Square, GraduationCap, MessageCircle, Hash, FileDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { appLogger } from '@/lib/logger';
 import type { Story } from '@/types/story';
@@ -226,7 +226,7 @@ export default function StoryPage() {
 
   const { currentDeckName, currentDeckId, originUrl } = useStoryStore();
   const { settings } = useSettings();
-  const { speak, stop, ttsState } = useTTS({});
+  const { speak, preload, stop, ttsState } = useTTS({});
 
   const [story, setStory] = useState<Story | null>(null);
   const [deckName, setDeckName] = useState<string>('');
@@ -235,8 +235,41 @@ export default function StoryPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [ttsActive, setTtsActive] = useState(false);
   const [currentSentenceKey, setCurrentSentenceKey] = useState<string | null>(null);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
 
   const ttsAbortRef = useRef(false);
+
+  const handleExportPdf = useCallback(async () => {
+    if (!story || isExportingPdf) return;
+    setIsExportingPdf(true);
+    try {
+      const res = await fetch('/api/generate-story-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          deckId,
+          cardFont: settings?.cardFont ?? 'default',
+          pdfCardContentFontSize: settings?.pdfCardContentFontSize ?? 11,
+        }),
+      });
+      if (!res.ok) {
+        toast.error('PDF export failed');
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${deckName || 'story'}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      appLogger.error('[StoryPage] PDF export error:', err);
+      toast.error('Could not export PDF');
+    } finally {
+      setIsExportingPdf(false);
+    }
+  }, [story, isExportingPdf, deckId, deckName, settings]);
 
   // Load story + deck info. Always fetch from DB to ensure we have the latest
   // (avoids stale Zustand store showing old story after regeneration).
@@ -274,23 +307,50 @@ export default function StoryPage() {
       : primaryLanguage;
   }, [story, primaryLanguage, secondaryLanguage]);
 
+  interface SpeakableSentence { key: string; text: string; speaker?: 'T' | 'S'; }
+
   // Flatten all speakable sentences with unique keys (markers + markdown stripped for TTS)
-  const allSentences = useMemo(() => {
+  // For dialogue, each sentence carries speaker info for gendered TTS voices.
+  const allSentences = useMemo((): SpeakableSentence[] => {
     if (!story) return [];
     const isDialogue = story.story_format === 'dialogue';
+    const result: SpeakableSentence[] = [];
 
-    return story.paragraphs.flatMap((para, pIdx) => {
+    story.paragraphs.forEach((para, pIdx) => {
       const topicParsed = parseTopicPrefix(para.primary);
-      // Use only the content after the topic marker (or the full text if no marker)
       const contentText = topicParsed ? topicParsed.rest : para.primary;
-      if (!contentText) return []; // heading-only paragraph — nothing to speak
-      const raw = isDialogue ? stripDialogueMarkers(contentText) : contentText;
-      const text = stripMarkdown(raw);
-      return splitIntoSentences(text).map((sentence, sIdx) => ({
-        key: `${pIdx}-${sIdx}`,
-        text: sentence,
-      }));
+      if (!contentText) return;
+
+      if (isDialogue) {
+        const lines = parseDialogueParagraph(contentText);
+        if (lines) {
+          let lIdx = 0;
+          lines.forEach((line) => {
+            if (line.speaker === 'topic') return;
+            const text = stripMarkdown(line.text);
+            splitIntoSentences(text).forEach((sentence, sIdx) => {
+              result.push({ key: `${pIdx}-d-${lIdx}-${sIdx}`, text: sentence, speaker: line.speaker as 'T' | 'S' });
+            });
+            lIdx++;
+          });
+          return;
+        }
+        // Fallback: strip all markers
+        const raw = stripDialogueMarkers(contentText);
+        const text = stripMarkdown(raw);
+        splitIntoSentences(text).forEach((sentence, sIdx) => {
+          result.push({ key: `${pIdx}-${sIdx}`, text: sentence });
+        });
+        return;
+      }
+
+      const text = stripMarkdown(contentText);
+      splitIntoSentences(text).forEach((sentence, sIdx) => {
+        result.push({ key: `${pIdx}-${sIdx}`, text: sentence });
+      });
     });
+
+    return result;
   }, [story]);
 
   const handleBack = useCallback(() => {
@@ -304,6 +364,13 @@ export default function StoryPage() {
     }
   }, [originUrl, router, stop]);
 
+  // Teacher = MALE voice, Student = FEMALE voice (both same language)
+  const getGender = (speaker?: 'T' | 'S'): 'MALE' | 'FEMALE' | 'NEUTRAL' => {
+    if (speaker === 'T') return 'MALE';
+    if (speaker === 'S') return 'FEMALE';
+    return 'NEUTRAL';
+  };
+
   const handleTtsToggle = useCallback(async () => {
     if (ttsActive) {
       ttsAbortRef.current = true;
@@ -316,11 +383,19 @@ export default function StoryPage() {
     ttsAbortRef.current = false;
     setTtsActive(true);
 
-    for (const { key, text } of allSentences) {
+    for (let i = 0; i < allSentences.length; i++) {
       if (ttsAbortRef.current) break;
+      const { key, text, speaker } = allSentences[i];
       setCurrentSentenceKey(key);
+
+      // Preload the next sentence in the background to reduce inter-sentence pause
+      if (i + 1 < allSentences.length) {
+        const next = allSentences[i + 1];
+        preload(next.text, ttsLanguage, getGender(next.speaker));
+      }
+
       try {
-        await speak(text, ttsLanguage);
+        await speak(text, ttsLanguage, getGender(speaker));
       } catch (err) {
         appLogger.error('[StoryPage] TTS error:', err);
         toast.error('Text-to-speech error', { description: 'Could not read sentence.' });
@@ -330,7 +405,7 @@ export default function StoryPage() {
 
     setTtsActive(false);
     setCurrentSentenceKey(null);
-  }, [ttsActive, allSentences, speak, stop, ttsLanguage]);
+  }, [ttsActive, allSentences, speak, preload, stop, ttsLanguage]);
 
   const fontClass = getFontClass(settings?.cardFont);
 
@@ -361,7 +436,7 @@ export default function StoryPage() {
   return (
     <div className="container mx-auto px-4 py-6 max-w-4xl">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-2">
         <Button variant="ghost" size="sm" onClick={handleBack} className="gap-1">
           <ArrowLeft className="h-4 w-4" />
           Back
@@ -369,27 +444,45 @@ export default function StoryPage() {
         <h1 className="text-base font-semibold truncate mx-4 flex-1 text-center">
           {deckName || 'Story'}
         </h1>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleTtsToggle}
-          disabled={ttsState === 'loading' && !ttsActive}
-          title={ttsActive ? 'Stop reading' : 'Read aloud'}
-          className="gap-1"
-        >
-          {ttsActive ? (
-            <>
-              <Square className="h-4 w-4" />
-              <span className="hidden sm:inline text-xs">Stop</span>
-            </>
-          ) : (
-            <>
-              <Volume2 className="h-4 w-4" />
-              <span className="hidden sm:inline text-xs">Read aloud</span>
-            </>
-          )}
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleExportPdf}
+            disabled={isExportingPdf}
+            title="Export to PDF"
+          >
+            <FileDown className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleTtsToggle}
+            disabled={ttsState === 'loading' && !ttsActive}
+            title={ttsActive ? 'Stop reading' : 'Read aloud'}
+            className="gap-1"
+          >
+            {ttsActive ? (
+              <>
+                <Square className="h-4 w-4" />
+                <span className="hidden sm:inline text-xs">Stop</span>
+              </>
+            ) : (
+              <>
+                <Headphones className="h-4 w-4" />
+                <span className="hidden sm:inline text-xs">Read aloud</span>
+              </>
+            )}
+          </Button>
+        </div>
       </div>
+
+      {/* Metadata */}
+      <p className="text-xs text-muted-foreground text-center mb-6">
+        {story.story_format ?? 'narrative'} ·{' '}
+        {story.reading_time_min === 'minimal' ? 'Minimal' : `${story.reading_time_min} min`} read ·{' '}
+        age {story.age_at_generation} · {story.paragraphs.length} paragraphs
+      </p>
 
       {/* Story body */}
       <article className={cn('space-y-4', fontClass)}>
