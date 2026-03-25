@@ -29,7 +29,7 @@ function PlaceholderCard({
     <Card className="overflow-hidden opacity-70 border-dashed">
       {/* Header */}
       <div className="px-4 pt-3 pb-2">
-        <div className="flex items-start gap-2">
+        <div className="flex items-start gap-2 min-h-[38px]">
           <Icon className={cn('h-4 w-4 mt-0.5 flex-shrink-0', cfg.textColor)} />
           <span className={cn('text-sm font-semibold leading-snug flex-1 min-w-0 line-clamp-2', cfg.textColor)}>
             {title}
@@ -39,13 +39,15 @@ function PlaceholderCard({
       <div className={cn('h-px mx-4', cfg.divider)} />
 
       {/* Colored content section */}
-      <div className={cn('px-4 pt-3 pb-3 flex gap-3 overflow-hidden', cfg.bgSection)}>
-        <div className="flex-1 min-w-0 space-y-1.5 text-xs text-muted-foreground">
+      <div className={cn('px-4 py-3 flex items-center gap-3', cfg.bgSection)}>
+        <div className="flex-1 min-w-0 space-y-1.5">
           <p className="text-xs text-muted-foreground/80">{description}</p>
           <p className="text-xs text-muted-foreground/60">Coming soon</p>
         </div>
-        <div className="w-14 flex-shrink-0 self-end -mr-4 -mb-3 opacity-50">
-          <MethodThumbnail type={type} />
+        <div className="w-16 h-16 flex-shrink-0 relative -mr-6 opacity-50">
+          <div className="absolute right-0 top-0">
+            <MethodThumbnail type={type} />
+          </div>
         </div>
       </div>
 

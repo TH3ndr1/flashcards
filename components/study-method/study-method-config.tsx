@@ -131,25 +131,33 @@ export const STUDY_METHOD_CONFIG: Record<StudyMethodType, MethodConfig> = {
 };
 
 // ─── Decorative thumbnails ────────────────────────────────────────────────────
-// A 56×56 px illustration that sits in the right-side of the coloured section,
-// partially clipped by the card's overflow-hidden.
+// Each thumbnail renders a 56×56 visual within a 64×64 container.
+// The container sits in a flex row with -mr-6, so the Card's own
+// overflow-hidden clips ~12% at the right edge for a "cut-off" look.
+//
+// Usage in cards:
+//   <div className="w-16 h-16 flex-shrink-0 relative -mr-6">
+//     <div className="absolute right-0 top-0">
+//       <MethodThumbnail type="flashcard" />
+//     </div>
+//   </div>
 
 interface ThumbnailProps { config: MethodConfig }
 
 function FlashcardThumbnail({ config }: ThumbnailProps) {
   return (
     <div className="relative w-14 h-14">
-      {/* Back cards */}
-      <div className={`absolute inset-0 bg-gradient-to-br ${config.thumbnailFrom} ${config.thumbnailTo} rounded-lg opacity-30 rotate-6`} />
-      <div className={`absolute inset-0 bg-gradient-to-br ${config.thumbnailFrom} ${config.thumbnailTo} rounded-lg opacity-50 rotate-3`} />
+      {/* Stacked card effect: back cards with solid lighter tint + rotation */}
+      <div className="absolute inset-x-0 top-0 h-full bg-pink-200 dark:bg-pink-800/40 rounded-lg transform rotate-6 opacity-40" />
+      <div className="absolute inset-x-0 top-1 h-full bg-pink-300 dark:bg-pink-700/50 rounded-lg transform rotate-3 opacity-60" />
       {/* Front card */}
-      <div className={`absolute inset-0 bg-gradient-to-br ${config.thumbnailFrom} ${config.thumbnailTo} rounded-lg shadow-sm`}>
-        <div className="p-2 h-full flex flex-col justify-between">
+      <div className={`absolute inset-x-0 top-1.5 h-full bg-gradient-to-br ${config.thumbnailFrom} ${config.thumbnailTo} rounded-lg shadow-sm`}>
+        <div className="p-1.5 h-full flex flex-col justify-between">
           <div className="space-y-0.5">
-            <div className={`h-0.5 ${config.thumbnailAccent} rounded w-1/4`} />
-            <div className={`h-0.5 ${config.thumbnailAccent} rounded w-3/4`} />
+            <div className="h-0.5 bg-white/60 rounded w-1/4" />
+            <div className="h-0.5 bg-white/40 rounded w-3/4" />
           </div>
-          <div className={`h-0.5 ${config.thumbnailAccent} rounded w-1/2`} />
+          <div className="h-0.5 bg-white/30 rounded w-1/2" />
         </div>
       </div>
     </div>
@@ -160,25 +168,23 @@ function StoryThumbnail({ config }: ThumbnailProps) {
   return (
     <div className={`relative w-14 h-14 bg-gradient-to-br ${config.thumbnailFrom} ${config.thumbnailTo} rounded-lg shadow-sm overflow-hidden`}>
       {/* Left page */}
-      <div className={`absolute left-0 top-0 bottom-0 w-[47%] bg-gradient-to-r ${config.thumbnailFrom} ${config.thumbnailTo}`}>
-        <div className="p-1.5 space-y-0.5 pt-2">
-          <div className={`h-0.5 ${config.thumbnailAccent} rounded`} />
-          <div className={`h-0.5 ${config.thumbnailAccent} rounded`} />
-          <div className={`h-0.5 ${config.thumbnailAccent} rounded w-3/4`} />
-          <div className={`h-0.5 ${config.thumbnailAccent} rounded`} />
+      <div className={`absolute left-0 top-0 bottom-0 w-7 bg-gradient-to-r ${config.thumbnailFrom} ${config.thumbnailTo} rounded-l-lg shadow-sm`}>
+        <div className="p-1 space-y-0.5">
+          <div className="h-0.5 bg-white/40 rounded" />
+          <div className="h-0.5 bg-white/40 rounded" />
+          <div className="h-0.5 bg-white/30 rounded w-3/4" />
         </div>
       </div>
-      {/* Right page — slightly lighter */}
-      <div className="absolute right-0 top-0 bottom-0 w-[47%] bg-white/10">
-        <div className="p-1.5 space-y-0.5 pt-2">
-          <div className={`h-0.5 ${config.thumbnailAccent} rounded`} />
-          <div className={`h-0.5 ${config.thumbnailAccent} rounded w-2/3`} />
-          <div className={`h-0.5 ${config.thumbnailAccent} rounded`} />
-          <div className={`h-0.5 ${config.thumbnailAccent} rounded w-3/4`} />
+      {/* Right page — lighter */}
+      <div className="absolute right-0 top-0 bottom-0 w-7 bg-gradient-to-l from-purple-300 to-purple-400 dark:from-purple-600 dark:to-purple-500 rounded-r-lg shadow-sm">
+        <div className="p-1 space-y-0.5">
+          <div className="h-0.5 bg-white/40 rounded" />
+          <div className="h-0.5 bg-white/40 rounded" />
+          <div className="h-0.5 bg-white/30 rounded w-2/3" />
         </div>
       </div>
-      {/* Spine */}
-      <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-px bg-black/10" />
+      {/* Fold line */}
+      <div className="absolute top-0 bottom-0 left-1/2 w-0.5 bg-purple-600 dark:bg-purple-300 opacity-20" />
     </div>
   );
 }
@@ -186,25 +192,22 @@ function StoryThumbnail({ config }: ThumbnailProps) {
 function QuizThumbnail({ config }: ThumbnailProps) {
   return (
     <div className={`relative w-14 h-14 bg-gradient-to-br ${config.thumbnailFrom} ${config.thumbnailTo} rounded-lg shadow-sm`}>
-      <div className="p-2 space-y-1.5">
-        <div className={`h-0.5 ${config.thumbnailAccent} rounded w-1/2`} />
-        <div className={`h-0.5 ${config.thumbnailAccent} rounded w-3/4`} />
-        {/* Check row */}
-        <div className="flex items-center gap-1 mt-1">
-          <div className="w-2.5 h-2.5 bg-white/70 rounded-sm flex items-center justify-center flex-shrink-0">
-            <svg className="w-1.5 h-1.5" viewBox="0 0 10 10" fill="none">
-              <path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-blue-600" />
+      <div className="p-1.5 space-y-1">
+        <div className="h-0.5 bg-white/60 rounded w-1/2" />
+        <div className="h-0.5 bg-white/40 rounded w-3/4 mt-1.5" />
+        {/* Checked row */}
+        <div className="flex items-center gap-0.5 mt-1.5">
+          <div className="w-2 h-2 bg-white rounded flex items-center justify-center flex-shrink-0">
+            <svg className="w-1.5 h-1.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="4">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <div className={`h-0.5 ${config.thumbnailAccent} rounded flex-1`} />
+          <div className="h-0.5 bg-white/40 rounded flex-1" />
         </div>
-        <div className="flex items-center gap-1">
-          <div className="w-2.5 h-2.5 bg-white/30 rounded-sm flex-shrink-0" />
-          <div className={`h-0.5 ${config.thumbnailAccent} rounded flex-1`} />
-        </div>
-        <div className="flex items-center gap-1">
-          <div className="w-2.5 h-2.5 bg-white/30 rounded-sm flex-shrink-0" />
-          <div className={`h-0.5 ${config.thumbnailAccent} rounded w-2/3`} />
+        {/* Unchecked rows */}
+        <div className="flex items-center gap-0.5">
+          <div className="w-2 h-2 bg-white/30 rounded flex-shrink-0" />
+          <div className="h-0.5 bg-white/30 rounded flex-1" />
         </div>
       </div>
     </div>
@@ -213,50 +216,51 @@ function QuizThumbnail({ config }: ThumbnailProps) {
 
 function MindMapThumbnail({ config }: ThumbnailProps) {
   return (
-    <div className={`relative w-14 h-14 bg-gradient-to-br ${config.thumbnailFrom} ${config.thumbnailTo} rounded-lg shadow-sm overflow-hidden`}>
-      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 56 56">
-        {/* Branches from center */}
-        <line x1="28" y1="28" x2="46" y2="12" stroke="white" strokeWidth="1.5" opacity="0.3" />
-        <line x1="28" y1="28" x2="50" y2="28" stroke="white" strokeWidth="1.5" opacity="0.3" />
-        <line x1="28" y1="28" x2="42" y2="46" stroke="white" strokeWidth="1.5" opacity="0.3" />
-        <line x1="28" y1="28" x2="14" y2="46" stroke="white" strokeWidth="1.5" opacity="0.3" />
-        <line x1="28" y1="28" x2="10" y2="14" stroke="white" strokeWidth="1.5" opacity="0.3" />
+    <div className={`relative w-14 h-14 bg-gradient-to-br from-green-400 via-emerald-400 to-teal-500 dark:from-emerald-500 dark:via-emerald-600 dark:to-teal-600 rounded-lg shadow-sm overflow-hidden`}>
+      {/* Radiating lines from centre */}
+      <svg className="absolute inset-0 w-full h-full">
+        <line x1="50%" y1="50%" x2="85%" y2="20%" stroke="white" strokeWidth="1.5" className="opacity-30" />
+        <line x1="50%" y1="50%" x2="90%" y2="50%" stroke="white" strokeWidth="1.5" className="opacity-30" />
+        <line x1="50%" y1="50%" x2="75%" y2="85%" stroke="white" strokeWidth="1.5" className="opacity-30" />
+        <line x1="50%" y1="50%" x2="25%" y2="80%" stroke="white" strokeWidth="1.5" className="opacity-30" />
+        <line x1="50%" y1="50%" x2="15%" y2="25%" stroke="white" strokeWidth="1.5" className="opacity-30" />
       </svg>
-      {/* Center node */}
+      {/* Central node */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white/70 shadow-sm" />
-      {/* Branch nodes */}
-      <div className="absolute top-[21%] right-[18%] w-2.5 h-2.5 rounded-full bg-white/50" />
-      <div className="absolute top-[50%] right-[8%] -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-white/50" />
-      <div className="absolute bottom-[16%] right-[24%] w-2 h-2 rounded-full bg-white/40" />
-      <div className="absolute bottom-[16%] left-[24%] w-2 h-2 rounded-full bg-white/40" />
-      <div className="absolute top-[25%] left-[18%] w-2.5 h-2.5 rounded-full bg-white/50" />
+      {/* Branch nodes at line endpoints */}
+      <div className="absolute top-[20%] right-[15%] w-2.5 h-2.5 rounded-full bg-white/50" />
+      <div className="absolute top-1/2 right-[10%] w-2.5 h-2.5 rounded-full bg-white/50" />
+      <div className="absolute bottom-[15%] right-1/4 w-2 h-2 rounded-full bg-white/40" />
+      <div className="absolute bottom-[20%] left-1/4 w-2 h-2 rounded-full bg-white/40" />
+      <div className="absolute top-1/4 left-[15%] w-2.5 h-2.5 rounded-full bg-white/50" />
     </div>
   );
 }
 
 function KnowledgeGraphThumbnail({ config }: ThumbnailProps) {
   return (
-    <div className={`relative w-14 h-14 bg-gradient-to-br ${config.thumbnailFrom} ${config.thumbnailTo} rounded-lg shadow-sm overflow-hidden`}>
-      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 56 56">
-        {/* Level 1 → 2 */}
-        <line x1="28" y1="12" x2="16" y2="28" stroke="white" strokeWidth="1.5" opacity="0.3" />
-        <line x1="28" y1="12" x2="40" y2="28" stroke="white" strokeWidth="1.5" opacity="0.3" />
-        {/* Level 2 → 3 */}
-        <line x1="16" y1="28" x2="10" y2="44" stroke="white" strokeWidth="1" opacity="0.25" />
-        <line x1="16" y1="28" x2="22" y2="44" stroke="white" strokeWidth="1" opacity="0.25" />
-        <line x1="40" y1="28" x2="34" y2="44" stroke="white" strokeWidth="1" opacity="0.25" />
-        <line x1="40" y1="28" x2="46" y2="44" stroke="white" strokeWidth="1" opacity="0.25" />
+    <div className={`relative w-14 h-14 bg-gradient-to-r from-orange-400 via-amber-400 to-yellow-400 dark:from-orange-500 dark:via-amber-500 dark:to-yellow-500 rounded-lg shadow-sm`}>
+      {/* Connection lines — tree hierarchy */}
+      <svg className="absolute inset-0 w-full h-full">
+        {/* Level 1→2 */}
+        <line x1="50%" y1="20%" x2="30%" y2="45%" stroke="white" strokeWidth="1.5" className="opacity-30" />
+        <line x1="50%" y1="20%" x2="70%" y2="45%" stroke="white" strokeWidth="1.5" className="opacity-30" />
+        {/* Level 2→3 */}
+        <line x1="30%" y1="45%" x2="20%" y2="75%" stroke="white" strokeWidth="1" className="opacity-25" />
+        <line x1="30%" y1="45%" x2="40%" y2="75%" stroke="white" strokeWidth="1" className="opacity-25" />
+        <line x1="70%" y1="45%" x2="60%" y2="75%" stroke="white" strokeWidth="1" className="opacity-25" />
+        <line x1="70%" y1="45%" x2="80%" y2="75%" stroke="white" strokeWidth="1" className="opacity-25" />
       </svg>
       {/* Root node */}
-      <div className="absolute top-[21%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded bg-white/70 shadow-sm" />
+      <div className="absolute top-[20%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded bg-white/70 shadow-sm" />
       {/* Level 2 nodes */}
-      <div className="absolute top-[50%] left-[28%] -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded bg-white/60" />
-      <div className="absolute top-[50%] right-[28%] translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded bg-white/60" />
-      {/* Level 3 nodes */}
-      <div className="absolute bottom-[16%] left-[18%] -translate-x-1/2 w-2 h-2 rounded bg-white/50" />
-      <div className="absolute bottom-[16%] left-[39%] -translate-x-1/2 w-2 h-2 rounded bg-white/50" />
-      <div className="absolute bottom-[16%] right-[39%] translate-x-1/2 w-2 h-2 rounded bg-white/50" />
-      <div className="absolute bottom-[16%] right-[18%] translate-x-1/2 w-2 h-2 rounded bg-white/50" />
+      <div className="absolute top-[45%] left-[30%] -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded bg-white/60" />
+      <div className="absolute top-[45%] right-[30%] translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded bg-white/60" />
+      {/* Level 3 nodes — smallest */}
+      <div className="absolute bottom-[25%] left-[20%] -translate-x-1/2 translate-y-1/2 w-1.5 h-1.5 rounded bg-white/50" />
+      <div className="absolute bottom-[25%] left-[40%] -translate-x-1/2 translate-y-1/2 w-1.5 h-1.5 rounded bg-white/50" />
+      <div className="absolute bottom-[25%] right-[40%] translate-x-1/2 translate-y-1/2 w-1.5 h-1.5 rounded bg-white/50" />
+      <div className="absolute bottom-[25%] right-[20%] translate-x-1/2 translate-y-1/2 w-1.5 h-1.5 rounded bg-white/50" />
     </div>
   );
 }
