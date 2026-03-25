@@ -544,11 +544,27 @@ export function useEditDeck(deckId: string | undefined) {
     }, [deck]); // No need for allTags dependency for removal
     // --------------------------------
 
+    // Update a card in state after it has been saved externally (e.g. from table view)
+    const handleCardDataUpdated = useCallback((updatedCard: DbCard) => {
+        setDeck((prev: DeckEditState): DeckEditState => {
+            if (!prev) return null;
+            return { ...prev, cards: prev.cards.map(c => c.id === updatedCard.id ? updatedCard : c) };
+        });
+    }, []);
+
+    // Remove cards from deck state (after move or external bulk delete)
+    const handleCardsRemovedFromDeck = useCallback((cardIds: string[]) => {
+        setDeck((prev: DeckEditState): DeckEditState => {
+            if (!prev) return null;
+            return { ...prev, cards: prev.cards.filter(c => !cardIds.includes(c.id ?? '')) };
+        });
+    }, []);
+
     // --- Return Values ---
     return {
         deck,
         // Extract tags from deck state, provide empty array if deck is null
-        deckTags: deck?.tags ?? [], 
+        deckTags: deck?.tags ?? [],
         loading: loading || useDecksLoading,
         error,
         isSavingMetadata,
@@ -560,6 +576,8 @@ export function useEditDeck(deckId: string | undefined) {
         handleCreateCard,
         handleUpdateCard,
         handleDeleteCard,
+        handleCardDataUpdated,
+        handleCardsRemovedFromDeck,
         handleAddTagToDeck, // Expose new handler
         handleRemoveTagFromDeck, // Expose new handler
         handleArchiveDeck,

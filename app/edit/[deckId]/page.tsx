@@ -60,6 +60,8 @@ export default function EditDeckPage() {
         handleCreateCard,
         handleUpdateCard,
         handleDeleteCard,
+        handleCardDataUpdated,
+        handleCardsRemovedFromDeck,
         handleAddTagToDeck,
         handleRemoveTagFromDeck,
         handleArchiveDeck,
@@ -180,10 +182,17 @@ export default function EditDeckPage() {
                                 const res = await swapDeckQA(deckId);
                                 if (res.error) throw new Error(res.error);
                                 toast.success(`Swapped Q/A for ${res.data?.updatedCards ?? 0} cards.`, { id: toastId });
-                                // Soft refresh: reload deck data without a full page reload to avoid auth race
                                 await loadDeckData(deckId);
                             } catch (e: unknown) {
-                                toast.error('Swap failed', { id: toastId, description: (e as Error).message || 'Unknown error' });
+                                // The swap may have completed on the server even if the response
+                                // timed out (Vercel 10s limit). Refresh to show the actual state.
+                                const msg = (e as Error).message || '';
+                                const likelyTimeout = /timeout|timed out|network|fetch/i.test(msg);
+                                toast.warning(
+                                    likelyTimeout ? 'Swap timed out — refreshing to check result…' : 'Swap failed',
+                                    { id: toastId, description: likelyTimeout ? undefined : msg }
+                                );
+                                await loadDeckData(deckId);
                             }
                         }}
                         title="Swap all cards' Question/Answer and deck languages"
@@ -343,18 +352,11 @@ export default function EditDeckPage() {
 
                 <TabsContent value="table">
                      <TableViewTabContent
-                         // Filter out placeholder cards before passing to table
                          cards={deck.cards.filter(c => c.id && !c.id.startsWith('new-')) as DbCard[]}
                          deckId={deck.id}
-                         // Decide how table updates should reflect - refetch or update local state?
-                         // Option 1: Assume table handles its own saving and parent just needs to know
-                         onCardUpdated={(updatedCard) => {
-                              appLogger.info("Card updated via table:", updatedCard.id);
-                              // Option: Update local state directly (if needed)
-                              // setDeck(prev => ...)
-                              // Option: Or trigger a full refetch
-                              // loadDeckData(deck.id);
-                         }}
+                         deckName={deck.name}
+                         onCardUpdated={handleCardDataUpdated}
+                         onCardsRemoved={handleCardsRemovedFromDeck}
                          onAddNewCardClick={handleAddCardOptimistic}
                      />
                  </TabsContent>
