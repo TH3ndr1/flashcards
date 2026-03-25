@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { debounce } from '@/lib/utils';
 import {
   Table,
@@ -12,10 +13,12 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Select,
   SelectContent,
@@ -49,6 +52,7 @@ import {
   deleteCard as deleteCardAction,
   deleteCardsBatch,
   moveCardsToDeck,
+  moveCardsToNewDeck,
   getActiveDecksList,
 } from '@/lib/actions/cardActions';
 import type { Tables } from '@/types/database';
@@ -81,7 +85,6 @@ function EditableCardRow({
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  // Sync with prop changes
   useEffect(() => {
     setQuestionContent(card.question ?? '');
     setAnswerContent(card.answer ?? '');
@@ -141,7 +144,7 @@ function EditableCardRow({
           <Checkbox
             checked={isSelected}
             onCheckedChange={() => onToggleSelect(card.id)}
-            aria-label={`Select card`}
+            aria-label="Select card"
             disabled={isDeleting}
           />
         </TableCell>
@@ -175,7 +178,7 @@ function EditableCardRow({
               size="icon"
               className="h-8 w-8"
               disabled={isDeleting || isSaving}
-              aria-label={`Delete card`}
+              aria-label="Delete card"
             >
               {isDeleting ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -213,6 +216,7 @@ function EditableCardRow({
 interface EditableCardTableProps {
   initialCards: DbCard[];
   deckId: string;
+  deckName: string;
   onCardUpdated: (updatedCard: DbCard) => void;
   onCardsRemoved: (cardIds: string[]) => void;
 }
@@ -220,24 +224,30 @@ interface EditableCardTableProps {
 export function EditableCardTable({
   initialCards,
   deckId,
+  deckName,
   onCardUpdated,
   onCardsRemoved,
 }: EditableCardTableProps) {
+  const router = useRouter();
   const [cardsToDisplay, setCardsToDisplay] = useState<DbCard[]>(initialCards);
   const [isMultiEditMode, setIsMultiEditMode] = useState(false);
   const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set());
+
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+
+  // Move dialog state
   const [showMoveDialog, setShowMoveDialog] = useState(false);
+  const [moveTab, setMoveTab] = useState<'new' | 'existing'>('new');
+  const [newDeckName, setNewDeckName] = useState('');
   const [availableDecks, setAvailableDecks] = useState<Array<{ id: string; name: string }>>([]);
   const [targetDeckId, setTargetDeckId] = useState('');
-  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
 
   useEffect(() => {
     setCardsToDisplay(initialCards);
   }, [initialCards]);
 
-  // Clear selection when leaving multi-edit mode
   useEffect(() => {
     if (!isMultiEditMode) setSelectedCardIds(new Set());
   }, [isMultiEditMode]);
@@ -298,10 +308,48 @@ export function EditableCardTable({
     }
     setAvailableDecks((result.data ?? []).filter(d => d.id !== deckId));
     setTargetDeckId('');
+    setNewDeckName(`${deckName}_extracted`);
+    setMoveTab('new');
     setShowMoveDialog(true);
-  }, [deckId]);
+  }, [deckId, deckName]);
 
-  const handleMoveCards = useCallback(async () => {
+  const finishMove = useCallback((ids: string[], targetName: string, newDeckId?: string) => {
+    setCardsToDisplay(prev => prev.filter(c => !ids.includes(c.id)));
+    onCardsRemoved(ids);
+    setSelectedCardIds(new Set());
+    setShowMoveDialog(false);
+    setIsMultiEditMode(false);
+    if (newDeckId) {
+      toast.success(
+        `Moved ${ids.length} card(s) to new deck "${targetName}".`,
+        {
+          action: {
+            label: 'Open deck',
+            onClick: () => router.push(`/edit/${newDeckId}`),
+          },
+        }
+      );
+    } else {
+      toast.success(`Moved ${ids.length} card(s) to "${targetName}".`);
+    }
+  }, [onCardsRemoved, router]);
+
+  const handleMoveToNewDeck = useCallback(async () => {
+    const trimmed = newDeckName.trim();
+    if (!trimmed) return;
+    const ids = Array.from(selectedCardIds);
+    setIsMoving(true);
+    const result = await moveCardsToNewDeck(ids, deckId, trimmed);
+    setIsMoving(false);
+
+    if (result?.error) {
+      toast.error('Failed to create deck and move cards', { description: String(result.error) });
+    } else {
+      finishMove(ids, trimmed, result.data?.newDeckId);
+    }
+  }, [newDeckName, selectedCardIds, deckId, finishMove]);
+
+  const handleMoveToExistingDeck = useCallback(async () => {
     if (!targetDeckId) return;
     const ids = Array.from(selectedCardIds);
     setIsMoving(true);
@@ -312,14 +360,9 @@ export function EditableCardTable({
       toast.error('Failed to move cards', { description: String(result.error) });
     } else {
       const targetName = availableDecks.find(d => d.id === targetDeckId)?.name ?? 'the target deck';
-      toast.success(`Moved ${result.data?.movedCount ?? ids.length} card(s) to "${targetName}".`);
-      setCardsToDisplay(prev => prev.filter(c => !ids.includes(c.id)));
-      onCardsRemoved(ids);
-      setSelectedCardIds(new Set());
-      setShowMoveDialog(false);
-      setIsMultiEditMode(false);
+      finishMove(ids, targetName);
     }
-  }, [targetDeckId, selectedCardIds, availableDecks, onCardsRemoved]);
+  }, [targetDeckId, selectedCardIds, availableDecks, finishMove]);
 
   const selectedCount = selectedCardIds.size;
 
@@ -434,41 +477,85 @@ export function EditableCardTable({
 
       {/* Move to deck dialog */}
       <Dialog open={showMoveDialog} onOpenChange={setShowMoveDialog}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Move {selectedCount} card{selectedCount !== 1 ? 's' : ''} to another deck</DialogTitle>
             <DialogDescription>
               All card details (learning progress, word types, etc.) will be preserved.
-              Only the deck assignment changes.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <Label className="mb-2 block text-sm">Target deck</Label>
-            {availableDecks.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No other active decks found.</p>
-            ) : (
-              <Select value={targetDeckId} onValueChange={setTargetDeckId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a deck…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableDecks.map(d => (
-                    <SelectItem key={d.id} value={d.id}>
-                      {d.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-          <DialogFooter>
+
+          <Tabs value={moveTab} onValueChange={v => setMoveTab(v as 'new' | 'existing')} className="mt-2">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="new">New deck</TabsTrigger>
+              <TabsTrigger value="existing">Existing deck</TabsTrigger>
+            </TabsList>
+
+            {/* ── New deck tab ── */}
+            <TabsContent value="new" className="pt-4 space-y-3">
+              <div className="space-y-1">
+                <Label htmlFor="new-deck-name">Deck name</Label>
+                <Input
+                  id="new-deck-name"
+                  value={newDeckName}
+                  onChange={e => setNewDeckName(e.target.value)}
+                  placeholder="e.g. My Deck_extracted"
+                  disabled={isMoving}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Language settings and tags will be copied from the current deck.
+              </p>
+            </TabsContent>
+
+            {/* ── Existing deck tab ── */}
+            <TabsContent value="existing" className="pt-4 space-y-3">
+              {availableDecks.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No other active decks found.</p>
+              ) : (
+                <div className="space-y-1">
+                  <Label>Target deck</Label>
+                  <Select value={targetDeckId} onValueChange={setTargetDeckId} disabled={isMoving}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a deck…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableDecks.map(d => (
+                        <SelectItem key={d.id} value={d.id}>
+                          {d.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                The existing deck&apos;s settings will not be changed.
+              </p>
+            </TabsContent>
+          </Tabs>
+
+          <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => setShowMoveDialog(false)} disabled={isMoving}>
               Cancel
             </Button>
-            <Button onClick={handleMoveCards} disabled={!targetDeckId || isMoving || availableDecks.length === 0}>
-              {isMoving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ArrowRightLeft className="mr-2 h-4 w-4" />}
-              Move Cards
-            </Button>
+            {moveTab === 'new' ? (
+              <Button
+                onClick={handleMoveToNewDeck}
+                disabled={!newDeckName.trim() || isMoving}
+              >
+                {isMoving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ArrowRightLeft className="mr-2 h-4 w-4" />}
+                Create & Move
+              </Button>
+            ) : (
+              <Button
+                onClick={handleMoveToExistingDeck}
+                disabled={!targetDeckId || isMoving || availableDecks.length === 0}
+              >
+                {isMoving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ArrowRightLeft className="mr-2 h-4 w-4" />}
+                Move Cards
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

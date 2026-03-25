@@ -13,6 +13,7 @@ type DbCard = Tables<'cards'>;
 interface TableViewTabContentProps {
     cards: Array<DbCard>;
     deckId: string;
+    deckName: string;
     onCardUpdated: (updatedCard: DbCard) => void;
     onCardsRemoved: (cardIds: string[]) => void;
     onAddNewCardClick: () => void;
@@ -21,6 +22,7 @@ interface TableViewTabContentProps {
 export const TableViewTabContent = memo(({
     cards,
     deckId,
+    deckName,
     onCardUpdated,
     onCardsRemoved,
     onAddNewCardClick
@@ -32,6 +34,7 @@ export const TableViewTabContent = memo(({
                 <EditableCardTable
                     initialCards={cards}
                     deckId={deckId}
+                    deckName={deckName}
                     onCardUpdated={onCardUpdated}
                     onCardsRemoved={onCardsRemoved}
                 />

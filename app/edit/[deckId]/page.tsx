@@ -354,6 +354,7 @@ export default function EditDeckPage() {
                      <TableViewTabContent
                          cards={deck.cards.filter(c => c.id && !c.id.startsWith('new-')) as DbCard[]}
                          deckId={deck.id}
+                         deckName={deck.name}
                          onCardUpdated={handleCardDataUpdated}
                          onCardsRemoved={handleCardsRemovedFromDeck}
                          onAddNewCardClick={handleAddCardOptimistic}

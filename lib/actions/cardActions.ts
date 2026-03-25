@@ -513,6 +513,92 @@ export async function deleteCard(cardId: string): Promise<ActionResult<null>> {
 }
 
 /**
+ * Moves cards to a brand-new deck that inherits the source deck's language
+ * settings and tags. Returns the new deck ID.
+ */
+export async function moveCardsToNewDeck(
+    cardIds: string[],
+    sourceDeckId: string,
+    newDeckName: string,
+): Promise<ActionResult<{ newDeckId: string; movedCount: number }>> {
+    appLogger.info(`[moveCardsToNewDeck] ${cardIds.length} cards → new deck "${newDeckName}"`);
+    if (!cardIds || cardIds.length === 0) return { data: null, error: 'No cards provided.' };
+    if (!sourceDeckId) return { data: null, error: 'Source deck ID is required.' };
+    const trimmedName = newDeckName?.trim();
+    if (!trimmedName) return { data: null, error: 'New deck name is required.' };
+
+    try {
+        const supabase = createActionClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) return { data: null, error: authError?.message || 'Not authenticated' };
+
+        // 1) Load source deck (verify ownership + grab settings)
+        const { data: sourceDeck, error: deckErr } = await supabase
+            .from('decks')
+            .select('id, primary_language, secondary_language, is_bilingual')
+            .eq('id', sourceDeckId)
+            .eq('user_id', user.id)
+            .maybeSingle();
+        if (deckErr || !sourceDeck) {
+            return { data: null, error: deckErr?.message || 'Source deck not found or access denied.' };
+        }
+
+        // 2) Load source deck's tag IDs
+        const { data: deckTagRows } = await supabase
+            .from('deck_tags')
+            .select('tag_id')
+            .eq('deck_id', sourceDeckId)
+            .eq('user_id', user.id);
+        const tagIds = (deckTagRows ?? []).map(r => r.tag_id);
+
+        // 3) Create the new deck with copied language settings
+        const { data: newDeck, error: createErr } = await supabase
+            .from('decks')
+            .insert({
+                user_id: user.id,
+                name: trimmedName,
+                primary_language: sourceDeck.primary_language,
+                secondary_language: sourceDeck.secondary_language,
+                is_bilingual: sourceDeck.is_bilingual,
+            })
+            .select('id')
+            .single();
+        if (createErr || !newDeck) {
+            return { data: null, error: createErr?.message || 'Failed to create new deck.' };
+        }
+        const newDeckId = newDeck.id;
+
+        // 4) Copy tags to the new deck
+        if (tagIds.length > 0) {
+            await supabase.from('deck_tags').insert(
+                tagIds.map(tagId => ({ deck_id: newDeckId, tag_id: tagId, user_id: user.id }))
+            );
+        }
+
+        // 5) Move cards
+        const validIds = cardIds.filter(id => /^[0-9a-fA-F-]{36}$/.test(id));
+        const { error: moveErr, count } = await supabase
+            .from('cards')
+            .update({ deck_id: newDeckId, updated_at: new Date().toISOString() }, { count: 'exact' })
+            .in('id', validIds)
+            .eq('user_id', user.id);
+        if (moveErr) {
+            // Best-effort cleanup
+            await supabase.from('decks').delete().eq('id', newDeckId).eq('user_id', user.id);
+            return { data: null, error: moveErr.message || 'Failed to move cards to new deck.' };
+        }
+
+        appLogger.info(`[moveCardsToNewDeck] Created deck ${newDeckId}, moved ${count ?? validIds.length} cards`);
+        revalidatePath(`/edit/${newDeckId}`);
+        return { data: { newDeckId, movedCount: count ?? validIds.length }, error: null };
+    } catch (error) {
+        appLogger.error('[moveCardsToNewDeck] Unexpected error:', error);
+        return { data: null, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+}
+
+
+/**
  * Deletes multiple cards in a single operation.
  */
 export async function deleteCardsBatch(cardIds: string[]): Promise<ActionResult<{ deletedCount: number }>> {
