@@ -32,9 +32,15 @@ import { appLogger } from '@/lib/logger';
 export async function generateTtsAction(
     text: string,
     languageCode: string,
-    ssmlGender: google.cloud.texttospeech.v1.SsmlVoiceGender = google.cloud.texttospeech.v1.SsmlVoiceGender.NEUTRAL,
+    ssmlGenderStr?: 'NEUTRAL' | 'MALE' | 'FEMALE' | null,
     voiceName?: string | null // Make voiceName optional
 ): Promise<{ audioContent: string | null; error: string | null; }> {
+    const genderMap: Record<string, google.cloud.texttospeech.v1.SsmlVoiceGender> = {
+        'MALE': google.cloud.texttospeech.v1.SsmlVoiceGender.MALE,
+        'FEMALE': google.cloud.texttospeech.v1.SsmlVoiceGender.FEMALE,
+        'NEUTRAL': google.cloud.texttospeech.v1.SsmlVoiceGender.NEUTRAL,
+    };
+    const ssmlGender = ssmlGenderStr ? (genderMap[ssmlGenderStr] ?? google.cloud.texttospeech.v1.SsmlVoiceGender.NEUTRAL) : google.cloud.texttospeech.v1.SsmlVoiceGender.NEUTRAL;
 
     // Check for Google Cloud credentials in environment variables
     // Supports both GOOGLE_APPLICATION_CREDENTIALS file path and individual vars
@@ -141,7 +147,7 @@ export async function generateTTS({
   const result = await generateTtsAction(
     text,
     language,
-    voice ? undefined : google.cloud.texttospeech.v1.SsmlVoiceGender.NEUTRAL,
+    null,
     voice || null
   );
   
