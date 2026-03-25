@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,6 +27,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { appLogger } from '@/lib/logger';
@@ -34,40 +36,16 @@ import type { StoryWithDeck } from '@/lib/actions/storyActions';
 import type { StoryFormat } from '@/types/story';
 import { useSettings } from '@/providers/settings-provider';
 
-// ─── Format config ─────────────────────────────────────────────────────────────
+// ─── Format config — icon only, no per-format colour ───────────────────────────
 
 const FORMAT_CONFIG: Record<
   StoryFormat,
-  { label: string; icon: React.ComponentType<{ className?: string }>; gradient: string; iconColor: string; badgeClass: string }
+  { label: string; icon: React.ComponentType<{ className?: string }> }
 > = {
-  narrative: {
-    label: 'Narrative',
-    icon: BookOpen,
-    gradient: 'from-blue-500/25 to-indigo-500/10',
-    iconColor: 'text-blue-600 dark:text-blue-400',
-    badgeClass: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
-  },
-  dialogue: {
-    label: 'Dialogue',
-    icon: MessageCircle,
-    gradient: 'from-amber-500/25 to-orange-500/10',
-    iconColor: 'text-amber-600 dark:text-amber-400',
-    badgeClass: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
-  },
-  summary: {
-    label: 'Summary',
-    icon: AlignLeft,
-    gradient: 'from-emerald-500/25 to-green-500/10',
-    iconColor: 'text-emerald-600 dark:text-emerald-400',
-    badgeClass: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
-  },
-  analogy: {
-    label: 'Analogy',
-    icon: Lightbulb,
-    gradient: 'from-purple-500/25 to-violet-500/10',
-    iconColor: 'text-purple-600 dark:text-purple-400',
-    badgeClass: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
-  },
+  narrative: { label: 'Narrative', icon: BookOpen },
+  dialogue:  { label: 'Dialogue',  icon: MessageCircle },
+  summary:   { label: 'Summary',   icon: AlignLeft },
+  analogy:   { label: 'Analogy',   icon: Lightbulb },
 };
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -138,80 +116,89 @@ function StoryCard({ item, onRead, onEdit, onDownloadPdf, isDownloadingPdf }: St
   const excerpt = getExcerpt(item);
 
   return (
-    <div
-      className="group relative flex flex-col rounded-xl border bg-card shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden cursor-pointer"
+    <Card
+      className="group hover:shadow-md transition-shadow flex flex-col bg-gradient-to-b from-primary/5 dark:from-primary/10 to-transparent dark:border-slate-700 cursor-pointer"
       onClick={onRead}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => e.key === 'Enter' && onRead()}
       aria-label={`Read story: ${item.deck_name}`}
     >
-      {/* Gradient header */}
-      <div
-        className={cn(
-          'flex items-center gap-2.5 px-4 py-3 bg-gradient-to-r',
-          config.gradient
-        )}
-      >
-        <FormatIcon className={cn('h-5 w-5 flex-shrink-0', config.iconColor)} />
-        <span className={cn('text-xs font-semibold uppercase tracking-wide', config.iconColor)}>
-          {config.label}
-        </span>
+      <CardHeader className="pt-4 pb-2 space-y-1 px-4">
+        <div className="flex justify-between items-start">
+          {/* Story-mode type badge — consistent across all story cards */}
+          <div className="flex items-center gap-1 text-xs text-primary/70 font-medium">
+            <ScrollText className="h-3 w-3" />
+            <span className="uppercase tracking-wide">Story</span>
+          </div>
 
-        {/* ⋮ menu — stop propagation so card click doesn't fire */}
-        <div className="ml-auto" onClick={(e) => e.stopPropagation()}>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                aria-label="Story options"
-              >
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={(e) => onEdit(e)}>
-                <Pencil className="mr-2 h-4 w-4" />
-                Edit
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={(e) => onDownloadPdf(e)} disabled={isDownloadingPdf}>
-                <FileDown className="mr-2 h-4 w-4" />
-                {isDownloadingPdf ? 'Exporting…' : 'Download PDF'}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* ⋮ menu — stop propagation so card click doesn't fire */}
+          <div onClick={(e) => e.stopPropagation()}>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 -mr-1 shrink-0 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                  aria-label="Story options"
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={(e) => onEdit(e)}>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Edit
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={(e) => onDownloadPdf(e)} disabled={isDownloadingPdf}>
+                  <FileDown className="mr-2 h-4 w-4" />
+                  {isDownloadingPdf ? 'Exporting…' : 'Download PDF'}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
-      </div>
 
-      {/* Card body */}
-      <div className="flex flex-col flex-1 p-4 gap-2">
-        <h3 className="font-semibold text-base leading-tight line-clamp-2">{item.deck_name}</h3>
+        {/* Deck name — same style as CardTitle in deck cards */}
+        <CardTitle className="truncate text-lg font-medium" title={item.deck_name}>
+          {item.deck_name}
+        </CardTitle>
+      </CardHeader>
+
+      {/* Content area — matches deck card's CardContent section */}
+      <CardContent className="px-4 pt-2 pb-4 bg-slate-50 dark:bg-slate-700/50 rounded-b-lg space-y-2">
+        {/* Format row — icon + label, neutral colour, distinguishes story sub-type */}
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <FormatIcon className="h-3.5 w-3.5 shrink-0" />
+          <span>{config.label}</span>
+        </div>
+
         {excerpt && (
           <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">{excerpt}</p>
         )}
-      </div>
 
-      {/* Metadata footer */}
-      <div className="px-4 pb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground border-t pt-2 mt-auto">
-        <span className="flex items-center gap-1">
-          <Globe className="h-3 w-3" />
-          {formatLanguage(item.primary_language, item.secondary_language)}
-        </span>
-        <span className="flex items-center gap-1">
-          <Clock className="h-3 w-3" />
-          {formatReadingTime(story!.reading_time_min)}
-        </span>
-        <span className="flex items-center gap-1">
-          <User className="h-3 w-3" />
-          Age {story!.age_at_generation}
-        </span>
-        {story!.updated_at && (
-          <span className="ml-auto">{formatRelativeDate(story!.updated_at)}</span>
-        )}
-      </div>
-    </div>
+        <Separator className="my-1" />
+
+        {/* Metadata row */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <Globe className="h-3 w-3" />
+            {formatLanguage(item.primary_language, item.secondary_language)}
+          </span>
+          <span className="flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            {formatReadingTime(story!.reading_time_min)}
+          </span>
+          <span className="flex items-center gap-1">
+            <User className="h-3 w-3" />
+            Age {story!.age_at_generation}
+          </span>
+          {story!.updated_at && (
+            <span className="ml-auto">{formatRelativeDate(story!.updated_at)}</span>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -219,43 +206,50 @@ function StoryCard({ item, onRead, onEdit, onDownloadPdf, isDownloadingPdf }: St
 
 function EmptyDeckCard({ item, onGenerate }: { item: StoryWithDeck; onGenerate: () => void }) {
   return (
-    <div
-      className="flex flex-col rounded-xl border border-dashed bg-card/50 opacity-70 overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
+    <Card
+      className="hover:shadow-md transition-shadow flex flex-col bg-gradient-to-b from-muted/40 to-transparent dark:border-slate-700 cursor-pointer opacity-60 hover:opacity-80 border-dashed"
       onClick={onGenerate}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => e.key === 'Enter' && onGenerate()}
       aria-label={`Generate story for: ${item.deck_name}`}
     >
-      {/* Gray header */}
-      <div className="flex items-center gap-2.5 px-4 py-3 bg-gradient-to-r from-muted/60 to-muted/20">
-        <FileText className="h-5 w-5 text-muted-foreground" />
-        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          No story
-        </span>
-      </div>
-
-      {/* Body */}
-      <div className="flex flex-col flex-1 p-4 gap-2">
-        <h3 className="font-semibold text-base leading-tight line-clamp-2 text-muted-foreground">
+      <CardHeader className="pt-4 pb-2 space-y-1 px-4">
+        <div className="flex items-center gap-1 text-xs text-muted-foreground font-medium">
+          <ScrollText className="h-3 w-3" />
+          <span className="uppercase tracking-wide">Story</span>
+        </div>
+        <CardTitle className="truncate text-lg font-medium text-muted-foreground" title={item.deck_name}>
           {item.deck_name}
-        </h3>
-        <p className="text-sm text-muted-foreground/70">No story generated yet</p>
-      </div>
+        </CardTitle>
+      </CardHeader>
 
-      {/* CTA */}
-      <div className="px-4 pb-3 pt-2 border-t mt-auto">
+      <CardContent className="px-4 pt-2 pb-4 bg-slate-50 dark:bg-slate-700/50 rounded-b-lg space-y-2">
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <FileText className="h-3.5 w-3.5 shrink-0" />
+          <span>No story yet</span>
+        </div>
+
+        <Separator className="my-1" />
+
+        <div className="flex items-center gap-x-3 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <Globe className="h-3 w-3" />
+            {formatLanguage(item.primary_language, item.secondary_language)}
+          </span>
+        </div>
+
         <Button
           variant="ghost"
           size="sm"
-          className="h-7 text-xs text-muted-foreground hover:text-foreground gap-1.5 px-2"
+          className="h-7 text-xs text-muted-foreground hover:text-foreground gap-1.5 px-2 -ml-2 mt-1"
           onClick={(e) => { e.stopPropagation(); onGenerate(); }}
         >
           <Plus className="h-3 w-3" />
           Generate story
         </Button>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -263,19 +257,23 @@ function EmptyDeckCard({ item, onGenerate }: { item: StoryWithDeck; onGenerate: 
 
 function SkeletonCard() {
   return (
-    <div className="flex flex-col rounded-xl border bg-card overflow-hidden">
-      <Skeleton className="h-11 w-full rounded-none" />
-      <div className="p-4 flex flex-col gap-2">
+    <Card className="flex flex-col overflow-hidden">
+      <CardHeader className="pt-4 pb-2 px-4 space-y-2">
+        <Skeleton className="h-3 w-12" />
         <Skeleton className="h-5 w-3/4" />
+      </CardHeader>
+      <CardContent className="px-4 pt-2 pb-4 bg-slate-50 dark:bg-slate-700/50 rounded-b-lg space-y-2">
+        <Skeleton className="h-3 w-20" />
         <Skeleton className="h-4 w-full" />
         <Skeleton className="h-4 w-5/6" />
-      </div>
-      <div className="px-4 pb-3 pt-2 border-t flex gap-3">
-        <Skeleton className="h-3 w-12" />
-        <Skeleton className="h-3 w-14" />
-        <Skeleton className="h-3 w-10" />
-      </div>
-    </div>
+        <Separator />
+        <div className="flex gap-3 pt-1">
+          <Skeleton className="h-3 w-10" />
+          <Skeleton className="h-3 w-12" />
+          <Skeleton className="h-3 w-10" />
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
