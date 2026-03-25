@@ -272,7 +272,8 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
       >
         {/* ── Header: white bg, icon + coloured title ── */}
         <div className="px-4 pt-3 pb-2">
-          <div className="flex items-start gap-2">
+          {/* min-h ensures uniform header height whether name is 1 or 2 lines */}
+          <div className="flex items-start gap-2 min-h-[38px]">
             <FlashcardMethodIcon className={cn('h-4 w-4 mt-0.5 flex-shrink-0', cfg.textColor)} />
             <span className={cn('text-sm font-semibold leading-snug flex-1 min-w-0 line-clamp-2', cfg.textColor)} title={deck.name}>
               {deck.name}
@@ -282,9 +283,10 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
         {/* thin divider */}
         <div className={cn('h-px mx-4', cfg.divider)} />
 
-        {/* ── Content: coloured bg, stats left + thumbnail right ── */}
-        <div className={cn('px-4 pt-3 pb-3 flex gap-3 relative overflow-hidden', cfg.bgSection)}>
-          <div className="flex-1 min-w-0 space-y-1.5 text-xs text-muted-foreground">
+        {/* ── Content: coloured bg, stats left + thumbnail bottom-right ── */}
+        {/* overflow-visible here so thumbnail can extend past card edge (clipped by Card overflow-hidden) */}
+        <div className={cn('relative px-4 pt-3 pb-3 min-h-[88px]', cfg.bgSection)}>
+          <div className="space-y-1.5 text-xs text-muted-foreground pr-12">
             {languageDisplay && (
               <div className="flex items-center gap-1.5">
                 <Globe className="h-3 w-3 flex-shrink-0" />
@@ -298,15 +300,16 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
               </div>
             )}
             {deck.totalCards > 0 && (
-              <p className="text-xs font-medium text-foreground/70">
+              <p className="text-xs font-semibold text-foreground/80">
                 {learnEligible + reviewEligible > 0
                   ? `${learnEligible + reviewEligible} of ${deck.totalCards} due`
                   : `${deck.totalCards} cards`}
               </p>
             )}
           </div>
-          {/* Decorative thumbnail — partially clipped at right edge */}
-          <div className="w-14 flex-shrink-0 self-end -mr-4 -mb-3">
+          {/* Thumbnail: absolute bottom-right, -right-4 pushes it 16px past the card edge
+              so Card overflow-hidden clips ~25% for the "cut off" effect */}
+          <div className="absolute bottom-0 -right-4 w-16 h-16">
             <MethodThumbnail type="flashcard" />
           </div>
         </div>

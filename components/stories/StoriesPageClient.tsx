@@ -110,7 +110,8 @@ function StoryCard({ item, onRead, onEdit, onDownloadPdf, isDownloadingPdf }: St
     >
       {/* ── Header: white bg, story icon + purple title + ⋮ menu ── */}
       <div className="px-4 pt-3 pb-2">
-        <div className="flex items-start gap-2">
+        {/* min-h ensures uniform header height whether name is 1 or 2 lines */}
+        <div className="flex items-start gap-2 min-h-[38px]">
           <StoryMethodIcon className={cn('h-4 w-4 mt-0.5 flex-shrink-0', cfg.textColor)} />
           <span
             className={cn('text-sm font-semibold leading-snug flex-1 min-w-0 line-clamp-2', cfg.textColor)}
@@ -148,9 +149,10 @@ function StoryCard({ item, onRead, onEdit, onDownloadPdf, isDownloadingPdf }: St
       {/* thin divider */}
       <div className={cn('h-px mx-4', cfg.divider)} />
 
-      {/* ── Content: purple bg, info left + book thumbnail right ── */}
-      <div className={cn('px-4 pt-3 pb-3 flex gap-3 overflow-hidden', cfg.bgSection)}>
-        <div className="flex-1 min-w-0 space-y-1.5 text-xs text-muted-foreground">
+      {/* ── Content: purple bg, info left + book thumbnail bottom-right ── */}
+      {/* No overflow-hidden here — Card's own overflow-hidden clips the thumbnail */}
+      <div className={cn('relative px-4 pt-3 pb-3 min-h-[88px]', cfg.bgSection)}>
+        <div className="space-y-1.5 text-xs text-muted-foreground pr-12">
           <div className="flex items-center gap-1.5">
             <Globe className="h-3 w-3 flex-shrink-0" />
             <span>{formatLanguage(item.primary_language, item.secondary_language)}</span>
@@ -162,8 +164,8 @@ function StoryCard({ item, onRead, onEdit, onDownloadPdf, isDownloadingPdf }: St
             <p className="text-xs line-clamp-2 leading-relaxed text-foreground/60">{excerpt}</p>
           )}
         </div>
-        {/* Book thumbnail — partially clipped at right edge */}
-        <div className="w-14 flex-shrink-0 self-end -mr-4 -mb-3">
+        {/* Book thumbnail: absolute bottom-right, -right-4 pushes 16px past card edge for clip effect */}
+        <div className="absolute bottom-0 -right-4 w-16 h-16">
           <MethodThumbnail type="story" />
         </div>
       </div>
@@ -193,7 +195,7 @@ function EmptyDeckCard({ item, onGenerate }: { item: StoryWithDeck; onGenerate: 
     >
       {/* Header */}
       <div className="px-4 pt-3 pb-2">
-        <div className="flex items-start gap-2">
+        <div className="flex items-start gap-2 min-h-[38px]">
           <StoryMethodIcon className="h-4 w-4 mt-0.5 flex-shrink-0 text-muted-foreground" />
           <span className="text-sm font-semibold leading-snug flex-1 min-w-0 line-clamp-2 text-muted-foreground" title={item.deck_name}>
             {item.deck_name}
@@ -203,15 +205,15 @@ function EmptyDeckCard({ item, onGenerate }: { item: StoryWithDeck; onGenerate: 
       <div className="h-px mx-4 bg-muted" />
 
       {/* Content */}
-      <div className="px-4 pt-3 pb-3 flex gap-3 overflow-hidden bg-muted/20">
-        <div className="flex-1 min-w-0 space-y-1.5 text-xs text-muted-foreground">
+      <div className="relative px-4 pt-3 pb-3 min-h-[88px] bg-muted/20">
+        <div className="space-y-1.5 text-xs text-muted-foreground pr-12">
           <div className="flex items-center gap-1.5">
             <Globe className="h-3 w-3 flex-shrink-0" />
             <span>{formatLanguage(item.primary_language, item.secondary_language)}</span>
           </div>
           <p className="text-xs text-muted-foreground/70">No story generated yet</p>
         </div>
-        <div className="w-14 flex-shrink-0 self-end -mr-4 -mb-3 opacity-30">
+        <div className="absolute bottom-0 -right-4 w-16 h-16 opacity-30">
           <MethodThumbnail type="story" />
         </div>
       </div>
