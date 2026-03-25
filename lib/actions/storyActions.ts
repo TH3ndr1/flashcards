@@ -121,6 +121,78 @@ export async function getDeckLanguages(
 }
 
 /**
+ * Fetches all decks for the user, joined with their most-recent story (if any).
+ * Used to power the /practice/stories library page.
+ * Sorted: decks with stories first (newest updated_at first), then decks without (alphabetical).
+ */
+export interface StoryWithDeck {
+  deck_id: string;
+  deck_name: string;
+  primary_language: string;
+  secondary_language: string | null;
+  story: Story | null;
+}
+
+export async function getAllStoriesWithDecks(): Promise<ActionResult<StoryWithDeck[]>> {
+  try {
+    const supabase = createActionClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return { data: null, error: 'Not authenticated.' };
+    }
+
+    const [decksResult, storiesResult] = await Promise.all([
+      supabase
+        .from('decks')
+        .select('id, name, primary_language, secondary_language')
+        .eq('user_id', user.id)
+        .order('name', { ascending: true }),
+      supabase
+        .from('stories')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false }),
+    ]);
+
+    if (decksResult.error) {
+      return { data: null, error: decksResult.error.message };
+    }
+
+    // Build map: deck_id → most-recent story (stories are already ordered newest-first)
+    const storyMap = new Map<string, Story>();
+    for (const s of (storiesResult.data ?? [])) {
+      if (!storyMap.has(s.deck_id)) {
+        storyMap.set(s.deck_id, s as unknown as Story);
+      }
+    }
+
+    const items: StoryWithDeck[] = (decksResult.data ?? []).map((deck) => ({
+      deck_id: deck.id,
+      deck_name: deck.name ?? '',
+      primary_language: deck.primary_language ?? 'en',
+      secondary_language: deck.secondary_language ?? null,
+      story: storyMap.get(deck.id) ?? null,
+    }));
+
+    // Sort: decks with stories first (by updated_at desc), then without (alphabetical)
+    items.sort((a, b) => {
+      if (a.story && b.story) {
+        return (b.story.updated_at ?? '').localeCompare(a.story.updated_at ?? '');
+      }
+      if (a.story && !b.story) return -1;
+      if (!a.story && b.story) return 1;
+      return a.deck_name.localeCompare(b.deck_name);
+    });
+
+    return { data: items, error: null };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    appLogger.error('[storyActions] getAllStoriesWithDecks unexpected error:', msg);
+    return { data: null, error: msg };
+  }
+}
+
+/**
  * Computes the current hash of cards in a deck.
  * Used to detect whether a story is stale.
  */

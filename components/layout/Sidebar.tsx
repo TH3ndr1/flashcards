@@ -33,6 +33,7 @@ import {
   PanelLeftOpen,
   ClipboardCheck,
   LogOut,
+  ScrollText,
 } from 'lucide-react';
 import { type LucideProps } from 'lucide-react'; // Changed import for LucideProps
 import React from 'react';
@@ -73,6 +74,7 @@ const navItems: NavGroupDefinition[] = [
   {
     group: 'Practice', // This is a top-level section
     items: [
+      { href: '/practice/stories', label: 'Stories', icon: ScrollText },
       // Assuming '/practice/decks' becomes the main view for practicing with decks
       { href: '/practice/decks', label: 'Decks', icon: LayoutDashboard },
       { href: '/practice/sets', label: 'Playlists', icon: List },
