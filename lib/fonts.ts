@@ -7,32 +7,27 @@ import type { FontOption } from "@/providers/settings-provider"; // Assuming thi
 // Define OpenDyslexic font object
 export const openDyslexicFont = localFont({
   src: [
-    {
-      // IMPORTANT: Adjust this path relative to THIS FILE (lib/fonts.ts)
-      // If lib is at the root, and public is at the root, this should work.
-      // If lib is inside src/, use '../../public/fonts/...'
-      path: '../public/fonts/OpenDyslexic-Regular.woff2',
-      weight: '400', // Or 'normal'
-      style: 'normal',
-    },
+    { path: '../public/fonts/OpenDyslexic-Regular.woff2', weight: '400', style: 'normal' },
+    { path: '../public/fonts/OpenDyslexic-Bold.woff2', weight: '700', style: 'normal' },
+    { path: '../public/fonts/OpenDyslexic-Italic.woff2', weight: '400', style: 'italic' },
+    { path: '../public/fonts/OpenDyslexic-Bold-Italic.woff2', weight: '700', style: 'italic' },
   ],
-  variable: '--font-open-dyslexic', // CSS variable name for Tailwind
-  display: 'swap', // Recommended: improves perceived performance
-  // preload: false, // Optional: Set to false if you only load it conditionally (might not be needed here)
+  variable: '--font-open-dyslexic',
+  display: 'swap',
 });
 
 // Define Atkinson Hyperlegible font object
 export const atkinsonFont = localFont({
   src: [
-    {
-      path: '../public/fonts/AtkinsonHyperlegibleNext-Regular.woff2', // Adjust path
-      weight: '400',
-      style: 'normal',
-    },
+    { path: '../public/fonts/AtkinsonHyperlegibleNext-Regular.woff2', weight: '400', style: 'normal' },
+    { path: '../public/fonts/AtkinsonHyperlegibleNext-SemiBold.woff2', weight: '600', style: 'normal' },
+    { path: '../public/fonts/AtkinsonHyperlegibleNext-Bold.woff2', weight: '700', style: 'normal' },
+    { path: '../public/fonts/AtkinsonHyperlegibleNext-RegularItalic.woff2', weight: '400', style: 'italic' },
+    { path: '../public/fonts/AtkinsonHyperlegibleNext-SemiBoldItalic.woff2', weight: '600', style: 'italic' },
+    { path: '../public/fonts/AtkinsonHyperlegibleNext-BoldItalic.woff2', weight: '700', style: 'italic' },
   ],
-  variable: '--font-atkinson', // CSS variable name for Tailwind
+  variable: '--font-atkinson',
   display: 'swap',
-  // preload: false, // Optional
 });
 
 // --- 2. Define Font Metadata (for UI, like Settings) ---

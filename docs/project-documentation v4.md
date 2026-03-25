@@ -65,9 +65,9 @@
 StudyCards is a modern, multilingual learning platform designed for maximum learning efficiency and inclusivity. It aims to enhance the study experience through:
 *   **Effective Spaced Repetition:** Implementing proven SRS algorithms (SM-2 foundation) with distinct user-configurable initial learning algorithms ('Dedicated Learn' streak-based or 'Standard SM-2' timed steps) and clear session types ('Learn-only', 'Review-only', 'Unified Practice').
 *   **Flexible Content Management:** Allowing users to organize content via decks and tags, and create custom study sessions using "Smart Playlists" (Study Sets).
-*   **AI-Powered Content Creation:** Enabling users to automatically generate flashcards from uploaded PDF documents or images.
+*   **AI-Powered Content Creation:** Enabling users to automatically generate flashcards from uploaded PDF documents or images, and AI-generated narrative stories from deck content (Story Mode).
 *   **Accessibility:** Providing features specifically designed to support learners with dyslexia, ADHD, and other challenges (font choices, colors, TTS, simple UI).
-*   **Multi-modal Learning:** Supporting text and audio (TTS).
+*   **Multi-modal Learning:** Supporting text, audio (TTS), and narrative learning (Story Mode).
 
 ### Target Users
 Students of all ages, language learners, self-learners, teachers, particularly benefiting those seeking efficient study methods and users with learning differences.
@@ -75,6 +75,7 @@ Students of all ages, language learners, self-learners, teachers, particularly b
 ### Key Differentiators
 *   Robust SRS (SM-2) with distinct initial learning algorithms ('Dedicated Learn' streak or 'Standard SM-2' steps) and session types ('Learn-only', 'Review-only', 'Unified Practice').
 *   Seamless AI-powered card generation from user documents/images.
+*   **Story Mode:** AI-generated narrative stories from deck cards, leveraging narrative transportation theory to build holistic understanding. Supports knowledge and translation (bilingual) decks, sentence-level TTS follow-along, DB caching, and inline paragraph editing.
 *   Strong focus on accessibility and inclusivity features.
 *   Clean, intuitive, distraction-free user interface optimized for learning.
 *   Flexible, query-based study sessions using tags, deck affiliation, and other criteria ("Smart Playlists").
@@ -131,7 +132,8 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
 8. Progress Tracking and Analytics (Overall stats, card-level SRS state)
 9. User Settings Management (Including SRS algorithm preference)
 10. AI Flashcard Generation (Upload -> Process -> Review -> Save as Deck)
-11. Content Sharing and Collaboration (Future)
+11. Story Mode (Select deck -> Configure reading time & age -> AI generates narrative story -> Read with TTS)
+12. Content Sharing and Collaboration (Future)
 
 ---
 
@@ -209,6 +211,17 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
     *   All card state updates (SRS fields, counts) are debounced and persisted via `progressActions.updateCardProgress`.
 *   **Text-to-Speech (TTS):**
     *   Read card front/back content aloud. Language determined from deck settings. User can toggle in settings. Logic refined to re-speak question on flip-back.
+*   **Story Mode (`/practice/story/[deckId]`):**
+    *   AI generates a narrative story from the active cards in a deck, helping students understand course material through narrative transportation theory.
+    *   **Triggering:** BookOpen button on each deck card in the deck list, or "Read the Story" CTA on the session completion screen.
+    *   **Configuration:** Reading time (5 / 10 / 20 minutes) and student age (derived from date of birth stored in user profile). If no DOB is set, it is collected on first story creation and saved to the profile.
+    *   **Deck Modes:**
+        *   **Knowledge mode:** Story written in the deck's primary language, tailored to the student's age, weaving all concepts naturally.
+        *   **Translation mode (bilingual decks):** Each paragraph written in L2 (immersive), immediately followed by a faithful L1 translation in a visually distinct style.
+    *   **DB Caching:** Stories are cached in the `stories` table, keyed by `(deck_id, user_id, age_at_generation, reading_time_min, cards_hash)`. A SHA-256 hash of the active card content detects stale stories when cards are edited.
+    *   **Reading View:** Mobile-first layout with sentence-level TTS follow-along highlighting. Font respects the user's `cardFont` setting.
+    *   **Story Management (Deck Edit → Story tab):** View current story, detect staleness (hash mismatch → amber warning), inline paragraph editing (saves `is_manually_edited = true`), regenerate with confirmation dialog if manually edited.
+    *   **AI Generation:** Uses Vertex AI (Gemini) via `storyGeneratorService.ts`. Cards capped at 70 before sending to AI. Word count targets: 5 min → ~1000 words, 10 min → ~2000 words, 20 min → ~4000 words.
 
 ### 4.4 Accessibility & Inclusivity
 *   **Dyslexia Support:** Font choices (Settings), spacing (Theme/CSS), color themes (Theme), TTS.
@@ -256,6 +269,7 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
     *   Global UI State: Zustand (`store/` - e.g., `mobileSidebarStore`).
     *   Feature State/Logic: Custom Hooks (`hooks/`, page-specific hooks like `useEditDeck`, `useAiGenerate`).
     *   Study Session Parameters: Zustand (`studySessionStore` stores `StudySessionInput` and `SessionType`).
+    *   Story State: Zustand (`storyStore` stores the current `Story`, deck name, deck ID, and origin URL for navigation).
     *   Active Study Session Logic: `useStudySession` hook (refactored to be orchestrator, using helper modules for queue and state logic).
 *   **Custom Hooks (`hooks/`, feature directories):**
     *   `useSupabase`, `useAuth`, `useSettings` (from `SettingsProvider`).
@@ -277,13 +291,19 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
     *   `studySetActions`: `createStudySet`, `getUserStudySets`, `getStudySet`, `updateStudySet`, `deleteStudySet`.
     *   `progressActions`: `updateCardProgress` (saves all SRS state fields).
     *   `studyQueryActions`: `resolveStudyQuery` (calls `resolve_study_query` DB function).
-    *   `settingsActions`: Get/Update user settings (handles `studyAlgorithm`, `themePreference`, and all related study parameters).
+    *   `settingsActions`: Get/Update user settings (handles `studyAlgorithm`, `themePreference`, `dateOfBirth`, and all related study parameters).
     *   `ttsActions`: `generateTtsAction` for server-side TTS audio generation.
+    *   `storyActions`: `getStoryForDeck` (fetch most recent story for a deck), `updateStoryParagraphs` (save inline edits), `getDeckCardsHash` (compute current hash for stale detection).
 *   **Key API Routes (`app/api/`):**
     *   `extract-pdf/route.ts`: (Step 1 of AI Flow) Orchestrates AI file processing (upload, text extraction via `textExtractorService`, initial flashcard generation via `flashcardGeneratorService`).
     *   `process-ai-step2/route.ts`: (Step 2a - Intermediate AI Processing) Handles requests for classification or regeneration.
     *   `decks/route.ts`: (Used by Manual & AI Flow Step 2b - Final Persistence) Handles `POST` requests for creating new decks. For manual, it takes deck metadata and calls `deckActions.createDeck`. For AI flow, it takes deck metadata and final flashcards, creates the deck (via `deckActions.createDeck`), then calls `cardActions.createCardsBatch`.
     *   `generate-deck-pdf/route.ts`: Handles `POST` requests for generating a PDF version of a deck. Receives deck ID and various PDF-specific settings (font, color coding, font size, icon visibility). Fetches deck data, constructs the PDF using `pdf-lib` and `fontkit`, and returns it for download.
+    *   `stories/route.ts`: Story Mode API.
+        *   `POST /api/stories` `{ deckId, readingTimeMin, age }`: Auth → fetch deck + active cards → compute `cards_hash` → check cache (returns existing story on hit) → call `storyGeneratorService` (Vertex AI) on miss → insert to `stories` table → return story.
+        *   `PATCH /api/stories` `{ storyId, paragraphs }`: Auth + ownership check → update paragraphs → set `is_manually_edited = true`.
+*   **AI Services (`app/api/stories/`):**
+    *   `storyGeneratorService.ts`: Abstracts Vertex AI Gemini logic for narrative story generation. Accepts cards, deck mode, languages, age, and reading time. Returns structured `{ paragraphs: [{ primary, secondary }] }`. Cards capped at 70.
 *   **Database Function (`resolve_study_query`):** Filters cards based on `StudyQueryCriteria` JSON (including `srs_level`, `learning_state` via `includeLearning` flag, dates).
 *   **Database Function (`get_decks_with_complete_srs_counts`):** Fetches decks with standard SRS stage counts AND `learn_eligible_count` and `review_eligible_count`.
 *   **Database View (`cards_with_srs_stage`):** Categorizes cards into 'new', 'learning', 'relearning', 'young', 'mature' based on `srs_level`, `learning_state`, `interval_days`, and `settings.mature_interval_threshold`.
@@ -318,6 +338,7 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
     *   `show_deck_progress`: `boolean` (default: true, not null)
     *   `theme_light_dark_mode`: `text` (default: 'system', not null)
     *   `tts_enabled`: `boolean` (default: true, nullable)
+    *   `date_of_birth`: `date` (nullable) — used to calculate student age for Story Mode personalisation
     *   Other color-coding settings...
     *   `created_at`, `updated_at`
 3.  **`decks`**
@@ -365,6 +386,19 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
     *   `description`: `text` (Nullable)
     *   `query_criteria`: `jsonb` (Not null, Stores `StudyQueryCriteria`)
     *   `created_at`, `updated_at`
+8.  **`stories`** (AI-generated narrative stories — Story Mode)
+    *   `id`: `uuid` (PK)
+    *   `deck_id`: `uuid` (FK -> `decks.id`, ON DELETE CASCADE)
+    *   `user_id`: `uuid` (FK -> `auth.users.id`, ON DELETE CASCADE)
+    *   `age_at_generation`: `integer` (Not null) — student age when story was generated
+    *   `reading_time_min`: `integer` (Not null, CHECK IN (5, 10, 20))
+    *   `cards_hash`: `text` (Not null) — SHA-256 (truncated) of sorted active card content; used for stale detection
+    *   `deck_mode`: `text` (Not null, CHECK IN ('knowledge', 'translation'))
+    *   `paragraphs`: `jsonb` (Not null, default `[]`) — `[{ "primary": string, "secondary": string }]`; knowledge mode has `secondary: ""`; translation mode has `primary` = L2, `secondary` = L1
+    *   `is_manually_edited`: `boolean` (default: false) — set when user edits paragraphs inline
+    *   `created_at`, `updated_at`
+    *   **RLS:** Users can only access their own stories (`user_id = auth.uid()`)
+    *   **Index:** `stories_deck_user_idx` on `(deck_id, user_id)`
 
 #### 5.4.2 Views
 1.  **`cards_with_srs_stage`**
