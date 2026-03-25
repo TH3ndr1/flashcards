@@ -59,7 +59,8 @@ type TTSState = 'idle' | 'loading' | 'playing' | 'error';
 
 interface UseTTSResult {
     ttsState: TTSState;
-    speak: (text: string, languageCode: string) => Promise<void>;
+    speak: (text: string, languageCode: string, gender?: 'NEUTRAL' | 'MALE' | 'FEMALE') => Promise<void>;
+    preload: (text: string, languageCode: string, gender?: 'NEUTRAL' | 'MALE' | 'FEMALE') => void;
     stop: () => void;
     currentLanguage: string | null;
 }
@@ -75,6 +76,8 @@ export function useTTS({ onAudioStart, onAudioEnd }: UseTTSProps): UseTTSResult 
     const { settings } = useSettings();
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const [currentLanguage, setCurrentLanguage] = useState<string | null>(null);
+    // Cache for preloaded audio — key: `${mappedLang}::${gender}::${text}`
+    const audioCacheRef = useRef<Map<string, string>>(new Map());
 
     // --- Ensure Audio Element Exists (Keep as is) ---
     useEffect(() => {
@@ -116,55 +119,91 @@ export function useTTS({ onAudioStart, onAudioEnd }: UseTTSProps): UseTTSResult 
         }
     }, [onAudioEnd]);
 
-    // --- Speak Function (Simplified version based on old client implementation) ---
-    const speak = useCallback(async (text: string, language: string) => {
+    // --- Language mapping helper ---
+    const mapLanguage = useCallback((language: string): string => {
+        const langToUse = language?.toLowerCase() || 'en';
+        const baseLanguage = langToUse.split('-')[0];
+        return settings?.languageDialects?.[baseLanguage as keyof typeof settings.languageDialects] ||
+               LANGUAGE_CODES[langToUse] ||
+               'en-GB';
+    }, [settings]);
+
+    // --- Preload: fetch audio and cache without playing ---
+    const preload = useCallback((text: string, language: string, gender?: 'NEUTRAL' | 'MALE' | 'FEMALE') => {
+        if (!text || !language) return;
+        const mappedLanguage = mapLanguage(language);
+        const cacheKey = `${mappedLanguage}::${gender ?? 'NEUTRAL'}::${text}`;
+        if (audioCacheRef.current.has(cacheKey)) return; // already cached
+        // Mark as in-flight by inserting a sentinel to prevent duplicate fetches
+        audioCacheRef.current.set(cacheKey, '');
+        generateTtsAction(text, mappedLanguage, gender ?? 'NEUTRAL')
+            .then(({ audioContent }) => {
+                if (audioContent) {
+                    audioCacheRef.current.set(cacheKey, audioContent);
+                } else {
+                    audioCacheRef.current.delete(cacheKey);
+                }
+            })
+            .catch(() => audioCacheRef.current.delete(cacheKey));
+    }, [mapLanguage]);
+
+    // --- Speak Function ---
+    const speak = useCallback(async (text: string, language: string, gender?: 'NEUTRAL' | 'MALE' | 'FEMALE') => {
         if (!text || !language) {
             logTTSError('Missing text or language code for TTS.');
             return;
         }
-        
-        appLogger.info(`[TTS Debug] Original language: "${language}"`);
-        appLogger.info(`[TTS Debug] Settings:`, settings);
-        
+
         // Stop any currently playing audio before starting new request
         stop();
 
         try {
             setTtsState('loading');
-            
-            // Get basic language info - directly use the working client-side implementation logic
-            const langToUse = language?.toLowerCase() || 'en';
-            const baseLanguage = langToUse.split('-')[0];
-            
-            // DIRECTLY PORT THE WORKING VERSION
-            // This is the exact language mapping logic from the working client implementation
-            appLogger.info(`[TTS Debug] Base language: "${baseLanguage}"`);
-            
-            // Create a copy of the EXACT implementation from the working version
-            const mappedLanguage = settings?.languageDialects?.[baseLanguage as keyof typeof settings.languageDialects] || 
-                                  LANGUAGE_CODES[langToUse] || 
-                                  "en-GB";
-                                  
-            appLogger.info(`[TTS Debug] Mapped language: "${mappedLanguage}"`);
-            appLogger.info(`[TTS Debug] Final mapping: ${language} → ${mappedLanguage}`);
-            
+
+            const mappedLanguage = mapLanguage(language);
             setCurrentLanguage(mappedLanguage);
 
-            // Call the server action with mapped language
-            const { audioContent, error: ttsError } = await generateTtsAction(
-                text,
-                mappedLanguage // Use the mapped language
-            );
+            // Check preload cache
+            const cacheKey = `${mappedLanguage}::${gender ?? 'NEUTRAL'}::${text}`;
+            let audioContent: string | null = null;
 
-            if (ttsError || !audioContent) {
-                throw new Error(ttsError || 'TTS Action returned no audio content.');
+            const cached = audioCacheRef.current.get(cacheKey);
+            if (cached) {
+                audioContent = cached;
+                audioCacheRef.current.delete(cacheKey);
+                appLogger.info(`[TTS] Cache hit for key: ${cacheKey.substring(0, 60)}`);
+            } else {
+                // Fetch from server
+                const result = await generateTtsAction(text, mappedLanguage, gender ?? 'NEUTRAL');
+                audioContent = result.audioContent;
+                if (result.error) {
+                    throw new Error(result.error);
+                }
             }
 
-            // --- Play the audio --- 
+            if (!audioContent) {
+                throw new Error('TTS Action returned no audio content.');
+            }
+
+            // --- Play the audio and wait until it finishes ---
             if (audioRef.current) {
                 const audioSrc = `data:audio/mp3;base64,${audioContent}`;
                 audioRef.current.src = audioSrc;
                 await audioRef.current.play();
+                // Wait for playback to end, be stopped/paused, or error out
+                await new Promise<void>((resolve) => {
+                    const audio = audioRef.current;
+                    if (!audio) { resolve(); return; }
+                    const cleanup = () => {
+                        audio.removeEventListener('ended', cleanup);
+                        audio.removeEventListener('pause', cleanup);
+                        audio.removeEventListener('error', cleanup);
+                        resolve();
+                    };
+                    audio.addEventListener('ended', cleanup, { once: true });
+                    audio.addEventListener('pause', cleanup, { once: true });
+                    audio.addEventListener('error', cleanup, { once: true });
+                });
             } else {
                 throw new Error("Audio element not available.");
             }
@@ -177,7 +216,7 @@ export function useTTS({ onAudioStart, onAudioEnd }: UseTTSProps): UseTTSResult 
             setTtsState('error');
             onAudioEnd?.(); // Ensure end callback fires on error
         }
-    }, [settings, stop, onAudioEnd]);
+    }, [stop, onAudioEnd, mapLanguage]);
 
-    return { ttsState, speak, stop, currentLanguage };
+    return { ttsState, speak, preload, stop, currentLanguage };
 } 

@@ -4,7 +4,7 @@
 import React, { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { PlusCircle, Loader2 } from "lucide-react";
+import { PlusCircle, Loader2, BookOpen } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useStudySessionStore } from '@/store/studySessionStore';
 import type { StudySessionInput, SessionType } from '@/types/study';
@@ -30,6 +30,9 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { SrsToggle } from "@/components/ui/srs-toggle";
+import { StoryGenerateModal } from '@/components/story/StoryGenerateModal';
+import { useStoryStore } from '@/store/storyStore';
+import { getStoryForDeck } from '@/lib/actions/storyActions';
 
 // Type for TagInfo (if not already globally defined)
 interface TagInfo {
@@ -79,6 +82,9 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
 
   // State for SRS toggle - default to enabled (same as practice/select)
   const [srsEnabled, setSrsEnabled] = useState<boolean>(true);
+
+  const [storyModalDeck, setStoryModalDeck] = useState<{ id: string; name: string } | null>(null);
+  const setCurrentStory = useStoryStore((s) => s.setCurrentStory);
 
   // Memoized and processed decks (this will be expanded in Task X.3.3 for grouping)
   const processedAndSortedDecks = useMemo(() => {
@@ -205,7 +211,19 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
 
   const handleCreateDeckClick = () => {
     // Link to the deck creation page
-    router.push('/manage/decks/new'); 
+    router.push('/manage/decks/new');
+  };
+
+  const handleStoryClick = async (e: React.MouseEvent, deck: { id: string; name: string }) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const { data: story } = await getStoryForDeck(deck.id);
+    if (story) {
+      setCurrentStory(story, deck.name, deck.id, window.location.pathname);
+      router.push(`/practice/story/${deck.id}`);
+    } else {
+      setStoryModalDeck(deck);
+    }
   };
 
   if (isOverallLoading) {
@@ -249,6 +267,15 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
         <CardHeader className="pt-4 pb-2 space-y-1 px-4">
           <div className="flex justify-between items-start">
             <CardTitle className="truncate text-lg font-medium mr-2" title={deck.name}>{deck.name}</CardTitle>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
+              onClick={(e) => handleStoryClick(e, { id: deck.id, name: deck.name })}
+              title="Read story"
+            >
+              <BookOpen className="h-4 w-4" />
+            </Button>
           </div>
         </CardHeader>
         {showDeckProgressBars && deck.totalCards > 0 && (
@@ -369,7 +396,7 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
 
         {showDeckProgressBars && processedAndSortedDecks.length > 0 && (
           <div className="mt-8 pt-4 border-t dark:border-slate-700 flex justify-center">
-            <DeckProgressLegend 
+            <DeckProgressLegend
               newCount={0} // Dummy values, as showEmptyStages will display them
               learningCount={0}
               relearningCount={0}
@@ -378,6 +405,15 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
               showEmptyStages={true} // Ensure all stages are shown for the global legend
             />
           </div>
+        )}
+
+        {storyModalDeck && (
+          <StoryGenerateModal
+            deckId={storyModalDeck.id}
+            deckName={storyModalDeck.name}
+            isOpen={!!storyModalDeck}
+            onClose={() => setStoryModalDeck(null)}
+          />
         )}
       </div>
     </TooltipProvider>
