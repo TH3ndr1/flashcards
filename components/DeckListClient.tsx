@@ -38,6 +38,8 @@ import { SrsToggle } from "@/components/ui/srs-toggle";
 import { StoryGenerateModal } from '@/components/story/StoryGenerateModal';
 import { useStoryStore } from '@/store/storyStore';
 import { getStoryForDeck } from '@/lib/actions/storyActions';
+import { SubjectWatermark } from '@/components/study-method/subject-watermark';
+import { Sliders } from 'lucide-react';
 
 // Type for TagInfo (if not already globally defined)
 interface TagInfo {
@@ -283,8 +285,14 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
         <div className={cn('h-px mx-4', cfg.divider)} />
 
         {/* ── Content: coloured bg, stats left + thumbnail right ── */}
-        <div className={cn('p-4 flex items-center gap-3', cfg.bgSection)}>
-          <div className="flex-1 min-w-0 space-y-1.5">
+        <div className={cn('p-4 flex items-center gap-4 relative overflow-hidden', cfg.bgSection)}>
+          {/* Background subject watermark */}
+          <SubjectWatermark
+            title={deck.name}
+            tags={deck.tags?.map(t => t.name)}
+            methodType="flashcard"
+          />
+          <div className="flex-1 min-w-0 space-y-1.5 relative z-10">
             {languageDisplay && (
               <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-slate-400">
                 <Globe className="h-3.5 w-3.5 flex-shrink-0" />
@@ -306,7 +314,7 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
             )}
           </div>
           {/* Thumbnail: -mr-6 pushes 24px past flex boundary → Card overflow-hidden clips the right edge */}
-          <div className="w-16 h-16 flex-shrink-0 relative -mr-6">
+          <div className="w-16 h-16 flex-shrink-0 relative -mr-6 z-10">
             <div className="absolute right-0 top-0">
               <MethodThumbnail type="flashcard" />
             </div>
@@ -340,6 +348,40 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
             onCheckedChange={setSrsEnabled}
             id="deck-list-srs-toggle"
           />
+        </div>
+
+        {/* Method filter tabs */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
+            <Sliders className="w-4 h-4" />
+            Filter
+          </button>
+          <div className="flex gap-2 flex-wrap">
+            {([
+              { label: 'All Methods', href: null },
+              { label: 'Flashcards',  href: '/practice/decks' },
+              { label: 'Stories',     href: '/practice/stories' },
+              { label: 'Quizzes',     href: '/practice/quizzes' },
+              { label: 'Mind Maps',   href: '/practice/mindmaps' },
+              { label: 'Knowledge Graphs', href: '/practice/knowledge-graphs' },
+            ] as { label: string; href: string | null }[]).map((opt) => {
+              const isActive = opt.href === '/practice/decks' || opt.href === null;
+              return (
+                <button
+                  key={opt.label}
+                  onClick={() => opt.href && router.push(opt.href)}
+                  className={cn(
+                    'px-3 py-1.5 text-sm rounded-lg transition-colors',
+                    isActive
+                      ? 'bg-blue-100 text-blue-700 font-medium dark:bg-blue-500/20 dark:text-blue-400'
+                      : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-600'
+                  )}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Filter bar */}
