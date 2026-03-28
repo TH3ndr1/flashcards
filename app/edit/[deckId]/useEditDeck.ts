@@ -121,6 +121,7 @@ export function useEditDeck(deckId: string | undefined) {
                         primary_language: fetchedDeckForState.primary_language,
                         secondary_language: fetchedDeckForState.secondary_language,
                         is_bilingual: fetchedDeckForState.is_bilingual,
+                        watermark_type: (fetchedDeckForState as any).watermark_type ?? null,
                     };
                     isMountedRef.current = true;
                     appLogger.info("[useEditDeck] Initial deck loaded. Metadata ref set.", previousSavedMetadataRef.current);
