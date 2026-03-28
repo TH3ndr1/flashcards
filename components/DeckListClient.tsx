@@ -3,7 +3,6 @@
 
 import React, { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { PlusCircle, Loader2, Globe, Tag } from "lucide-react";
 import {
   FlashcardMethodIcon,
@@ -259,9 +258,13 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
     const tagNames = deck.tags?.map(t => t.name).slice(0, 3).join(', ');
 
     return (
-      <Card
+      <div
         key={deck.id}
-        className="overflow-hidden hover:shadow-md transition-shadow cursor-pointer group gap-0"
+        className={cn(
+          'group relative rounded-lg border overflow-hidden transition-all duration-200 cursor-pointer',
+          'bg-white border-gray-200 hover:shadow-lg hover:border-gray-300',
+          'dark:bg-slate-800 dark:border-slate-700 dark:hover:shadow-[0_8px_16px_rgba(255,255,255,0.08)] dark:hover:border-slate-600'
+        )}
         onClick={() => handlePracticeDeck(deck.id, learnEligible, reviewEligible)}
         role="button"
         tabIndex={0}
@@ -271,20 +274,20 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
           }
         }}
       >
-        {/* ── Header: white bg, icon + coloured title (single line, truncated) ── */}
-        <div className="px-3 py-2">
+        {/* ── Header: white bg, icon + coloured title ── */}
+        <div className="px-4 py-3">
           <div className="flex items-center gap-2">
-            <FlashcardMethodIcon className={cn('h-4 w-4 flex-shrink-0', cfg.textColor)} />
+            <FlashcardMethodIcon className={cn('w-4 h-4 flex-shrink-0', cfg.textColor)} />
             <h3 className={cn('text-sm font-semibold truncate', cfg.textColor)} title={deck.name}>
               {deck.name}
             </h3>
           </div>
         </div>
-        {/* thin divider */}
-        <div className={cn('h-px mx-3', cfg.divider)} />
+        {/* divider: uses content bg color for seamless transition */}
+        <div className={cn('h-px', cfg.bgSection)} />
 
         {/* ── Content: coloured bg, stats left + thumbnail right ── */}
-        <div className={cn('px-3 py-2.5 flex items-center gap-3 relative overflow-hidden', cfg.bgSection)}>
+        <div className={cn('p-4 flex gap-4 relative overflow-hidden', cfg.bgSection)}>
           {/* Background subject watermark */}
           <SubjectWatermark
             title={deck.name}
@@ -295,16 +298,16 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
             ].filter((v): v is string => Boolean(v))}
             methodType="flashcard"
           />
-          <div className="flex-1 min-w-0 space-y-0.5 relative z-10">
+          <div className="flex-1 min-w-0 space-y-2 relative z-10">
             {languageDisplay && (
               <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-slate-400">
-                <Globe className="h-3 w-3 flex-shrink-0" />
+                <Globe className="w-3.5 h-3.5 flex-shrink-0" />
                 <span className="truncate">{languageDisplay}</span>
               </div>
             )}
             {tagNames && (
               <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-slate-400">
-                <Tag className="h-3 w-3 flex-shrink-0" />
+                <Tag className="w-3.5 h-3.5 flex-shrink-0" />
                 <span className="truncate">{tagNames}</span>
               </div>
             )}
@@ -316,8 +319,8 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
               </p>
             )}
           </div>
-          {/* Thumbnail: -mr-4 pushes past flex boundary → Card overflow-hidden clips the right edge */}
-          <div className="w-14 h-14 flex-shrink-0 relative -mr-4 z-10">
+          {/* Thumbnail: -mr-6 pushes past flex boundary → overflow-hidden clips the right edge */}
+          <div className="w-16 h-16 flex-shrink-0 relative -mr-6 z-10">
             <div className="absolute right-0 top-0">
               <MethodThumbnail type="flashcard" />
             </div>
@@ -326,7 +329,7 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
 
         {/* ── Footer: white bg, progress bar ── */}
         {showDeckProgressBars && deck.totalCards > 0 && (
-          <div className="px-3 pb-2 pt-1.5">
+          <div className="px-4 pb-4 pt-3">
             <DeckProgressBar
               newCount={deck.new_count ?? 0}
               learningCount={deck.learning_count ?? 0}
@@ -336,7 +339,7 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
             />
           </div>
         )}
-      </Card>
+      </div>
     );
   }
   // --- End of renderDeckItem ---
