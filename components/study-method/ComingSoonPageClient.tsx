@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { Sparkles } from 'lucide-react';
@@ -10,6 +9,7 @@ import {
   STUDY_METHOD_CONFIG,
   type StudyMethodType,
 } from '@/components/study-method/study-method-config';
+import { SubjectWatermark } from '@/components/study-method/subject-watermark';
 
 // ─── Placeholder card ────────────────────────────────────────────────────────
 
@@ -26,25 +26,34 @@ function PlaceholderCard({
   const Icon = cfg.icon;
 
   return (
-    <Card className="overflow-hidden opacity-70 border-dashed">
+    <div
+      className={cn(
+        'group relative rounded-lg border border-dashed overflow-hidden opacity-70',
+        'bg-white border-gray-200',
+        'dark:bg-slate-800 dark:border-slate-700'
+      )}
+    >
+      {/* Background subject watermark — spans full card */}
+      <SubjectWatermark title={title} methodType={type} />
+
       {/* Header */}
-      <div className="px-4 py-3">
+      <div className="px-4 py-3 relative z-10">
         <div className="flex items-center gap-2">
-          <Icon className={cn('h-4 w-4 flex-shrink-0', cfg.textColor)} />
+          <Icon className={cn('w-4 h-4 flex-shrink-0', cfg.textColor)} />
           <h3 className={cn('text-sm font-semibold truncate', cfg.textColor)}>
             {title}
           </h3>
         </div>
       </div>
-      <div className={cn('h-px mx-4', cfg.divider)} />
+      <div className={cn('h-px', cfg.bgSection)} />
 
       {/* Colored content section */}
-      <div className={cn('p-4 flex items-center gap-3', cfg.bgSection)}>
-        <div className="flex-1 min-w-0 space-y-1.5">
+      <div className={cn('p-4 flex gap-4', cfg.bgSection)}>
+        <div className="flex-1 min-w-0 space-y-2 relative z-10">
           <p className="text-xs text-gray-600 dark:text-slate-400">{description}</p>
           <p className="text-xs text-gray-500 dark:text-slate-500">Coming soon</p>
         </div>
-        <div className="w-16 h-16 flex-shrink-0 relative -mr-6 opacity-50">
+        <div className="w-16 h-16 flex-shrink-0 relative -mr-6 opacity-50 z-10">
           <div className="absolute right-0 top-0">
             <MethodThumbnail type={type} />
           </div>
@@ -52,13 +61,13 @@ function PlaceholderCard({
       </div>
 
       {/* Footer */}
-      <div className="px-4 pb-4 pt-3">
+      <div className="px-4 pb-4 pt-3 relative z-10">
         <Badge variant="secondary" className="text-xs">
           <Sparkles className="h-3 w-3 mr-1" />
           Coming Soon
         </Badge>
       </div>
-    </Card>
+    </div>
   );
 }
 

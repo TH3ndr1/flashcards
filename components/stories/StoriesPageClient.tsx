@@ -18,7 +18,6 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Card } from '@/components/ui/card';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,6 +37,7 @@ import {
   MethodThumbnail,
   STUDY_METHOD_CONFIG,
 } from '@/components/study-method/study-method-config';
+import { SubjectWatermark } from '@/components/study-method/subject-watermark';
 
 // ─── Story format config (icon only — format label shown in footer) ───────────
 
@@ -100,18 +100,29 @@ function StoryCard({ item, onRead, onEdit, onDownloadPdf, isDownloadingPdf }: St
   const excerpt = getExcerpt(item);
 
   return (
-    <Card
-      className="overflow-hidden hover:shadow-md transition-shadow cursor-pointer group"
+    <div
+      className={cn(
+        'group relative rounded-lg border overflow-hidden transition-all duration-200 cursor-pointer',
+        'bg-white border-gray-200 hover:shadow-lg hover:border-gray-300',
+        'dark:bg-slate-800 dark:border-slate-700 dark:hover:shadow-[0_8px_16px_rgba(255,255,255,0.08)] dark:hover:border-slate-600'
+      )}
       onClick={onRead}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => e.key === 'Enter' && onRead()}
       aria-label={`Read story: ${item.deck_name}`}
     >
-      {/* ── Header: white bg, story icon + purple title + ⋮ menu (single line, truncated) ── */}
-      <div className="px-4 py-3">
+      {/* Background subject watermark — spans full card */}
+      <SubjectWatermark
+        title={item.deck_name}
+        tags={[item.primary_language, item.secondary_language].filter((v): v is string => Boolean(v))}
+        methodType="story"
+      />
+
+      {/* ── Header: white bg, story icon + purple title + ⋮ menu ── */}
+      <div className="px-4 py-3 relative z-10">
         <div className="flex items-center gap-2">
-          <StoryMethodIcon className={cn('h-4 w-4 flex-shrink-0', cfg.textColor)} />
+          <StoryMethodIcon className={cn('w-4 h-4 flex-shrink-0', cfg.textColor)} />
           <h3
             className={cn('text-sm font-semibold truncate flex-1 min-w-0', cfg.textColor)}
             title={item.deck_name}
@@ -145,14 +156,14 @@ function StoryCard({ item, onRead, onEdit, onDownloadPdf, isDownloadingPdf }: St
           </div>
         </div>
       </div>
-      {/* thin divider */}
-      <div className={cn('h-px mx-4', cfg.divider)} />
+      {/* divider: uses content bg color for seamless transition */}
+      <div className={cn('h-px', cfg.bgSection)} />
 
-      {/* ── Content: purple bg, info left + book thumbnail right (flex layout) ── */}
-      <div className={cn('p-4 flex items-center gap-3', cfg.bgSection)}>
-        <div className="flex-1 min-w-0 space-y-1.5">
+      {/* ── Content: purple bg, info left + book thumbnail right ── */}
+      <div className={cn('p-4 flex gap-4', cfg.bgSection)}>
+        <div className="flex-1 min-w-0 space-y-2 relative z-10">
           <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-slate-400">
-            <Globe className="h-3.5 w-3.5 flex-shrink-0" />
+            <Globe className="w-3.5 h-3.5 flex-shrink-0" />
             <span>{formatLanguage(item.primary_language, item.secondary_language)}</span>
           </div>
           {story && (
@@ -162,8 +173,8 @@ function StoryCard({ item, onRead, onEdit, onDownloadPdf, isDownloadingPdf }: St
             <p className="text-xs line-clamp-2 leading-relaxed text-gray-500 dark:text-slate-500">{excerpt}</p>
           )}
         </div>
-        {/* Thumbnail: -mr-6 pushes past flex boundary → Card overflow-hidden clips right edge */}
-        <div className="w-16 h-16 flex-shrink-0 relative -mr-6">
+        {/* Thumbnail: -mr-6 pushes past flex boundary → overflow-hidden clips right edge */}
+        <div className="w-16 h-16 flex-shrink-0 relative -mr-6 z-10">
           <div className="absolute right-0 top-0">
             <MethodThumbnail type="story" />
           </div>
@@ -171,11 +182,11 @@ function StoryCard({ item, onRead, onEdit, onDownloadPdf, isDownloadingPdf }: St
       </div>
 
       {/* ── Footer: white bg, format icon + label ── */}
-      <div className="px-4 pb-4 pt-3 flex items-center gap-1.5">
+      <div className="px-4 pb-4 pt-3 flex items-center gap-1.5 relative z-10">
         <FormatIcon className={cn('h-3.5 w-3.5', cfg.textColor)} />
         <span className={cn('text-xs font-medium', cfg.textColor)}>{formatCfg.label}</span>
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -185,8 +196,12 @@ function EmptyDeckCard({ item, onGenerate }: { item: StoryWithDeck; onGenerate: 
   const cfg = STUDY_METHOD_CONFIG.story;
 
   return (
-    <Card
-      className="overflow-hidden hover:shadow-md transition-shadow cursor-pointer opacity-60 hover:opacity-80 border-dashed group"
+    <div
+      className={cn(
+        'group relative rounded-lg border border-dashed overflow-hidden transition-all duration-200 cursor-pointer opacity-60 hover:opacity-80',
+        'bg-white border-gray-200',
+        'dark:bg-slate-800 dark:border-slate-700'
+      )}
       onClick={onGenerate}
       role="button"
       tabIndex={0}
@@ -196,19 +211,19 @@ function EmptyDeckCard({ item, onGenerate }: { item: StoryWithDeck; onGenerate: 
       {/* Header */}
       <div className="px-4 py-3">
         <div className="flex items-center gap-2">
-          <StoryMethodIcon className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+          <StoryMethodIcon className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
           <h3 className="text-sm font-semibold truncate flex-1 min-w-0 text-muted-foreground" title={item.deck_name}>
             {item.deck_name}
           </h3>
         </div>
       </div>
-      <div className="h-px mx-4 bg-muted" />
+      <div className="h-px bg-muted" />
 
       {/* Content */}
-      <div className="p-4 flex items-center gap-3 bg-muted/20">
-        <div className="flex-1 min-w-0 space-y-1.5">
+      <div className="p-4 flex gap-4 bg-muted/20">
+        <div className="flex-1 min-w-0 space-y-2">
           <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-slate-400">
-            <Globe className="h-3.5 w-3.5 flex-shrink-0" />
+            <Globe className="w-3.5 h-3.5 flex-shrink-0" />
             <span>{formatLanguage(item.primary_language, item.secondary_language)}</span>
           </div>
           <p className="text-xs text-muted-foreground/70">No story generated yet</p>
@@ -232,7 +247,7 @@ function EmptyDeckCard({ item, onGenerate }: { item: StoryWithDeck; onGenerate: 
           Generate story
         </Button>
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -240,15 +255,15 @@ function EmptyDeckCard({ item, onGenerate }: { item: StoryWithDeck; onGenerate: 
 
 function SkeletonCard() {
   return (
-    <Card className="overflow-hidden">
-      <div className="px-4 pt-3 pb-2">
+    <div className="rounded-lg border overflow-hidden bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
+      <div className="px-4 py-3">
         <div className="flex items-center gap-2">
           <Skeleton className="h-4 w-4 rounded" />
           <Skeleton className="h-4 w-3/4" />
         </div>
       </div>
-      <div className="h-px mx-4 bg-muted" />
-      <div className="px-4 pt-3 pb-3 bg-muted/20 flex gap-3">
+      <div className="h-px bg-muted" />
+      <div className="p-4 bg-muted/20 flex gap-4">
         <div className="flex-1 space-y-2">
           <Skeleton className="h-3 w-16" />
           <Skeleton className="h-3 w-24" />
@@ -259,7 +274,7 @@ function SkeletonCard() {
       <div className="px-4 py-2.5">
         <Skeleton className="h-3 w-20" />
       </div>
-    </Card>
+    </div>
   );
 }
 
