@@ -272,7 +272,7 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
         }}
       >
         {/* ── Header: white bg, icon + coloured title (single line, truncated) ── */}
-        <div className="px-4 py-3">
+        <div className="px-3 py-2">
           <div className="flex items-center gap-2">
             <FlashcardMethodIcon className={cn('h-4 w-4 flex-shrink-0', cfg.textColor)} />
             <h3 className={cn('text-sm font-semibold truncate', cfg.textColor)} title={deck.name}>
@@ -281,10 +281,10 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
           </div>
         </div>
         {/* thin divider */}
-        <div className={cn('h-px mx-4', cfg.divider)} />
+        <div className={cn('h-px mx-3', cfg.divider)} />
 
         {/* ── Content: coloured bg, stats left + thumbnail right ── */}
-        <div className={cn('p-4 flex items-center gap-4 relative overflow-hidden', cfg.bgSection)}>
+        <div className={cn('px-3 py-2.5 flex items-center gap-3 relative overflow-hidden', cfg.bgSection)}>
           {/* Background subject watermark */}
           <SubjectWatermark
             title={deck.name}
@@ -295,16 +295,16 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
             ].filter((v): v is string => Boolean(v))}
             methodType="flashcard"
           />
-          <div className="flex-1 min-w-0 space-y-1.5 relative z-10">
+          <div className="flex-1 min-w-0 space-y-0.5 relative z-10">
             {languageDisplay && (
               <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-slate-400">
-                <Globe className="h-3.5 w-3.5 flex-shrink-0" />
+                <Globe className="h-3 w-3 flex-shrink-0" />
                 <span className="truncate">{languageDisplay}</span>
               </div>
             )}
             {tagNames && (
               <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-slate-400">
-                <Tag className="h-3.5 w-3.5 flex-shrink-0" />
+                <Tag className="h-3 w-3 flex-shrink-0" />
                 <span className="truncate">{tagNames}</span>
               </div>
             )}
@@ -316,8 +316,8 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
               </p>
             )}
           </div>
-          {/* Thumbnail: -mr-6 pushes 24px past flex boundary → Card overflow-hidden clips the right edge */}
-          <div className="w-16 h-16 flex-shrink-0 relative -mr-6 z-10">
+          {/* Thumbnail: -mr-4 pushes past flex boundary → Card overflow-hidden clips the right edge */}
+          <div className="w-14 h-14 flex-shrink-0 relative -mr-4 z-10">
             <div className="absolute right-0 top-0">
               <MethodThumbnail type="flashcard" />
             </div>
@@ -326,7 +326,7 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
 
         {/* ── Footer: white bg, progress bar ── */}
         {showDeckProgressBars && deck.totalCards > 0 && (
-          <div className="px-4 pb-4 pt-3">
+          <div className="px-3 pb-2 pt-1.5">
             <DeckProgressBar
               newCount={deck.new_count ?? 0}
               learningCount={deck.learning_count ?? 0}
@@ -353,7 +353,7 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
           />
         </div>
 
-        {/* Filter bar with method tabs inline */}
+        {/* Filter bar */}
         <DeckFilterBar
           availableLanguages={availableFilterLanguages}
           availableTags={availableFilterTags}
@@ -363,34 +363,6 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
           onLanguagesChange={setFilterLanguages}
           onTagsChange={setFilterTags}
           onDeckNameChange={setFilterName}
-          headerSlot={
-            <div className="flex gap-2 flex-wrap">
-              {([
-                { label: 'All Methods', href: null },
-                { label: 'Flashcards',  href: '/practice/decks' },
-                { label: 'Stories',     href: '/practice/stories' },
-                { label: 'Quizzes',     href: '/practice/quizzes' },
-                { label: 'Mind Maps',   href: '/practice/mindmaps' },
-                { label: 'Knowledge Graphs', href: '/practice/knowledge-graphs' },
-              ] as { label: string; href: string | null }[]).map((opt) => {
-                const isActive = opt.href === '/practice/decks' || opt.href === null;
-                return (
-                  <button
-                    key={opt.label}
-                    onClick={() => opt.href && router.push(opt.href)}
-                    className={cn(
-                      'px-3 py-1.5 text-sm rounded-lg transition-colors',
-                      isActive
-                        ? 'bg-blue-100 text-blue-700 font-medium dark:bg-blue-500/20 dark:text-blue-400'
-                        : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-600'
-                    )}
-                  >
-                    {opt.label}
-                  </button>
-                );
-              })}
-            </div>
-          }
         />
 
         {/* UI Controls for grouping/sorting will be added to Settings page (Task X.S1) */}
