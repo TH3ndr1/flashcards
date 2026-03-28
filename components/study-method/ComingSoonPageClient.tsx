@@ -60,9 +60,9 @@ function PlaceholderCard({
         </div>
       </div>
 
-      {/* Footer */}
-      <div className="px-4 pb-4 pt-3 relative z-10">
-        <Badge variant="secondary" className="text-xs">
+      {/* Footer — matches flashcard footer height (36px) */}
+      <div className="px-4 pb-3 pt-2 flex items-center relative z-10">
+        <Badge variant="secondary" className="text-xs h-4 py-0">
           <Sparkles className="h-3 w-3 mr-1" />
           Coming Soon
         </Badge>

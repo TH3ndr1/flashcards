@@ -170,7 +170,7 @@ function StoryCard({ item, onRead, onEdit, onDownloadPdf, isDownloadingPdf }: St
             <p className="text-xs text-gray-600 dark:text-slate-400">{formatReadingTime(story.reading_time_min)}</p>
           )}
           {excerpt && (
-            <p className="text-xs line-clamp-2 leading-relaxed text-gray-500 dark:text-slate-500">{excerpt}</p>
+            <p className="text-xs line-clamp-1 text-gray-500 dark:text-slate-500">{excerpt}</p>
           )}
         </div>
         {/* Thumbnail: -mr-6 pushes past flex boundary → overflow-hidden clips right edge */}
@@ -181,8 +181,8 @@ function StoryCard({ item, onRead, onEdit, onDownloadPdf, isDownloadingPdf }: St
         </div>
       </div>
 
-      {/* ── Footer: white bg, format icon + label ── */}
-      <div className="px-4 pb-4 pt-3 flex items-center gap-1.5 relative z-10">
+      {/* ── Footer: white bg, format icon + label — matches flashcard footer height ── */}
+      <div className="px-4 pb-3 pt-2 flex items-center gap-1.5 relative z-10">
         <FormatIcon className={cn('h-3.5 w-3.5', cfg.textColor)} />
         <span className={cn('text-xs font-medium', cfg.textColor)}>{formatCfg.label}</span>
       </div>
