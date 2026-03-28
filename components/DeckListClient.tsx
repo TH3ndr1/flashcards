@@ -261,7 +261,7 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
     return (
       <Card
         key={deck.id}
-        className="overflow-hidden hover:shadow-md transition-shadow cursor-pointer group"
+        className="overflow-hidden hover:shadow-md transition-shadow cursor-pointer group gap-0"
         onClick={() => handlePracticeDeck(deck.id, learnEligible, reviewEligible)}
         role="button"
         tabIndex={0}
