@@ -261,7 +261,7 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
     return (
       <Card
         key={deck.id}
-        className="gap-0 rounded-lg overflow-hidden hover:shadow-md transition-shadow cursor-pointer group"
+        className="relative gap-0 rounded-lg overflow-hidden hover:shadow-md transition-shadow cursor-pointer group dark:bg-slate-800 dark:border-slate-700 dark:hover:shadow-[0_8px_16px_rgba(255,255,255,0.08)] dark:hover:border-slate-600"
         onClick={() => handlePracticeDeck(deck.id, learnEligible, reviewEligible)}
         role="button"
         tabIndex={0}
@@ -288,12 +288,12 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
             </h3>
           </div>
         </div>
-        {/* divider: uses content bg color for seamless transition */}
-        <div className={cn('h-px', cfg.bgSection)} />
+        {/* thin divider */}
+        <div className={cn('h-px mx-4', cfg.divider)} />
 
         {/* ── Content: coloured bg, stats left + thumbnail right ── */}
-        <div className={cn('p-4 flex gap-4', cfg.bgSection)}>
-          <div className="flex-1 min-w-0 space-y-2 relative z-10">
+        <div className={cn('p-4 flex items-center gap-3', cfg.bgSection)}>
+          <div className="flex-1 min-w-0 space-y-1.5 relative z-10">
             {languageDisplay && (
               <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-slate-400">
                 <Globe className="w-3.5 h-3.5 flex-shrink-0" />

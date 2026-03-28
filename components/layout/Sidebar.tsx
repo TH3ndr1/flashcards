@@ -286,7 +286,7 @@ const SidebarInternal = ({ isOpen, onClose, isCollapsed, onToggleCollapse }: Sid
       {/* Desktop collapsible */}
       <aside
         className={cn(
-          'hidden md:fixed md:left-0 md:top-0 md:bottom-0 md:z-30 md:flex md:h-full md:flex-col md:border-r bg-background pt-16',
+          'hidden md:fixed md:left-0 md:top-0 md:bottom-0 md:z-30 md:flex md:h-full md:flex-col md:border-r bg-background dark:bg-slate-800 dark:border-slate-700 pt-16',
           'transition-all duration-300 ease-in-out',
           isCollapsed ? 'md:w-20' : 'md:w-64',
         )}

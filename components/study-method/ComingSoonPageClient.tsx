@@ -27,7 +27,7 @@ function PlaceholderCard({
   const Icon = cfg.icon;
 
   return (
-    <Card className="gap-0 rounded-lg overflow-hidden opacity-70 border-dashed">
+    <Card className="relative gap-0 rounded-lg overflow-hidden opacity-70 border-dashed dark:bg-slate-800 dark:border-slate-700">
       {/* Background subject watermark — spans full card */}
       <SubjectWatermark title={title} methodType={type} />
 
@@ -40,11 +40,11 @@ function PlaceholderCard({
           </h3>
         </div>
       </div>
-      <div className={cn('h-px', cfg.bgSection)} />
+      <div className={cn('h-px mx-4', cfg.divider)} />
 
       {/* Colored content section */}
-      <div className={cn('p-4 flex gap-4', cfg.bgSection)}>
-        <div className="flex-1 min-w-0 space-y-2 relative z-10">
+      <div className={cn('p-4 flex items-center gap-3', cfg.bgSection)}>
+        <div className="flex-1 min-w-0 space-y-1.5 relative z-10">
           <p className="text-xs text-gray-600 dark:text-slate-400">{description}</p>
           <p className="text-xs text-gray-500 dark:text-slate-500">Coming soon</p>
         </div>
@@ -55,9 +55,9 @@ function PlaceholderCard({
         </div>
       </div>
 
-      {/* Footer — matches flashcard footer height (36px) */}
-      <div className="px-4 pb-3 pt-2 flex items-center relative z-10">
-        <Badge variant="secondary" className="text-xs h-4 py-0">
+      {/* Footer */}
+      <div className="px-4 pb-4 pt-3 relative z-10">
+        <Badge variant="secondary" className="text-xs">
           <Sparkles className="h-3 w-3 mr-1" />
           Coming Soon
         </Badge>

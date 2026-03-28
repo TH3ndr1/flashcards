@@ -39,7 +39,7 @@ export function ResponsiveLayout({ children }: ResponsiveLayoutProps) {
           onToggleCollapse={toggleDesktopSidebar}
         />
         <main className={cn(
-          "flex-1 bg-muted/40 pt-16 transition-all duration-300 ease-in-out",
+          "flex-1 bg-muted/40 dark:bg-slate-800/70 pt-16 transition-all duration-300 ease-in-out",
           isDesktopSidebarCollapsed ? collapsedWidth : expandedWidth
         )}>
           {children}

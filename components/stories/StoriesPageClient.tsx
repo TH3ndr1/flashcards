@@ -102,7 +102,7 @@ function StoryCard({ item, onRead, onEdit, onDownloadPdf, isDownloadingPdf }: St
 
   return (
     <Card
-      className="gap-0 rounded-lg overflow-hidden hover:shadow-md transition-shadow cursor-pointer group"
+      className="relative gap-0 rounded-lg overflow-hidden hover:shadow-md transition-shadow cursor-pointer group dark:bg-slate-800 dark:border-slate-700 dark:hover:shadow-[0_8px_16px_rgba(255,255,255,0.08)] dark:hover:border-slate-600"
       onClick={onRead}
       role="button"
       tabIndex={0}
@@ -154,12 +154,12 @@ function StoryCard({ item, onRead, onEdit, onDownloadPdf, isDownloadingPdf }: St
           </div>
         </div>
       </div>
-      {/* divider: uses content bg color for seamless transition */}
-      <div className={cn('h-px', cfg.bgSection)} />
+      {/* thin divider */}
+      <div className={cn('h-px mx-4', cfg.divider)} />
 
       {/* ── Content: purple bg, info left + book thumbnail right ── */}
-      <div className={cn('p-4 flex gap-4', cfg.bgSection)}>
-        <div className="flex-1 min-w-0 space-y-2 relative z-10">
+      <div className={cn('p-4 flex items-center gap-3', cfg.bgSection)}>
+        <div className="flex-1 min-w-0 space-y-1.5 relative z-10">
           <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-slate-400">
             <Globe className="w-3.5 h-3.5 flex-shrink-0" />
             <span>{formatLanguage(item.primary_language, item.secondary_language)}</span>
@@ -168,7 +168,7 @@ function StoryCard({ item, onRead, onEdit, onDownloadPdf, isDownloadingPdf }: St
             <p className="text-xs text-gray-600 dark:text-slate-400">{formatReadingTime(story.reading_time_min)}</p>
           )}
           {excerpt && (
-            <p className="text-xs line-clamp-1 text-gray-500 dark:text-slate-500">{excerpt}</p>
+            <p className="text-xs line-clamp-2 leading-relaxed text-gray-500 dark:text-slate-500">{excerpt}</p>
           )}
         </div>
         {/* Thumbnail: -mr-6 pushes past flex boundary → overflow-hidden clips right edge */}
@@ -180,7 +180,7 @@ function StoryCard({ item, onRead, onEdit, onDownloadPdf, isDownloadingPdf }: St
       </div>
 
       {/* ── Footer: white bg, format icon + label — matches flashcard footer height ── */}
-      <div className="px-4 pb-3 pt-2 flex items-center gap-1.5 relative z-10">
+      <div className="px-4 pb-4 pt-3 flex items-center gap-1.5 relative z-10">
         <FormatIcon className={cn('h-3.5 w-3.5', cfg.textColor)} />
         <span className={cn('text-xs font-medium', cfg.textColor)}>{formatCfg.label}</span>
       </div>
@@ -195,7 +195,7 @@ function EmptyDeckCard({ item, onGenerate }: { item: StoryWithDeck; onGenerate: 
 
   return (
     <Card
-      className="gap-0 rounded-lg overflow-hidden border-dashed opacity-60 hover:opacity-80 transition-all duration-200 cursor-pointer group"
+      className="relative gap-0 rounded-lg overflow-hidden border-dashed opacity-60 hover:opacity-80 transition-all duration-200 cursor-pointer group dark:bg-slate-800 dark:border-slate-700"
       onClick={onGenerate}
       role="button"
       tabIndex={0}
@@ -211,11 +211,11 @@ function EmptyDeckCard({ item, onGenerate }: { item: StoryWithDeck; onGenerate: 
           </h3>
         </div>
       </div>
-      <div className="h-px bg-muted" />
+      <div className="h-px mx-4 bg-muted" />
 
       {/* Content */}
-      <div className="p-4 flex gap-4 bg-muted/20">
-        <div className="flex-1 min-w-0 space-y-2">
+      <div className="p-4 flex items-center gap-3 bg-muted/20">
+        <div className="flex-1 min-w-0 space-y-1.5">
           <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-slate-400">
             <Globe className="w-3.5 h-3.5 flex-shrink-0" />
             <span>{formatLanguage(item.primary_language, item.secondary_language)}</span>
@@ -230,7 +230,7 @@ function EmptyDeckCard({ item, onGenerate }: { item: StoryWithDeck; onGenerate: 
       </div>
 
       {/* Footer */}
-      <div className="px-4 pb-4 pt-3">
+      <div className="px-4 py-2.5">
         <Button
           variant="ghost"
           size="sm"
@@ -249,15 +249,15 @@ function EmptyDeckCard({ item, onGenerate }: { item: StoryWithDeck; onGenerate: 
 
 function SkeletonCard() {
   return (
-    <Card className="gap-0 rounded-lg overflow-hidden">
-      <div className="px-4 py-3">
+    <Card className="gap-0 rounded-lg overflow-hidden dark:bg-slate-800 dark:border-slate-700">
+      <div className="px-4 pt-3 pb-2">
         <div className="flex items-center gap-2">
           <Skeleton className="h-4 w-4 rounded" />
           <Skeleton className="h-4 w-3/4" />
         </div>
       </div>
-      <div className="h-px bg-muted" />
-      <div className="p-4 bg-muted/20 flex gap-4">
+      <div className="h-px mx-4 bg-muted" />
+      <div className="px-4 pt-3 pb-3 bg-muted/20 flex gap-3">
         <div className="flex-1 space-y-2">
           <Skeleton className="h-3 w-16" />
           <Skeleton className="h-3 w-24" />
@@ -265,7 +265,7 @@ function SkeletonCard() {
         </div>
         <Skeleton className="w-14 h-14 flex-shrink-0 rounded-lg" />
       </div>
-      <div className="px-4 pb-4 pt-3">
+      <div className="px-4 py-2.5">
         <Skeleton className="h-3 w-20" />
       </div>
     </Card>
