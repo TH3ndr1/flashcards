@@ -3,6 +3,7 @@
 
 import React, { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { PlusCircle, Loader2, Globe, Tag } from "lucide-react";
 import {
   FlashcardMethodIcon,
@@ -258,13 +259,9 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
     const tagNames = deck.tags?.map(t => t.name).slice(0, 3).join(', ');
 
     return (
-      <div
+      <Card
         key={deck.id}
-        className={cn(
-          'group relative rounded-lg border overflow-hidden transition-all duration-200 cursor-pointer',
-          'bg-white border-gray-200 hover:shadow-lg hover:border-gray-300',
-          'dark:bg-slate-800 dark:border-slate-700 dark:hover:shadow-[0_8px_16px_rgba(255,255,255,0.08)] dark:hover:border-slate-600'
-        )}
+        className="gap-0 rounded-lg overflow-hidden hover:shadow-md transition-shadow cursor-pointer group"
         onClick={() => handlePracticeDeck(deck.id, learnEligible, reviewEligible)}
         role="button"
         tabIndex={0}
@@ -337,7 +334,7 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
             />
           </div>
         )}
-      </div>
+      </Card>
     );
   }
   // --- End of renderDeckItem ---
@@ -434,7 +431,7 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
         )}
 
         {showDeckProgressBars && processedAndSortedDecks.length > 0 && (
-          <div className="mt-8 pt-4 border-t dark:border-slate-700 flex justify-center">
+          <div className="mt-8 pt-4 border-t flex justify-center">
             <DeckProgressLegend
               newCount={0} // Dummy values, as showEmptyStages will display them
               learningCount={0}

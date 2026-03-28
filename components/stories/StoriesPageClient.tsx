@@ -17,6 +17,7 @@ import {
   Tag,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   DropdownMenu,
@@ -100,12 +101,8 @@ function StoryCard({ item, onRead, onEdit, onDownloadPdf, isDownloadingPdf }: St
   const excerpt = getExcerpt(item);
 
   return (
-    <div
-      className={cn(
-        'group relative rounded-lg border overflow-hidden transition-all duration-200 cursor-pointer',
-        'bg-white border-gray-200 hover:shadow-lg hover:border-gray-300',
-        'dark:bg-slate-800 dark:border-slate-700 dark:hover:shadow-[0_8px_16px_rgba(255,255,255,0.08)] dark:hover:border-slate-600'
-      )}
+    <Card
+      className="gap-0 rounded-lg overflow-hidden hover:shadow-md transition-shadow cursor-pointer group"
       onClick={onRead}
       role="button"
       tabIndex={0}
@@ -187,7 +184,7 @@ function StoryCard({ item, onRead, onEdit, onDownloadPdf, isDownloadingPdf }: St
         <FormatIcon className={cn('h-3.5 w-3.5', cfg.textColor)} />
         <span className={cn('text-xs font-medium', cfg.textColor)}>{formatCfg.label}</span>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -197,12 +194,8 @@ function EmptyDeckCard({ item, onGenerate }: { item: StoryWithDeck; onGenerate: 
   const cfg = STUDY_METHOD_CONFIG.story;
 
   return (
-    <div
-      className={cn(
-        'group relative rounded-lg border border-dashed overflow-hidden transition-all duration-200 cursor-pointer opacity-60 hover:opacity-80',
-        'bg-white border-gray-200',
-        'dark:bg-slate-800 dark:border-slate-700'
-      )}
+    <Card
+      className="gap-0 rounded-lg overflow-hidden border-dashed opacity-60 hover:opacity-80 transition-all duration-200 cursor-pointer group"
       onClick={onGenerate}
       role="button"
       tabIndex={0}
@@ -248,7 +241,7 @@ function EmptyDeckCard({ item, onGenerate }: { item: StoryWithDeck; onGenerate: 
           Generate story
         </Button>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -256,7 +249,7 @@ function EmptyDeckCard({ item, onGenerate }: { item: StoryWithDeck; onGenerate: 
 
 function SkeletonCard() {
   return (
-    <div className="rounded-lg border overflow-hidden bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
+    <Card className="gap-0 rounded-lg overflow-hidden">
       <div className="px-4 py-3">
         <div className="flex items-center gap-2">
           <Skeleton className="h-4 w-4 rounded" />
@@ -275,7 +268,7 @@ function SkeletonCard() {
       <div className="px-4 pb-4 pt-3">
         <Skeleton className="h-3 w-20" />
       </div>
-    </div>
+    </Card>
   );
 }
 
