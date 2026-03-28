@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { Sparkles } from 'lucide-react';
@@ -26,13 +27,7 @@ function PlaceholderCard({
   const Icon = cfg.icon;
 
   return (
-    <div
-      className={cn(
-        'group relative rounded-lg border border-dashed overflow-hidden opacity-70',
-        'bg-white border-gray-200',
-        'dark:bg-slate-800 dark:border-slate-700'
-      )}
-    >
+    <Card className="gap-0 rounded-lg overflow-hidden opacity-70 border-dashed">
       {/* Background subject watermark — spans full card */}
       <SubjectWatermark title={title} methodType={type} />
 
@@ -67,7 +62,7 @@ function PlaceholderCard({
           Coming Soon
         </Badge>
       </div>
-    </div>
+    </Card>
   );
 }
 
