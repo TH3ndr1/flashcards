@@ -118,7 +118,7 @@ function StoryCard({ item, onRead, onEdit, onDownloadPdf, isDownloadingPdf }: St
       />
 
       {/* ── Header: white bg, story icon + purple title + ⋮ menu ── */}
-      <div className="px-4 py-3 relative z-10">
+      <div className="h-11 px-4 flex items-center relative z-10">
         <div className="flex items-center gap-2">
           <StoryMethodIcon className={cn('w-4 h-4 flex-shrink-0', cfg.textColor)} />
           <h3
@@ -179,8 +179,8 @@ function StoryCard({ item, onRead, onEdit, onDownloadPdf, isDownloadingPdf }: St
         </div>
       </div>
 
-      {/* ── Footer: white bg, format icon + label — matches flashcard footer height ── */}
-      <div className="px-4 pb-4 pt-3 flex items-center gap-1.5 relative z-10">
+      {/* ── Footer: format icon + label ── */}
+      <div className="h-9 px-4 flex items-center gap-1.5 relative z-10">
         <FormatIcon className={cn('h-3.5 w-3.5', cfg.textColor)} />
         <span className={cn('text-xs font-medium', cfg.textColor)}>{formatCfg.label}</span>
       </div>
@@ -203,7 +203,7 @@ function EmptyDeckCard({ item, onGenerate }: { item: StoryWithDeck; onGenerate: 
       aria-label={`Generate story for: ${item.deck_name}`}
     >
       {/* Header */}
-      <div className="px-4 py-3">
+      <div className="h-11 px-4 flex items-center">
         <div className="flex items-center gap-2">
           <StoryMethodIcon className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
           <h3 className="text-sm font-semibold truncate flex-1 min-w-0 text-muted-foreground" title={item.deck_name}>
@@ -230,7 +230,7 @@ function EmptyDeckCard({ item, onGenerate }: { item: StoryWithDeck; onGenerate: 
       </div>
 
       {/* Footer */}
-      <div className="px-4 py-2.5">
+      <div className="h-9 px-4 flex items-center">
         <Button
           variant="ghost"
           size="sm"
@@ -250,8 +250,8 @@ function EmptyDeckCard({ item, onGenerate }: { item: StoryWithDeck; onGenerate: 
 function SkeletonCard() {
   return (
     <Card className="gap-0 rounded-lg overflow-hidden dark:bg-slate-800 dark:border-slate-700">
-      <div className="px-4 pt-3 pb-2">
-        <div className="flex items-center gap-2">
+      <div className="h-11 px-4 flex items-center">
+        <div className="flex items-center gap-2 w-full">
           <Skeleton className="h-4 w-4 rounded" />
           <Skeleton className="h-4 w-3/4" />
         </div>
@@ -265,7 +265,7 @@ function SkeletonCard() {
         </div>
         <Skeleton className="w-14 h-14 flex-shrink-0 rounded-lg" />
       </div>
-      <div className="px-4 py-2.5">
+      <div className="h-9 px-4 flex items-center">
         <Skeleton className="h-3 w-20" />
       </div>
     </Card>

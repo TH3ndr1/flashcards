@@ -32,7 +32,7 @@ function PlaceholderCard({
       <SubjectWatermark title={title} methodType={type} />
 
       {/* Header */}
-      <div className="px-4 py-3 relative z-10">
+      <div className="h-11 px-4 flex items-center relative z-10">
         <div className="flex items-center gap-2">
           <Icon className={cn('w-4 h-4 flex-shrink-0', cfg.textColor)} />
           <h3 className={cn('text-sm font-semibold truncate', cfg.textColor)}>
@@ -56,7 +56,7 @@ function PlaceholderCard({
       </div>
 
       {/* Footer */}
-      <div className="px-4 pb-4 pt-3 relative z-10">
+      <div className="h-9 px-4 flex items-center relative z-10">
         <Badge variant="secondary" className="text-xs">
           <Sparkles className="h-3 w-3 mr-1" />
           Coming Soon

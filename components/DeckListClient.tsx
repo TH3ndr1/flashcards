@@ -279,8 +279,8 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
           methodType="flashcard"
         />
 
-        {/* ── Header: white bg, icon + coloured title ── */}
-        <div className="px-4 py-3 relative z-10">
+        {/* ── Header: icon + coloured title ── */}
+        <div className="h-11 px-4 flex items-center relative z-10">
           <div className="flex items-center gap-2">
             <FlashcardMethodIcon className={cn('w-4 h-4 flex-shrink-0', cfg.textColor)} />
             <h3 className={cn('text-sm font-semibold truncate', cfg.textColor)} title={deck.name}>
@@ -322,9 +322,9 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
           </div>
         </div>
 
-        {/* ── Footer: white bg, progress bar ── */}
+        {/* ── Footer: progress bar ── */}
         {showDeckProgressBars && deck.totalCards > 0 && (
-          <div className="px-4 pb-4 pt-3">
+          <div className="h-9 px-4 flex items-center">
             <DeckProgressBar
               newCount={deck.new_count ?? 0}
               learningCount={deck.learning_count ?? 0}
