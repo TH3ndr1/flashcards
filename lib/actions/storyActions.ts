@@ -131,6 +131,7 @@ export interface StoryWithDeck {
   primary_language: string;
   secondary_language: string | null;
   tags: string[];
+  watermark_type: string | null;
   story: Story | null;
 }
 
@@ -145,7 +146,7 @@ export async function getAllStoriesWithDecks(): Promise<ActionResult<StoryWithDe
     const [decksResult, storiesResult, tagsResult] = await Promise.all([
       supabase
         .from('decks')
-        .select('id, name, primary_language, secondary_language')
+        .select('id, name, primary_language, secondary_language, watermark_type')
         .eq('user_id', user.id)
         .order('name', { ascending: true }),
       supabase
@@ -188,6 +189,7 @@ export async function getAllStoriesWithDecks(): Promise<ActionResult<StoryWithDe
       primary_language: deck.primary_language ?? 'en',
       secondary_language: deck.secondary_language ?? null,
       tags: tagMap.get(deck.id) ?? [],
+      watermark_type: (deck as any).watermark_type ?? null,
       story: storyMap.get(deck.id) ?? null,
     }));
 

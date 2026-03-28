@@ -278,6 +278,7 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
         <SubjectWatermark
           title={deck.name}
           tags={deck.tags?.map(t => t.name)}
+          watermarkOverride={deck.watermark_type}
           methodType="flashcard"
         />
 

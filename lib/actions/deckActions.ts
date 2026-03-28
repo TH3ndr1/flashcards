@@ -14,6 +14,7 @@ export type DeckListItemWithCounts = {
     secondary_language: string | null;
     is_bilingual: boolean;
     updated_at: string;
+    watermark_type: string | null;
     new_count: number;
     learning_count: number;
     relearning_count: number;
@@ -39,6 +40,7 @@ interface GetDecksForManagementRpcResponse {
     is_bilingual: boolean;
     updated_at: string;
     status: 'active' | 'archived' | 'deleted';
+    watermark_type: string | null;
     new_count: number;
     learning_count: number;
     young_count: number;

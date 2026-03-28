@@ -116,6 +116,7 @@ function StoryCard({ item, onRead, onEdit, onDownloadPdf, isDownloadingPdf }: St
       <SubjectWatermark
         title={item.deck_name}
         tags={item.tags}
+        watermarkOverride={item.watermark_type}
         methodType="story"
       />
 

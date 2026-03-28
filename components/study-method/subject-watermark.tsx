@@ -226,12 +226,14 @@ const colorMap: Record<StudyMethodType, { light: string; dark: string }> = {
 export function SubjectWatermark({
   title,
   tags,
+  watermarkOverride,
   methodType,
   className,
   svgViewBox = "0 0 460 300",
 }: {
   title: string;
   tags?: string[];
+  watermarkOverride?: string | null;
   methodType: StudyMethodType;
   className?: string;
   svgViewBox?: string;
@@ -242,7 +244,10 @@ export function SubjectWatermark({
   const palette = colorMap[methodType] ?? colorMap.flashcard;
   const iconColor = isDark ? palette.dark : palette.light;
 
-  const category = getSubjectCategory({ title, tags });
+  // Use explicit override if set, otherwise auto-detect from title/tags
+  const category = watermarkOverride && SUBJECT_WATERMARK_DATA[watermarkOverride]
+    ? watermarkOverride
+    : getSubjectCategory({ title, tags });
   const data = SUBJECT_WATERMARK_DATA[category] ?? {
     transform: "translate(200, 150)",
     content: (color: string) => (
