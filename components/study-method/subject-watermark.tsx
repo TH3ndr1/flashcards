@@ -22,7 +22,7 @@ export const getSubjectCategory = (metadata: { title: string; tags?: string[] })
   if (combined.match(/art|painting|drawing|design|gallery|renaissance/)) return 'art';
   if (combined.match(/history|war|timeline|event|civilization/)) return 'history';
   if (combined.match(/literature|book|novel|poetry|writing/)) return 'literature';
-  if (combined.match(/language|english|spanish|french|japanese|kanji|grammar|vocabulary/)) return 'language';
+  if (combined.match(/language|english|spanish|french|dutch|german|japanese|kanji|grammar|vocabulary|\b(en|nl|fr|de|es|it|pt|ja|zh|ko|ar|ru)\b/)) return 'language';
   if (combined.match(/music|song|melody|instrument|guitar/)) return 'music';
   if (combined.match(/astronomy|space|stars|planet/)) return 'astronomy';
   if (combined.match(/sport|basketball|football|soccer|tennis|athletics|fitness|exercise/)) return 'sport';

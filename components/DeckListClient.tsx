@@ -39,7 +39,6 @@ import { StoryGenerateModal } from '@/components/story/StoryGenerateModal';
 import { useStoryStore } from '@/store/storyStore';
 import { getStoryForDeck } from '@/lib/actions/storyActions';
 import { SubjectWatermark } from '@/components/study-method/subject-watermark';
-import { Sliders } from 'lucide-react';
 
 // Type for TagInfo (if not already globally defined)
 interface TagInfo {
@@ -289,7 +288,11 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
           {/* Background subject watermark */}
           <SubjectWatermark
             title={deck.name}
-            tags={deck.tags?.map(t => t.name)}
+            tags={[
+              ...(deck.tags?.map(t => t.name) ?? []),
+              deck.primary_language,
+              deck.secondary_language,
+            ].filter((v): v is string => Boolean(v))}
             methodType="flashcard"
           />
           <div className="flex-1 min-w-0 space-y-1.5 relative z-10">
@@ -350,41 +353,7 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
           />
         </div>
 
-        {/* Method filter tabs */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
-            <Sliders className="w-4 h-4" />
-            Filter
-          </button>
-          <div className="flex gap-2 flex-wrap">
-            {([
-              { label: 'All Methods', href: null },
-              { label: 'Flashcards',  href: '/practice/decks' },
-              { label: 'Stories',     href: '/practice/stories' },
-              { label: 'Quizzes',     href: '/practice/quizzes' },
-              { label: 'Mind Maps',   href: '/practice/mindmaps' },
-              { label: 'Knowledge Graphs', href: '/practice/knowledge-graphs' },
-            ] as { label: string; href: string | null }[]).map((opt) => {
-              const isActive = opt.href === '/practice/decks' || opt.href === null;
-              return (
-                <button
-                  key={opt.label}
-                  onClick={() => opt.href && router.push(opt.href)}
-                  className={cn(
-                    'px-3 py-1.5 text-sm rounded-lg transition-colors',
-                    isActive
-                      ? 'bg-blue-100 text-blue-700 font-medium dark:bg-blue-500/20 dark:text-blue-400'
-                      : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-600'
-                  )}
-                >
-                  {opt.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Filter bar */}
+        {/* Filter bar with method tabs inline */}
         <DeckFilterBar
           availableLanguages={availableFilterLanguages}
           availableTags={availableFilterTags}
@@ -394,6 +363,34 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
           onLanguagesChange={setFilterLanguages}
           onTagsChange={setFilterTags}
           onDeckNameChange={setFilterName}
+          headerSlot={
+            <div className="flex gap-2 flex-wrap">
+              {([
+                { label: 'All Methods', href: null },
+                { label: 'Flashcards',  href: '/practice/decks' },
+                { label: 'Stories',     href: '/practice/stories' },
+                { label: 'Quizzes',     href: '/practice/quizzes' },
+                { label: 'Mind Maps',   href: '/practice/mindmaps' },
+                { label: 'Knowledge Graphs', href: '/practice/knowledge-graphs' },
+              ] as { label: string; href: string | null }[]).map((opt) => {
+                const isActive = opt.href === '/practice/decks' || opt.href === null;
+                return (
+                  <button
+                    key={opt.label}
+                    onClick={() => opt.href && router.push(opt.href)}
+                    className={cn(
+                      'px-3 py-1.5 text-sm rounded-lg transition-colors',
+                      isActive
+                        ? 'bg-blue-100 text-blue-700 font-medium dark:bg-blue-500/20 dark:text-blue-400'
+                        : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-600'
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          }
         />
 
         {/* UI Controls for grouping/sorting will be added to Settings page (Task X.S1) */}

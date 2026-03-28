@@ -36,6 +36,8 @@ export interface DeckFilterBarProps {
   onLanguagesChange: (langs: string[]) => void;
   onTagsChange: (tagIds: string[]) => void;
   onDeckNameChange: (name: string) => void;
+  /** Optional content rendered inline after the Filter button (e.g. method tabs) */
+  headerSlot?: React.ReactNode;
 }
 
 // ─── Reusable multi-select dropdown ──────────────────────────────────────────
@@ -128,6 +130,7 @@ export function DeckFilterBar({
   onLanguagesChange,
   onTagsChange,
   onDeckNameChange,
+  headerSlot,
 }: DeckFilterBarProps) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -158,7 +161,7 @@ export function DeckFilterBar({
   return (
     <div>
       {/* Toggle button — always visible, zero extra vertical space when closed */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <Button
           variant={hasActiveFilters ? 'secondary' : 'outline'}
           size="sm"
@@ -173,6 +176,9 @@ export function DeckFilterBar({
             </Badge>
           )}
         </Button>
+
+        {/* Method navigation tabs or other content passed from parent */}
+        {headerSlot}
 
         {/* Active chips inline with toggle so they don't take extra rows when panel is closed */}
         {!isOpen && hasActiveFilters && (
