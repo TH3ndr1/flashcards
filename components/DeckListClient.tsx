@@ -274,8 +274,19 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
           }
         }}
       >
+        {/* Background subject watermark — spans full card, clipped by card overflow-hidden */}
+        <SubjectWatermark
+          title={deck.name}
+          tags={[
+            ...(deck.tags?.map(t => t.name) ?? []),
+            deck.primary_language,
+            deck.secondary_language,
+          ].filter((v): v is string => Boolean(v))}
+          methodType="flashcard"
+        />
+
         {/* ── Header: white bg, icon + coloured title ── */}
-        <div className="px-4 py-3">
+        <div className="px-4 py-3 relative z-10">
           <div className="flex items-center gap-2">
             <FlashcardMethodIcon className={cn('w-4 h-4 flex-shrink-0', cfg.textColor)} />
             <h3 className={cn('text-sm font-semibold truncate', cfg.textColor)} title={deck.name}>
@@ -287,17 +298,7 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
         <div className={cn('h-px', cfg.bgSection)} />
 
         {/* ── Content: coloured bg, stats left + thumbnail right ── */}
-        <div className={cn('p-4 flex gap-4 relative overflow-hidden', cfg.bgSection)}>
-          {/* Background subject watermark */}
-          <SubjectWatermark
-            title={deck.name}
-            tags={[
-              ...(deck.tags?.map(t => t.name) ?? []),
-              deck.primary_language,
-              deck.secondary_language,
-            ].filter((v): v is string => Boolean(v))}
-            methodType="flashcard"
-          />
+        <div className={cn('p-4 flex gap-4', cfg.bgSection)}>
           <div className="flex-1 min-w-0 space-y-2 relative z-10">
             {languageDisplay && (
               <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-slate-400">
