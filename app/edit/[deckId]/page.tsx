@@ -321,6 +321,7 @@ export default function EditDeckPage() {
                     primaryLanguage={deck.primary_language}
                     secondaryLanguage={deck.secondary_language}
                     isBilingual={deck.is_bilingual}
+                    watermarkType={(deck as any).watermark_type ?? null}
                     onChange={handleDeckMetadataChange}
                     isSaving={isSavingMetadata}
                 />

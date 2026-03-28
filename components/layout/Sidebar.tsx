@@ -11,7 +11,7 @@ import {
   SheetDescription,
 } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils'; // Assuming you have a utility for classnames
+import { cn } from '@/lib/utils';
 import {
   Tooltip,
   TooltipProvider,
@@ -19,41 +19,50 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-  BookOpen,
   BarChart,
   User,
   Baby,
   Archive,
   Tags,
   Settings,
-  LayoutDashboard,
   List,
+  BookOpen,
   PlusCircle,
   PanelLeftClose,
   PanelLeftOpen,
   ClipboardCheck,
   LogOut,
-  ScrollText,
 } from 'lucide-react';
-import { type LucideProps } from 'lucide-react'; // Changed import for LucideProps
 import React from 'react';
-import { toast } from 'sonner';
+import {
+  FlashcardMethodIcon,
+  StoryMethodIcon,
+  QuizMethodIcon,
+  MindMapMethodIcon,
+  KnowledgeGraphMethodIcon,
+} from '@/components/study-method/study-method-config';
 
-// Define explicit types for navigation items
-type LucideIconComponent = React.ComponentType<LucideProps>; // Defined LucideIconComponent type
+// ─── Icon type ─────────────────────────────────────────────────────────────────
+// Permissive enough for both Lucide icons and our custom SVG icons,
+// while the render code only ever passes `className`.
+type IconComponent = React.ComponentType<{ className?: string; [key: string]: unknown }>;
+
+// ─── Nav item types ────────────────────────────────────────────────────────────
 
 type NavLink = {
   href: string;
   label: string;
-  icon: LucideIconComponent; // Used LucideIconComponent
-  id?: undefined; // Explicitly state id is not expected for link items
+  icon: IconComponent;
+  iconClass?: string; // optional per-item icon colour override
+  id?: undefined;
 };
 
 type NavButtonAction = {
-  id: 'create-deck'; // Specific ID for this button type
+  id: 'create-deck';
   label: string;
-  icon: LucideIconComponent; // Used LucideIconComponent
-  href?: undefined; // Explicitly state href is not expected for this button item
+  icon: IconComponent;
+  iconClass?: string;
+  href?: undefined;
 };
 
 type NavItemUnion = NavLink | NavButtonAction;
@@ -70,49 +79,80 @@ interface SidebarProps {
   onToggleCollapse: () => void;
 }
 
+// ─── Nav items ─────────────────────────────────────────────────────────────────
+
 const navItems: NavGroupDefinition[] = [
   {
-    group: 'Practice', // This is a top-level section
+    group: 'Study Methods',
     items: [
-      { href: '/practice/stories', label: 'Stories', icon: ScrollText },
-      // Assuming '/practice/decks' becomes the main view for practicing with decks
-      { href: '/practice/decks', label: 'Decks', icon: LayoutDashboard },
-      { href: '/practice/sets', label: 'Playlists', icon: List },
-      { href: '/practice/select', label: 'Custom', icon: BookOpen },
+      {
+        href: '/practice/decks',
+        label: 'Flashcards',
+        icon: FlashcardMethodIcon as IconComponent,
+        iconClass: 'text-pink-600 dark:text-pink-400',
+      },
+      {
+        href: '/practice/stories',
+        label: 'Stories',
+        icon: StoryMethodIcon as IconComponent,
+        iconClass: 'text-purple-600 dark:text-purple-400',
+      },
+      {
+        href: '/practice/quizzes',
+        label: 'Quizzes',
+        icon: QuizMethodIcon as IconComponent,
+        iconClass: 'text-blue-600 dark:text-blue-400',
+      },
+      {
+        href: '/practice/mindmaps',
+        label: 'Mind Maps',
+        icon: MindMapMethodIcon as IconComponent,
+        iconClass: 'text-emerald-600 dark:text-emerald-400',
+      },
+      {
+        href: '/practice/knowledge-graphs',
+        label: 'Knowledge Graphs',
+        icon: KnowledgeGraphMethodIcon as IconComponent,
+        iconClass: 'text-orange-600 dark:text-orange-400',
+      },
     ],
   },
   {
-    group: 'Test', // New top-level section for examinations
+    group: 'Practice',
     items: [
-      // Direct links to the placeholder pages
-      { href: '/test/examination', label: 'Examination', icon: ClipboardCheck },
-      { href: '/test/scores', label: 'Scores', icon: BarChart },
+      { href: '/practice/sets', label: 'Playlists', icon: List as IconComponent },
+      { href: '/practice/select', label: 'Custom', icon: BookOpen as IconComponent },
     ],
   },
   {
-    group: 'Manage', // New top-level section for content management
+    group: 'Test',
     items: [
-      { href: '/manage/decks', label: 'Content', icon: Archive }, // Links to table view
-      { href: '/manage/decks/new', label: 'Create New Deck', icon: PlusCircle }, // Or /decks/create-choice
-      { href: '/manage/tags', label: 'Tags', icon: Tags },
+      { href: '/test/examination', label: 'Examination', icon: ClipboardCheck as IconComponent },
+      { href: '/test/scores', label: 'Scores', icon: BarChart as IconComponent },
     ],
   },
   {
-    group: 'Application', // For settings, profile etc.
+    group: 'Manage',
     items: [
-      { href: '/settings', label: 'Settings', icon: Settings },
-      { href: '/profile', label: 'Profile', icon: User }, // Profile is usually via UserNavButton
+      { href: '/manage/decks', label: 'Content', icon: Archive as IconComponent },
+      { href: '/manage/decks/new', label: 'Create New Deck', icon: PlusCircle as IconComponent },
+      { href: '/manage/tags', label: 'Tags', icon: Tags as IconComponent },
+    ],
+  },
+  {
+    group: 'Application',
+    items: [
+      { href: '/settings', label: 'Settings', icon: Settings as IconComponent },
+      { href: '/profile', label: 'Profile', icon: User as IconComponent },
     ],
   },
 ];
 
-// Sign-out button — always visible so users can log out even in a phantom session.
-// Uses a hard navigation to /api/auth/signout (server-side route) so it works
-// even when the client-side auth state is broken and signOut() silently fails.
+// ─── Sign-out button ───────────────────────────────────────────────────────────
+
 const SignOutButton = ({ isCollapsed, onClick }: { isCollapsed: boolean; onClick?: () => void }) => {
   const handleSignOut = () => {
-    onClick?.(); // close mobile sheet first
-    // Hard navigation bypasses broken React/auth state entirely
+    onClick?.();
     window.location.href = '/api/auth/signout';
   };
 
@@ -141,7 +181,8 @@ const SignOutButton = ({ isCollapsed, onClick }: { isCollapsed: boolean; onClick
   );
 };
 
-// Memoize NavigationContent as it primarily depends on isCollapsed and navItems (which is constant)
+// ─── Navigation content ────────────────────────────────────────────────────────
+
 const NavigationContentInternal = ({ isCollapsed, onClose }: { isCollapsed: boolean; onClose?: () => void }) => {
   const pathname = usePathname();
   const { canAccessSettings, isChildMode } = useFeatureFlags();
@@ -150,65 +191,75 @@ const NavigationContentInternal = ({ isCollapsed, onClose }: { isCollapsed: bool
     <>
       <nav className="flex flex-col gap-4 py-4">
         {navItems.map((group) => (
-          <div key={group.group} className={cn("px-3", isCollapsed && "px-1")}>
-            {!isCollapsed && group.group && (
-              <h4 className="mb-1 rounded-md px-2 py-1 text-sm font-semibold text-muted-foreground">
+          <div key={group.group} className={cn('px-3', isCollapsed && 'px-1')}>
+            {!isCollapsed && (
+              <h4 className="mb-1 rounded-md px-2 py-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
                 {group.group}
               </h4>
             )}
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               {group.items
-                .filter((item: NavItemUnion) => {
-                  // Filter out settings link when child mode is active
-                  if ('href' in item && item.href === '/settings') {
-                    return canAccessSettings;
-                  }
+                .filter((item) => {
+                  if ('href' in item && item.href === '/settings') return canAccessSettings;
                   return true;
                 })
-                .map((item: NavItemUnion) => { // Added NavItemUnion type for item
-                if ('href' in item && typeof item.href === 'string') {
-                  // This is a NavLink item
+                .map((item) => {
+                  if (!('href' in item) || typeof item.href !== 'string') return null;
+
+                  const isActive = pathname === item.href ||
+                    // treat /practice/decks active for flashcard method pages
+                    (item.href === '/practice/decks' && pathname.startsWith('/practice/decks'));
+
+                  const label =
+                    item.href === '/profile' && isChildMode ? 'Child Profile' : item.label;
+
+                  const IconEl =
+                    item.href === '/profile' && isChildMode
+                      ? Baby
+                      : item.icon;
+
+                  // Determine icon colour: use per-item override, or active/default
+                  const iconColorClass = item.iconClass
+                    ? isActive ? item.iconClass : cn(item.iconClass, 'opacity-70')
+                    : cn('h-4 w-4');
+
                   return (
                     <Tooltip key={item.href}>
                       <TooltipTrigger asChild>
                         <Button
-                          variant={pathname === item.href ? 'secondary' : 'ghost'}
+                          variant={isActive ? 'secondary' : 'ghost'}
                           className={cn(
-                            "w-full justify-start",
-                            isCollapsed && "justify-center h-10"
+                            'w-full justify-start',
+                            isCollapsed && 'justify-center h-10',
                           )}
                           asChild
-                          onClick={onClose} // onClose for closing mobile sheet
+                          onClick={onClose}
                         >
-                          <Link href={item.href} aria-label={item.label}>
-                            {/* Use child icon for profile when child mode is active */}
-                            {item.href === '/profile' && isChildMode ? (
-                              <Baby className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
-                            ) : (
-                              <item.icon className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
-                            )}
-                            <span className={cn(isCollapsed && "hidden")}>
-                              {item.href === '/profile' && isChildMode ? 'Child Profile' : item.label}
-                            </span>
+                          <Link href={item.href} aria-label={label}>
+                            <IconEl
+                              className={cn(
+                                'h-4 w-4 flex-shrink-0',
+                                !isCollapsed && 'mr-2',
+                                iconColorClass,
+                              )}
+                            />
+                            <span className={cn(isCollapsed && 'hidden')}>{label}</span>
                           </Link>
                         </Button>
                       </TooltipTrigger>
                       {isCollapsed && (
                         <TooltipContent side="right">
-                          <p>{item.href === '/profile' && isChildMode ? 'Child Profile' : item.label}</p>
+                          <p>{label}</p>
                         </TooltipContent>
                       )}
                     </Tooltip>
                   );
-                }
-                return null; // Fallback for items that don't match (shouldn't happen with correct types)
-              })}
+                })}
             </div>
           </div>
         ))}
       </nav>
 
-      {/* Sign-out always at the bottom of the nav list */}
       <div className={cn('px-3 pb-2', isCollapsed && 'px-1')}>
         <SignOutButton isCollapsed={isCollapsed} onClick={onClose} />
       </div>
@@ -217,10 +268,12 @@ const NavigationContentInternal = ({ isCollapsed, onClose }: { isCollapsed: bool
 };
 const NavigationContent = React.memo(NavigationContentInternal);
 
+// ─── Sidebar shell ─────────────────────────────────────────────────────────────
+
 const SidebarInternal = ({ isOpen, onClose, isCollapsed, onToggleCollapse }: SidebarProps) => {
   return (
     <TooltipProvider>
-      {/* Mobile Sidebar using Sheet */}
+      {/* Mobile */}
       <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
         <SheetOverlay className="md:hidden" />
         <SheetContent side="left" className="w-64 p-0 md:hidden">
@@ -230,31 +283,31 @@ const SidebarInternal = ({ isOpen, onClose, isCollapsed, onToggleCollapse }: Sid
         </SheetContent>
       </Sheet>
 
-      {/* Desktop Sidebar - Now collapsible */}
-      <aside 
+      {/* Desktop collapsible */}
+      <aside
         className={cn(
-          "hidden md:fixed md:left-0 md:top-0 md:bottom-0 md:z-30 md:flex md:h-full md:flex-col md:border-r bg-background pt-16",
-          "transition-all duration-300 ease-in-out",
-          isCollapsed ? "md:w-20" : "md:w-64"
+          'hidden md:fixed md:left-0 md:top-0 md:bottom-0 md:z-30 md:flex md:h-full md:flex-col md:border-r bg-background pt-16',
+          'transition-all duration-300 ease-in-out',
+          isCollapsed ? 'md:w-20' : 'md:w-64',
         )}
       >
         <div className="flex-1 overflow-y-auto overflow-x-hidden">
-             <NavigationContent isCollapsed={isCollapsed} />
+          <NavigationContent isCollapsed={isCollapsed} />
         </div>
         <div className="mt-auto border-t p-2">
-           <Button 
-              variant="ghost" 
-              size="icon" 
-              className="w-full hidden md:block" 
-              onClick={onToggleCollapse}
-              aria-label={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-           >
-              {isCollapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
-           </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="w-full hidden md:block"
+            onClick={onToggleCollapse}
+            aria-label={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+          >
+            {isCollapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
+          </Button>
         </div>
       </aside>
     </TooltipProvider>
   );
 };
 
-export const Sidebar = React.memo(SidebarInternal); 
+export const Sidebar = React.memo(SidebarInternal);

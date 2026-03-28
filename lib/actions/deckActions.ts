@@ -14,6 +14,7 @@ export type DeckListItemWithCounts = {
     secondary_language: string | null;
     is_bilingual: boolean;
     updated_at: string;
+    watermark_type: string | null;
     new_count: number;
     learning_count: number;
     relearning_count: number;
@@ -39,6 +40,7 @@ interface GetDecksForManagementRpcResponse {
     is_bilingual: boolean;
     updated_at: string;
     status: 'active' | 'archived' | 'deleted';
+    watermark_type: string | null;
     new_count: number;
     learning_count: number;
     young_count: number;
@@ -288,6 +290,10 @@ export async function updateDeck(
         // For string fields that can be null in schema but undefined in DB update type
         dbUpdatePayload.primary_language = updatesFromSchema.primary_language === null ? undefined : updatesFromSchema.primary_language;
         dbUpdatePayload.secondary_language = updatesFromSchema.secondary_language === null ? undefined : updatesFromSchema.secondary_language;
+        // watermark_type: null means auto-detect, so we need to explicitly set it
+        if (updatesFromSchema.watermark_type !== undefined) {
+            (dbUpdatePayload as any).watermark_type = updatesFromSchema.watermark_type;
+        }
 
         // Remove any keys that are explicitly undefined to avoid sending them
         Object.keys(dbUpdatePayload).forEach(keyStr => {

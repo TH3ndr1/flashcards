@@ -52,6 +52,7 @@ interface MetadataState {
     primary_language?: string | null;
     secondary_language?: string | null;
     is_bilingual?: boolean | null;
+    watermark_type?: string | null;
 }
 
 /**
@@ -120,6 +121,7 @@ export function useEditDeck(deckId: string | undefined) {
                         primary_language: fetchedDeckForState.primary_language,
                         secondary_language: fetchedDeckForState.secondary_language,
                         is_bilingual: fetchedDeckForState.is_bilingual,
+                        watermark_type: (fetchedDeckForState as any).watermark_type ?? null,
                     };
                     isMountedRef.current = true;
                     appLogger.info("[useEditDeck] Initial deck loaded. Metadata ref set.", previousSavedMetadataRef.current);
@@ -217,6 +219,7 @@ export function useEditDeck(deckId: string | undefined) {
                primary_language: updates.primary_language ?? deck.primary_language,
                secondary_language: updates.secondary_language ?? deck.secondary_language,
                is_bilingual: updates.is_bilingual ?? deck.is_bilingual,
+               watermark_type: updates.watermark_type !== undefined ? updates.watermark_type : (deck as any).watermark_type,
             };
 
             let changed = false;
@@ -224,6 +227,7 @@ export function useEditDeck(deckId: string | undefined) {
             if (currentMetadataPayload.primary_language !== previousSavedMetadataRef.current.primary_language) changed = true;
             if (currentMetadataPayload.secondary_language !== previousSavedMetadataRef.current.secondary_language) changed = true;
             if (currentMetadataPayload.is_bilingual !== previousSavedMetadataRef.current.is_bilingual) changed = true;
+            if (currentMetadataPayload.watermark_type !== previousSavedMetadataRef.current.watermark_type) changed = true;
 
             if (changed) {
                 appLogger.info("[DEBUG] Change detected from initial/last save. Queuing debounced metadata save.");
@@ -232,6 +236,7 @@ export function useEditDeck(deckId: string | undefined) {
                     primary_language: currentMetadataPayload.primary_language ?? undefined,
                     secondary_language: currentMetadataPayload.secondary_language ?? undefined,
                     is_bilingual: currentMetadataPayload.is_bilingual ?? undefined,
+                    watermark_type: currentMetadataPayload.watermark_type,
                 };
                 debouncedSaveMetadata(deck.id, payloadToSave);
             } else {

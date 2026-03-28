@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { WatermarkSelector } from "@/components/study-method/watermark-selector";
 import type { Tables, Json } from "@/types/database"; // Make sure Json is imported if needed, though not directly used here
 
 type DbDeck = Tables<'decks'>;
@@ -16,8 +17,9 @@ interface DeckMetadataEditorProps {
     primaryLanguage: string | null;
     secondaryLanguage: string | null;
     isBilingual: boolean;
+    watermarkType: string | null;
     // The callback expects Partial<Pick<...>> which implies undefined for optional fields
-    onChange: (updates: Partial<Pick<DbDeck, 'name' | 'primary_language' | 'secondary_language' | 'is_bilingual'>>) => void;
+    onChange: (updates: Partial<Pick<DbDeck, 'name' | 'primary_language' | 'secondary_language' | 'is_bilingual' | 'watermark_type'>>) => void;
     isSaving?: boolean;
 }
 
@@ -26,6 +28,7 @@ export const DeckMetadataEditor = memo(({
     primaryLanguage,
     secondaryLanguage,
     isBilingual,
+    watermarkType,
     onChange,
     isSaving
 }: DeckMetadataEditorProps) => {
@@ -140,6 +143,18 @@ export const DeckMetadataEditor = memo(({
                         </Select>
                     </div>
                 )}
+            </div>
+
+            {/* Watermark Style Selector */}
+            <div>
+                <Label htmlFor="watermarkType">Card Watermark</Label>
+                <p className="text-sm text-muted-foreground mb-2">
+                    Choose a subject graphic for the card background
+                </p>
+                <WatermarkSelector
+                    value={watermarkType}
+                    onChange={(v) => onChange({ watermark_type: v })}
+                />
             </div>
         </div>
     );

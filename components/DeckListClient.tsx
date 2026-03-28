@@ -3,8 +3,12 @@
 
 import React, { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { PlusCircle, Loader2, BookOpen } from "lucide-react";
+import { PlusCircle, Loader2, Globe, Tag } from "lucide-react";
+import {
+  FlashcardMethodIcon,
+  MethodThumbnail,
+  STUDY_METHOD_CONFIG,
+} from '@/components/study-method/study-method-config';
 import { useRouter } from "next/navigation";
 import { useStudySessionStore } from '@/store/studySessionStore';
 import type { StudySessionInput, SessionType } from '@/types/study';
@@ -19,7 +23,7 @@ import { toast } from 'sonner';
 import { useDecksRealtime as useDecksHook } from "@/hooks/useDecksRealtime"; // Use real-time hook for cross-device sync
 import type { DeckListItemWithCounts } from "@/lib/actions/deckActions"; // Import from actions instead
 import { parseISO } from 'date-fns'; // For sorting by date
-import { ItemInfoBadges } from '@/components/ItemInfoBadges';
+// ItemInfoBadges replaced by inline layout in new card design
 import { DeckProgressLegend } from '@/components/deck/DeckProgressLegend';
 import { DeckFilterBar } from '@/components/DeckFilterBar';
 import { cn } from "@/lib/utils";
@@ -33,6 +37,7 @@ import { SrsToggle } from "@/components/ui/srs-toggle";
 import { StoryGenerateModal } from '@/components/story/StoryGenerateModal';
 import { useStoryStore } from '@/store/storyStore';
 import { getStoryForDeck } from '@/lib/actions/storyActions';
+import { SubjectWatermark } from '@/components/study-method/subject-watermark';
 
 // Type for TagInfo (if not already globally defined)
 interface TagInfo {
@@ -245,16 +250,21 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
   const renderDeckItem = (deck: ProcessedDeck) => {
     const learnEligible = deck.learn_eligible_count ?? 0;
     const reviewEligible = deck.review_eligible_count ?? 0;
-    const totalPracticeable = learnEligible + reviewEligible;
 
-    const cardClasses = cn(
-      "hover:shadow-md transition-shadow flex flex-col bg-gradient-to-b from-slate-100/40 dark:from-slate-800/40 to-transparent dark:border-slate-700 cursor-pointer"
-    );
+    const cfg = STUDY_METHOD_CONFIG.flashcard;
+    const languageDisplay = deck.is_bilingual
+      ? `${deck.primary_language ?? '?'} / ${deck.secondary_language ?? '?'}`
+      : (deck.primary_language ?? '?');
+    const tagNames = deck.tags?.map(t => t.name).slice(0, 3).join(', ');
 
     return (
-      <Card 
-        key={deck.id} 
-        className={cardClasses}
+      <div
+        key={deck.id}
+        className={cn(
+          'group relative rounded-lg border overflow-hidden transition-all duration-200 cursor-pointer',
+          'bg-white border-gray-200 hover:shadow-lg hover:border-gray-300',
+          'dark:bg-slate-800 dark:border-slate-700 dark:hover:shadow-[0_8px_16px_rgba(255,255,255,0.08)] dark:hover:border-slate-600'
+        )}
         onClick={() => handlePracticeDeck(deck.id, learnEligible, reviewEligible)}
         role="button"
         tabIndex={0}
@@ -264,31 +274,60 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
           }
         }}
       >
-        <CardHeader className="pt-4 pb-2 space-y-1 px-4">
-          <div className="flex justify-between items-start">
-            <CardTitle className="truncate text-lg font-medium mr-2" title={deck.name}>{deck.name}</CardTitle>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
-              onClick={(e) => handleStoryClick(e, { id: deck.id, name: deck.name })}
-              title="Read story"
-            >
-              <BookOpen className="h-4 w-4" />
-            </Button>
+        {/* Background subject watermark — spans full card, clipped by card overflow-hidden */}
+        <SubjectWatermark
+          title={deck.name}
+          tags={deck.tags?.map(t => t.name)}
+          watermarkOverride={deck.watermark_type}
+          methodType="flashcard"
+        />
+
+        {/* ── Header: white bg, icon + coloured title ── */}
+        <div className="px-4 py-3 relative z-10">
+          <div className="flex items-center gap-2">
+            <FlashcardMethodIcon className={cn('w-4 h-4 flex-shrink-0', cfg.textColor)} />
+            <h3 className={cn('text-sm font-semibold truncate', cfg.textColor)} title={deck.name}>
+              {deck.name}
+            </h3>
           </div>
-        </CardHeader>
+        </div>
+        {/* divider: uses content bg color for seamless transition */}
+        <div className={cn('h-px', cfg.bgSection)} />
+
+        {/* ── Content: coloured bg, stats left + thumbnail right ── */}
+        <div className={cn('p-4 flex gap-4', cfg.bgSection)}>
+          <div className="flex-1 min-w-0 space-y-2 relative z-10">
+            {languageDisplay && (
+              <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-slate-400">
+                <Globe className="w-3.5 h-3.5 flex-shrink-0" />
+                <span className="truncate">{languageDisplay}</span>
+              </div>
+            )}
+            {tagNames && (
+              <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-slate-400">
+                <Tag className="w-3.5 h-3.5 flex-shrink-0" />
+                <span className="truncate">{tagNames}</span>
+              </div>
+            )}
+            {deck.totalCards > 0 && (
+              <p className="text-xs font-medium text-gray-700 dark:text-slate-300">
+                {learnEligible + reviewEligible > 0
+                  ? `${learnEligible + reviewEligible} of ${deck.totalCards} due`
+                  : `${deck.totalCards} cards`}
+              </p>
+            )}
+          </div>
+          {/* Thumbnail: -mr-6 pushes past flex boundary → overflow-hidden clips the right edge */}
+          <div className="w-16 h-16 flex-shrink-0 relative -mr-6 z-10">
+            <div className="absolute right-0 top-0">
+              <MethodThumbnail type="flashcard" />
+            </div>
+          </div>
+        </div>
+
+        {/* ── Footer: white bg, progress bar ── */}
         {showDeckProgressBars && deck.totalCards > 0 && (
-          <CardContent className="px-4 pt-3 pb-4 bg-slate-50 dark:bg-slate-700/50 rounded-b-lg space-y-3">
-            <ItemInfoBadges 
-              primaryLanguage={deck.primary_language}
-              secondaryLanguage={deck.secondary_language}
-              isBilingual={deck.is_bilingual}
-              cardCount={deck.totalCards}
-              tags={deck.tags}
-              practiceableCount={totalPracticeable}
-            />
-            <Separator />
+          <div className="px-4 pb-4 pt-3">
             <DeckProgressBar
               newCount={deck.new_count ?? 0}
               learningCount={deck.learning_count ?? 0}
@@ -296,9 +335,9 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
               youngCount={deck.young_count ?? 0}
               matureCount={deck.mature_count ?? 0}
             />
-          </CardContent>
+          </div>
         )}
-      </Card>
+      </div>
     );
   }
   // --- End of renderDeckItem ---
@@ -367,7 +406,7 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
               </AccordionTrigger>
               <AccordionContent className="pt-4">
                 {dueDecks.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {dueDecks.map(renderDeckItem)}
                   </div>
                 ) : (
@@ -383,7 +422,7 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
               </AccordionTrigger>
               <AccordionContent className="pt-4">
                 {otherDecks.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {otherDecks.map(renderDeckItem)}
                   </div>
                 ) : (

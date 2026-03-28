@@ -130,6 +130,8 @@ export interface StoryWithDeck {
   deck_name: string;
   primary_language: string;
   secondary_language: string | null;
+  tags: string[];
+  watermark_type: string | null;
   story: Story | null;
 }
 
@@ -141,10 +143,10 @@ export async function getAllStoriesWithDecks(): Promise<ActionResult<StoryWithDe
       return { data: null, error: 'Not authenticated.' };
     }
 
-    const [decksResult, storiesResult] = await Promise.all([
+    const [decksResult, storiesResult, tagsResult] = await Promise.all([
       supabase
         .from('decks')
-        .select('id, name, primary_language, secondary_language')
+        .select('id, name, primary_language, secondary_language, watermark_type')
         .eq('user_id', user.id)
         .order('name', { ascending: true }),
       supabase
@@ -152,6 +154,10 @@ export async function getAllStoriesWithDecks(): Promise<ActionResult<StoryWithDe
         .select('*')
         .eq('user_id', user.id)
         .order('updated_at', { ascending: false }),
+      supabase
+        .from('deck_tags')
+        .select('deck_id, tags(name)')
+        .eq('user_id', user.id),
     ]);
 
     if (decksResult.error) {
@@ -166,11 +172,24 @@ export async function getAllStoriesWithDecks(): Promise<ActionResult<StoryWithDe
       }
     }
 
+    // Build map: deck_id → tag names
+    const tagMap = new Map<string, string[]>();
+    for (const row of (tagsResult.data ?? [])) {
+      const tagName = (row as any).tags?.name;
+      if (tagName) {
+        const existing = tagMap.get(row.deck_id) ?? [];
+        existing.push(tagName);
+        tagMap.set(row.deck_id, existing);
+      }
+    }
+
     const items: StoryWithDeck[] = (decksResult.data ?? []).map((deck) => ({
       deck_id: deck.id,
       deck_name: deck.name ?? '',
       primary_language: deck.primary_language ?? 'en',
       secondary_language: deck.secondary_language ?? null,
+      tags: tagMap.get(deck.id) ?? [],
+      watermark_type: (deck as any).watermark_type ?? null,
       story: storyMap.get(deck.id) ?? null,
     }));
 
