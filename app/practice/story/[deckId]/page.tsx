@@ -244,6 +244,14 @@ export default function StoryPage() {
 
   const ttsAbortRef = useRef(false);
 
+  // Stop TTS when navigating away from the page (unmount cleanup)
+  useEffect(() => {
+    return () => {
+      ttsAbortRef.current = true;
+      stop();
+    };
+  }, [stop]);
+
   const handleExportPdf = useCallback(async () => {
     if (!story || isExportingPdf) return;
     setIsExportingPdf(true);
