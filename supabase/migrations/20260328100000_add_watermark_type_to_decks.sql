@@ -41,8 +41,8 @@ RETURNS TABLE (
         COUNT(*) FILTER (WHERE c.srs_level = 2) AS relearning_count,
         COUNT(*) FILTER (WHERE c.srs_level = 3) AS young_count,
         COUNT(*) FILTER (WHERE c.srs_level = 4) AS mature_count,
-        COUNT(*) FILTER (WHERE c.srs_level = 0 OR (c.srs_level = 1 AND c.next_review_at <= now())) AS learn_eligible_count,
-        COUNT(*) FILTER (WHERE c.srs_level >= 2 AND c.next_review_at <= now()) AS review_eligible_count
+        COUNT(*) FILTER (WHERE c.srs_level = 0 OR (c.srs_level = 1 AND c.next_review_due <= now())) AS learn_eligible_count,
+        COUNT(*) FILTER (WHERE c.srs_level >= 2 AND c.next_review_due <= now()) AS review_eligible_count
     FROM decks d
     LEFT JOIN cards c ON c.deck_id = d.id
     WHERE d.user_id = p_user_id AND d.status = 'active'
@@ -90,8 +90,8 @@ RETURNS TABLE (
         COUNT(*) FILTER (WHERE c.srs_level = 2) AS relearning_count,
         COUNT(*) FILTER (WHERE c.srs_level = 3) AS young_count,
         COUNT(*) FILTER (WHERE c.srs_level = 4) AS mature_count,
-        COUNT(*) FILTER (WHERE c.srs_level = 0 OR (c.srs_level = 1 AND c.next_review_at <= now())) AS learn_eligible_count,
-        COUNT(*) FILTER (WHERE c.srs_level >= 2 AND c.next_review_at <= now()) AS review_eligible_count
+        COUNT(*) FILTER (WHERE c.srs_level = 0 OR (c.srs_level = 1 AND c.next_review_due <= now())) AS learn_eligible_count,
+        COUNT(*) FILTER (WHERE c.srs_level >= 2 AND c.next_review_due <= now()) AS review_eligible_count
     FROM decks d
     LEFT JOIN cards c ON c.deck_id = d.id
     WHERE d.user_id = p_user_id
