@@ -277,11 +277,7 @@ export function DeckListClient({}: DeckListClientProps) { // Removed initialData
         {/* Background subject watermark — spans full card, clipped by card overflow-hidden */}
         <SubjectWatermark
           title={deck.name}
-          tags={[
-            ...(deck.tags?.map(t => t.name) ?? []),
-            deck.primary_language,
-            deck.secondary_language,
-          ].filter((v): v is string => Boolean(v))}
+          tags={deck.tags?.map(t => t.name)}
           methodType="flashcard"
         />
 

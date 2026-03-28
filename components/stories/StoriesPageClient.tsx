@@ -115,7 +115,7 @@ function StoryCard({ item, onRead, onEdit, onDownloadPdf, isDownloadingPdf }: St
       {/* Background subject watermark — spans full card */}
       <SubjectWatermark
         title={item.deck_name}
-        tags={[item.primary_language, item.secondary_language].filter((v): v is string => Boolean(v))}
+        tags={item.tags}
         methodType="story"
       />
 
@@ -236,7 +236,7 @@ function EmptyDeckCard({ item, onGenerate }: { item: StoryWithDeck; onGenerate: 
       </div>
 
       {/* Footer */}
-      <div className="px-4 py-2.5">
+      <div className="px-4 pb-4 pt-3">
         <Button
           variant="ghost"
           size="sm"
@@ -271,7 +271,7 @@ function SkeletonCard() {
         </div>
         <Skeleton className="w-14 h-14 flex-shrink-0 rounded-lg" />
       </div>
-      <div className="px-4 py-2.5">
+      <div className="px-4 pb-4 pt-3">
         <Skeleton className="h-3 w-20" />
       </div>
     </div>

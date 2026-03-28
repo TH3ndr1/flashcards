@@ -34,8 +34,7 @@ export const getSubjectCategory = (metadata: { title: string; tags?: string[] })
   if (combined.match(/technical|engineering|technology|mechanical|electrical/)) return 'technical';
   if (combined.match(/legal|law|court|justice|attorney/)) return 'legal';
   if (combined.match(/religion|religious|theology|spiritual|faith/)) return 'religion';
-  // Language last — ISO codes like "en", "nl" are very short and would otherwise shadow specific subjects
-  if (combined.match(/language|english|spanish|french|dutch|german|japanese|kanji|grammar|vocabulary|\b(en|nl|fr|de|es|it|pt|ja|zh|ko|ar|ru)\b/)) return 'language';
+  if (combined.match(/language|english|spanish|french|dutch|german|japanese|kanji|grammar|vocabulary/)) return 'language';
 
   return 'general';
 };
