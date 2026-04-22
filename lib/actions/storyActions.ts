@@ -239,3 +239,35 @@ export async function getDeckCardsHash(deckId: string): Promise<ActionResult<str
     return { data: null, error: msg };
   }
 }
+
+/**
+ * Deletes all cached story rows for a deck (e.g. before replacing all cards so hashes stay consistent).
+ */
+export async function deleteStoriesForDeck(
+  deckId: string
+): Promise<ActionResult<{ deletedCount: number }>> {
+  try {
+    const supabase = createActionClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return { data: null, error: authError?.message || 'Not authenticated.' };
+    }
+
+    const { error, count } = await supabase
+      .from('stories')
+      .delete({ count: 'exact' })
+      .eq('deck_id', deckId)
+      .eq('user_id', user.id);
+
+    if (error) {
+      appLogger.error('[storyActions] deleteStoriesForDeck error:', error.message);
+      return { data: null, error: error.message };
+    }
+
+    return { data: { deletedCount: count ?? 0 }, error: null };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    appLogger.error('[storyActions] deleteStoriesForDeck unexpected error:', msg);
+    return { data: null, error: msg };
+  }
+}

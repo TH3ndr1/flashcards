@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "analyze": "ANALYZE=true next build",
-    "test": "jest --verbose",
+    "test": "jest --config jest.config.cjs --verbose",
     "lint": "next lint",
     "export:codebase": "bash scripts/export_codebase.sh"
   },

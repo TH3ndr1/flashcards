@@ -6,6 +6,8 @@ import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import type { ActionResult } from '@/lib/actions/types';
 import { appLogger, statusLogger } from '@/lib/logger';
+import { deleteStoriesForDeck } from '@/lib/actions/storyActions';
+import { MAX_IMPORT_CARDS } from '@/lib/flashcards-json';
 
 // isCalledFromDynamicRoute function remains unchanged (if still needed elsewhere)
 
@@ -341,7 +343,8 @@ export async function updateCard(
 // Batch Creation Action (already updated)
 export async function createCardsBatch(
     deckId: string,
-    cardsData: CreateCardInput[] // Expects array of objects matching the schema
+    cardsData: CreateCardInput[], // Expects array of objects matching the schema
+    options?: { skipRevalidate?: boolean }
 ): Promise<ActionResult<{ insertedCount: number }>> {
     appLogger.info(`[createCardsBatch] Action started for deckId: ${deckId}, batch size: ${cardsData?.length}`);
     if (!deckId) return { data: null, error: 'Deck ID is required.' };
@@ -434,12 +437,135 @@ export async function createCardsBatch(
 
         const insertedCount = cardsToInsert.length;
         appLogger.info(`[createCardsBatch] Success, Inserted Count: ${insertedCount}`);
-        revalidatePath(`/edit/${deckId}`);
+        if (!options?.skipRevalidate) {
+            revalidatePath(`/edit/${deckId}`);
+        }
         return { data: { insertedCount }, error: null };
 
     } catch (error) {
         appLogger.error('[createCardsBatch] Caught unexpected error:', error);
         return { data: null, error: error instanceof Error ? error.message : 'Unknown error creating cards in batch' };
+    }
+}
+
+const IMPORT_CHUNK_SIZE = 400;
+
+function revalidateDeckContentPaths(deckId: string): void {
+    revalidatePath(`/edit/${deckId}`);
+    revalidatePath('/');
+    revalidatePath('/practice/decks');
+    revalidatePath('/manage/decks');
+    revalidatePath('/study/select');
+}
+
+/**
+ * Removes every card in a deck for the current user. Does not revalidate; caller should.
+ */
+export async function deleteAllCardsInDeck(
+    deckId: string
+): Promise<ActionResult<{ deletedCount: number }>> {
+    appLogger.info(`[deleteAllCardsInDeck] Action started for deckId: ${deckId}`);
+    if (!deckId) return { data: null, error: 'Deck ID is required.' };
+
+    try {
+        const supabase = createActionClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+            return { data: null, error: authError?.message || 'Not authenticated' };
+        }
+
+        const { count: deckCount, error: deckCheckError } = await supabase
+            .from('decks')
+            .select('id', { count: 'exact', head: true })
+            .eq('id', deckId)
+            .eq('user_id', user.id)
+            .eq('status', 'active');
+
+        if (deckCheckError || !deckCount) {
+            return { data: null, error: 'Target deck not found or access denied.' };
+        }
+
+        const { error: deleteError, count } = await supabase
+            .from('cards')
+            .delete({ count: 'exact' })
+            .eq('deck_id', deckId)
+            .eq('user_id', user.id);
+
+        if (deleteError) {
+            appLogger.error('[deleteAllCardsInDeck] Delete error:', deleteError);
+            return { data: null, error: deleteError.message || 'Failed to delete cards.' };
+        }
+
+        return { data: { deletedCount: count ?? 0 }, error: null };
+    } catch (error) {
+        appLogger.error('[deleteAllCardsInDeck] Caught unexpected error:', error);
+        return { data: null, error: error instanceof Error ? error.message : 'Unknown error deleting cards' };
+    }
+}
+
+export type ImportCardsMode = 'append' | 'replace';
+
+/**
+ * Imports validated cards: append, or replace (delete all cards + clear story cache + re-insert).
+ * Revalidates list + edit paths once at the end.
+ */
+export async function importCardsToDeck(
+    deckId: string,
+    mode: ImportCardsMode,
+    cards: CreateCardInput[]
+): Promise<ActionResult<{ insertedCount: number }>> {
+    if (!deckId) return { data: null, error: 'Deck ID is required.' };
+    if (!cards) return { data: null, error: 'No card data provided.' };
+    if (cards.length > MAX_IMPORT_CARDS) {
+        return { data: null, error: `Too many cards (max ${MAX_IMPORT_CARDS}).` };
+    }
+    if (cards.length === 0) {
+        if (mode === 'replace') {
+            return { data: null, error: 'Cannot replace deck with an empty card list.' };
+        }
+        return { data: { insertedCount: 0 }, error: null };
+    }
+
+    const validated: CreateCardInput[] = [];
+    for (let i = 0; i < cards.length; i++) {
+        const v = createCardSchema.safeParse(cards[i]);
+        if (!v.success) {
+            const first = v.error.errors[0];
+            return {
+                data: null,
+                error: `Invalid card at index ${i + 1}: ${first?.message ?? 'validation failed'}.`,
+            };
+        }
+        validated.push(v.data);
+    }
+
+    try {
+        if (mode === 'replace') {
+            const storyDel = await deleteStoriesForDeck(deckId);
+            if (storyDel.error) {
+                return { data: null, error: storyDel.error };
+            }
+            const cardDel = await deleteAllCardsInDeck(deckId);
+            if (cardDel.error || !cardDel.data) {
+                return { data: null, error: cardDel.error ?? 'Failed to clear existing cards.' };
+            }
+        }
+
+        let totalInserted = 0;
+        for (let i = 0; i < validated.length; i += IMPORT_CHUNK_SIZE) {
+            const chunk = validated.slice(i, i + IMPORT_CHUNK_SIZE);
+            const batchRes = await createCardsBatch(deckId, chunk, { skipRevalidate: true });
+            if (batchRes.error || !batchRes.data) {
+                return { data: null, error: batchRes.error ?? 'Batch insert failed.' };
+            }
+            totalInserted += batchRes.data.insertedCount;
+        }
+
+        revalidateDeckContentPaths(deckId);
+        return { data: { insertedCount: totalInserted }, error: null };
+    } catch (error) {
+        appLogger.error('[importCardsToDeck] Caught unexpected error:', error);
+        return { data: null, error: error instanceof Error ? error.message : 'Unknown error importing cards' };
     }
 }
 

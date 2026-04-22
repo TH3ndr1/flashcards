@@ -1,4 +1,4 @@
-// jest.config.js
+// Jest config as .cjs so it loads when package.json has "type": "module"
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'jest-environment-jsdom',

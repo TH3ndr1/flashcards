@@ -326,6 +326,7 @@ export function ManageDecksClient({ initialDecks, fetchError }: ManageDecksClien
               secondary_language: result.data!.secondary_language,
               is_bilingual: result.data!.is_bilingual,
               updated_at: result.data!.updated_at || new Date().toISOString(),
+              watermark_type: result.data!.watermark_type ?? null,
               status: (result.data as Tables<'decks'>).status || 'active',
               new_count: 0, learning_count: 0, relearning_count: 0,
               young_count: 0, mature_count: 0,
