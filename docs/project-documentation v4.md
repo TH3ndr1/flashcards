@@ -161,6 +161,7 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
         *   Card status icons (e.g., for 'new' or 'relearning' cards) can be optionally included.
         *   The PDF includes page numbers ("Page X / Y") and a "Created by StudyCards on <date>" attribution (date on first page header, name in footer).
         *   A legend for card status icons is included in the footer.
+    *   **JSON import/export:** From the same page, the **Data** menu offers **Export JSON** and **Import JSON** (`app/edit/[deckId]/DeckJsonDataMenu.tsx`). Export writes a `flashcards-deck` v1 document (`lib/flashcards-json.ts`); import accepts legacy array JSON (e.g. AI download) or the wrapped format, and calls `importCardsToDeck` (`cardActions`) to append or replace cards. Replace mode runs `deleteStoriesForDeck` then `deleteAllCardsInDeck` before batch insert; paths are revalidated for home, manage, practice, and study select.
 *   **Card Management:** Create, view, edit, delete individual cards within the deck edit page (`/edit/[deckId]`, managed by `useEditDeck` hook calling `cardActions`).
 *   **Tag Management:**
     *   Create, view, delete user-specific global tags (`/tags` page via `TagManagerClient.tsx`, using `tagActions`).
@@ -231,7 +232,7 @@ Traditional flashcard methods and simpler apps often lack the flexibility, effic
 ### 4.5 Key User Interactions
 1.  **Deck Creation Flow (Manual):** Navigate `/decks/new` -> Choose 'Manual' -> Fill Form -> `POST /api/decks` -> Navigate `/edit/[deckId]`.
 2.  **Deck Creation Flow (AI):** Navigate `/prepare/ai-generate` (or via `/decks/new`) -> Upload -> `POST /api/extract-pdf` -> Review & Refine (optional `POST /api/process-ai-step2`) -> Name Deck -> `POST /api/decks` -> Navigate `/edit/[deckId]`.
-3.  **Deck Editing Flow (`/edit/[deckId]`):** Page uses `useEditDeck`. Metadata changes trigger debounced `deckActions.updateDeck`. Card changes trigger `cardActions`. Tag changes trigger `tagActions`.
+3.  **Deck Editing Flow (`/edit/[deckId]`):** Page uses `useEditDeck`. Metadata changes trigger debounced `deckActions.updateDeck`. Card changes trigger `cardActions`. Tag changes trigger `tagActions`. JSON import/export uses `DeckJsonDataMenu` and `importCardsToDeck` / `lib/flashcards-json.ts` (see Prepare Mode features).
 4.  Tag Management Flow (`/tags` page & `DeckTagEditor` on deck edit page).
 5.  Study Set Creation Flow (`/study/sets/new` using `StudySetBuilder`).
 6.  Study Session Initiation Flow (User selects content source & `SessionType`. `/practice/decks` "Practice (Unified)" button initiates 'unified'. `/practice/select` initiates 'learn-only' or 'review-only'. `/test/decks` or `/test/playlists` initiate 'examination').

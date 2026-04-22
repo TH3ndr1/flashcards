@@ -54,14 +54,21 @@ A modern flashcard application built with Next.js, Supabase, and Google Cloud Te
 - Progress tracking
 - Dark mode support
 - Responsive design
+- **Deck JSON import/export** (edit deck page): export cards as `flashcards-deck` JSON (compatible with the AI generate download format), or import JSON to **append** or **replace** cards (see [Functional logic](docs/functional-logic.md))
+
+## Testing
+
+- Run all Jest tests: `npm test` (uses [`jest.config.cjs`](jest.config.cjs) because the project has `"type": "module"`.)
+- The [`lib/flashcards-json` tests](lib/flashcards-json.test.ts) cover JSON parsing and export payload building. Some older `__tests__` suites may still fail if they reference removed modules; fix or remove those tests separately.
 
 ## Documentation
 
 Additional documentation can be found in the `docs` directory:
-- [Project Documentation](docs/project-documentation.md)
+- [Project documentation (v4)](docs/project-documentation%20v4.md)
+- [Functional logic](docs/functional-logic.md)
 - [Google API Integration](docs/google-api-integration.md)
 
-**Note:** The project is currently undergoing refactoring to improve code structure, maintainability, and documentation (TSDoc). See [Refactoring Plan](refactoring-plan.md) for details.
+**Note:** The project is currently undergoing refactoring to improve code structure, maintainability, and documentation (TSDoc). See [docs/refactoring_prd.md](docs/refactoring_prd.md) for context.
 
 ## Contributing
 

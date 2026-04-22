@@ -100,6 +100,7 @@ The app is conceptually divided into two main activities:
     *   It uses the user's selected card font, and supports optional word color coding and adjustable Q&A font size (configured in Settings).
     *   Optionally, icons indicating card status (new, relearning) can be included.
     *   The PDF features page numbers, a "Created by StudyCards on <date>" mark, and a legend for status icons.
+*   **JSON import/export (`Data` menu):** Export downloads a `flashcards-deck` v1 JSON file (aligned with the AI generate download shape). Import accepts a top-level JSON array or a wrapped object with a `cards` array; parsed rows map to `createCardsBatch` / `CreateCardInput` via `lib/flashcards-json.ts`. Users can **append** cards or **replace all** cards in the deck; replace deletes existing cards, clears cached stories for the deck (`deleteStoriesForDeck`, `deleteAllCardsInDeck`), then inserts in chunks via `importCardsToDeck`. File size and card-count limits are enforced client- and server-side. Shown only when edit functionality is allowed (e.g. not in child mode).
 
 ##### 2.1.1.4. Viewing Decks ("Your Decks" page - `/`)
 *   Uses `DeckListClient.tsx`. Data is fetched server-side by `app/page.tsx` using `deckActions.getDecksWithSrsCounts`.
